@@ -1,0 +1,31 @@
+[build]
+  functions = "netlify/functions"
+  command = "npm run build"
+  publish = "public"
+
+[build.environment]
+  NODE_VERSION = "22.14.0"
+
+[functions]
+  node_bundler = "esbuild"
+  included_files = ["src/**"]
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/webhooks/stripe"
+  to = "/.netlify/functions/stripe-webhook"
+  status = 200
+
+[[redirects]]
+  from = "/webhooks/google-play"
+  to = "/.netlify/functions/google-play-webhook"
+  status = 200
+
+[[redirects]]
+  from = "/webhooks/apple"
+  to = "/.netlify/functions/apple-webhook"
+  status = 200

@@ -1,0 +1,10 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Cloud saves use short-lived, entitlement-gated signed URLs from the API.
+    match /{object=**} {
+      allow read, write: if false;
+    }
+  }
+}

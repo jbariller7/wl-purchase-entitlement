@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "legacyKeys",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sheetTab", "order": "ASCENDING" },
+        { "fieldPath": "state", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

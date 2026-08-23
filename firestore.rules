@@ -1,0 +1,11 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Entitlements, provider events, checkout context, discounts and the outbox
+    // are server-owned. Clients use the authenticated API, never Firestore directly.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

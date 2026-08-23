@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.netlify/
+.firebase/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+service-account*.json
+firebase-adminsdk*.json
+public/*.map
