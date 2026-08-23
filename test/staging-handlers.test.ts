@@ -3,14 +3,25 @@ import type { HandlerEvent } from "@netlify/functions";
 
 vi.mock("../src/providers/apple/service.js", () => ({
   verifyAppleNotification: vi.fn(() => { throw new Error("Apple SDK must not be called while disabled."); }),
-  processAppleNotification: vi.fn()
+  processAppleNotification: vi.fn(),
+  claimAppleTransaction: vi.fn()
 }));
 vi.mock("../src/providers/google-play/rtdn.js", () => ({
   verifyPubSubAuthorization: vi.fn(() => { throw new Error("Google SDK must not be called while disabled."); }),
   parseRtdn: vi.fn(),
   processRtdn: vi.fn()
 }));
+vi.mock("../src/providers/google-play/service.js", () => ({
+  syncGooglePlayOneTimeProduct: vi.fn(),
+  syncGooglePlaySubscription: vi.fn()
+}));
+vi.mock("../src/infrastructure/firebase.js", () => ({
+  firebaseAuth: vi.fn(),
+  firebaseStorage: vi.fn(),
+  firestore: vi.fn()
+}));
 import { handler as appleHandler } from "../netlify/functions/apple-webhook.js";
+import { handler as apiHandler } from "../netlify/functions/api.js";
 import { handler as googlePlayHandler } from "../netlify/functions/google-play-webhook.js";
 import { handler as healthHandler } from "../netlify/functions/health.js";
 import { handler as outboxHandler } from "../netlify/functions/outbox-worker.js";
@@ -80,5 +91,18 @@ describe("staging function boundaries", () => {
     expect(body).toMatchObject({ status: "configuration_required", environment: "test", safeMode: true });
     expect(body.configuration).toMatchObject({ firebaseAdmin: false, stripeTest: false });
     expect(JSON.stringify(body)).not.toMatch(/PRIVATE_KEY|SECRET_KEY|ACCESS_TOKEN/);
+  });
+
+  it("returns a clean configuration gate while account dependencies are absent", async () => {
+    const response = await apiHandler({
+      ...event(),
+      rawUrl: "https://test.example.com/api/v1/config",
+      path: "/api/v1/config",
+      httpMethod: "GET"
+    }, {} as never);
+    expect(response).toMatchObject({ statusCode: 503 });
+    expect(JSON.parse(String(response?.body))).toEqual({
+      error: "Account testing is not configured yet. Finish the Firebase and Stripe test setup at /setup/."
+    });
   });
 });

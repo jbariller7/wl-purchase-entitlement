@@ -37,7 +37,10 @@ function clientIp(event: HandlerEvent): string | undefined {
 
 function withCors(event: HandlerEvent, response: HandlerResponse): HandlerResponse {
   const origin = event.headers.origin;
-  const allowed = new Set([env().PUBLIC_APP_ORIGIN, "https://www.wonderlang.net"]);
+  const allowed = new Set([
+    ...(process.env.PUBLIC_APP_ORIGIN ? [process.env.PUBLIC_APP_ORIGIN] : []),
+    "https://www.wonderlang.net"
+  ]);
   return {
     ...response,
     headers: {
@@ -54,15 +57,20 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const path = routePath(event);
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
   if (event.httpMethod === "GET" && path === "/v1/config") {
+    let runtime: ReturnType<typeof env>;
+    try { runtime = env(); }
+    catch {
+      throw new HttpError(503, "Account testing is not configured yet. Finish the Firebase and Stripe test setup at /setup/.");
+    }
     const catalog = await new CatalogService(firestore()).get();
     return json(200, {
-      environment: env().APP_ENVIRONMENT,
-      checkoutEnabled: env().STRIPE_MUTATIONS_ENABLED,
+      environment: runtime.APP_ENVIRONMENT,
+      checkoutEnabled: runtime.STRIPE_MUTATIONS_ENABLED,
       firebase: {
-        apiKey: env().FIREBASE_WEB_API_KEY,
-        authDomain: env().FIREBASE_AUTH_DOMAIN,
-        projectId: env().FIREBASE_PROJECT_ID,
-        storageBucket: env().FIREBASE_STORAGE_BUCKET
+        apiKey: runtime.FIREBASE_WEB_API_KEY,
+        authDomain: runtime.FIREBASE_AUTH_DOMAIN,
+        projectId: runtime.FIREBASE_PROJECT_ID,
+        storageBucket: runtime.FIREBASE_STORAGE_BUCKET
       },
       catalog: {
         revision: catalog.revision,
