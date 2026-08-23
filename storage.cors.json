@@ -1,6 +1,10 @@
 [
   {
-    "origin": ["https://wonderlang.net", "https://www.wonderlang.net"],
+    "origin": [
+      "https://wonderlang.net",
+      "https://www.wonderlang.net",
+      "https://wl-purchase-entitlement.netlify.app"
+    ],
     "method": ["GET", "PUT", "HEAD"],
     "responseHeader": ["Content-Type", "ETag", "x-goog-hash"],
     "maxAgeSeconds": 3600

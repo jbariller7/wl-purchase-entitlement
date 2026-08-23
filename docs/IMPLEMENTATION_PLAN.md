@@ -24,7 +24,7 @@
 1. Deploy `firestore.rules`, `storage.rules` and `firestore.indexes.json`.
 2. Configure Firebase service-account, Stripe, key inventory, MailerLite and ad secrets in Netlify. Use environment UI/secrets, never checked-in files.
 3. Build and deploy the functions and static widget.
-4. Apply `storage.cors.json` to the Firebase Storage bucket for the two WonderLang website origins.
+4. Apply `storage.cors.json` to the Firebase Storage bucket. It includes both WonderLang website origins and the isolated Netlify test origin; remove the Netlify origin from the production bucket after staging is retired.
 5. Smoke-test `/api/v1/config`; all other API endpoints must reject missing/revoked Firebase tokens.
 
 ## 3. Merge the current purchase automation safely

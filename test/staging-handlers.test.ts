@@ -32,7 +32,8 @@ const original = { ...process.env };
 const credentialKeys = [
   "FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY", "FIREBASE_STORAGE_BUCKET",
   "FIREBASE_WEB_API_KEY", "FIREBASE_AUTH_DOMAIN", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
-  "STRIPE_PRICE_MOBILE_MONTHLY", "STRIPE_PRICE_MOBILE_LIFETIME", "STRIPE_COUPON_LEGACY_DESKTOP_50"
+  "STRIPE_PRICE_MOBILE_MONTHLY", "STRIPE_PRICE_MOBILE_LIFETIME", "STRIPE_COUPON_LEGACY_DESKTOP_50",
+  "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PRIVATE_KEY", "GOOGLE_SHEET_ID", "MAILERLITE_API_TOKEN"
 ];
 
 function event(): HandlerEvent {
@@ -91,6 +92,24 @@ describe("staging function boundaries", () => {
     expect(body).toMatchObject({ status: "configuration_required", environment: "test", safeMode: true });
     expect(body.configuration).toMatchObject({ firebaseAdmin: false, stripeTest: false });
     expect(JSON.stringify(body)).not.toMatch(/PRIVATE_KEY|SECRET_KEY|ACCESS_TOKEN/);
+  });
+
+  it("detects copied legacy credentials without enabling fulfillment or outbox work", async () => {
+    Object.assign(process.env, {
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: "legacy-test@example.com",
+      GOOGLE_PRIVATE_KEY: "test-private-key",
+      GOOGLE_SHEET_ID: "test-sheet",
+      MAILERLITE_API_TOKEN: "test-mailerlite-token"
+    });
+    const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
+    const body = JSON.parse(String(health?.body));
+    expect(body).toMatchObject({
+      safeMode: true,
+      controls: { LEGACY_FULFILLMENT_ENABLED: false, OUTBOX_PROCESSING_ENABLED: false },
+      configuration: { legacyFulfillment: true }
+    });
+    const worker = await outboxHandler(event(), {} as never);
+    expect(JSON.parse(String(worker?.body))).toEqual({ processed: 0, failed: 0 });
   });
 
   it("returns a clean configuration gate while account dependencies are absent", async () => {
