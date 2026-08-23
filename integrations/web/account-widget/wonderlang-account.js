@@ -78,6 +78,13 @@ function cookie(name) {
   return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
 }
 
+function appleProvider() {
+  const provider = new OAuthProvider("apple.com");
+  provider.addScope("email");
+  provider.addScope("name");
+  return provider;
+}
+
 class WonderLangAccount extends HTMLElement {
   async connectedCallback() {
     this.innerHTML = html;
@@ -101,14 +108,14 @@ class WonderLangAccount extends HTMLElement {
 
   bind() {
     this.querySelector('[data-action="google"]').addEventListener("click", () => this.provider(new GoogleAuthProvider()));
-    this.querySelector('[data-action="apple"]').addEventListener("click", () => this.provider(new OAuthProvider("apple.com")));
+    this.querySelector('[data-action="apple"]').addEventListener("click", () => this.provider(appleProvider()));
     this.querySelector('[data-action="sign-out"]').addEventListener("click", () => signOut(this.auth));
     this.querySelector('[data-action="monthly"]').addEventListener("click", () => this.checkout("mobile_full_monthly", false));
     this.querySelector('[data-action="lifetime"]').addEventListener("click", () => this.checkout("mobile_full_lifetime", false));
     this.querySelector('[data-action="discounted-lifetime"]').addEventListener("click", () => this.checkout("mobile_full_lifetime", true));
     this.querySelector('[data-action="portal"]').addEventListener("click", () => this.openPortal());
     this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(new GoogleAuthProvider()));
-    this.querySelector('[data-action="link-apple"]').addEventListener("click", () => this.linkProvider(new OAuthProvider("apple.com")));
+    this.querySelector('[data-action="link-apple"]').addEventListener("click", () => this.linkProvider(appleProvider()));
     this.querySelector('[data-form="email"]').addEventListener("submit", (event) => this.emailLink(event));
     this.querySelector('[data-form="legacy"]').addEventListener("submit", (event) => this.claimLegacy(event));
   }

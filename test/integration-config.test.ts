@@ -20,4 +20,11 @@ describe("isolated integration configuration", () => {
     expect(example).toMatch(/^OUTBOX_PROCESSING_ENABLED=false$/m);
     expect(example).toMatch(/^LEGACY_FULFILLMENT_ENABLED=false$/m);
   });
+
+  it("requests the verified Apple identity fields used for secure account linking", () => {
+    const widget = read("integrations/web/account-widget/wonderlang-account.js");
+    expect(widget).toContain('new OAuthProvider("apple.com")');
+    expect(widget).toContain('provider.addScope("email")');
+    expect(widget).toContain('provider.addScope("name")');
+  });
 });
