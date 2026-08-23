@@ -14,4 +14,6 @@ return nativeOwned || accountOwned;
 
 Existing chapter and `wonderlangfull` purchases must still be queried/restored. The new storefront may stop selling chapter SKUs, but it must not stop honoring them.
 
+The Android bridge reports every backend-verified purchase through `_nativePurchaseVerified`, which immediately updates the cached entitlement and emits `wl-purchase-verification-complete`. Verification failures emit the same event with `{ ok: false }` so a duplicate paywall can always release its in-flight lock and remain retryable.
+
 Do not auto-restore a remote slot over a different local slot. Present the timestamps/revisions and ask the player which copy to keep when the backend returns HTTP 409.

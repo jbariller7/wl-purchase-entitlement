@@ -154,6 +154,25 @@
       waiters.forEach((resolve) => resolve(String(token || "")));
       if (token) refresh().catch((error) => console.warn("[WonderLang Account] Entitlement refresh failed.", error));
     },
+    _nativePurchaseVerified(payload) {
+      try {
+        const result = typeof payload === "string" ? JSON.parse(payload) : payload;
+        if (result?.entitlements) {
+          const account = current?.entitlements ? { ...current, entitlements: result.entitlements } : { entitlements: result.entitlements };
+          cache(account);
+          window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: result.entitlements }));
+        }
+        window.dispatchEvent(new CustomEvent("wl-purchase-verification-complete", { detail: { ok: true } }));
+        refresh().catch((error) => console.warn("[WonderLang Account] Post-purchase refresh failed.", error));
+      } catch (error) {
+        this._nativePurchaseFailed(error?.message || "The verified purchase response was invalid.");
+      }
+    },
+    _nativePurchaseFailed(message) {
+      const safeMessage = String(message || "Purchase verification failed.");
+      console.warn("[WonderLang Account] Purchase verification failed.", safeMessage);
+      window.dispatchEvent(new CustomEvent("wl-purchase-verification-complete", { detail: { ok: false, message: safeMessage } }));
+    },
     _nativeSignedOut() {
       current = null;
       localStorage.removeItem(cacheKey);

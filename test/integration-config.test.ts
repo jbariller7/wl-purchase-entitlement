@@ -27,4 +27,14 @@ describe("isolated integration configuration", () => {
     expect(widget).toContain('provider.addScope("email")');
     expect(widget).toContain('provider.addScope("name")');
   });
+
+  it("closes the native Play verification loop for both success and failure", () => {
+    const bridge = read("integrations/android/WonderLangAccountBridge.kt");
+    const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
+    for (const callback of ["_nativePurchaseVerified", "_nativePurchaseFailed"]) {
+      expect(bridge).toContain(callback);
+      expect(rmmz).toContain(callback);
+    }
+    expect(rmmz).toContain("wl-purchase-verification-complete");
+  });
 });

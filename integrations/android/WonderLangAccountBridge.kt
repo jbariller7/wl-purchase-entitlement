@@ -65,12 +65,17 @@ class WonderLangAccountBridge(
     /** Call for every PURCHASED Play callback and restore result; the server verifies and acknowledges. */
     fun claimGooglePlayPurchase(kind: String, productId: String, purchaseToken: String) {
         executor.execute {
-            val body = JSONObject()
-                .put("kind", kind)
-                .put("productId", productId)
-                .put("purchaseToken", purchaseToken)
-            val result = api("/api/v1/google-play/claim", "POST", body)
-            evaluate("window.WLAccountEntitlements?._nativePurchaseVerified?.(${JSONObject.quote(result.toString())})")
+            try {
+                val body = JSONObject()
+                    .put("kind", kind)
+                    .put("productId", productId)
+                    .put("purchaseToken", purchaseToken)
+                val result = api("/api/v1/google-play/claim", "POST", body)
+                evaluate("window.WLAccountEntitlements?._nativePurchaseVerified?.(${JSONObject.quote(result.toString())})")
+            } catch (error: Exception) {
+                val message = error.message?.take(500) ?: "Purchase verification failed"
+                evaluate("window.WLAccountEntitlements?._nativePurchaseFailed?.(${JSONObject.quote(message)})")
+            }
         }
     }
 
