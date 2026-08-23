@@ -21,6 +21,11 @@
   status = 200
 
 [[redirects]]
+  from = "/healthz"
+  to = "/.netlify/functions/health"
+  status = 200
+
+[[redirects]]
   from = "/webhooks/stripe"
   to = "/.netlify/functions/stripe-webhook"
   status = 200

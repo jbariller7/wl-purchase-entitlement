@@ -1,14 +1,21 @@
 import type { Handler } from "@netlify/functions";
-import { env } from "../../src/config/env.js";
-import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
-import { firestore } from "../../src/infrastructure/firebase.js";
-import { sha256 } from "../../src/infrastructure/ids.js";
-import { stripeClient } from "../../src/providers/stripe/client.js";
-import { processStripeEvent } from "../../src/providers/stripe/event-processor.js";
+import { deploymentControls, env } from "../../src/config/env.js";
 
 export const handler: Handler = async (request) => {
   if (request.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
-  if (!env().STRIPE_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Stripe webhook processing is disabled" };
+  if (!deploymentControls().STRIPE_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Stripe webhook processing is disabled" };
+  const [storeModule, firebaseModule, idsModule, stripeModule, processorModule] = await Promise.all([
+    import("../../src/infrastructure/entitlement-store.js"),
+    import("../../src/infrastructure/firebase.js"),
+    import("../../src/infrastructure/ids.js"),
+    import("../../src/providers/stripe/client.js"),
+    import("../../src/providers/stripe/event-processor.js")
+  ]);
+  const { EntitlementStore } = storeModule;
+  const { firestore } = firebaseModule;
+  const { sha256 } = idsModule;
+  const { stripeClient } = stripeModule;
+  const { processStripeEvent } = processorModule;
   const signature = request.headers["stripe-signature"];
   if (!signature || !request.body) return { statusCode: 400, body: "Missing Stripe signature or body" };
   const rawBody = request.isBase64Encoded

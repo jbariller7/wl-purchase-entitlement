@@ -1,16 +1,22 @@
 import type { Handler } from "@netlify/functions";
 import { z } from "zod";
-import { env } from "../../src/config/env.js";
-import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
-import { firestore } from "../../src/infrastructure/firebase.js";
-import { sha256 } from "../../src/infrastructure/ids.js";
-import { processAppleNotification, verifyAppleNotification } from "../../src/providers/apple/service.js";
+import { deploymentControls } from "../../src/config/env.js";
 
 const bodySchema = z.object({ signedPayload: z.string().min(20) });
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
-  if (!env().APPLE_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Apple webhook processing is disabled" };
+  if (!deploymentControls().APPLE_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Apple webhook processing is disabled" };
+  const [storeModule, firebaseModule, idsModule, appleModule] = await Promise.all([
+    import("../../src/infrastructure/entitlement-store.js"),
+    import("../../src/infrastructure/firebase.js"),
+    import("../../src/infrastructure/ids.js"),
+    import("../../src/providers/apple/service.js")
+  ]);
+  const { EntitlementStore } = storeModule;
+  const { firestore } = firebaseModule;
+  const { sha256 } = idsModule;
+  const { processAppleNotification, verifyAppleNotification } = appleModule;
   const parsedBody = bodySchema.safeParse(JSON.parse(event.body ?? "{}"));
   if (!parsedBody.success) return { statusCode: 400, body: "Malformed notification" };
   let verified;

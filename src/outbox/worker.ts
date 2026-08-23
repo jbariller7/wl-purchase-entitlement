@@ -5,25 +5,25 @@ import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { firestore } from "../infrastructure/firebase.js";
 import { LegacyKeyFulfillmentService } from "../legacy/key-fulfillment.js";
 import { stripeClient } from "../providers/stripe/client.js";
-import { env } from "../config/env.js";
+import { deploymentControls } from "../config/env.js";
 
 async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<string, unknown> | undefined> {
   switch (job.kind) {
     case "meta_conversion":
-      if (!env().AD_CONVERSIONS_ENABLED) throw new Error("Ad conversion delivery is disabled.");
+      if (!deploymentControls().AD_CONVERSIONS_ENABLED) throw new Error("Ad conversion delivery is disabled.");
       await sendMetaConversion(job.payload);
       return;
     case "tiktok_conversion":
-      if (!env().AD_CONVERSIONS_ENABLED) throw new Error("Ad conversion delivery is disabled.");
+      if (!deploymentControls().AD_CONVERSIONS_ENABLED) throw new Error("Ad conversion delivery is disabled.");
       await sendTikTokConversion(job.payload);
       return;
     case "fulfill_legacy_order": {
-      if (!env().LEGACY_FULFILLMENT_ENABLED) throw new Error("Legacy purchase fulfillment is disabled.");
+      if (!deploymentControls().LEGACY_FULFILLMENT_ENABLED) throw new Error("Legacy purchase fulfillment is disabled.");
       const { sheetTab, ...order } = job.payload as unknown as LegacyOrder & { sheetTab: string };
       return new LegacyKeyFulfillmentService(firestore()).fulfill(order, sheetTab, new Date());
     }
     case "cancel_stripe_subscription": {
-      if (!env().SUBSCRIPTION_CANCELLATION_ENABLED) throw new Error("Automatic Stripe subscription cancellation is disabled.");
+      if (!deploymentControls().SUBSCRIPTION_CANCELLATION_ENABLED) throw new Error("Automatic Stripe subscription cancellation is disabled.");
       const uid = String(job.payload.uid ?? "");
       const subscriptionId = String(job.payload.subscriptionId ?? "");
       const effective = await store.effectiveEntitlements(uid, new Date());
@@ -51,7 +51,7 @@ async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<
 }
 
 export async function runOutboxWorker(limit = 20): Promise<{ processed: number; failed: number }> {
-  if (!env().OUTBOX_PROCESSING_ENABLED) return { processed: 0, failed: 0 };
+  if (!deploymentControls().OUTBOX_PROCESSING_ENABLED) return { processed: 0, failed: 0 };
   const store = new EntitlementStore(firestore());
   const workerId = randomUUID();
   const jobs = await store.leaseOutboxJobs(workerId, new Date(), limit);

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const disabledByDefault = z.enum(["true", "false"]).default("false").transform((value) => value === "true");
 
-const schema = z.object({
+const controlsSchema = z.object({
   APP_ENVIRONMENT: z.enum(["test", "production"]).default("test"),
   STRIPE_WEBHOOKS_ENABLED: disabledByDefault,
   GOOGLE_PLAY_WEBHOOKS_ENABLED: disabledByDefault,
@@ -11,7 +11,10 @@ const schema = z.object({
   AD_CONVERSIONS_ENABLED: disabledByDefault,
   LEGACY_FULFILLMENT_ENABLED: disabledByDefault,
   SUBSCRIPTION_CANCELLATION_ENABLED: disabledByDefault,
-  STRIPE_MUTATIONS_ENABLED: disabledByDefault,
+  STRIPE_MUTATIONS_ENABLED: disabledByDefault
+});
+
+const schema = controlsSchema.extend({
   FIREBASE_PROJECT_ID: z.string().min(1),
   FIREBASE_CLIENT_EMAIL: z.string().email(),
   FIREBASE_PRIVATE_KEY: z.string().min(1),
@@ -51,7 +54,21 @@ const schema = z.object({
 });
 
 export type Environment = z.infer<typeof schema>;
+export type DeploymentControls = z.infer<typeof controlsSchema>;
 let cached: Environment | undefined;
+let cachedControls: DeploymentControls | undefined;
+
+export function deploymentControls(): DeploymentControls {
+  if (!cachedControls) {
+    const parsed = controlsSchema.safeParse(process.env);
+    if (!parsed.success) {
+      const names = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+      throw new Error(`Missing or invalid deployment controls: ${names}`);
+    }
+    cachedControls = parsed.data;
+  }
+  return cachedControls;
+}
 
 export function env(): Environment {
   if (!cached) {
@@ -78,4 +95,5 @@ export function env(): Environment {
 
 export function resetEnvironmentForTests(): void {
   cached = undefined;
+  cachedControls = undefined;
 }

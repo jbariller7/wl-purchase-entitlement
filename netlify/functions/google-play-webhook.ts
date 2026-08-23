@@ -1,13 +1,19 @@
 import type { Handler } from "@netlify/functions";
-import { env } from "../../src/config/env.js";
-import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
-import { firestore } from "../../src/infrastructure/firebase.js";
-import { sha256 } from "../../src/infrastructure/ids.js";
-import { parseRtdn, processRtdn, verifyPubSubAuthorization } from "../../src/providers/google-play/rtdn.js";
+import { deploymentControls } from "../../src/config/env.js";
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
-  if (!env().GOOGLE_PLAY_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Google Play webhook processing is disabled" };
+  if (!deploymentControls().GOOGLE_PLAY_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Google Play webhook processing is disabled" };
+  const [storeModule, firebaseModule, idsModule, rtdnModule] = await Promise.all([
+    import("../../src/infrastructure/entitlement-store.js"),
+    import("../../src/infrastructure/firebase.js"),
+    import("../../src/infrastructure/ids.js"),
+    import("../../src/providers/google-play/rtdn.js")
+  ]);
+  const { EntitlementStore } = storeModule;
+  const { firestore } = firebaseModule;
+  const { sha256 } = idsModule;
+  const { parseRtdn, processRtdn, verifyPubSubAuthorization } = rtdnModule;
   try { await verifyPubSubAuthorization(event.headers.authorization); }
   catch (error) {
     console.warn("Rejected Google Play RTDN authorization", error);

@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import { CatalogService } from "../../catalog/service.js";
-import { env } from "../../config/env.js";
+import { deploymentControls, env } from "../../config/env.js";
 import { checkoutAdDecision, stripeInvoiceAdDecision, type AdConversionName } from "../../domain/ad-policy.js";
 import type { LedgerGrant, LegacyOrder } from "../../domain/model.js";
 import { normalizeStripeSubscriptionState, stripeGraceEndsAt } from "../../domain/subscription.js";
@@ -113,6 +113,7 @@ async function enqueueAdConversion(input: {
   product: string;
   context?: Record<string, unknown>;
 }): Promise<void> {
+  if (!deploymentControls().AD_CONVERSIONS_ENABLED) return;
   const payload = {
     eventName: input.eventName,
     eventId: input.eventSourceId,
