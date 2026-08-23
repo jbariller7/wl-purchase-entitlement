@@ -153,6 +153,11 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
 .modal-backdrop { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; padding: 24px; background: #102019b8; backdrop-filter: blur(6px); }
 .confirm-modal { width: min(560px, 100%); padding: 12px; border-radius: 18px; background: #fff; box-shadow: 0 25px 90px #0006; }
 .confirm-modal .confirmation { margin: 0 0 12px; }
+.form-modal { max-height: min(760px, calc(100vh - 48px)); overflow: auto; padding: 0; }
+.dialog-header { padding: 24px 24px 0; }
+.dialog-header h3 { margin: 0; font: 600 25px Georgia, serif; }
+.dialog-header p:last-child { margin: 8px 0 0; color: var(--muted); line-height: 1.5; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
 .empty-view { display: grid; min-height: 520px; place-items: center; align-content: center; text-align: center; }
 .empty-view h2 { margin: 0; font: 500 48px/1 Georgia, serif; }
 .empty-view > p:not(.section-kicker) { max-width: 460px; color: var(--muted); }

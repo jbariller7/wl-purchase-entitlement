@@ -37,4 +37,12 @@ describe("isolated integration configuration", () => {
     }
     expect(rmmz).toContain("wl-purchase-verification-complete");
   });
+
+  it("uses accessible in-console forms instead of blocking prompt dialogs", () => {
+    const admin = read("integrations/web/admin-console/admin.js");
+    expect(admin).not.toMatch(/\bprompt\s*\(/);
+    expect(admin).toContain('role="dialog"');
+    expect(admin).toContain('aria-modal="true"');
+    expect(admin).toContain("state.notice");
+  });
 });

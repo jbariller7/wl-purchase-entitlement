@@ -7,7 +7,7 @@ import "./admin.css";
 
 const appNode = document.querySelector("#app");
 const demo = ["localhost", "127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
-const state = { auth: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, previews: {} };
+const state = { auth: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, previews: {}, notice: null };
 
 const demoOverview = {
   metrics: { activeSubscriptions: 184, lifetimeCustomers: 327, graceSubscriptions: 6, failedOperations: 3 },
@@ -165,6 +165,11 @@ async function loadView(view) {
     else if (["billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
     const content = view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports() : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
     appNode.innerHTML = shell(content); bindShell(); bindView();
+    if (state.notice) {
+      const notice = state.notice;
+      state.notice = null;
+      toast(notice.message, notice.error);
+    }
   } catch (error) { appNode.innerHTML = shell(`<section class="error-state"><h2>Could not load ${escapeHtml(views[view])}</h2><p>${escapeHtml(error.message)}</p><button class="button secondary" data-view="overview">Return to overview</button></section>`); bindShell(); toast(error.message, true); }
 }
 
@@ -173,21 +178,67 @@ function bindShell() {
   document.querySelector(".mobile-menu")?.addEventListener("click", () => document.querySelector(".side-nav")?.classList.toggle("open"));
   document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => loadView(b.dataset.view)));
 }
-function reason(message) { const value = prompt(message); if (value === null) return null; if (value.trim().length < 10) { toast("Please enter a reason of at least ten characters.", true); return null; } return value.trim(); }
-async function mutate(path, body, success) { try { await api(path, { method: "POST", body }); toast(success); return true; } catch (error) { toast(error.message, true); return false; } }
+
+function formDialog({ title, copy, fields, confirmText, danger = false }) {
+  return new Promise((resolve) => {
+    const holder = document.createElement("div");
+    const titleId = `dialog-${crypto.randomUUID()}`;
+    holder.className = "modal-backdrop";
+    holder.innerHTML = `<section class="confirm-modal form-modal" role="dialog" aria-modal="true" aria-labelledby="${titleId}">
+      <header class="dialog-header"><div><p class="section-kicker">REVIEW REQUIRED</p><h3 id="${titleId}">${escapeHtml(title)}</h3><p>${escapeHtml(copy)}</p></div></header>
+      <form class="stack-form">${fields}<div class="dialog-actions"><button type="button" class="button secondary" data-close>Cancel</button><button class="button ${danger ? "danger" : "primary"}">${escapeHtml(confirmText)}</button></div></form>
+    </section>`;
+    let settled = false;
+    const close = (value) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeydown);
+      holder.remove();
+      resolve(value);
+    };
+    const onKeydown = (event) => { if (event.key === "Escape") close(null); };
+    holder.querySelector("[data-close]").addEventListener("click", () => close(null));
+    holder.querySelector("form").addEventListener("submit", (event) => { event.preventDefault(); close(new FormData(event.currentTarget)); });
+    document.addEventListener("keydown", onKeydown);
+    document.body.append(holder);
+    holder.querySelector("input, select, textarea")?.focus();
+  });
+}
+
+async function reason(message) {
+  const data = await formDialog({
+    title: "Record an audit reason",
+    copy: message,
+    fields: '<label>Reason<textarea name="reason" minlength="10" maxlength="500" required placeholder="Explain why this action is authorized."></textarea></label>',
+    confirmText: "Continue",
+    danger: true
+  });
+  return data ? String(data.get("reason")).trim() : null;
+}
+async function mutate(path, body, success) {
+  try {
+    await api(path, { method: "POST", body });
+    state.notice = { message: success, error: false };
+    return true;
+  } catch (error) {
+    state.notice = null;
+    toast(error.message, true);
+    return false;
+  }
+}
 
 function bindView() {
   document.querySelector("#customer-search")?.addEventListener("submit", async (event) => { event.preventDefault(); const q = new FormData(event.currentTarget).get("q"); try { state.customer = await api(`/admin-api/v1/customers/search?q=${encodeURIComponent(q)}`); await loadView("customers"); } catch (error) { toast(error.message, true); } });
   document.querySelector("#grant-form")?.addEventListener("submit", async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); const body = { product: f.get("product"), reason: f.get("reason"), ...(f.get("endsAt") ? { endsAt: new Date(f.get("endsAt")).toISOString() } : {}) }; if (await mutate(`/admin-api/v1/customers/${state.customer.user.uid}/grants`, body, "Access granted.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } });
-  document.querySelectorAll("[data-revoke-grant]").forEach((b) => b.addEventListener("click", async () => { const r = reason("Why are you revoking this manual grant?"); if (r && await mutate(`/admin-api/v1/grants/${b.dataset.revokeGrant}/revoke`, { reason: r }, "Grant revoked.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }));
-  document.querySelectorAll("[data-customer-action]").forEach((b) => b.addEventListener("click", async () => { const r = reason(b.dataset.customerAction === "sessions" ? "Why are you revoking all sessions?" : `Why are you ${state.customer.user.disabled ? "enabling" : "disabling"} this account?`); if (!r) return; const path = b.dataset.customerAction === "sessions" ? "revoke-sessions" : "access"; const body = b.dataset.customerAction === "sessions" ? { reason: r } : { reason: r, disabled: !state.customer.user.disabled }; if (await mutate(`/admin-api/v1/customers/${state.customer.user.uid}/${path}`, body, "Account security updated.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }));
+  document.querySelectorAll("[data-revoke-grant]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why are you revoking this manual grant?"); if (r && await mutate(`/admin-api/v1/grants/${b.dataset.revokeGrant}/revoke`, { reason: r }, "Grant revoked.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }));
+  document.querySelectorAll("[data-customer-action]").forEach((b) => b.addEventListener("click", async () => { const r = await reason(b.dataset.customerAction === "sessions" ? "Why are you revoking all sessions?" : `Why are you ${state.customer.user.disabled ? "enabling" : "disabling"} this account?`); if (!r) return; const path = b.dataset.customerAction === "sessions" ? "revoke-sessions" : "access"; const body = b.dataset.customerAction === "sessions" ? { reason: r } : { reason: r, disabled: !state.customer.user.disabled }; if (await mutate(`/admin-api/v1/customers/${state.customer.user.uid}/${path}`, body, "Account security updated.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }));
   document.querySelectorAll("[data-refund]").forEach((b) => b.addEventListener("click", () => refundFlow(b)));
   document.querySelector("#price-form")?.addEventListener("submit", priceFlow);
   document.querySelector("#import-form")?.addEventListener("submit", importFlow);
   document.querySelector("#import-file")?.addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) document.querySelector('[name="csv"]').value = await file.text(); });
   document.querySelector('[data-action="download-template"]')?.addEventListener("click", downloadTemplate);
-  document.querySelectorAll("[data-retry-job]").forEach((b) => b.addEventListener("click", async () => { const r = reason("Why should this terminal job be retried?"); if (r && await mutate(`/admin-api/v1/outbox/${b.dataset.retryJob}/retry`, { reason: r }, "Job queued for retry.")) loadView("operations"); }));
-  document.querySelectorAll("[data-release-event]").forEach((b) => b.addEventListener("click", async () => { const r = reason("Why should this event be released for provider redelivery?"); if (r && await mutate(`/admin-api/v1/provider-events/${b.dataset.releaseEvent}/release`, { reason: r }, "Event released.")) loadView("operations"); }));
+  document.querySelectorAll("[data-retry-job]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this terminal job be retried?"); if (r && await mutate(`/admin-api/v1/outbox/${b.dataset.retryJob}/retry`, { reason: r }, "Job queued for retry.")) loadView("operations"); }));
+  document.querySelectorAll("[data-release-event]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this event be released for provider redelivery?"); if (r && await mutate(`/admin-api/v1/provider-events/${b.dataset.releaseEvent}/release`, { reason: r }, "Event released.")) loadView("operations"); }));
 }
 
 async function priceFlow(event) {
@@ -195,9 +246,22 @@ async function priceFlow(event) {
   try { const p = await api("/admin-api/v1/catalog/price-preview", { method: "POST", body: { kind: f.get("kind"), unitAmount: amount, currency: String(f.get("currency")).toUpperCase() } }); state.previews.price = p; document.querySelector("#price-preview").innerHTML = confirmPanel("Price preview", p.warning, p.confirmationPhrase, "confirm-price"); document.querySelector("#confirm-price").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/catalog/price-commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Price changed for new checkouts.")) loadView("billing"); }); } catch (error) { toast(error.message, true); }
 }
 async function refundFlow(button) {
-  const amountText = prompt(`Refund amount in ${button.dataset.currency} (leave blank for all refundable funds):`, (Number(button.dataset.amount) / 100).toFixed(2)); if (amountText === null) return;
-  const note = reason("Refund audit note (at least ten characters):"); if (!note) return;
-  try { const p = await api("/admin-api/v1/refunds/preview", { method: "POST", body: { uid: state.customer.user.uid, paymentIntentId: button.dataset.refund, ...(amountText.trim() ? { amount: Math.round(Number(amountText) * 100) } : {}), reason: "requested_by_customer", note } }); const holder = document.createElement("div"); holder.className = "modal-backdrop"; holder.innerHTML = `<div class="confirm-modal">${confirmPanel("Refund preview", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-refund")}<button class="button secondary" data-close>Cancel</button></div>`; document.body.append(holder); holder.querySelector("[data-close]").addEventListener("click", () => holder.remove()); holder.querySelector("#confirm-refund").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/refunds/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Refund submitted to Stripe.")) { holder.remove(); state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }); } catch (error) { toast(error.message, true); }
+  const currency = escapeHtml(button.dataset.currency || "USD");
+  const maximum = (Number(button.dataset.amount) / 100).toFixed(2);
+  const data = await formDialog({
+    title: "Prepare a Stripe refund",
+    copy: `Review the amount and reason. The maximum shown is ${maximum} ${button.dataset.currency || "USD"}; leave amount blank to refund all remaining funds.`,
+    fields: `<label>Amount (${currency})<input name="amount" type="number" inputmode="decimal" min="0.01" max="${maximum}" step="0.01" placeholder="All remaining funds"></label>
+      <label>Stripe reason<select name="reason"><option value="requested_by_customer">Requested by customer</option><option value="duplicate">Duplicate</option><option value="fraudulent">Fraudulent</option></select></label>
+      <label>Audit note<textarea name="note" minlength="10" maxlength="500" required placeholder="Explain why this refund is authorized."></textarea></label>`,
+    confirmText: "Preview refund",
+    danger: true
+  });
+  if (!data) return;
+  const amountText = String(data.get("amount") || "").trim();
+  const note = String(data.get("note") || "").trim();
+  const refundReason = String(data.get("reason") || "requested_by_customer");
+  try { const p = await api("/admin-api/v1/refunds/preview", { method: "POST", body: { uid: state.customer.user.uid, paymentIntentId: button.dataset.refund, ...(amountText ? { amount: Math.round(Number(amountText) * 100) } : {}), reason: refundReason, note } }); const holder = document.createElement("div"); holder.className = "modal-backdrop"; holder.innerHTML = `<div class="confirm-modal">${confirmPanel("Refund preview", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-refund")}<button class="button secondary" data-close>Cancel</button></div>`; document.body.append(holder); holder.querySelector("[data-close]").addEventListener("click", () => holder.remove()); holder.querySelector("#confirm-refund").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/refunds/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Refund submitted to Stripe.")) { holder.remove(); state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }); } catch (error) { toast(error.message, true); }
 }
 function confirmPanel(title, warning, phrase, id) { return `<div class="confirmation"><h4>${escapeHtml(title)}</h4><p>${escapeHtml(warning)}</p><code>${escapeHtml(phrase)}</code><form id="${id}" class="stack-form"><label>Type the phrase exactly<input name="phrase" required autocomplete="off"></label><button class="button danger">Confirm action</button></form></div>`; }
 function parseCsv(text) {
