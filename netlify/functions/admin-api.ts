@@ -51,7 +51,11 @@ function routePath(event: HandlerEvent): string {
 
 function secured(event: HandlerEvent, response: HandlerResponse): HandlerResponse {
   const origin = event.headers.origin;
-  const allowed = new Set([env().PUBLIC_APP_ORIGIN, "https://www.wonderlang.net"]);
+  const allowed = new Set([
+    ...(process.env.PUBLIC_APP_ORIGIN ? [process.env.PUBLIC_APP_ORIGIN] : []),
+    "https://wonderlang.net",
+    "https://www.wonderlang.net"
+  ]);
   return {
     ...response,
     headers: {

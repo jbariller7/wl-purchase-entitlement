@@ -1,4 +1,4 @@
-import type { Handler, HandlerEvent, HandlerResponse } from "@netlify/functions";
+import type { Config, Handler, HandlerEvent, HandlerResponse } from "@netlify/functions";
 import { z } from "zod";
 import { CatalogService } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
@@ -14,6 +14,10 @@ import { claimHistoricalDesktopOrder } from "../../src/providers/stripe/legacy-c
 import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "../../src/providers/google-play/service.js";
 import { sha256 } from "../../src/infrastructure/ids.js";
 import { claimAppleTransaction } from "../../src/providers/apple/service.js";
+
+export const config: Config = {
+  rateLimit: { windowSize: 60, windowLimit: 240, aggregateBy: ["domain", "ip"] }
+};
 
 const legacyClaimSchema = z.object({ checkoutSessionId: z.string().min(4).max(255) });
 const googlePlayClaimSchema = z.object({
@@ -39,6 +43,7 @@ function withCors(event: HandlerEvent, response: HandlerResponse): HandlerRespon
   const origin = event.headers.origin;
   const allowed = new Set([
     ...(process.env.PUBLIC_APP_ORIGIN ? [process.env.PUBLIC_APP_ORIGIN] : []),
+    "https://wonderlang.net",
     "https://www.wonderlang.net"
   ]);
   return {

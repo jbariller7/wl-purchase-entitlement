@@ -11,7 +11,7 @@ final class WonderLangEntitlementStore: ObservableObject {
     @Published private(set) var entitlementJSON = "{}"
     @Published private(set) var lastError: String?
 
-    private let apiBase = URL(string: "https://purchased-keys-automation.netlify.app")!
+    private let apiBase = URL(string: "https://wl-purchase-entitlement.netlify.app")!
     private var updatesTask: Task<Void, Never>?
 
     init() {

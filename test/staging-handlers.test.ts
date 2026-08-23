@@ -117,9 +117,11 @@ describe("staging function boundaries", () => {
       ...event(),
       rawUrl: "https://test.example.com/api/v1/config",
       path: "/api/v1/config",
-      httpMethod: "GET"
+      httpMethod: "GET",
+      headers: { origin: "https://wonderlang.net" }
     }, {} as never);
     expect(response).toMatchObject({ statusCode: 503 });
+    expect(response?.headers).toMatchObject({ "access-control-allow-origin": "https://wonderlang.net" });
     expect(JSON.parse(String(response?.body))).toEqual({
       error: "Account testing is not configured yet. Finish the Firebase and Stripe test setup at /setup/."
     });

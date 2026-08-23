@@ -5,7 +5,7 @@
  *
  * @param ApiBaseUrl
  * @type string
- * @default https://purchased-keys-automation.netlify.app
+ * @default https://wl-purchase-entitlement.netlify.app
  *
  * @help
  * Requires a native bridge named WLAccountManager with:
@@ -20,7 +20,7 @@
   "use strict";
   const pluginName = "WonderLangAccountCloudSync";
   const params = PluginManager.parameters(pluginName);
-  const apiBase = String(params.ApiBaseUrl || "https://purchased-keys-automation.netlify.app").replace(/\/$/, "");
+  const apiBase = String(params.ApiBaseUrl || "https://wl-purchase-entitlement.netlify.app").replace(/\/$/, "");
   const cacheKey = "wl-account-entitlements-v1";
   const revisionsKey = "wl-cloud-revisions-v1";
   const textEncoder = new TextEncoder();
