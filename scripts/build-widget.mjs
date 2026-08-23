@@ -18,5 +18,14 @@ await Promise.all([
     format: "iife",
     target: ["es2020"],
     outfile: "public/admin.js"
+  }),
+  build({
+    entryPoints: ["integrations/web/setup-status/setup.js"],
+    bundle: true,
+    minify: true,
+    sourcemap: false,
+    format: "iife",
+    target: ["es2020"],
+    outfile: "public/setup.js"
   })
 ]);
