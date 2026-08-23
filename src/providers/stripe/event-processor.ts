@@ -1,4 +1,5 @@
 import type Stripe from "stripe";
+import { CatalogService } from "../../catalog/service.js";
 import { env } from "../../config/env.js";
 import { checkoutAdDecision, stripeInvoiceAdDecision, type AdConversionName } from "../../domain/ad-policy.js";
 import type { LedgerGrant, LegacyOrder } from "../../domain/model.js";
@@ -49,8 +50,11 @@ async function uidForSubscription(store: EntitlementStore, subscription: Stripe.
   return customerId ? store.uidForStripeCustomer(customerId) : undefined;
 }
 
-function subscriptionContainsMonthlyProduct(subscription: Stripe.Subscription): boolean {
-  return subscription.items.data.some((item) => item.price.id === env().STRIPE_PRICE_MOBILE_MONTHLY);
+async function subscriptionContainsMonthlyProduct(store: EntitlementStore, subscription: Stripe.Subscription): Promise<boolean> {
+  if (metadataOf(subscription).wl_product === "mobile_full_monthly") return true;
+  const catalog = new CatalogService(store.firestore());
+  const checks = await Promise.all(subscription.items.data.map((item) => catalog.recognizesMonthlyPrice(item.price.id)));
+  return checks.some(Boolean);
 }
 
 async function syncSubscription(input: {
@@ -60,7 +64,7 @@ async function syncSubscription(input: {
   forcePaymentFailure?: boolean;
 }): Promise<{ uid?: string; subscription?: Stripe.Subscription; state?: LedgerGrant["state"] }> {
   const subscription = await stripeClient().subscriptions.retrieve(input.subscriptionId);
-  if (!subscriptionContainsMonthlyProduct(subscription)) return {};
+  if (!await subscriptionContainsMonthlyProduct(input.store, subscription)) return {};
   const uid = await uidForSubscription(input.store, subscription);
   if (!uid) throw new Error(`Stripe subscription ${subscription.id} is not linked to a Firebase UID.`);
   const existing = await input.store.getGrant("stripe", subscription.id, "mobile_full_monthly");
@@ -286,6 +290,7 @@ export async function processStripeEvent(store: EntitlementStore, event: Stripe.
       return;
     case "charge.refunded": {
       const charge = event.data.object as Stripe.Charge;
+      if (!charge.refunded && charge.amount_refunded < charge.amount) return;
       const transactionId = objectId(charge.payment_intent as Expandable);
       if (transactionId) {
         await store.revokeByProviderTransaction({

@@ -44,12 +44,12 @@ const html = `
       <div class="wl-offers">
         <article>
           <p class="wl-eyebrow">FLEXIBLE</p><h3>Monthly full access</h3>
-          <p><strong>$6.99/month</strong> · Every chapter · Every language · Cloud save</p>
+          <p><strong data-field="monthly-price">Loading price…</strong> · Every chapter · Every language · Cloud save</p>
           <button type="button" data-action="monthly">Start monthly</button>
         </article>
         <article>
           <p class="wl-eyebrow">KEEP FOREVER</p><h3>Lifetime full access</h3>
-          <p>Every chapter · Every language · Cloud save · One payment</p>
+          <p><strong data-field="lifetime-price">Loading price…</strong> · Every chapter · Every language · Cloud save · One payment</p>
           <label class="wl-confirm" data-field="cancel-confirm" hidden>
             <input type="checkbox"> Cancel my current Stripe subscription after the lifetime payment succeeds.
           </label>
@@ -81,10 +81,17 @@ function cookie(name) {
 class WonderLangAccount extends HTMLElement {
   async connectedCallback() {
     this.innerHTML = html;
-    this.apiBase = (this.getAttribute("api-base") || "https://purchased-keys-automation.netlify.app").replace(/\/$/, "");
+    this.apiBase = (this.getAttribute("api-base") || location.origin).replace(/\/$/, "");
     this.bind();
     try {
       const config = await this.request("/api/v1/config", { authenticated: false });
+      this.config = config;
+      const price = (offer, suffix = "") => `${new Intl.NumberFormat(undefined, { style: "currency", currency: offer.currency }).format(offer.unitAmount / 100)}${suffix}`;
+      this.querySelector('[data-field="monthly-price"]').textContent = price(config.catalog.monthly, "/month");
+      this.querySelector('[data-field="lifetime-price"]').textContent = price(config.catalog.lifetime);
+      for (const action of ["monthly", "lifetime", "discounted-lifetime", "portal"]) {
+        this.querySelector(`[data-action="${action}"]`).disabled = !config.checkoutEnabled;
+      }
       this.auth = getAuth(initializeApp(config.firebase));
       await this.finishEmailLink();
       await getRedirectResult(this.auth).catch((error) => { throw error; });
@@ -165,9 +172,11 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="cloud"]').textContent = ent.cloudSave ? "Cloud save enabled" : "Cloud save requires monthly or lifetime access";
       const subscribed = ent.accessKind === "subscription";
       this.querySelector('[data-field="cancel-confirm"]').hidden = !subscribed;
-      this.querySelector('[data-action="monthly"]').disabled = subscribed || ent.accessKind === "lifetime";
-      this.querySelector('[data-action="lifetime"]').disabled = ent.accessKind === "lifetime";
+      this.querySelector('[data-action="monthly"]').disabled = !this.config.checkoutEnabled || subscribed || ent.accessKind === "lifetime";
+      this.querySelector('[data-action="lifetime"]').disabled = !this.config.checkoutEnabled || ent.accessKind === "lifetime";
       this.querySelector('[data-action="discounted-lifetime"]').hidden = !this.account.legacyLifetimeDiscount.eligible || ent.accessKind === "lifetime";
+      this.querySelector('[data-action="discounted-lifetime"]').disabled = !this.config.checkoutEnabled || ent.accessKind === "lifetime";
+      this.querySelector('[data-action="portal"]').disabled = !this.config.checkoutEnabled;
     } catch (error) { this.fail(error); }
   }
 

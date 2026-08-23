@@ -1,5 +1,16 @@
 # Full implementation and rollout plan
 
+## 0. Isolated Netlify test deployment
+
+1. Use the dedicated `wl-purchase-entitlement` Netlify project linked to the matching GitHub repository.
+2. Set `APP_ENVIRONMENT=test`. The service refuses a live or unrecognized Stripe secret key in this mode.
+3. Use a separate Firebase test project. Do not copy production Firebase Admin credentials because the Firestore collections are intentionally real, not mocked or namespaced.
+4. Use Stripe test products, Prices, Coupon and webhook secret. Never copy the production Stripe secret or webhook secret into this project.
+5. Initially keep `STRIPE_WEBHOOKS_ENABLED`, `GOOGLE_PLAY_WEBHOOKS_ENABLED`, `APPLE_WEBHOOKS_ENABLED`, `OUTBOX_PROCESSING_ENABLED`, `AD_CONVERSIONS_ENABLED`, `LEGACY_FULFILLMENT_ENABLED`, `SUBSCRIPTION_CANCELLATION_ENABLED` and `STRIPE_MUTATIONS_ENABLED` set to `false`.
+6. Do not copy production Meta/TikTok tokens into staging. Test event codes are not a substitute for isolation when delivery is not under test.
+7. The Google Sheets and MailerLite credentials may be added later only for an intentional fulfillment canary, with the outbox and legacy-fulfillment switches still off until the exact test begins.
+8. After creating a verified Firebase test user, grant operations access with `npm run admin:set-claim -- --email you@example.com --confirm "SET ADMIN you@example.com"`. The script revokes existing sessions so the new claim cannot be missed by a cached token.
+
 ## 1. Provider/account setup
 
 1. Create or select a Firebase project in an EU location. Enable Anonymous (for a later game-first-run flow), Google, Apple and Email Link providers. Add `wonderlang.net`, `www.wonderlang.net` and the Netlify domain as authorized domains.

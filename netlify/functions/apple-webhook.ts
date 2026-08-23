@@ -1,5 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { z } from "zod";
+import { env } from "../../src/config/env.js";
 import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
 import { firestore } from "../../src/infrastructure/firebase.js";
 import { sha256 } from "../../src/infrastructure/ids.js";
@@ -9,6 +10,7 @@ const bodySchema = z.object({ signedPayload: z.string().min(20) });
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
+  if (!env().APPLE_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Apple webhook processing is disabled" };
   const parsedBody = bodySchema.safeParse(JSON.parse(event.body ?? "{}"));
   if (!parsedBody.success) return { statusCode: 400, body: "Malformed notification" };
   let verified;

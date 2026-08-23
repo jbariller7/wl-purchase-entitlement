@@ -8,6 +8,7 @@ import { processStripeEvent } from "../../src/providers/stripe/event-processor.j
 
 export const handler: Handler = async (request) => {
   if (request.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
+  if (!env().STRIPE_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Stripe webhook processing is disabled" };
   const signature = request.headers["stripe-signature"];
   if (!signature || !request.body) return { statusCode: 400, body: "Missing Stripe signature or body" };
   const rawBody = request.isBase64Encoded

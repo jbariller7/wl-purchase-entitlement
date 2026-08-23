@@ -1,6 +1,17 @@
 import { z } from "zod";
 
+const disabledByDefault = z.enum(["true", "false"]).default("false").transform((value) => value === "true");
+
 const schema = z.object({
+  APP_ENVIRONMENT: z.enum(["test", "production"]).default("test"),
+  STRIPE_WEBHOOKS_ENABLED: disabledByDefault,
+  GOOGLE_PLAY_WEBHOOKS_ENABLED: disabledByDefault,
+  APPLE_WEBHOOKS_ENABLED: disabledByDefault,
+  OUTBOX_PROCESSING_ENABLED: disabledByDefault,
+  AD_CONVERSIONS_ENABLED: disabledByDefault,
+  LEGACY_FULFILLMENT_ENABLED: disabledByDefault,
+  SUBSCRIPTION_CANCELLATION_ENABLED: disabledByDefault,
+  STRIPE_MUTATIONS_ENABLED: disabledByDefault,
   FIREBASE_PROJECT_ID: z.string().min(1),
   FIREBASE_CLIENT_EMAIL: z.string().email(),
   FIREBASE_PRIVATE_KEY: z.string().min(1),
@@ -50,6 +61,17 @@ export function env(): Environment {
       throw new Error(`Missing or invalid service configuration: ${names}`);
     }
     cached = parsed.data;
+    const stripeMode = cached.STRIPE_SECRET_KEY.startsWith("sk_live_") ? "production"
+      : cached.STRIPE_SECRET_KEY.startsWith("sk_test_") ? "test"
+        : "unknown";
+    if (cached.APP_ENVIRONMENT === "test" && stripeMode !== "test") {
+      cached = undefined;
+      throw new Error("Test deployments require a Stripe sk_test_ key; live or unrecognized keys are refused.");
+    }
+    if (cached.APP_ENVIRONMENT === "production" && stripeMode !== "production") {
+      cached = undefined;
+      throw new Error("Production deployments require a Stripe sk_live_ key.");
+    }
   }
   return cached;
 }

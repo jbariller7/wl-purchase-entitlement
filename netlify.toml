@@ -16,6 +16,11 @@
   status = 200
 
 [[redirects]]
+  from = "/admin-api/*"
+  to = "/.netlify/functions/admin-api/:splat"
+  status = 200
+
+[[redirects]]
   from = "/webhooks/stripe"
   to = "/.netlify/functions/stripe-webhook"
   status = 200
@@ -29,3 +34,13 @@
   from = "/webhooks/apple"
   to = "/.netlify/functions/apple-webhook"
   status = 200
+
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com; frame-src https://*.firebaseapp.com https://accounts.google.com https://appleid.apple.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    Referrer-Policy = "no-referrer"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"

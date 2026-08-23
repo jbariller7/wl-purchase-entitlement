@@ -1,5 +1,6 @@
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { z } from "zod";
+import { CatalogService } from "../../catalog/service.js";
 import { env } from "../../config/env.js";
 import { canUseLegacyLifetimeDiscount } from "../../domain/legacy-discount.js";
 import { planLifetimeTransition } from "../../domain/lifetime-transition.js";
@@ -46,6 +47,7 @@ export async function createCheckout(input: {
   userAgent?: string;
   now: Date;
 }): Promise<{ url: string; sessionId: string; warning?: string }> {
+  if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Checkout is disabled for this deployment.");
   const { store, user, request, now } = input;
   const effective = await store.effectiveEntitlements(user.uid, now);
   if (effective.accessKind === "lifetime") throw new HttpError(409, "This account already has lifetime access.");
@@ -81,6 +83,7 @@ export async function createCheckout(input: {
 
   const customerId = await stripeCustomerForUser(store, user, now);
   const isMonthly = request.product === "mobile_full_monthly";
+  const catalog = await new CatalogService(store.firestore()).get();
   const metadata: Record<string, string> = {
     wl_uid: user.uid,
     wl_product: request.product,
@@ -98,7 +101,7 @@ export async function createCheckout(input: {
     customer: customerId,
     client_reference_id: user.uid,
     line_items: [{
-      price: isMonthly ? env().STRIPE_PRICE_MOBILE_MONTHLY : env().STRIPE_PRICE_MOBILE_LIFETIME,
+      price: isMonthly ? catalog.monthly.stripePriceId : catalog.lifetime.stripePriceId,
       quantity: 1
     }],
     success_url: withSessionId(env().STRIPE_SUCCESS_URL),
@@ -139,6 +142,7 @@ export async function createCheckout(input: {
 }
 
 export async function createBillingPortal(store: EntitlementStore, user: DecodedIdToken): Promise<string> {
+  if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Billing portal access is disabled for this deployment.");
   const customerId = await store.stripeCustomerId(user.uid);
   if (!customerId) throw new HttpError(404, "No Stripe billing account is linked to this user.");
   const session = await stripeClient().billingPortal.sessions.create({

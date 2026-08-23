@@ -15,6 +15,16 @@ export async function requireUser(authorization: string | undefined): Promise<De
   }
 }
 
+export function requireAdmin(token: DecodedIdToken): DecodedIdToken {
+  if (token.admin !== true) {
+    throw new HttpError(403, "This account does not have WonderLang administrator access.");
+  }
+  if (!token.email || !token.email_verified) {
+    throw new HttpError(403, "Administrator accounts must have a verified email address.");
+  }
+  return token;
+}
+
 export function requireVerifiedEmail(token: DecodedIdToken): string {
   if (!token.email || !token.email_verified) {
     throw new HttpError(403, "Verify the account email before claiming a historical purchase.");

@@ -1,4 +1,5 @@
 import type { Handler } from "@netlify/functions";
+import { env } from "../../src/config/env.js";
 import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
 import { firestore } from "../../src/infrastructure/firebase.js";
 import { sha256 } from "../../src/infrastructure/ids.js";
@@ -6,6 +7,7 @@ import { parseRtdn, processRtdn, verifyPubSubAuthorization } from "../../src/pro
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
+  if (!env().GOOGLE_PLAY_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Google Play webhook processing is disabled" };
   try { await verifyPubSubAuthorization(event.headers.authorization); }
   catch (error) {
     console.warn("Rejected Google Play RTDN authorization", error);

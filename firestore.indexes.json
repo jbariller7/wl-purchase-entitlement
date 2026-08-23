@@ -7,6 +7,14 @@
         { "fieldPath": "sheetTab", "order": "ASCENDING" },
         { "fieldPath": "state", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "entitlements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "accessKind", "order": "ASCENDING" },
+        { "fieldPath": "subscriptionState", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

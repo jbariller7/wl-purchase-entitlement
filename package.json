@@ -13,6 +13,7 @@
     "check": "tsc --noEmit && vitest run",
     "dev": "netlify dev",
     "import:legacy-keys": "tsx scripts/import-legacy-keys.ts",
+    "admin:set-claim": "tsx scripts/set-admin-claim.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "validate:catalog": "tsx scripts/validate-catalog.ts"

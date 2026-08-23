@@ -1,12 +1,14 @@
 import type { Handler, HandlerEvent, HandlerResponse } from "@netlify/functions";
 import { z } from "zod";
+import { CatalogService } from "../../src/catalog/service.js";
+import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
 import { env } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS } from "../../src/domain/catalog.js";
 import { HttpError, requireUser } from "../../src/http/auth.js";
 import { errorResponse, json, parseJsonBody } from "../../src/http/response.js";
 import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
-import { firebaseStorage, firestore } from "../../src/infrastructure/firebase.js";
+import { firebaseAuth, firebaseStorage, firestore } from "../../src/infrastructure/firebase.js";
 import { checkoutRequestSchema, createBillingPortal, createCheckout } from "../../src/providers/stripe/checkout-service.js";
 import { claimHistoricalDesktopOrder } from "../../src/providers/stripe/legacy-claim-service.js";
 import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "../../src/providers/google-play/service.js";
@@ -52,7 +54,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const path = routePath(event);
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
   if (event.httpMethod === "GET" && path === "/v1/config") {
+    const catalog = await new CatalogService(firestore()).get();
     return json(200, {
+      environment: env().APP_ENVIRONMENT,
+      checkoutEnabled: env().STRIPE_MUTATIONS_ENABLED,
       firebase: {
         apiKey: env().FIREBASE_WEB_API_KEY,
         authDomain: env().FIREBASE_AUTH_DOMAIN,
@@ -60,7 +65,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
         storageBucket: env().FIREBASE_STORAGE_BUCKET
       },
       catalog: {
-        monthlyUsdCents: MONTHLY_PRICE_USD_CENTS,
+        revision: catalog.revision,
+        monthly: catalog.monthly,
+        lifetime: catalog.lifetime,
+        monthlyUsdCents: catalog.monthly.currency === "USD" ? catalog.monthly.unitAmount : MONTHLY_PRICE_USD_CENTS,
         monthlyIncludes: ["all_chapters", "all_languages", "cloud_save"],
         lifetimeIncludes: ["all_chapters", "all_languages", "cloud_save"]
       }
@@ -73,6 +81,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const now = new Date();
 
   if (event.httpMethod === "GET" && path === "/v1/me") {
+    if (user.email && user.email_verified) {
+      await new AdminImportService(db, firebaseAuth()).claimPendingForVerifiedUser({ uid: user.uid, email: user.email, now });
+    }
     const [entitlements, discount] = await Promise.all([
       store.effectiveEntitlements(user.uid, now),
       store.legacyDiscountClaim(user.uid)

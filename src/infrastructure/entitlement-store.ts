@@ -20,6 +20,8 @@ interface StoredGrant extends LedgerGrant {
 export class EntitlementStore {
   constructor(private readonly db: Firestore) {}
 
+  firestore(): Firestore { return this.db; }
+
   async beginProviderEvent(input: {
     provider: Provider;
     providerEventId: string;

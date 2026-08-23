@@ -17,6 +17,9 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 
 - Firebase Auth ID-token verification and account-bound Stripe customers.
 - Google, Apple and passwordless email-link website sign-in widget.
+- Responsive `/admin/` operations console with customer lookup, manual grants, two-step refunds and price changes, dry-run imports, delivery retries, key inventory and audit history.
+- Server-verified, email-verified Firebase `admin` custom claims; signing in with Google or Apple alone never grants operations access.
+- Fail-closed test deployment controls. Test mode rejects every non-`sk_test_` Stripe key and all side-effect switches default to off.
 - Append-only provider event inbox, replay protection, stale-claim recovery and out-of-order grant protection.
 - Effective entitlement projector with Stripe, Play, App Store and legacy ownership sources.
 - Stripe Checkout, Billing Portal, lifecycle webhooks, refunds/disputes, seven-day grace and conversion policy.
@@ -46,6 +49,10 @@ Copy `.env.example` to a secure local environment source. Never commit private k
 - `src/legacy`: migrated key fulfillment and exact legacy Payment Link routing.
 - `netlify/functions`: account API, provider webhooks and scheduled outbox worker.
 - `integrations`: website widget plus clean-room game/mobile adapters.
+- `src/admin`: audited admin workflows and two-step financial confirmations.
+- `src/catalog`: versioned current prices with immutable Stripe Price history.
 - `docs`: deployment, migration, security and release gates.
 
 Start with `docs/IMPLEMENTATION_PLAN.md`; production rollout order matters because the old and new Stripe fulfillment webhooks must never allocate keys in parallel.
+
+The Netlify test site is `https://wl-purchase-entitlement.netlify.app`. Keep every `*_ENABLED` switch false until separate Firebase test and Stripe test credentials are installed and the corresponding workflow is being exercised intentionally.

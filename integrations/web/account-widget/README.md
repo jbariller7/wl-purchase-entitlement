@@ -3,9 +3,9 @@
 Embed the generated script and custom element on `wonderlang.net`:
 
 ```html
-<link rel="stylesheet" href="https://purchased-keys-automation.netlify.app/wonderlang-account.css">
-<script src="https://purchased-keys-automation.netlify.app/wonderlang-account.js" defer></script>
-<wonderlang-account api-base="https://purchased-keys-automation.netlify.app"></wonderlang-account>
+<link rel="stylesheet" href="https://wl-purchase-entitlement.netlify.app/wonderlang-account.css">
+<script src="https://wl-purchase-entitlement.netlify.app/wonderlang-account.js" defer></script>
+<wonderlang-account api-base="https://wl-purchase-entitlement.netlify.app"></wonderlang-account>
 ```
 
 The widget offers Google, Apple and passwordless email-link sign-in; account status; monthly and lifetime checkout; Stripe Billing Portal; subscription-to-lifetime confirmation; and a verified historical-purchase claim for the private 50% offer.
