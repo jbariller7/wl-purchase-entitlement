@@ -41,6 +41,24 @@ person@example.com,mobile_polyglot_permanent,order_123,android,,,Historical perm
 `,e=URL.createObjectURL(new Blob([t],{type:"text/csv"})),n=document.createElement("a");n.href=e,n.download="wonderlang-import-template.csv",n.click(),URL.revokeObjectURL(e)}function Me(t="Sign in with an approved WonderLang administrator account."){Et.innerHTML=`<main class="sign-in-page"><section class="sign-in-card"><span class="brand-mark large">W</span><p class="eyebrow">WONDERLANG OPERATIONS</p><h1>Run the business<br>without the busywork.</h1><p>${p(t)}</p><div class="sign-in-actions"><button data-provider="google">Continue with Google</button><button class="apple" data-provider="apple">Continue with Apple</button></div><small>Access requires a server-verified Firebase administrator claim. Signing in alone never grants access.</small></section></main>`,document.querySelector('[data-provider="google"]')?.addEventListener("click",()=>Ir(new ee)),document.querySelector('[data-provider="apple"]')?.addEventListener("click",()=>{let e=new Pe("apple.com");e.addScope("email"),e.addScope("name"),Ir(e)})}async function Ir(t){try{await Rn(h.auth,t)}catch(e){if(["auth/popup-blocked","auth/cancelled-popup-request","auth/operation-not-supported-in-this-environment"].includes(e?.code))return Pn(h.auth,t);Me(e?.message||"Sign-in failed.")}}async function ec(){if(me)return _("overview");Me("Loading secure sign-in\u2026");try{let t=await fetch("/api/v1/config");if(!t.ok)throw new Error("The account service is not configured yet.");h.config=await t.json(),h.auth=On(Yt(h.config.firebase)),await Cn(h.auth).catch(()=>{}),Tn(h.auth,async e=>{if(!e)return Me();h.user=e;try{await S("/admin-api/v1/session"),_("overview")}catch(n){await It(h.auth).catch(()=>{}),Me(n?.message||"This account is not an administrator.")}})}catch(t){if(_r.has(location.hostname))return me=!0,h.user={email:"owner@wonderlang.net"},h.config={environment:"test",checkoutEnabled:!1},_("overview");Me(t?.message||"The operations service is unavailable.")}}ec();})();
 /*! Bundled license information:
 
+@firebase/util/dist/postinstall.mjs:
+  (**
+   * @license
+   * Copyright 2025 Google LLC
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *   http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   *)
+
 @firebase/util/dist/index.esm.js:
 @firebase/util/dist/index.esm.js:
 @firebase/util/dist/index.esm.js:

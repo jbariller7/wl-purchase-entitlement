@@ -46,14 +46,20 @@ export class FirebaseStorageInventorySource implements CloudStorageInventorySour
 
   async list(prefix: string): Promise<CloudStorageObject[]> {
     const [listed] = await this.storage.bucket().getFiles({ prefix });
-    const files = listed as Array<{
+    // firebase-admin currently exposes different File metadata types depending
+    // on the resolved @google-cloud/storage version. Normalize that SDK
+    // boundary here and validate every value before using it.
+    const files = listed as unknown as Array<{
       name: string;
       metadata: { size?: unknown; updated?: unknown; timeCreated?: unknown };
       getMetadata(): Promise<[{ size?: unknown; updated?: unknown; timeCreated?: unknown }]>;
     }>;
     return Promise.all(files.filter((file) => !file.name.endsWith("/")).map(async (file) => {
-      let metadata = file.metadata;
-      if (metadata.size === undefined || !metadata.updated) [metadata] = await file.getMetadata();
+      let metadata: { size?: unknown; updated?: unknown; timeCreated?: unknown } = file.metadata;
+      if (metadata.size === undefined || !metadata.updated) {
+        const [freshMetadata] = await file.getMetadata();
+        metadata = freshMetadata;
+      }
       const updatedAt = typeof metadata.updated === "string"
         ? metadata.updated
         : typeof metadata.timeCreated === "string" ? metadata.timeCreated : "1970-01-01T00:00:00.000Z";
