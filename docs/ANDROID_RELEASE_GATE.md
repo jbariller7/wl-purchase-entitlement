@@ -10,7 +10,7 @@ Use a real Google Play internal-track install with production-equivalent product
 - Every `SUBS` purchase path selects a valid offer token and attaches the server account token.
 - Subscription access is granted only after `/api/v1/google-play/claim` succeeds.
 - Account authentication uses the named `wonderlang-entitlements` secondary Firebase app; the existing default Firebase app remains dedicated to WonderLang Analytics and Crashlytics.
-- The Firebase test Android app registers the local debug and WonderLang release SHA-1 certificates. Before Play-track testing, also register the Google Play app-signing SHA-1 certificate.
+- The Firebase test Android app registers the local debug, WonderLang upload/release, and Google Play app-signing SHA-1 certificates.
 - Close/Hide and Restore use release-tap handling and remain usable during loading, pending, offline and billing failures.
 
 ## Real-device matrix
