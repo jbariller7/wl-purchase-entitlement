@@ -6,7 +6,8 @@ import {
 import "./admin.css";
 
 const appNode = document.querySelector("#app");
-const demo = ["localhost", "127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
+const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
+let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
 const state = { auth: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, previews: {}, notice: null };
 
 const demoOverview = {
@@ -283,6 +284,14 @@ function signInScreen(message = "Sign in with an approved WonderLang administrat
 async function providerSignIn(provider) { try { await signInWithPopup(state.auth, provider); } catch (error) { if (["auth/popup-blocked", "auth/cancelled-popup-request", "auth/operation-not-supported-in-this-environment"].includes(error?.code)) return signInWithRedirect(state.auth, provider); signInScreen(error?.message || "Sign-in failed."); } }
 async function start() {
   if (demo) return loadView("overview"); signInScreen("Loading secure sign-in…");
-  try { const response = await fetch("/api/v1/config"); if (!response.ok) throw new Error("The account service is not configured yet."); state.config = await response.json(); state.auth = getAuth(initializeApp(state.config.firebase)); await getRedirectResult(state.auth).catch(() => undefined); onAuthStateChanged(state.auth, async (user) => { if (!user) return signInScreen(); state.user = user; try { await api("/admin-api/v1/session"); loadView("overview"); } catch (error) { await signOut(state.auth).catch(() => undefined); signInScreen(error?.message || "This account is not an administrator."); } }); } catch (error) { signInScreen(error?.message || "The operations service is unavailable."); }
+  try { const response = await fetch("/api/v1/config"); if (!response.ok) throw new Error("The account service is not configured yet."); state.config = await response.json(); state.auth = getAuth(initializeApp(state.config.firebase)); await getRedirectResult(state.auth).catch(() => undefined); onAuthStateChanged(state.auth, async (user) => { if (!user) return signInScreen(); state.user = user; try { await api("/admin-api/v1/session"); loadView("overview"); } catch (error) { await signOut(state.auth).catch(() => undefined); signInScreen(error?.message || "This account is not an administrator."); } }); } catch (error) {
+    if (previewHosts.has(location.hostname)) {
+      demo = true;
+      state.user = { email: "owner@wonderlang.net" };
+      state.config = { environment: "test", checkoutEnabled: false };
+      return loadView("overview");
+    }
+    signInScreen(error?.message || "The operations service is unavailable.");
+  }
 }
 start();
