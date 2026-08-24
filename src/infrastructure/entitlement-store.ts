@@ -232,6 +232,18 @@ export class EntitlementStore {
     return link.data()?.uid as string | undefined;
   }
 
+  async uidForProviderTransaction(provider: Provider, transactionId: string): Promise<string | undefined> {
+    const link = await this.db.collection("providerTransactions").doc(
+      stableDocumentId(provider, transactionId)
+    ).get();
+    return link.data()?.uid as string | undefined;
+  }
+
+  async uidForCheckoutSession(sessionId: string): Promise<string | undefined> {
+    const context = await this.db.collection("checkoutContexts").doc(sessionId).get();
+    return context.data()?.uid as string | undefined;
+  }
+
   async uidForProviderSubscription(provider: Provider, subscriptionId: string): Promise<string | undefined> {
     const link = await this.db.collection("providerSubscriptions").doc(
       stableDocumentId(provider, subscriptionId)

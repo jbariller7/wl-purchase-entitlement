@@ -5,6 +5,7 @@ import { canUseLegacyLifetimeDiscount } from "../src/domain/legacy-discount.js";
 import { planLifetimeTransition } from "../src/domain/lifetime-transition.js";
 import type { LedgerGrant } from "../src/domain/model.js";
 import { normalizeStripeSubscriptionState, stripeGraceEndsAt } from "../src/domain/subscription.js";
+import { summarizeSubscription } from "../src/domain/account-summary.js";
 import { routeLegacyOrder } from "../src/legacy/catalog.js";
 import {
   LEGACY_PLAY_PRODUCT_MAP,
@@ -150,6 +151,22 @@ describe("legacy desktop routing", () => {
 });
 
 describe("subscription and conversion policy", () => {
+  it("exposes trial, renewal, cancellation and grace details for account UI", () => {
+    expect(summarizeSubscription([grant({ metadata: { stripeStatus: "trialing", trialEndsAt: "2026-08-26T12:00:00.000Z" }, currentPeriodEndsAt: "2026-09-26T12:00:00.000Z" })])).toMatchObject({
+      phase: "trial",
+      trialEndsAt: "2026-08-26T12:00:00.000Z",
+      renewsAt: "2026-09-26T12:00:00.000Z"
+    });
+    expect(summarizeSubscription([grant({ metadata: { stripeStatus: "active", cancelAtPeriodEnd: true }, currentPeriodEndsAt: "2026-09-01T00:00:00.000Z" })])).toMatchObject({
+      phase: "cancelled",
+      cancelAtPeriodEnd: true,
+      endsAt: "2026-09-01T00:00:00.000Z"
+    });
+    expect(summarizeSubscription([grant({ state: "grace", graceEndsAt: "2026-08-30T12:00:00.000Z" })])).toMatchObject({
+      phase: "grace",
+      graceEndsAt: "2026-08-30T12:00:00.000Z"
+    });
+  });
   it("keeps the confirmed test catalog and trial terms in code", () => {
     expect(MONTHLY_PRICE_USD_CENTS).toBe(699);
     expect(LIFETIME_PRICE_USD_CENTS).toBe(6000);

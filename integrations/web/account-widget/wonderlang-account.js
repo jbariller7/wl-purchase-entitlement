@@ -45,6 +45,12 @@ const html = `
         <strong data-field="access">Checking…</strong>
         <span data-field="cloud"></span>
       </div>
+      <div class="wl-account-facts" aria-label="Account summary">
+        <div><span>Account email</span><strong data-field="email">—</strong></div>
+        <div><span>Login methods</span><strong data-field="providers">—</strong></div>
+        <div><span>Subscription</span><strong data-field="subscription">None</strong></div>
+        <div><span>Cloud saves</span><strong data-field="cloud-status">—</strong></div>
+      </div>
       <div class="wl-offers">
         <article>
           <p class="wl-eyebrow">FLEXIBLE</p><h3>Monthly full access</h3>
@@ -62,6 +68,10 @@ const html = `
         </article>
       </div>
       <button type="button" data-action="portal" class="wl-secondary">Manage Stripe subscription</button>
+      <div class="wl-provider-grid wl-security-actions">
+        <button type="button" data-action="restore" class="wl-secondary">Restore mobile purchases</button>
+        <button type="button" data-action="revoke-sessions" class="wl-danger">Sign out all devices</button>
+      </div>
       <div class="wl-provider-grid wl-link-providers">
         <button type="button" data-action="link-google" class="wl-secondary">Link Google login</button>
         <button type="button" data-action="link-apple" class="wl-dark">Link Apple login</button>
@@ -73,6 +83,10 @@ const html = `
           <label><span>Checkout Session ID</span><input name="checkoutSessionId" placeholder="cs_…" required></label>
           <button type="submit">Verify purchase</button>
         </form>
+      </details>
+      <details>
+        <summary>Account recovery and security</summary>
+        <p>You can recover this same account with any linked Google, Apple, or email method. Linking is always explicit; WonderLang never merges unrelated accounts merely because an unverified email matches.</p>
       </details>
     </div>
   </section>`;
@@ -126,6 +140,8 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="lifetime"]').addEventListener("click", () => this.checkout("mobile_full_lifetime", false));
     this.querySelector('[data-action="discounted-lifetime"]').addEventListener("click", () => this.checkout("mobile_full_lifetime", true));
     this.querySelector('[data-action="portal"]').addEventListener("click", () => this.openPortal());
+    this.querySelector('[data-action="restore"]').addEventListener("click", () => this.restorePurchases());
+    this.querySelector('[data-action="revoke-sessions"]').addEventListener("click", () => this.revokeSessions());
     this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(new GoogleAuthProvider()));
     this.querySelector('[data-action="link-apple"]').addEventListener("click", () => this.linkProvider(appleProvider()));
     this.querySelector('[data-form="email"]').addEventListener("submit", (event) => this.emailLink(event));
@@ -223,6 +239,13 @@ class WonderLangAccount extends HTMLElement {
         : "Free access";
       this.querySelector('[data-field="access"]').textContent = access;
       this.querySelector('[data-field="cloud"]').textContent = ent.cloudSave ? "Cloud save enabled" : "Cloud save requires monthly or lifetime access";
+      this.querySelector('[data-field="email"]').textContent = this.account.email || "No email available";
+      this.querySelector('[data-field="providers"]').textContent = (this.account.linkedLoginProviders || []).map((provider) => provider.replace(".com", "")).join(", ") || "Email link";
+      const sub = this.account.subscription;
+      const date = (value) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value)) : null;
+      this.querySelector('[data-field="subscription"]').textContent = !sub ? "None" : `${sub.phase}${sub.trialEndsAt ? ` · trial ends ${date(sub.trialEndsAt)}` : sub.graceEndsAt ? ` · grace ends ${date(sub.graceEndsAt)}` : sub.renewsAt ? ` · renews ${date(sub.renewsAt)}` : sub.endsAt ? ` · ends ${date(sub.endsAt)}` : ""}`;
+      const cloud = this.account.cloudSave;
+      this.querySelector('[data-field="cloud-status"]').textContent = `${cloud.slotCount} saved slot${cloud.slotCount === 1 ? "" : "s"}${cloud.lastUpdatedAt ? ` · last sync ${date(cloud.lastUpdatedAt)}` : ""}`;
       const subscribed = ent.accessKind === "subscription";
       this.querySelector('[data-field="cancel-confirm"]').hidden = !subscribed;
       this.querySelector('[data-action="monthly"]').disabled = !this.config.checkoutEnabled || subscribed || ent.accessKind === "lifetime";
@@ -261,6 +284,49 @@ class WonderLangAccount extends HTMLElement {
   async openPortal() {
     try { location.assign((await this.request("/api/v1/billing-portal", { method: "POST", body: {} })).url); }
     catch (error) { this.fail(error); }
+  }
+
+  async restorePurchases() {
+    const native = window.AndroidManager;
+    if (!native?.refreshPurchases) {
+      this.status("Open WonderLang on Android or iOS to restore that store's purchases; website purchases are already synchronized after sign-in.");
+      return;
+    }
+    try {
+      if (native.refreshPurchases() === false) throw new Error("The mobile store is not ready yet.");
+      this.status("Checking mobile purchases. Access will refresh after server verification.");
+    } catch (error) { this.fail(error); }
+  }
+
+  async revokeSessions() {
+    const phrase = await this.confirmPhrase(
+      "Sign out every device?",
+      "This revokes every WonderLang login session, including this browser. Your purchases and cloud saves are not deleted.",
+      "SIGN OUT ALL DEVICES"
+    );
+    if (!phrase) return;
+    try {
+      await this.request("/api/v1/me/revoke-sessions", { method: "POST", body: { confirmationPhrase: phrase } });
+      await signOut(this.auth);
+      this.status("All WonderLang sessions were revoked. Sign in again on devices you still use.");
+    } catch (error) { this.fail(error); }
+  }
+
+  confirmPhrase(title, copy, phrase) {
+    return new Promise((resolve) => {
+      const holder = document.createElement("div");
+      const titleId = `wl-confirm-dialog-${crypto.randomUUID()}`;
+      holder.className = "wl-modal-backdrop";
+      holder.innerHTML = `<section class="wl-modal" role="dialog" aria-modal="true" aria-labelledby="${titleId}"><p class="wl-eyebrow">ACCOUNT SECURITY</p><h3 id="${titleId}">${title}</h3><p>${copy}</p><form class="wl-modal-form"><label><span>Type ${phrase}</span><input name="phrase" autocomplete="off" required></label><div><button type="button" class="wl-secondary" data-close>Cancel</button><button type="submit" class="wl-danger">Confirm</button></div></form></section>`;
+      let settled = false;
+      const close = (value) => { if (settled) return; settled = true; document.removeEventListener("keydown", onKeydown); holder.remove(); resolve(value); };
+      const onKeydown = (event) => { if (event.key === "Escape") close(null); };
+      holder.querySelector("[data-close]").addEventListener("click", () => close(null));
+      holder.querySelector("form").addEventListener("submit", (event) => { event.preventDefault(); const value = String(new FormData(event.currentTarget).get("phrase") || "").trim(); if (value === phrase) close(value); else { const input = event.currentTarget.querySelector("input"); input.setCustomValidity("The confirmation phrase does not match."); input.reportValidity(); } });
+      document.addEventListener("keydown", onKeydown);
+      this.append(holder);
+      holder.querySelector("input").focus();
+    });
   }
 
   async claimLegacy(event) {

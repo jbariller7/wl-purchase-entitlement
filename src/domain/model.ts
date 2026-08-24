@@ -46,7 +46,7 @@ export interface EffectiveEntitlements {
   sourceGrantIds: string[];
 }
 
-export type ProviderEventStatus = "received" | "processing" | "processed" | "failed";
+export type ProviderEventStatus = "received" | "processing" | "processed" | "failed" | "released";
 
 export interface ProviderEventRecord {
   id: string;

@@ -88,7 +88,7 @@ function renderCustomers() {
     <article class="panel"><header><div><p class="section-kicker">GRANTS</p><h3>Access ledger</h3></div></header>${table(["Product", "Source", "State", "Started", "Action"], (c.grants || []).map((g) => [g.product, g.provider, g.state, formatDate(g.startsAt), g.provider === "admin" && g.state === "active" ? `<button class="text-button" data-revoke-grant="${escapeHtml(g.id)}">Revoke</button>` : "—"]))}</article></section>
     <section class="panel"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Amount", "Status", "Action"], (c.payments || []).map((p) => [formatDate(p.createdAt), p.id, formatMoney(p.amountReceived || p.amount, p.currency), p.status, `<button class="text-button" data-refund="${escapeHtml(p.id)}" data-amount="${Number(p.amountReceived || p.amount)}" data-currency="${escapeHtml(p.currency)}">Refund</button>`]))}</section>` : empty("Search an exact email address or Firebase UID to inspect an account.");
   return `${pageIntro("CUSTOMER SUPPORT", "Find the whole customer story.", "Access, purchases, login providers, cloud saves and manual actions are tied to one Firebase UID.")}
-  <form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Exact email or Firebase UID" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
+  <form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Email, UID, Stripe customer/payment, or store transaction" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
 }
 
 function renderBilling(data) {

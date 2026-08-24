@@ -7,6 +7,7 @@ import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
 import { env } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
+import { summarizeSubscription } from "../../src/domain/account-summary.js";
 import { HttpError, requireUser } from "../../src/http/auth.js";
 import { errorResponse, json, parseJsonBody } from "../../src/http/response.js";
 import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
@@ -28,6 +29,7 @@ const googlePlayClaimSchema = z.object({
   purchaseToken: z.string().min(16).max(4096)
 });
 const appleClaimSchema = z.object({ signedTransactionInfo: z.string().min(20).max(100_000) });
+const revokeSessionsSchema = z.object({ confirmationPhrase: z.literal("SIGN OUT ALL DEVICES") });
 
 function routePath(event: HandlerEvent): string {
   return event.path
@@ -103,19 +105,41 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     if (user.email && user.email_verified) {
       await new AdminImportService(db, firebaseAuth()).claimPendingForVerifiedUser({ uid: user.uid, email: user.email, now });
     }
-    const [entitlements, discount] = await Promise.all([
+    const [entitlements, discount, grants, authUser, cloudSlots] = await Promise.all([
       store.effectiveEntitlements(user.uid, now),
-      store.legacyDiscountClaim(user.uid)
+      store.legacyDiscountClaim(user.uid),
+      store.grantsForUid(user.uid),
+      firebaseAuth().getUser(user.uid),
+      db.collection("cloudSaves").doc(user.uid).collection("slots").get()
     ]);
+    const cloudUpdates = cloudSlots.docs
+      .map((doc) => doc.data()?.updatedAt as string | undefined)
+      .filter((value): value is string => Boolean(value))
+      .sort((a, b) => Date.parse(b) - Date.parse(a));
     return json(200, {
       uid: user.uid,
       email: user.email ?? null,
+      linkedLoginProviders: authUser.providerData.map((provider) => provider.providerId).filter((provider) => provider !== "firebase"),
       entitlements,
+      subscription: summarizeSubscription(grants),
+      cloudSave: {
+        enabled: entitlements.cloudSave,
+        retainedWhenAccessEnds: true,
+        slotCount: cloudSlots.size,
+        lastUpdatedAt: cloudUpdates[0] ?? null
+      },
       legacyLifetimeDiscount: {
         eligible: Boolean(discount?.verifiedDesktopTransactionIds.length && !discount.redeemedAt),
         redeemedAt: discount?.redeemedAt ?? null
       }
     });
+  }
+
+  if (event.httpMethod === "POST" && path === "/v1/me/revoke-sessions") {
+    const parsed = revokeSessionsSchema.safeParse(parseJsonBody(event.body));
+    if (!parsed.success) throw new HttpError(400, "Type SIGN OUT ALL DEVICES to confirm.");
+    await firebaseAuth().revokeRefreshTokens(user.uid);
+    return json(200, { revoked: true });
   }
 
   if (event.httpMethod === "GET" && path === "/v1/store-account-token") {

@@ -96,6 +96,9 @@ async function syncSubscription(input: {
     ...(state === "expired" ? { endsAt: periodEnd ?? now.toISOString() } : {}),
     metadata: {
       stripeStatus: subscription.status,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      ...(subscription.trial_end ? { trialEndsAt: new Date(subscription.trial_end * 1000).toISOString() } : {}),
+      ...(subscription.canceled_at ? { canceledAt: new Date(subscription.canceled_at * 1000).toISOString() } : {}),
       ...(state === "grace" ? { firstPaymentFailureAt: firstFailureAt } : {})
     }
   }, { id: input.event.id, created: input.event.created });

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Firestore, Query } from "firebase-admin/firestore";
 import type { Auth, UserRecord } from "firebase-admin/auth";
-import type { Product } from "../domain/model.js";
+import type { Product, Provider } from "../domain/model.js";
+import { HttpError } from "../http/auth.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { SHEET_TAB_BY_PRODUCT } from "../legacy/catalog.js";
 import { stripeClient } from "../providers/stripe/client.js";
@@ -97,11 +98,69 @@ export class AdminOperationsService {
 
   async findCustomer(query: string): Promise<Record<string, unknown>> {
     const value = query.trim();
-    if (!value) throw new Error("Enter an exact Firebase UID or email address.");
-    const user = value.includes("@")
-      ? await this.auth.getUserByEmail(value.toLowerCase())
-      : await this.auth.getUser(value);
-    return this.customerDetail(user.uid);
+    if (!value) throw new HttpError(400, "Enter an exact email, Firebase UID, Stripe ID, or provider transaction ID.");
+
+    if (value.includes("@")) {
+      try { return this.customerDetail((await this.auth.getUserByEmail(value.toLowerCase())).uid); }
+      catch (error) {
+        if ((error as { code?: string }).code === "auth/user-not-found") throw new HttpError(404, "No WonderLang account uses that exact email address.");
+        throw error;
+      }
+    }
+
+    try { return this.customerDetail((await this.auth.getUser(value)).uid); }
+    catch (error) {
+      if ((error as { code?: string }).code !== "auth/user-not-found" && (error as { code?: string }).code !== "auth/invalid-uid") throw error;
+    }
+
+    const linkedUid = await this.resolveCustomerUid(value);
+    if (!linkedUid) throw new HttpError(404, "No WonderLang account is linked to that exact identifier.");
+    return this.customerDetail(linkedUid);
+  }
+
+  private async resolveCustomerUid(value: string): Promise<string | undefined> {
+    if (value.startsWith("cus_")) return this.store.uidForStripeCustomer(value);
+    if (value.startsWith("cs_")) {
+      const local = await this.store.uidForCheckoutSession(value);
+      if (local) return local;
+      const session = await stripeClient().checkout.sessions.retrieve(value);
+      const metadataUid = session.metadata?.wl_uid || session.client_reference_id || undefined;
+      if (metadataUid) return metadataUid;
+      const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+      return customerId ? this.store.uidForStripeCustomer(customerId) : undefined;
+    }
+    if (value.startsWith("pi_")) {
+      const local = await this.store.uidForProviderTransaction("stripe", value);
+      if (local) return local;
+      const payment = await stripeClient().paymentIntents.retrieve(value);
+      const customerId = typeof payment.customer === "string" ? payment.customer : payment.customer?.id;
+      return customerId ? this.store.uidForStripeCustomer(customerId) : undefined;
+    }
+    if (value.startsWith("ch_")) {
+      const charge = await stripeClient().charges.retrieve(value);
+      const paymentIntentId = typeof charge.payment_intent === "string" ? charge.payment_intent : charge.payment_intent?.id;
+      if (paymentIntentId) {
+        const linked = await this.store.uidForProviderTransaction("stripe", paymentIntentId);
+        if (linked) return linked;
+      }
+      const customerId = typeof charge.customer === "string" ? charge.customer : charge.customer?.id;
+      return customerId ? this.store.uidForStripeCustomer(customerId) : undefined;
+    }
+    if (value.startsWith("sub_")) {
+      const local = await this.store.uidForProviderSubscription("stripe", value);
+      if (local) return local;
+      const subscription = await stripeClient().subscriptions.retrieve(value);
+      const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
+      return this.store.uidForStripeCustomer(customerId);
+    }
+    const providers: Provider[] = ["stripe", "google_play", "apple", "steam", "itch", "admin"];
+    for (const provider of providers) {
+      const uid = await this.store.uidForProviderTransaction(provider, value);
+      if (uid) return uid;
+      const subscriptionUid = await this.store.uidForProviderSubscription(provider, value);
+      if (subscriptionUid) return subscriptionUid;
+    }
+    return undefined;
   }
 
   async customerDetail(uid: string): Promise<Record<string, unknown>> {
@@ -233,7 +292,7 @@ export class AdminOperationsService {
     const snapshot = await ref.get();
     if (!snapshot.exists) throw new Error("Provider event not found.");
     if (snapshot.data()?.status !== "failed") throw new Error("Only failed provider events can be released.");
-    await ref.update({ status: "failed", lastAttemptAt: null, releasedForRedeliveryAt: input.now.toISOString() });
+    await ref.update({ status: "released", lastAttemptAt: null, releasedForRedeliveryAt: input.now.toISOString() });
     await recordAdminAudit({ db: this.db, actor: input.actor, action: "provider_event.release", targetType: "providerEvent", targetId: input.eventId, summary: "Released failed event for provider redelivery", metadata: { reason: input.reason.trim() }, now: input.now });
   }
 

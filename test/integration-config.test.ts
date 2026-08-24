@@ -7,6 +7,16 @@ describe("isolated integration configuration", () => {
   it("pins the function runtime to the supported Node 24 LTS line", () => {
     expect(read(".nvmrc").trim()).toBe("24.19.0");
     expect(JSON.parse(read("package.json")).engines.node).toBe(">=24.19 <25");
+    expect(read("netlify.toml")).toMatch(/NODE_VERSION\s*=\s*"24\.19\.0"/);
+  });
+
+  it("supports customer lookup across account, Stripe, and provider identifiers", () => {
+    const operations = read("src/admin/operations-service.ts");
+    const admin = read("integrations/web/admin-console/admin.js");
+    for (const prefix of ["cus_", "cs_", "pi_", "ch_", "sub_"]) expect(operations).toContain(prefix);
+    expect(operations).toContain("uidForProviderTransaction");
+    expect(operations).toContain("uidForProviderSubscription");
+    expect(admin).toContain("store transaction");
   });
 
   it("uses the Netlify-compatible Firebase Admin authentication chain", () => {

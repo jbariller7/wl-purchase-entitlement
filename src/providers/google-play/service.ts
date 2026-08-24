@@ -108,6 +108,7 @@ export async function syncGooglePlaySubscription(input: {
     ...(state === "expired" ? { endsAt: periodEnd ?? new Date(input.eventCreated * 1000).toISOString() } : {}),
     metadata: {
       playSubscriptionState: purchase.subscriptionState ?? "UNKNOWN",
+      autoRenewEnabled: monthlyLine.autoRenewingPlan?.autoRenewEnabled ?? false,
       latestOrderId: purchase.lineItems?.[0]?.latestSuccessfulOrderId ?? purchase.latestOrderId ?? ""
     }
   }, { id: input.eventId, created: input.eventCreated });

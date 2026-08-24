@@ -97,7 +97,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (event.httpMethod === "GET" && path === "/v1/overview") return json(200, await operations.overview());
   if (event.httpMethod === "GET" && path === "/v1/customers/search") {
     const query = event.queryStringParameters?.q;
-    if (!query || query.length > 320) throw new HttpError(400, "Enter an exact email address or Firebase UID.");
+    if (!query || query.length > 4096) throw new HttpError(400, "Enter an exact email, Firebase UID, Stripe ID, or provider transaction ID.");
     return json(200, await operations.findCustomer(query));
   }
   const customerMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})$/);
