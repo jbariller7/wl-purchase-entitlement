@@ -50,7 +50,7 @@ describe("effective entitlement projection", () => {
     expect(value.subscriptionState).toBe("grace");
   });
 
-  it("ends subscription and cloud-save access after grace without deleting legacy chapters", () => {
+  it("upgrades an existing historical chapter ledger grant to permanent full access", () => {
     const grants = [
       grant({ state: "grace", graceEndsAt: "2026-08-22T12:00:00.000Z" }),
       grant({
@@ -62,7 +62,13 @@ describe("effective entitlement projection", () => {
       })
     ];
     const value = projectEntitlements("user-1", grants, now);
-    expect(value).toMatchObject({ cloudSave: false, fullGame: false, chapters: [2], accessKind: "legacy" });
+    expect(value).toMatchObject({
+      cloudSave: true,
+      fullGame: true,
+      allLanguages: true,
+      chapters: [2],
+      accessKind: "lifetime"
+    });
   });
 
   it("makes lifetime access dominant and permanent", () => {
@@ -98,6 +104,23 @@ describe("legacy desktop routing", () => {
   it("upgrades every restored historical chapter purchase to full lifetime access", () => {
     for (const productId of ["wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4"]) {
       expect(LEGACY_PLAY_PRODUCT_MAP[productId]).toBe("mobile_full_lifetime");
+    }
+  });
+
+  it("also upgrades pre-existing chapter and legacy-full ledger records", () => {
+    for (const product of [
+      "legacy_chapter_1",
+      "legacy_chapter_2",
+      "legacy_chapter_3",
+      "legacy_chapter_4",
+      "legacy_mobile_full"
+    ] as const) {
+      expect(projectEntitlements("user-1", [grant({ product })], now)).toMatchObject({
+        accessKind: "lifetime",
+        fullGame: true,
+        allLanguages: true,
+        cloudSave: true
+      });
     }
   });
 

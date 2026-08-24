@@ -46,7 +46,11 @@ export function projectEntitlements(
     if (!capability.fullGame && !capability.chapter) continue;
     sourceGrantIds.push(grant.id);
     if (capability.chapter) chapters.add(capability.chapter);
-    if (grant.product === "mobile_full_lifetime") hasLifetime = true;
+    if (
+      grant.product === "mobile_full_lifetime" ||
+      grant.product === "legacy_mobile_full" ||
+      capability.chapter
+    ) hasLifetime = true;
     else if (grant.product === "mobile_full_monthly") {
       hasSubscription = true;
       if (grant.state === "grace") inGrace = true;

@@ -11,11 +11,13 @@ export const PRODUCT_CAPABILITIES: Record<
 > = {
   mobile_full_monthly: { fullGame: true, allLanguages: true, cloudSave: true },
   mobile_full_lifetime: { fullGame: true, allLanguages: true, cloudSave: true },
-  legacy_mobile_full: { fullGame: true, allLanguages: true, cloudSave: false },
-  legacy_chapter_1: { fullGame: false, allLanguages: false, cloudSave: false, chapter: 1 },
-  legacy_chapter_2: { fullGame: false, allLanguages: false, cloudSave: false, chapter: 2 },
-  legacy_chapter_3: { fullGame: false, allLanguages: false, cloudSave: false, chapter: 3 },
-  legacy_chapter_4: { fullGame: false, allLanguages: false, cloudSave: false, chapter: 4 },
+  // The 2026 migration deliberately gifts permanent full access to every
+  // historical mobile purchaser, including the handful of chapter owners.
+  legacy_mobile_full: { fullGame: true, allLanguages: true, cloudSave: true },
+  legacy_chapter_1: { fullGame: true, allLanguages: true, cloudSave: true, chapter: 1 },
+  legacy_chapter_2: { fullGame: true, allLanguages: true, cloudSave: true, chapter: 2 },
+  legacy_chapter_3: { fullGame: true, allLanguages: true, cloudSave: true, chapter: 3 },
+  legacy_chapter_4: { fullGame: true, allLanguages: true, cloudSave: true, chapter: 4 },
   desktop_language: { fullGame: false, allLanguages: false, cloudSave: false },
   desktop_polyglot: { fullGame: false, allLanguages: false, cloudSave: false },
   desktop_lifetime: { fullGame: false, allLanguages: false, cloudSave: false }
