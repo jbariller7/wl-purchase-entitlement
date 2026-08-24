@@ -98,11 +98,13 @@ describe("isolated integration configuration", () => {
     const gradle = read("integrations/android/current-app-mirror/app/build.gradle.kts");
 
     expect(activity).toContain('private val SUBS_SKUS = setOf("wonderlangmonthly")');
+    expect(activity).toContain('private val IN_APP_SKUS = setOf("wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4", "wonderlangfull")');
     expect(activity).toContain("BillingClient.ProductType.SUBS");
     expect(activity).toContain("setObfuscatedAccountId(storeAccountToken)");
     expect(activity).toContain("preferredSubscriptionOffer");
     expect(activity).toContain("LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF_MS = 1_787_615_999_999L");
     expect(activity).toContain("historicalFullUpgradeProducts");
+    expect(activity).toContain('purchasedProducts.any { it in CHAPTER_SKUS } -> "chapter"');
     expect(activity).not.toContain("acknowledgePurchase(");
     expect(manager).toContain('api("/api/v1/google-play/claim"');
     expect(manager).toContain('OAuthProvider.newBuilder("apple.com")');

@@ -222,9 +222,9 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var lastPurchaseMessage: String = ""
     // Historical one-time SKUs remain queryable/restorable. Only wonderlangfull is
     // offered for new one-time purchases; chapter SKUs are restore-only.
-    private val ONE_TIME_SKUS = setOf("wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4", "wonderlangfull")
+    private val IN_APP_SKUS = setOf("wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4", "wonderlangfull")
     private val SUBS_SKUS = setOf("wonderlangmonthly")
-    private val ALL_STORE_SKUS = ONE_TIME_SKUS + SUBS_SKUS
+    private val ALL_STORE_SKUS = IN_APP_SKUS + SUBS_SKUS
     private val CHAPTER_SKUS = setOf("wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4")
     // Must match LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF in the entitlement service.
     private val LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF_MS = 1_787_615_999_999L
@@ -2856,7 +2856,7 @@ class MainActivity : AppCompatActivity() {
                 // preserve their exact chapter forever; only receipts completed by the
                 // migration cutoff receive the local full-game fallback.
                 val locallyRestorable = products.filterTo(mutableSetOf()) { productId ->
-                    purchase.isAcknowledged && productId in ONE_TIME_SKUS
+                    purchase.isAcknowledged && productId in IN_APP_SKUS
                 }
                 ownedTarget.addAll(locallyRestorable)
                 historicalFullTarget.removeAll(products)
@@ -2912,7 +2912,7 @@ class MainActivity : AppCompatActivity() {
                 // Never send subscription starts/renewals to Meta from the device. Stripe and
                 // server automation own recurring conversion policy; this preserves the legacy
                 // one-time event only after receipt verification.
-                if (productId in ONE_TIME_SKUS) logMetaPurchaseIfNeeded(purchase, listOf(productId))
+                if (productId in IN_APP_SKUS) logMetaPurchaseIfNeeded(purchase, listOf(productId))
                 setPurchaseStatus("PURCHASED", "Purchase verified. Full WonderLang access is ready.")
             } else {
                 setPurchaseStatus(
@@ -3213,7 +3213,7 @@ class MainActivity : AppCompatActivity() {
 
             results.forEach { (productType, pair) ->
                 val (billingResult, queryResult) = pair
-                val expectedSkus = if (productType == BillingClient.ProductType.SUBS) SUBS_SKUS else ONE_TIME_SKUS
+                val expectedSkus = if (productType == BillingClient.ProductType.SUBS) SUBS_SKUS else IN_APP_SKUS
                 if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
                     val responseName = billingResponseName(billingResult.responseCode)
                     expectedSkus.forEach { sku ->
@@ -3284,7 +3284,7 @@ class MainActivity : AppCompatActivity() {
 
         return try {
             listOf(
-                BillingClient.ProductType.INAPP to ONE_TIME_SKUS,
+                BillingClient.ProductType.INAPP to IN_APP_SKUS,
                 BillingClient.ProductType.SUBS to SUBS_SKUS
             ).forEach { (productType, skus) ->
                 val productList = skus.map { sku ->
@@ -3710,7 +3710,7 @@ class MainActivity : AppCompatActivity() {
             val normalizedSku = normalizeSku(sku)
             val historicalLifetime = purchasedProducts.contains("wonderlangfull") || historicalFullUpgradeProducts.isNotEmpty()
             val nativeOwned = when {
-                normalizedSku in ONE_TIME_SKUS && historicalLifetime -> true
+                normalizedSku in IN_APP_SKUS && historicalLifetime -> true
                 else -> purchasedProducts.contains(normalizedSku)
             }
             val accountOwned = ::accountManager.isInitialized && accountManager.ownsProduct(normalizedSku)
@@ -3828,8 +3828,9 @@ class MainActivity : AppCompatActivity() {
             return synchronized(purchaseQueryLock) {
                 when {
                     (::accountManager.isInitialized && accountManager.hasFullGame()) -> "full"
-                    purchasedProducts.any { it in ONE_TIME_SKUS } -> "full"
+                    purchasedProducts.contains("wonderlangfull") || historicalFullUpgradeProducts.isNotEmpty() -> "full"
                     purchasedProducts.contains("wonderlangmonthly") -> "subscription"
+                    purchasedProducts.any { it in CHAPTER_SKUS } -> "chapter"
                     pendingProducts.isNotEmpty() -> "pending"
                     !purchaseEntitlementSyncCompleted -> "unknown"
                     else -> "demo"
