@@ -24,10 +24,14 @@ const demoOverview = {
 };
 const demoCustomer = {
   user: { uid: "demo_8a2f43", email: "amina@example.com", emailVerified: true, disabled: false, providers: ["google.com", "apple.com"], createdAt: "2026-02-14T10:00:00Z", lastSignInAt: new Date().toISOString() },
-  entitlements: { accessKind: "subscription", products: ["mobile_full_monthly"], cloudSaveAllowed: true, subscriptionState: "active", validUntil: "2026-09-23T00:00:00Z" },
-  grants: [{ id: "grant_demo", provider: "stripe", product: "mobile_full_monthly", state: "active", startsAt: "2026-08-01T00:00:00Z" }],
-  legacyDiscount: null, stripeCustomerId: "cus_demo", cloudSaves: [{ id: "slot-1", updatedAt: new Date().toISOString() }],
-  payments: [{ id: "pi_demo", amount: 699, amountReceived: 699, currency: "USD", status: "succeeded", createdAt: new Date().toISOString() }]
+  entitlements: { accessKind: "subscription", cloudSave: true, subscriptionState: "active", subscriptionEndsAt: "2026-09-23T00:00:00Z", sourceGrantIds: ["grant_demo"] },
+  effectiveProducts: ["mobile_full_monthly"],
+  subscription: { provider: "stripe", phase: "active", providerStatus: "active", startsAt: "2026-08-01T00:00:00Z", renewsAt: "2026-09-23T00:00:00Z", endsAt: null, graceEndsAt: null, trialEndsAt: null, cancelAtPeriodEnd: false },
+  grants: [{ id: "grant_demo", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "sub_demo", providerSubscriptionId: "sub_demo", product: "mobile_full_monthly", state: "active", startsAt: "2026-08-01T00:00:00Z" }],
+  providerIdentities: [{ provider: "stripe", product: "mobile_full_monthly", customerId: "cus_demo", transactionId: "sub_demo", subscriptionId: "sub_demo", state: "active" }],
+  legacyDiscount: null, stripeCustomerId: "cus_demo", cloudSaves: [{ id: "save1", slot: "save1", byteLength: 48213, sha256: "0123456789abcdef", updatedAt: new Date().toISOString() }],
+  payments: [{ id: "pi_demo", amount: 699, amountReceived: 699, amountRefunded: 0, refundableAmount: 699, currency: "USD", status: "succeeded", createdAt: new Date().toISOString(), refunds: [] }],
+  deletionRequest: null
 };
 const demoCatalog = {
   revision: 3,
