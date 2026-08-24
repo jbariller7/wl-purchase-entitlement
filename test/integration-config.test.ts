@@ -129,6 +129,9 @@ describe("isolated integration configuration", () => {
     for (const choice of ["Keep device", "Use cloud", "Not now"]) expect(rmmz).toContain(choice);
     expect(rmmz).toContain("await sha256Hex(bytes)");
     expect(rmmz).toContain("baseRevision: remoteRevision");
+    expect(rmmz).toContain("OFFLINE_SUBSCRIPTION_GRACE_MS");
+    expect(rmmz).toContain("queueUpload(savefileId, error)");
+    expect(rmmz).toContain('window.addEventListener("online"');
     expect(packaged).toBe(rmmz);
   });
 
@@ -143,6 +146,7 @@ describe("isolated integration configuration", () => {
     expect(harness).toContain("No real save is touched.");
     expect(harness).not.toContain("STRIPE_SECRET_KEY");
     expect(buildScript).toContain("public/rmmz-test/WonderLangAccountCloudSync.js");
+    expect(buildScript).toContain("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/WonderLangAccountCloudSync.js");
   });
 
   it("uses accessible in-console forms instead of blocking prompt dialogs", () => {

@@ -39,6 +39,9 @@
  * Local saves always finish first. Cloud access never deletes data when an entitlement
  * lapses. A revision conflict never overwrites either side automatically: the player sees
  * timestamps and chooses Keep device, Use cloud, or Not now.
+ * Verified lifetime access remains available offline. A cached subscription remains usable
+ * through its paid period or for seven days after the last server refresh, whichever is later;
+ * provider grace access ends at the server-provided grace deadline.
  */
 (() => {
   "use strict";
@@ -50,6 +53,8 @@
 
   const cacheKey = "wl-account-entitlements-v2";
   const revisionsPrefix = "wl-cloud-revisions-v2";
+  const retryPrefix = "wl-cloud-upload-retry-v2";
+  const OFFLINE_SUBSCRIPTION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
   const textEncoder = new TextEncoder();
   const textDecoder = new TextDecoder();
   const knownMobileSkus = new Set([
@@ -59,6 +64,7 @@
   let tokenWaiters = [];
   let current = loadJson(cacheKey, null);
   let activeOverlay = null;
+  let drainingRetries = false;
 
   class AccountApiError extends Error {
     constructor(status, message) {
@@ -75,7 +81,7 @@
   }
   function cache(value) {
     current = value;
-    if (value) localStorage.setItem(cacheKey, JSON.stringify(value));
+    if (value) localStorage.setItem(cacheKey, JSON.stringify({ ...value, _cachedAt: Date.now() }));
     else localStorage.removeItem(cacheKey);
   }
   function accountUid() { return String(current?.uid || "signed-out"); }
@@ -88,7 +94,49 @@
     localStorage.setItem(revisionsKey(), JSON.stringify(value));
   }
   function entitlement() { return current?.entitlements || null; }
+  function effectiveCachedEntitlement(now = Date.now()) {
+    const value = entitlement();
+    if (!value?.fullGame) return value;
+    if (value.accessKind === "lifetime" || value.accessKind === "legacy") return value;
+    if (value.accessKind !== "subscription") return value;
+    const computedAt = Date.parse(value.computedAt || "");
+    if (!Number.isFinite(computedAt) || computedAt > now + 5 * 60 * 1000) return { ...value, fullGame: false, allLanguages: false, cloudSave: false, offlineExpired: true };
+    const deadline = value.subscriptionState === "grace"
+      ? Date.parse(value.graceEndsAt || "")
+      : Math.max(Date.parse(value.subscriptionEndsAt || "") || 0, computedAt + OFFLINE_SUBSCRIPTION_GRACE_MS);
+    return Number.isFinite(deadline) && now < deadline
+      ? value
+      : { ...value, fullGame: false, allLanguages: false, cloudSave: false, offlineExpired: true };
+  }
   function account() { return current; }
+  function retryKey() { return `${retryPrefix}:${accountUid()}`; }
+  function retryQueue() { return loadJson(retryKey(), {}); }
+  function retryCount() { return Object.keys(retryQueue()).length; }
+  function saveRetryQueue(queue) {
+    if (Object.keys(queue).length) localStorage.setItem(retryKey(), JSON.stringify(queue));
+    else localStorage.removeItem(retryKey());
+    window.dispatchEvent(new CustomEvent("wl-cloud-save-retry-state", { detail: { queued: Object.keys(queue).length } }));
+  }
+  function queueUpload(savefileId, error) {
+    const queue = retryQueue();
+    const slot = `save${Number(savefileId)}`;
+    const previous = queue[slot] || {};
+    const attemptCount = Number(previous.attemptCount || 0) + 1;
+    const delayMs = Math.min(6 * 60 * 60 * 1000, 30_000 * (2 ** Math.min(attemptCount - 1, 9)));
+    queue[slot] = {
+      savefileId: Number(savefileId),
+      queuedAt: previous.queuedAt || new Date().toISOString(),
+      attemptCount,
+      notBefore: new Date(Date.now() + delayMs).toISOString(),
+      lastError: safeMessage(error)
+    };
+    saveRetryQueue(queue);
+  }
+  function clearQueuedUpload(savefileId) {
+    const queue = retryQueue();
+    delete queue[`save${Number(savefileId)}`];
+    saveRetryQueue(queue);
+  }
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, char => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
@@ -138,7 +186,7 @@
   function ownsProduct(sku) {
     const normalized = String(sku || "").trim().toLowerCase();
     if (!knownMobileSkus.has(normalized)) return false;
-    const value = entitlement();
+    const value = effectiveCachedEntitlement();
     if (!value) return false;
     if (value.fullGame) return true;
     const chapter = /^wonderlangch([1-4])$/.exec(normalized);
@@ -149,7 +197,28 @@
     const me = await request("/api/v1/me");
     cache(me);
     window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: me.entitlements }));
+    drainUploadQueue().catch(error => console.warn("[WonderLang Cloud Save] Retry queue paused.", safeMessage(error)));
     return me.entitlements;
+  }
+
+  async function drainUploadQueue() {
+    if (drainingRetries || navigator.onLine === false || !effectiveCachedEntitlement()?.cloudSave) return;
+    drainingRetries = true;
+    try {
+      const queue = retryQueue();
+      for (const item of Object.values(queue).sort((a, b) => Number(a.savefileId) - Number(b.savefileId))) {
+        if (Date.parse(item.notBefore || "") > Date.now()) continue;
+        try {
+          const result = await uploadSlot(item.savefileId);
+          if (!result?.conflict) clearQueuedUpload(item.savefileId);
+          else clearQueuedUpload(item.savefileId);
+        } catch (error) {
+          queueUpload(item.savefileId, error);
+        }
+      }
+    } finally {
+      drainingRetries = false;
+    }
   }
 
   async function saveBytes(savefileId) {
@@ -158,7 +227,7 @@
   }
 
   async function uploadSlot(savefileId, options = {}) {
-    const value = entitlement();
+    const value = effectiveCachedEntitlement();
     if (!value?.cloudSave) return { skipped: "not_entitled" };
     const slot = `save${Number(savefileId)}`;
     const bytes = await saveBytes(savefileId);
@@ -186,6 +255,7 @@
         body: { uploadId: prepare.uploadId }
       });
       setRevision(slot, manifest.currentRevision);
+      clearQueuedUpload(savefileId);
       window.dispatchEvent(new CustomEvent("wl-cloud-save-synced", { detail: { savefileId, manifest } }));
       return manifest;
     } catch (error) {
@@ -308,11 +378,13 @@
       return;
     }
 
-    const access = entitlement() || {};
+    const access = effectiveCachedEntitlement() || {};
     const accessLabel = access.accessKind === "subscription" ? "Monthly subscription" :
       access.accessKind === "lifetime" ? "Lifetime" : access.fullGame ? "Full game" : "Free demo";
-    const subscription = access.subscriptionState && access.subscriptionState !== "inactive"
-      ? access.subscriptionState
+    const subscription = current?.subscription?.phase
+      ? `${current.subscription.phase}${current.subscription.renewsAt ? ` · renews ${formatTime(current.subscription.renewsAt)}` : current.subscription.endsAt ? ` · ends ${formatTime(current.subscription.endsAt)}` : ""}`
+      : access.subscriptionState && access.subscriptionState !== "inactive"
+        ? access.subscriptionState
       : "No active subscription";
     showPanel("WonderLang account", `
       <p class="wl-account-muted">${escapeHtml(current?.email || "Signed-in account")}</p>
@@ -320,6 +392,7 @@
         <div class="wl-account-card"><b>Access</b>${escapeHtml(accessLabel)}</div>
         <div class="wl-account-card"><b>Subscription</b>${escapeHtml(subscription)}</div>
         <div class="wl-account-card"><b>Cloud saves</b>${access.cloudSave ? "Enabled" : "Not included"}</div>
+        <div class="wl-account-card"><b>Uploads waiting</b>${retryCount()}</div>
         <div class="wl-account-card"><b>Languages</b>${access.allLanguages ? "All languages" : "Demo access"}</div>
       </div>
       <p class="wl-account-muted">Login methods are linked explicitly. Signing in with Google or Apple alone never grants administrator access.</p>`, [
@@ -418,6 +491,7 @@
     const saved = await originalSaveGame.call(this, savefileId);
     if (saved) uploadSlot(savefileId).catch(error => {
       console.warn("[WonderLang Cloud Save] Local save succeeded; cloud upload did not.", error);
+      queueUpload(savefileId, error);
       window.dispatchEvent(new CustomEvent("wl-cloud-save-error", { detail: { savefileId, message: safeMessage(error) } }));
     });
     return saved;
@@ -427,6 +501,7 @@
     refresh,
     account,
     current: entitlement,
+    currentOfflineSafe: effectiveCachedEntitlement,
     isProductPurchased: ownsProduct,
     listCloudSaves,
     uploadSlot,
@@ -446,6 +521,7 @@
         if (!value || typeof value !== "object") throw new Error("Invalid account snapshot.");
         cache(value);
         window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: value.entitlements || null }));
+        drainUploadQueue().catch(error => console.warn("[WonderLang Cloud Save] Retry queue paused.", safeMessage(error)));
       } catch (error) {
         console.warn("[WonderLang Account] Native account snapshot was invalid.", error);
       }
@@ -472,6 +548,9 @@
       window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: null }));
     }
   };
+
+  window.addEventListener("online", () => drainUploadQueue().catch(error => console.warn("[WonderLang Cloud Save] Retry queue paused.", safeMessage(error))));
+  setTimeout(() => drainUploadQueue().catch(() => undefined), 5_000);
 
   PluginManager.registerCommand(pluginName, "openAccount", openAccountPanel);
   PluginManager.registerCommand(pluginName, "openCloudSaves", openCloudSavesPanel);

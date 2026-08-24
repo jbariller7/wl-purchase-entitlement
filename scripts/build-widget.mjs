@@ -2,6 +2,7 @@ import { build } from "esbuild";
 import { copyFile, mkdir } from "node:fs/promises";
 
 await mkdir("public/rmmz-test", { recursive: true });
+await mkdir("integrations/android/current-app-mirror/app/src/main/assets/js/plugins", { recursive: true });
 
 await Promise.all([
   build({
@@ -34,5 +35,9 @@ await Promise.all([
   copyFile(
     "integrations/rmmz/WonderLangAccountCloudSync.js",
     "public/rmmz-test/WonderLangAccountCloudSync.js"
+  ),
+  copyFile(
+    "integrations/rmmz/WonderLangAccountCloudSync.js",
+    "integrations/android/current-app-mirror/app/src/main/assets/js/plugins/WonderLangAccountCloudSync.js"
   )
 ]);
