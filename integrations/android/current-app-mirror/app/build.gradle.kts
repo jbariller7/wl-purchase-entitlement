@@ -27,6 +27,10 @@ val wonderLangEntitlementsFirebaseApiKey =
         )
 
 android {
+    buildFeatures {
+        resValues = true
+    }
+
     /*
      * Keep the namespace as com.wonderlang.app so your existing Kotlin files,
      * imports, R references, and package declarations do not need to change.
