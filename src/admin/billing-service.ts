@@ -8,11 +8,16 @@ import { stripeClient } from "../providers/stripe/client.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
 import { LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF } from "../domain/catalog.js";
+import { stripeMajorAmount } from "../domain/regional-pricing.js";
 
 type RefundReason = "duplicate" | "fraudulent" | "requested_by_customer";
 
 function phraseAmount(amount: number, currency: string): string {
-  return `${(amount / 100).toFixed(2)} ${currency.toUpperCase()}`;
+  return `${stripeMajorAmount(currency, amount)} ${currency.toUpperCase()}`;
+}
+
+export function priceChangeConfirmationPhrase(kind: CatalogOfferKind, unitAmount: number, currency: string): string {
+  return `CHANGE ${kind.toUpperCase()} TO ${phraseAmount(unitAmount, currency)}`;
 }
 
 async function chargeForPaymentIntent(payment: Stripe.PaymentIntent): Promise<Stripe.Charge> {
@@ -50,8 +55,8 @@ export class AdminBillingService {
     currency: string;
     now: Date;
   }): Promise<Record<string, unknown>> {
-    if (!Number.isSafeInteger(input.unitAmount) || input.unitAmount < 50 || input.unitAmount > 500_000) {
-      throw new HttpError(400, "Enter a valid price between 0.50 and 5,000.00.");
+    if (!Number.isSafeInteger(input.unitAmount) || input.unitAmount < 1 || input.unitAmount > 100_000_000) {
+      throw new HttpError(400, "Enter a valid positive Stripe price amount.");
     }
     const currency = input.currency.trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(currency)) throw new HttpError(400, "Currency must be a three-letter ISO code.");
@@ -59,7 +64,7 @@ export class AdminBillingService {
     const current = catalog[input.kind];
     if (current.unitAmount === input.unitAmount && current.currency === currency) throw new HttpError(409, "The proposed price is already active.");
     const id = randomUUID();
-    const confirmationPhrase = `CHANGE ${input.kind.toUpperCase()} TO ${phraseAmount(input.unitAmount, currency)}`;
+    const confirmationPhrase = priceChangeConfirmationPhrase(input.kind, input.unitAmount, currency);
     const expiresAt = new Date(input.now.getTime() + 15 * 60 * 1000);
     await this.db.collection("adminPricePreviews").doc(id).create({
       id,

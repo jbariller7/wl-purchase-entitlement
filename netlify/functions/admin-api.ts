@@ -29,7 +29,7 @@ const grantSchema = z.object({
 });
 const pricePreviewSchema = z.object({
   kind: z.enum(["monthly", "polyglot", "premium"]),
-  unitAmount: z.number().int().min(50).max(500_000),
+  unitAmount: z.number().int().min(1).max(100_000_000),
   currency: z.string().trim().length(3)
 });
 const commitSchema = z.object({ previewId: z.string().uuid(), confirmationPhrase: confirmation });

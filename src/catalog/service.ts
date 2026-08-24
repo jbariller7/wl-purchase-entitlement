@@ -100,8 +100,8 @@ export class CatalogService {
     actorUid: string;
     now: Date;
   }): Promise<CatalogConfiguration> {
-    if (!Number.isSafeInteger(input.unitAmount) || input.unitAmount < 50 || input.unitAmount > 500_000) {
-      throw new Error("Price must be between 0.50 and 5,000.00 in the smallest currency unit.");
+    if (!Number.isSafeInteger(input.unitAmount) || input.unitAmount < 1 || input.unitAmount > 100_000_000) {
+      throw new Error("Price must be a positive Stripe amount in the currency's smallest unit.");
     }
     const currency = input.currency.trim().toLowerCase();
     if (!/^[a-z]{3}$/.test(currency)) throw new Error("Currency must be a three-letter ISO code.");

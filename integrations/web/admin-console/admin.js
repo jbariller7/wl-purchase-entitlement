@@ -47,6 +47,19 @@ const demoOperations = {
 };
 const demoInventory = { summary: [{ sheetTab: "Steam English", available: 42, assigned: 318 }, { sheetTab: "Steam Japanese", available: 8, assigned: 94 }, { sheetTab: "Itch English", available: 27, assigned: 71 }], recentFulfillments: [] };
 const demoAudit = { entries: [{ id: "audit_demo", actorEmail: "owner@wonderlang.net", action: "catalog.price.change", targetType: "catalog", targetId: "monthly", summary: "Changed monthly price for new checkouts", createdAt: new Date().toISOString() }] };
+const ZERO_DECIMAL_CURRENCIES = new Set(["CLP", "JPY", "KRW", "VND"]);
+
+function minorAmount(currency, majorAmount) {
+  const normalizedCurrency = String(currency || "").trim().toUpperCase();
+  const value = Number(majorAmount);
+  return Math.round(value * (ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? 1 : 100));
+}
+
+function majorAmount(currency, unitAmount) {
+  const normalizedCurrency = String(currency || "").trim().toUpperCase();
+  const digits = ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? 0 : 2;
+  return (Number(unitAmount) / (digits === 0 ? 1 : 100)).toFixed(digits);
+}
 
 const views = { overview: "Overview", customers: "Customers", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
 const endpoints = {
@@ -162,7 +175,16 @@ function demoApi(path, options) {
   if (path.includes("inventory")) return demoInventory;
   if (path.includes("audit")) return demoAudit;
   if (path.includes("session")) return { actor: { uid: "demo_admin", email: state.user.email }, providers: ["google.com"], capabilities: Object.keys(views) };
-  if (path.includes("price-preview")) return { previewId: crypto.randomUUID(), confirmationPhrase: "CHANGE MONTHLY TO 7.99 USD", warning: "Existing subscribers keep their current price." };
+  if (path.includes("price-preview")) {
+    const kind = String(options.body?.kind || "monthly").toLowerCase();
+    const currency = String(options.body?.currency || "USD").toUpperCase();
+    const unitAmount = Number(options.body?.unitAmount);
+    return {
+      previewId: crypto.randomUUID(),
+      confirmationPhrase: `CHANGE ${kind.toUpperCase()} TO ${majorAmount(currency, unitAmount)} ${currency}`,
+      warning: "Existing subscribers keep their current price."
+    };
+  }
   if (path.includes("price-commit")) return demoConfirmed(options, state.previews.price);
   if (path.includes("refunds/preview")) {
     const requestedAmount = Number(options.body?.amount);
@@ -283,8 +305,8 @@ function bindView() {
 }
 
 async function priceFlow(event) {
-  event.preventDefault(); const f = new FormData(event.currentTarget); const amount = Math.round(Number(f.get("amount")) * 100);
-  try { const p = await api("/admin-api/v1/catalog/price-preview", { method: "POST", body: { kind: f.get("kind"), unitAmount: amount, currency: String(f.get("currency")).toUpperCase() } }); state.previews.price = p; document.querySelector("#price-preview").innerHTML = confirmPanel("Price preview", p.warning, p.confirmationPhrase, "confirm-price"); toast("Price preview ready."); document.querySelector("#confirm-price").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/catalog/price-commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Price changed for new checkouts.")) loadView("billing"); }); } catch (error) { toast(error.message, true); }
+  event.preventDefault(); const f = new FormData(event.currentTarget); const currency = String(f.get("currency")).toUpperCase(); const amount = minorAmount(currency, f.get("amount"));
+  try { const p = await api("/admin-api/v1/catalog/price-preview", { method: "POST", body: { kind: f.get("kind"), unitAmount: amount, currency } }); state.previews.price = p; document.querySelector("#price-preview").innerHTML = confirmPanel("Price preview", p.warning, p.confirmationPhrase, "confirm-price"); toast("Price preview ready."); document.querySelector("#confirm-price").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/catalog/price-commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Price changed for new checkouts.")) loadView("billing"); }); } catch (error) { toast(error.message, true); }
 }
 async function refundFlow(button) {
   const currency = escapeHtml(button.dataset.currency || "USD");

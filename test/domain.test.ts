@@ -15,7 +15,8 @@ import {
   PREMIUM_LIFETIME_PRICE_USD_CENTS,
   STRIPE_SUBSCRIPTION_TRIAL_DAYS
 } from "../src/domain/catalog.js";
-import { REGIONAL_PRICES, stripeMinorAmount } from "../src/domain/regional-pricing.js";
+import { REGIONAL_PRICES, stripeMajorAmount, stripeMinorAmount } from "../src/domain/regional-pricing.js";
+import { priceChangeConfirmationPhrase } from "../src/admin/billing-service.js";
 import { chapterMigrationGrant, chapterMigrationTransactionId, isEligibleHistoricalChapterPurchase } from "../src/domain/legacy-chapter-migration.js";
 
 const now = new Date("2026-08-23T12:00:00.000Z");
@@ -198,6 +199,10 @@ describe("subscription and conversion policy", () => {
     expect(REGIONAL_PRICES.premium.CAD).toBe("77.99");
     expect(stripeMinorAmount("USD", REGIONAL_PRICES.polyglot.USD!)).toBe(3199);
     expect(stripeMinorAmount("JPY", REGIONAL_PRICES.monthly.JPY!)).toBe(787);
+    expect(stripeMajorAmount("JPY", 3600)).toBe("3600");
+    expect(stripeMajorAmount("USD", 5999)).toBe("59.99");
+    expect(priceChangeConfirmationPhrase("premium", 5999, "USD")).toBe("CHANGE PREMIUM TO 59.99 USD");
+    expect(priceChangeConfirmationPhrase("polyglot", 3600, "JPY")).toBe("CHANGE POLYGLOT TO 3600 JPY");
   });
   it("computes exactly seven days of Stripe failure grace", () => {
     expect(stripeGraceEndsAt(now)).toBe("2026-08-30T12:00:00.000Z");

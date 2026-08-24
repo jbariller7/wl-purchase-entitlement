@@ -24,6 +24,8 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("A partial refund does not revoke access automatically.");
     expect(admin).toContain("function demoConfirmed(options, preview)");
     expect(admin).toContain("Confirmation phrase does not match.");
+    expect(admin).toContain("function minorAmount(currency, majorAmount)");
+    expect(admin).not.toContain('confirmationPhrase: "CHANGE MONTHLY TO 7.99 USD"');
   });
 
   it("uses the Netlify-compatible Firebase Admin authentication chain", () => {
