@@ -9,6 +9,7 @@ import { SHEET_TAB_BY_PRODUCT } from "../legacy/catalog.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { AccountDeletionService } from "../account-deletion/service.js";
+import { chapterMigrationTransactionId, isLegacyChapterProduct } from "../domain/legacy-chapter-migration.js";
 
 const ADMIN_GRANT_PRODUCTS: Product[] = [
   "mobile_full_lifetime",
@@ -265,6 +266,15 @@ export class AdminOperationsService {
       provider: "admin", providerTransactionId: grant.providerTransactionId, state: "revoked",
       sourceEvent: { id: `admin-revoke:${randomUUID()}`, created: Math.floor(input.now.getTime() / 1000) }, at: input.now
     });
+    if (isLegacyChapterProduct(grant.product)) {
+      await this.store.revokeByProviderTransaction({
+        provider: "admin",
+        providerTransactionId: chapterMigrationTransactionId(grant.providerTransactionId),
+        state: "revoked",
+        sourceEvent: { id: `admin-revoke-migration:${randomUUID()}`, created: Math.floor(input.now.getTime() / 1000) },
+        at: input.now
+      });
+    }
     await recordAdminAudit({
       db: this.db, actor: input.actor, action: "grant.revoke", targetType: "grant", targetId: input.grantId,
       summary: `Revoked ${grant.product}`, metadata: { uid: grant.uid, reason: input.reason.trim() }, now: input.now

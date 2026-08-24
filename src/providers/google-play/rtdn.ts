@@ -3,6 +3,7 @@ import { z } from "zod";
 import { env } from "../../config/env.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "./service.js";
+import { chapterMigrationTransactionId } from "../../domain/legacy-chapter-migration.js";
 
 const pushSchema = z.object({
   message: z.object({
@@ -95,12 +96,21 @@ export async function processRtdn(store: EntitlementStore, parsed: ReturnType<ty
   }
   const voided = parsed.notification.voidedPurchaseNotification;
   if (voided?.orderId) {
-    await store.revokeByProviderTransaction({
-      provider: "google_play",
-      providerTransactionId: voided.orderId,
-      state: "refunded",
-      sourceEvent: { id: parsed.messageId, created: parsed.eventCreated },
-      at: new Date(parsed.eventCreated * 1000)
-    });
+    await Promise.all([
+      store.revokeByProviderTransaction({
+        provider: "google_play",
+        providerTransactionId: voided.orderId,
+        state: "refunded",
+        sourceEvent: { id: parsed.messageId, created: parsed.eventCreated },
+        at: new Date(parsed.eventCreated * 1000)
+      }),
+      store.revokeByProviderTransaction({
+        provider: "google_play",
+        providerTransactionId: chapterMigrationTransactionId(voided.orderId),
+        state: "refunded",
+        sourceEvent: { id: `${parsed.messageId}:chapter-full-upgrade`, created: parsed.eventCreated },
+        at: new Date(parsed.eventCreated * 1000)
+      })
+    ]);
   }
 }

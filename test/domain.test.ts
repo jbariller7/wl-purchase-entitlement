@@ -9,10 +9,12 @@ import { summarizeSubscription } from "../src/domain/account-summary.js";
 import { routeLegacyOrder } from "../src/legacy/catalog.js";
 import {
   LEGACY_PLAY_PRODUCT_MAP,
+  LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF,
   LIFETIME_PRICE_USD_CENTS,
   MONTHLY_PRICE_USD_CENTS,
   STRIPE_SUBSCRIPTION_TRIAL_DAYS
 } from "../src/domain/catalog.js";
+import { chapterMigrationGrant, chapterMigrationTransactionId, isEligibleHistoricalChapterPurchase } from "../src/domain/legacy-chapter-migration.js";
 
 const now = new Date("2026-08-23T12:00:00.000Z");
 
@@ -51,16 +53,19 @@ describe("effective entitlement projection", () => {
     expect(value.subscriptionState).toBe("grace");
   });
 
-  it("upgrades an existing historical chapter ledger grant to permanent full access", () => {
+  it("preserves an historical chapter grant and combines it with an idempotent permanent migration grant", () => {
+    const original = grant({
+      id: "chapter",
+      provider: "google_play",
+      providerTransactionId: "play-old",
+      product: "legacy_chapter_2",
+      state: "active",
+      startsAt: "2026-08-01T00:00:00.000Z"
+    });
     const grants = [
       grant({ state: "grace", graceEndsAt: "2026-08-22T12:00:00.000Z" }),
-      grant({
-        id: "chapter",
-        provider: "google_play",
-        providerTransactionId: "play-old",
-        product: "legacy_chapter_2",
-        state: "active"
-      })
+      original,
+      chapterMigrationGrant(original)!
     ];
     const value = projectEntitlements("user-1", grants, now);
     expect(value).toMatchObject({
@@ -109,26 +114,17 @@ describe("legacy desktop routing", () => {
   });
 
   it("upgrades every restored historical chapter purchase to full lifetime access", () => {
-    for (const productId of ["wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4"]) {
-      expect(LEGACY_PLAY_PRODUCT_MAP[productId]).toBe("mobile_full_lifetime");
-    }
+    expect(LEGACY_PLAY_PRODUCT_MAP).toMatchObject({ wonderlangch1: "legacy_chapter_1", wonderlangch2: "legacy_chapter_2", wonderlangch3: "legacy_chapter_3", wonderlangch4: "legacy_chapter_4" });
+    expect(chapterMigrationTransactionId("GPA.1234")).toBe("chapter-full-upgrade:GPA.1234");
+    expect(isEligibleHistoricalChapterPurchase("2026-08-24T23:59:59.999Z")).toBe(true);
+    expect(isEligibleHistoricalChapterPurchase("2026-08-25T00:00:00.000Z")).toBe(false);
+    expect(LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF).toBe("2026-08-24T23:59:59.999Z");
   });
 
-  it("also upgrades pre-existing chapter and legacy-full ledger records", () => {
-    for (const product of [
-      "legacy_chapter_1",
-      "legacy_chapter_2",
-      "legacy_chapter_3",
-      "legacy_chapter_4",
-      "legacy_mobile_full"
-    ] as const) {
-      expect(projectEntitlements("user-1", [grant({ product })], now)).toMatchObject({
-        accessKind: "lifetime",
-        fullGame: true,
-        allLanguages: true,
-        cloudSave: true
-      });
-    }
+  it("keeps the original chapter audit record from unlocking new post-cutoff purchases", () => {
+    expect(projectEntitlements("user-1", [grant({ product: "legacy_chapter_1" })], now)).toMatchObject({ accessKind: "legacy", chapters: [1], fullGame: false, cloudSave: false });
+    expect(chapterMigrationGrant(grant({ product: "legacy_chapter_1", startsAt: "2026-08-25T00:00:00.000Z" }))).toBeUndefined();
+    expect(projectEntitlements("user-1", [grant({ product: "legacy_mobile_full" })], now)).toMatchObject({ accessKind: "lifetime", fullGame: true, allLanguages: true, cloudSave: true });
   });
 
   it("routes a known single-language Steam checkout to its exact inventory", () => {

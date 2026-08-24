@@ -6,6 +6,7 @@ import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { sha256 } from "../infrastructure/ids.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
+import { chapterMigrationGrant } from "../domain/legacy-chapter-migration.js";
 
 export type AdminImportKind =
   | "mobile_lifetime"
@@ -143,7 +144,7 @@ export class AdminImportService {
     }
     const product = productByKind[row.kind];
     if (!product) throw new Error(`Unsupported import kind ${row.kind}.`);
-    await this.store.upsertGrant({
+    const originalGrant = {
       id: "",
       uid,
       provider: "admin",
@@ -153,7 +154,11 @@ export class AdminImportService {
       startsAt: row.startsAt,
       ...(row.endsAt ? { endsAt: row.endsAt } : {}),
       metadata: { importExternalId: row.externalId, importNote: row.note, importedBy: actorUid }
-    }, { id: `admin-import:${row.externalId}`, created: Math.floor(Date.parse(row.startsAt) / 1000) });
+    } satisfies import("../domain/model.js").LedgerGrant;
+    const source = { id: `admin-import:${row.externalId}`, created: Math.floor(Date.parse(row.startsAt) / 1000) };
+    await this.store.upsertGrant(originalGrant, source);
+    const migration = chapterMigrationGrant(originalGrant);
+    if (migration) await this.store.upsertGrant(migration, { ...source, id: `${source.id}:chapter-full-upgrade` });
   }
 
   private async holdPending(row: NormalizedImportRow, actorUid: string, now: Date): Promise<void> {

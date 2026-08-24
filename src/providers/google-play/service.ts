@@ -5,6 +5,7 @@ import type { EffectiveEntitlements, LedgerGrant } from "../../domain/model.js";
 import { HttpError } from "../../http/auth.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import { sha256 } from "../../infrastructure/ids.js";
+import { chapterMigrationGrant } from "../../domain/legacy-chapter-migration.js";
 
 let publisher: androidpublisher_v3.Androidpublisher | undefined;
 
@@ -162,7 +163,7 @@ export async function syncGooglePlayOneTimeProduct(input: {
     ? "active"
     : purchaseState === "PENDING" ? "pending" : "revoked";
   const transactionId = purchase.orderId || tokenId(input.purchaseToken);
-  await input.store.upsertGrant({
+  const originalGrant: LedgerGrant = {
     id: "",
     uid,
     provider: "google_play",
@@ -172,7 +173,10 @@ export async function syncGooglePlayOneTimeProduct(input: {
     startsAt: purchase.purchaseCompletionTime ?? new Date(input.eventCreated * 1000).toISOString(),
     ...(state === "revoked" ? { endsAt: new Date(input.eventCreated * 1000).toISOString() } : {}),
     metadata: { productId: input.productId, purchaseTokenHash: tokenId(input.purchaseToken) }
-  }, { id: input.eventId, created: input.eventCreated });
+  };
+  await input.store.upsertGrant(originalGrant, { id: input.eventId, created: input.eventCreated });
+  const migration = state !== "pending" ? chapterMigrationGrant(originalGrant) : undefined;
+  if (migration) await input.store.upsertGrant(migration, { id: `${input.eventId}:chapter-full-upgrade`, created: input.eventCreated });
   if (state === "active" && purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
     await api.purchases.products.acknowledge({
       packageName: env().GOOGLE_PLAY_PACKAGE_NAME,

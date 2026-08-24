@@ -7,6 +7,7 @@ import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
+import { LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF } from "../domain/catalog.js";
 
 type RefundReason = "duplicate" | "fraudulent" | "requested_by_customer";
 
@@ -36,7 +37,8 @@ export class AdminBillingService {
       notes: {
         priceChangesAffect: "new_checkouts_only",
         existingSubscriptions: "keep_their_existing_stripe_price",
-        oldPrices: "retained_for_existing_subscriptions_and_webhook_history"
+        oldPrices: "retained_for_existing_subscriptions_and_webhook_history",
+        legacyChapterUpgradeCutoff: LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF
       }
     };
   }

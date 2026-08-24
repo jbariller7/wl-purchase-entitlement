@@ -11,6 +11,7 @@ import { LEGACY_PLAY_PRODUCT_MAP } from "../../domain/catalog.js";
 import type { EffectiveEntitlements, LedgerGrant } from "../../domain/model.js";
 import { HttpError } from "../../http/auth.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
+import { chapterMigrationGrant } from "../../domain/legacy-chapter-migration.js";
 
 let verifier: SignedDataVerifier | undefined;
 
@@ -123,7 +124,7 @@ async function applyAppleTransaction(input: {
     }, { id: input.eventId, created: input.eventCreated });
   } else {
     const revoked = Boolean(input.transaction.revocationDate);
-    await input.store.upsertGrant({
+    const originalGrant: LedgerGrant = {
       id: "",
       uid,
       provider: "apple",
@@ -136,7 +137,10 @@ async function applyAppleTransaction(input: {
         refundedAt: new Date(input.transaction.revocationDate as number).toISOString()
       } : {}),
       metadata: { originalTransactionId: originalId ?? transactionId }
-    }, { id: input.eventId, created: input.eventCreated });
+    };
+    await input.store.upsertGrant(originalGrant, { id: input.eventId, created: input.eventCreated });
+    const migration = chapterMigrationGrant(originalGrant);
+    if (migration) await input.store.upsertGrant(migration, { id: `${input.eventId}:chapter-full-upgrade`, created: input.eventCreated });
   }
   return input.store.effectiveEntitlements(uid, new Date());
 }
