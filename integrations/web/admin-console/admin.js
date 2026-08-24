@@ -161,7 +161,19 @@ function demoApi(path, options) {
   if (path.includes("audit")) return demoAudit;
   if (path.includes("session")) return { actor: { uid: "demo_admin", email: state.user.email }, providers: ["google.com"], capabilities: Object.keys(views) };
   if (path.includes("price-preview")) return { previewId: crypto.randomUUID(), confirmationPhrase: "CHANGE MONTHLY TO 7.99 USD", warning: "Existing subscribers keep their current price." };
-  if (path.includes("refunds/preview")) return { previewId: crypto.randomUUID(), confirmationPhrase: "REFUND 6.99 USD", warnings: ["A refund does not cancel an active subscription."] };
+  if (path.includes("refunds/preview")) {
+    const requestedAmount = Number(options.body?.amount);
+    const refundableAmount = demoCustomer.payments[0].refundableAmount;
+    const amount = Number.isSafeInteger(requestedAmount) && requestedAmount > 0 ? requestedAmount : refundableAmount;
+    return {
+      previewId: crypto.randomUUID(),
+      confirmationPhrase: `REFUND ${(amount / 100).toFixed(2)} USD`,
+      warnings: [
+        "A refund does not cancel an active subscription.",
+        amount < refundableAmount ? "A partial refund does not revoke access automatically." : "A full refund revokes lifetime access only after the verified Stripe webhook."
+      ]
+    };
+  }
   if (path.includes("imports/preview")) return { previewId: crypto.randomUUID(), confirmationPhrase: "IMPORT 1 RECORD", summary: { records: 1, existingAccounts: 0, pendingFirstSignIn: 1, entitlements: 1, discounts: 0 }, rows: options.body?.rows || [], warnings: ["Unknown emails wait for verified first sign-in."] };
   return { ok: true };
 }

@@ -20,6 +20,8 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("PROVIDER IDENTITIES");
     expect(admin).toContain("Retained save inventory");
     expect(admin).toContain("refundableAmount > 0");
+    expect(admin).toContain("Number(options.body?.amount)");
+    expect(admin).toContain("A partial refund does not revoke access automatically.");
   });
 
   it("uses the Netlify-compatible Firebase Admin authentication chain", () => {
