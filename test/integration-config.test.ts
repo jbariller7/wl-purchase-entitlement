@@ -93,6 +93,7 @@ describe("isolated integration configuration", () => {
   it("keeps the Android migration server-authoritative and subscription-aware", () => {
     const activity = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/MainActivity.kt");
     const manager = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
+    const entitlementFirebase = read("integrations/android/current-app-mirror/app/src/main/res/values/wonderlang_entitlements.xml");
     const storefront = read("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/AndroidAssetDownloader.js");
     const plugins = read("integrations/android/current-app-mirror/app/src/main/assets/js/plugins.js");
     const gradle = read("integrations/android/current-app-mirror/app/build.gradle.kts");
@@ -108,6 +109,11 @@ describe("isolated integration configuration", () => {
     expect(activity).not.toContain("acknowledgePurchase(");
     expect(manager).toContain('api("/api/v1/google-play/claim"');
     expect(manager).toContain('OAuthProvider.newBuilder("apple.com")');
+    expect(manager).toContain("FirebaseAuth.getInstance(entitlementFirebaseApp)");
+    expect(manager).toContain("R.string.wonderlang_entitlements_google_web_client_id");
+    expect(manager).not.toContain("R.string.default_web_client_id");
+    expect(entitlementFirebase).toContain("wonderlang-entitlements-9590f");
+    expect(entitlementFirebase).toContain("apps.googleusercontent.com");
     expect(manager).toContain("GetGoogleIdOption.Builder()");
     expect(manager).toContain("sendSignInLinkToEmail");
     expect(storefront).toContain('sku: "wonderlangmonthly"');

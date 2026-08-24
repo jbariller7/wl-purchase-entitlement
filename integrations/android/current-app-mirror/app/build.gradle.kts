@@ -12,6 +12,20 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(keystorePropertiesFile.inputStream())
 }
 
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties = Properties()
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
+}
+
+val wonderLangEntitlementsFirebaseApiKey =
+    providers.environmentVariable("WONDERLANG_ENTITLEMENTS_FIREBASE_API_KEY").orNull
+        ?: localProperties.getProperty("WONDERLANG_ENTITLEMENTS_FIREBASE_API_KEY")
+        ?: throw GradleException(
+            "Missing WONDERLANG_ENTITLEMENTS_FIREBASE_API_KEY. Set it in the build environment " +
+                "or the untracked local.properties file. Never commit Firebase API keys."
+        )
+
 android {
     /*
      * Keep the namespace as com.wonderlang.app so your existing Kotlin files,
@@ -35,6 +49,11 @@ android {
         versionName = "1.0.33 "
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        resValue(
+            "string",
+            "wonderlang_entitlements_api_key",
+            wonderLangEntitlementsFirebaseApiKey
+        )
     }
 
     signingConfigs {

@@ -17,6 +17,8 @@ import com.google.android.gms.tasks.Tasks
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.firebase.FirebaseApp
+import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.ActionCodeSettings
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
@@ -47,7 +49,23 @@ class WonderLangAccountManager(
     private val apiBase = apiBaseUrl.trimEnd('/').also {
         require(it.startsWith("https://")) { "The WonderLang account API must use HTTPS." }
     }
-    private val auth = FirebaseAuth.getInstance()
+    // Keep the existing default Firebase app dedicated to WonderLang analytics and
+    // Crashlytics. Accounts use the isolated entitlement project so signing in cannot
+    // accidentally read from or write to the legacy production Firebase project.
+    private val entitlementFirebaseApp = FirebaseApp.getApps(activity)
+        .firstOrNull { it.name == ENTITLEMENT_FIREBASE_APP_NAME }
+        ?: FirebaseApp.initializeApp(
+            activity,
+            FirebaseOptions.Builder()
+                .setApiKey(activity.getString(R.string.wonderlang_entitlements_api_key))
+                .setApplicationId(activity.getString(R.string.wonderlang_entitlements_app_id))
+                .setProjectId(activity.getString(R.string.wonderlang_entitlements_project_id))
+                .setStorageBucket(activity.getString(R.string.wonderlang_entitlements_storage_bucket))
+                .setGcmSenderId(activity.getString(R.string.wonderlang_entitlements_sender_id))
+                .build(),
+            ENTITLEMENT_FIREBASE_APP_NAME
+        )
+    private val auth = FirebaseAuth.getInstance(entitlementFirebaseApp)
     private val credentialManager = CredentialManager.create(activity)
     private val executor = Executors.newSingleThreadExecutor()
     private val preferences = activity.getSharedPreferences("wl_account_auth", android.content.Context.MODE_PRIVATE)
@@ -302,7 +320,7 @@ class WonderLangAccountManager(
             try {
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(activity.getString(R.string.default_web_client_id))
+                    .setServerClientId(activity.getString(R.string.wonderlang_entitlements_google_web_client_id))
                     .build()
                 val request = GetCredentialRequest.Builder()
                     .addCredentialOption(googleIdOption)
@@ -552,5 +570,9 @@ class WonderLangAccountManager(
                 webView.evaluateJavascript(script, null)
             }
         }
+    }
+
+    private companion object {
+        const val ENTITLEMENT_FIREBASE_APP_NAME = "wonderlang-entitlements"
     }
 }

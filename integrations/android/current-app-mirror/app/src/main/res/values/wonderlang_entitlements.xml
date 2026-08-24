@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The API key is injected by Gradle from an untracked property or environment variable. -->
+    <string name="wonderlang_entitlements_app_id" translatable="false">1:769128191668:android:211c0685b2f5ee016d69e1</string>
+    <string name="wonderlang_entitlements_project_id" translatable="false">wonderlang-entitlements-9590f</string>
+    <string name="wonderlang_entitlements_storage_bucket" translatable="false">wonderlang-entitlements-9590f.firebasestorage.app</string>
+    <string name="wonderlang_entitlements_sender_id" translatable="false">769128191668</string>
+    <string name="wonderlang_entitlements_google_web_client_id" translatable="false">769128191668-25dapis1daod1ao4jem162g6me9fro4f.apps.googleusercontent.com</string>
+</resources>
