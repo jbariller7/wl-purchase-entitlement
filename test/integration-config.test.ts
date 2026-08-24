@@ -29,13 +29,73 @@ describe("isolated integration configuration", () => {
   });
 
   it("closes the native Play verification loop for both success and failure", () => {
-    const bridge = read("integrations/android/WonderLangAccountBridge.kt");
+    const bridge = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
     const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
     for (const callback of ["_nativePurchaseVerified", "_nativePurchaseFailed"]) {
       expect(bridge).toContain(callback);
       expect(rmmz).toContain(callback);
     }
     expect(rmmz).toContain("wl-purchase-verification-complete");
+  });
+
+  it("keeps the Android migration server-authoritative and subscription-aware", () => {
+    const activity = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/MainActivity.kt");
+    const manager = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
+    const storefront = read("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/AndroidAssetDownloader.js");
+    const plugins = read("integrations/android/current-app-mirror/app/src/main/assets/js/plugins.js");
+    const gradle = read("integrations/android/current-app-mirror/app/build.gradle.kts");
+
+    expect(activity).toContain('private val SUBS_SKUS = setOf("wonderlangmonthly")');
+    expect(activity).toContain("BillingClient.ProductType.SUBS");
+    expect(activity).toContain("setObfuscatedAccountId(storeAccountToken)");
+    expect(activity).toContain("preferredSubscriptionOffer");
+    expect(activity).not.toContain("acknowledgePurchase(");
+    expect(manager).toContain('api("/api/v1/google-play/claim"');
+    expect(manager).toContain('OAuthProvider.newBuilder("apple.com")');
+    expect(manager).toContain("GetGoogleIdOption.Builder()");
+    expect(manager).toContain("sendSignInLinkToEmail");
+    expect(storefront).toContain('sku: "wonderlangmonthly"');
+    expect(storefront).toContain('sku: "wonderlangfull"');
+    expect(storefront).toMatch(/function shouldShowChapterOffers\(\)\s*\{\s*return false;\s*\}/);
+    expect(storefront).toContain("RESTORE_PRODUCTS");
+    expect(plugins).toContain('{"name":"WonderLangAccountCloudSync","status":true');
+    for (const dependency of ["firebase-auth", "credentials-play-services-auth", "googleid"]) {
+      expect(gradle).toContain(dependency);
+    }
+  });
+
+  it("uses a narrow HTTPS WebView origin and conflict-safe cloud save UX", () => {
+    const activity = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/MainActivity.kt");
+    const manifest = read("integrations/android/current-app-mirror/app/src/main/AndroidManifest.xml");
+    const api = read("netlify/functions/api.ts");
+    const cors = read("storage.cors.json");
+    const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
+    const packaged = read("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/WonderLangAccountCloudSync.js");
+
+    expect(manifest).toContain('android:usesCleartextTraffic="false"');
+    expect(activity).toContain("WebSettings.MIXED_CONTENT_NEVER_ALLOW");
+    expect(activity).toContain("WebView.setWebContentsDebuggingEnabled(webViewDebuggable)");
+    expect(activity).toContain('url.startsWith("https://appassets.local/")');
+    expect(activity).toContain("Never let an");
+    expect(api).toContain('"https://appassets.local"');
+    expect(cors).toContain('"https://appassets.local"');
+    for (const choice of ["Keep device", "Use cloud", "Not now"]) expect(rmmz).toContain(choice);
+    expect(rmmz).toContain("await sha256Hex(bytes)");
+    expect(rmmz).toContain("baseRevision: remoteRevision");
+    expect(packaged).toBe(rmmz);
+  });
+
+  it("publishes a side-effect-free browser harness for testing the RPG Maker UI", () => {
+    const page = read("public/rmmz-test/index.html");
+    const harness = read("public/rmmz-test/harness.js");
+    const buildScript = read("scripts/build-widget.mjs");
+    expect(page).toContain("Test account panel");
+    expect(page).toContain("Test cloud-save list");
+    expect(page).toContain("Test save conflict");
+    expect(harness).toContain("mock-firebase-id-token");
+    expect(harness).toContain("No real save is touched.");
+    expect(harness).not.toContain("STRIPE_SECRET_KEY");
+    expect(buildScript).toContain("public/rmmz-test/WonderLangAccountCloudSync.js");
   });
 
   it("uses accessible in-console forms instead of blocking prompt dialogs", () => {

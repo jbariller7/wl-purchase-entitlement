@@ -43,6 +43,9 @@ function withCors(event: HandlerEvent, response: HandlerResponse): HandlerRespon
   const origin = event.headers.origin;
   const allowed = new Set([
     ...(process.env.PUBLIC_APP_ORIGIN ? [process.env.PUBLIC_APP_ORIGIN] : []),
+    // Trusted Android WebViewAssetLoader origin. The game is served from HTTPS,
+    // never file://, and sends Firebase bearer tokens only to this API.
+    "https://appassets.local",
     "https://wonderlang.net",
     "https://www.wonderlang.net"
   ]);

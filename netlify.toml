@@ -78,3 +78,13 @@
     Referrer-Policy = "no-referrer"
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"
+
+[[headers]]
+  for = "/rmmz-test/*"
+  [headers.values]
+    Cache-Control = "no-store, max-age=0"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'none'"
+    Permissions-Policy = "camera=(), geolocation=(), microphone=(), payment=()"
+    Referrer-Policy = "no-referrer"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"

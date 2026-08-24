@@ -3,7 +3,8 @@
     "origin": [
       "https://wonderlang.net",
       "https://www.wonderlang.net",
-      "https://wl-purchase-entitlement.netlify.app"
+      "https://wl-purchase-entitlement.netlify.app",
+      "https://appassets.local"
     ],
     "method": ["GET", "PUT", "HEAD"],
     "responseHeader": ["Content-Type", "ETag", "x-goog-hash"],

@@ -1,4 +1,7 @@
 import { build } from "esbuild";
+import { copyFile, mkdir } from "node:fs/promises";
+
+await mkdir("public/rmmz-test", { recursive: true });
 
 await Promise.all([
   build({
@@ -27,5 +30,9 @@ await Promise.all([
     format: "iife",
     target: ["es2020"],
     outfile: "public/setup.js"
-  })
+  }),
+  copyFile(
+    "integrations/rmmz/WonderLangAccountCloudSync.js",
+    "public/rmmz-test/WonderLangAccountCloudSync.js"
+  )
 ]);

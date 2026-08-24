@@ -1,0 +1,556 @@
+package com.wonderlang.app
+
+import android.content.Intent
+import android.net.Uri
+import android.text.InputType
+import android.util.Log
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.widget.EditText
+import androidx.appcompat.app.AlertDialog
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.lifecycle.lifecycleScope
+import com.google.android.gms.tasks.Tasks
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.firebase.auth.ActionCodeSettings
+import com.google.firebase.auth.EmailAuthProvider
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthProvider
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.UUID
+import java.util.concurrent.Executors
+
+/**
+ * Account and entitlement bridge for the isolated WonderLang Android migration.
+ *
+ * Firebase is the identity boundary and the Netlify API is the entitlement boundary.
+ * The WebView never receives a password, OAuth secret, Play purchase token, or Firebase
+ * refresh token. The short-lived Firebase ID token is exposed only to the trusted local
+ * RPG Maker page so it can call the same authenticated cloud-save API as the web account UI.
+ */
+class WonderLangAccountManager(
+    private val activity: MainActivity,
+    private val webView: WebView,
+    apiBaseUrl: String
+) {
+    private val tag = "WLAccount"
+    private val apiBase = apiBaseUrl.trimEnd('/').also {
+        require(it.startsWith("https://")) { "The WonderLang account API must use HTTPS." }
+    }
+    private val auth = FirebaseAuth.getInstance()
+    private val credentialManager = CredentialManager.create(activity)
+    private val executor = Executors.newSingleThreadExecutor()
+    private val preferences = activity.getSharedPreferences("wl_account_auth", android.content.Context.MODE_PRIVATE)
+
+    @Volatile private var cachedIdToken = ""
+    @Volatile private var cachedStoreAccountToken = ""
+    @Volatile private var cachedAccountJson = ""
+    @Volatile private var fullGameEntitled = false
+    @Volatile private var cloudSaveEntitled = false
+
+    private val authListener = FirebaseAuth.AuthStateListener { state ->
+        if (state.currentUser == null) publishSignedOut() else refreshAccount(forceTokenRefresh = false)
+    }
+
+    init {
+        auth.addAuthStateListener(authListener)
+        resumePendingAppleFlow()
+    }
+
+    fun destroy() {
+        auth.removeAuthStateListener(authListener)
+        executor.shutdownNow()
+    }
+
+    fun handleIntent(intent: Intent?) {
+        val emailLink = intent?.data?.toString().orEmpty()
+        if (emailLink.isBlank() || !auth.isSignInWithEmailLink(emailLink)) return
+        val rememberedEmail = preferences.getString("pending_email", "").orEmpty()
+        if (rememberedEmail.isNotBlank()) {
+            completeEmailLink(rememberedEmail, emailLink)
+        } else {
+            promptForEmail(
+                title = "Confirm your email",
+                message = "Enter the email address that received this WonderLang sign-in link.",
+                positiveLabel = "Continue"
+            ) { email -> completeEmailLink(email, emailLink) }
+        }
+    }
+
+    fun isSignedIn(): Boolean = auth.currentUser != null
+
+    fun ownsProduct(productId: String): Boolean {
+        if (!fullGameEntitled) return false
+        return productId.lowercase() in setOf(
+            "wonderlangfull",
+            "wonderlangmonthly",
+            "wonderlangch1",
+            "wonderlangch2",
+            "wonderlangch3",
+            "wonderlangch4"
+        )
+    }
+
+    fun hasFullGame(): Boolean = fullGameEntitled
+
+    fun ensureStoreAccountToken(onSuccess: (String) -> Unit, onFailure: (String) -> Unit) {
+        val cached = cachedStoreAccountToken
+        if (cached.isNotBlank()) {
+            activity.runOnUiThread { onSuccess(cached) }
+            return
+        }
+        if (auth.currentUser == null) {
+            activity.runOnUiThread { onFailure("Sign in to WonderLang before purchasing.") }
+            return
+        }
+        executor.execute {
+            try {
+                val token = api("/api/v1/store-account-token", "GET", null)
+                    .getString("storeAccountToken")
+                UUID.fromString(token)
+                cachedStoreAccountToken = token
+                activity.runOnUiThread { onSuccess(token) }
+            } catch (error: Exception) {
+                activity.runOnUiThread {
+                    onFailure(safeMessage(error, "WonderLang could not prepare your store account."))
+                }
+            }
+        }
+    }
+
+    /**
+     * Submit a PURCHASED token. Access is granted by the caller only after this succeeds.
+     * The backend validates the receipt, prevents account-token disagreement, records the
+     * immutable grant, and acknowledges it with Google Play.
+     */
+    fun claimGooglePlayPurchase(
+        kind: String,
+        productId: String,
+        purchaseToken: String,
+        onComplete: (Boolean, JSONObject?, String?) -> Unit
+    ) {
+        if (kind !in setOf("subscription", "one_time")) {
+            onComplete(false, null, "Unknown Google Play purchase type.")
+            return
+        }
+        executor.execute {
+            try {
+                val body = JSONObject()
+                    .put("kind", kind)
+                    .put("productId", productId)
+                    .put("purchaseToken", purchaseToken)
+                val response = api("/api/v1/google-play/claim", "POST", body)
+                val entitlements = response.optJSONObject("entitlements")
+                    ?: throw IllegalStateException("The entitlement response was incomplete.")
+                publishEntitlements(entitlements, response)
+                evaluate(
+                    "window.WLAccountEntitlements?._nativePurchaseVerified?.(" +
+                        JSONObject.quote(response.toString()) + ")"
+                )
+                activity.runOnUiThread { onComplete(true, entitlements, null) }
+            } catch (error: Exception) {
+                val message = safeMessage(error, "WonderLang could not verify this Google Play purchase.")
+                evaluate(
+                    "window.WLAccountEntitlements?._nativePurchaseFailed?.(" +
+                        JSONObject.quote(message) + ")"
+                )
+                activity.runOnUiThread { onComplete(false, null, message) }
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun getCachedIdToken(): String = cachedIdToken
+
+    @JavascriptInterface
+    fun getAccountSnapshot(): String = cachedAccountJson
+
+    @JavascriptInterface
+    fun getStoreAccountToken(): String = cachedStoreAccountToken
+
+    @JavascriptInterface
+    fun isSignedInFromGame(): Boolean = isSignedIn()
+
+    @JavascriptInterface
+    fun hasCloudSave(): Boolean = cloudSaveEntitled
+
+    @JavascriptInterface
+    fun openAccount(): Boolean {
+        activity.runOnUiThread { showAccountDialog() }
+        return true
+    }
+
+    @JavascriptInterface
+    fun openSignIn(): Boolean {
+        activity.runOnUiThread { showSignInDialog() }
+        return true
+    }
+
+    @JavascriptInterface
+    fun refreshEntitlements(): Boolean {
+        refreshAccount(forceTokenRefresh = true)
+        return auth.currentUser != null
+    }
+
+    @JavascriptInterface
+    fun refreshIdToken(): Boolean = refreshEntitlements()
+
+    @JavascriptInterface
+    fun openExternalUrl(rawUrl: String): Boolean {
+        val uri = runCatching { Uri.parse(rawUrl) }.getOrNull() ?: return false
+        val host = uri.host?.lowercase().orEmpty()
+        val allowed = uri.scheme == "https" && (
+            host == "wonderlang.net" ||
+                host == "www.wonderlang.net" ||
+                host == "billing.stripe.com"
+            )
+        if (!allowed) return false
+        return try {
+            activity.runOnUiThread {
+                activity.startActivity(Intent(Intent.ACTION_VIEW, uri))
+            }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun beginGoogleSignIn(): Boolean {
+        activity.runOnUiThread { beginGoogle(linkToCurrentUser = false) }
+        return true
+    }
+
+    @JavascriptInterface
+    fun beginAppleSignIn(): Boolean {
+        activity.runOnUiThread { beginApple(linkToCurrentUser = false) }
+        return true
+    }
+
+    @JavascriptInterface
+    fun beginEmailLinkSignIn(): Boolean {
+        activity.runOnUiThread { beginEmailLink(linkToCurrentUser = false) }
+        return true
+    }
+
+    @JavascriptInterface
+    fun signOut(): Boolean {
+        activity.runOnUiThread {
+            auth.signOut()
+            activity.lifecycleScope.launch {
+                runCatching { credentialManager.clearCredentialState(ClearCredentialStateRequest()) }
+                publishSignedOut()
+            }
+        }
+        return true
+    }
+
+    private fun showSignInDialog() {
+        AlertDialog.Builder(activity)
+            .setTitle("Sign in to WonderLang")
+            .setItems(arrayOf("Continue with Google", "Continue with Apple", "Email me a sign-in link")) { _, which ->
+                when (which) {
+                    0 -> beginGoogle(linkToCurrentUser = false)
+                    1 -> beginApple(linkToCurrentUser = false)
+                    2 -> beginEmailLink(linkToCurrentUser = false)
+                }
+            }
+            .setNegativeButton("Not now", null)
+            .show()
+    }
+
+    private fun showAccountDialog() {
+        val user = auth.currentUser
+        if (user == null) {
+            showSignInDialog()
+            return
+        }
+        val providerNames = user.providerData
+            .mapNotNull { it.providerId.takeUnless { provider -> provider == "firebase" } }
+            .distinct()
+            .joinToString()
+            .ifBlank { "WonderLang" }
+        val label = user.email ?: user.displayName ?: "Signed-in WonderLang account"
+        AlertDialog.Builder(activity)
+            .setTitle(label)
+            .setMessage("Login methods: $providerNames\n\nLinking is always explicit. It joins a new login method to this same WonderLang account.")
+            .setItems(arrayOf("Refresh access", "Link Google login", "Link Apple login", "Link email login", "Sign out")) { _, which ->
+                when (which) {
+                    0 -> refreshAccount(forceTokenRefresh = true)
+                    1 -> beginGoogle(linkToCurrentUser = true)
+                    2 -> beginApple(linkToCurrentUser = true)
+                    3 -> beginEmailLink(linkToCurrentUser = true)
+                    4 -> signOut()
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun beginGoogle(linkToCurrentUser: Boolean) {
+        activity.lifecycleScope.launch {
+            try {
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(activity.getString(R.string.default_web_client_id))
+                    .build()
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+                val result = credentialManager.getCredential(activity, request)
+                val custom = result.credential as? CustomCredential
+                    ?: throw IllegalStateException("Google did not return a supported credential.")
+                if (custom.type != TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                    throw IllegalStateException("Google did not return an ID token credential.")
+                }
+                val google = GoogleIdTokenCredential.createFrom(custom.data)
+                val firebaseCredential = GoogleAuthProvider.getCredential(google.idToken, null)
+                val task = if (linkToCurrentUser) {
+                    val current = auth.currentUser
+                        ?: throw IllegalStateException("Sign in before linking another login method.")
+                    current.linkWithCredential(firebaseCredential)
+                } else {
+                    auth.signInWithCredential(firebaseCredential)
+                }
+                task.addOnSuccessListener { refreshAccount(forceTokenRefresh = true) }
+                    .addOnFailureListener { showAuthError(it, if (linkToCurrentUser) "Google login could not be linked." else "Google sign-in failed.") }
+            } catch (error: Exception) {
+                showAuthError(error, if (linkToCurrentUser) "Google login could not be linked." else "Google sign-in was canceled or failed.")
+            }
+        }
+    }
+
+    private fun appleProvider() = OAuthProvider.newBuilder("apple.com").apply {
+        scopes = arrayOf("email", "name").toList()
+    }.build()
+
+    private fun beginApple(linkToCurrentUser: Boolean) {
+        preferences.edit().putBoolean("pending_apple_link", linkToCurrentUser).apply()
+        val task = if (linkToCurrentUser) {
+            val current = auth.currentUser
+            if (current == null) {
+                showAuthError(IllegalStateException("No signed-in account."), "Sign in before linking Apple.")
+                return
+            }
+            current.startActivityForLinkWithProvider(activity, appleProvider())
+        } else {
+            auth.startActivityForSignInWithProvider(activity, appleProvider())
+        }
+        task.addOnSuccessListener {
+            preferences.edit().remove("pending_apple_link").apply()
+            refreshAccount(forceTokenRefresh = true)
+        }.addOnFailureListener {
+            preferences.edit().remove("pending_apple_link").apply()
+            showAuthError(it, if (linkToCurrentUser) "Apple login could not be linked." else "Apple sign-in failed.")
+        }
+    }
+
+    private fun resumePendingAppleFlow() {
+        auth.pendingAuthResult?.addOnSuccessListener {
+            preferences.edit().remove("pending_apple_link").apply()
+            refreshAccount(forceTokenRefresh = true)
+        }?.addOnFailureListener {
+            preferences.edit().remove("pending_apple_link").apply()
+            showAuthError(it, "Apple sign-in did not finish.")
+        }
+    }
+
+    private fun beginEmailLink(linkToCurrentUser: Boolean) {
+        promptForEmail(
+            title = if (linkToCurrentUser) "Link an email login" else "Sign in by email",
+            message = "We will send a secure, one-time WonderLang sign-in link. No password is needed.",
+            positiveLabel = "Send link"
+        ) { email ->
+            val settings = ActionCodeSettings.newBuilder()
+                .setUrl("https://wonderlang.net/account")
+                .setHandleCodeInApp(true)
+                .setAndroidPackageName(activity.packageName, false, null)
+                .setLinkDomain("wonderlang-entitlements-9590f.firebaseapp.com")
+                .build()
+            preferences.edit()
+                .putString("pending_email", email)
+                .putBoolean("pending_email_link", linkToCurrentUser)
+                .apply()
+            auth.sendSignInLinkToEmail(email, settings)
+                .addOnSuccessListener {
+                    AlertDialog.Builder(activity)
+                        .setTitle("Check your email")
+                        .setMessage("Open the WonderLang link on this device to finish. The link is single-use.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+                .addOnFailureListener { showAuthError(it, "The sign-in email could not be sent.") }
+        }
+    }
+
+    private fun completeEmailLink(email: String, emailLink: String) {
+        val credential = EmailAuthProvider.getCredentialWithLink(email, emailLink)
+        val linkToCurrentUser = preferences.getBoolean("pending_email_link", false)
+        val task = if (linkToCurrentUser) {
+            val current = auth.currentUser
+            if (current == null) {
+                showAuthError(IllegalStateException("No signed-in account."), "Sign in before linking email.")
+                return
+            }
+            current.linkWithCredential(credential)
+        } else {
+            auth.signInWithCredential(credential)
+        }
+        task.addOnSuccessListener {
+            preferences.edit().remove("pending_email").remove("pending_email_link").apply()
+            refreshAccount(forceTokenRefresh = true)
+        }.addOnFailureListener {
+            showAuthError(it, if (linkToCurrentUser) "Email login could not be linked." else "The email sign-in link is invalid or expired.")
+        }
+    }
+
+    private fun promptForEmail(
+        title: String,
+        message: String,
+        positiveLabel: String,
+        onEmail: (String) -> Unit
+    ) {
+        val input = EditText(activity).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+            hint = "you@example.com"
+            setSingleLine(true)
+        }
+        val dialog = AlertDialog.Builder(activity)
+            .setTitle(title)
+            .setMessage(message)
+            .setView(input)
+            .setPositiveButton(positiveLabel, null)
+            .setNegativeButton("Cancel", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val email = input.text.toString().trim().lowercase()
+                if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                    input.error = "Enter a valid email address."
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                onEmail(email)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun refreshAccount(forceTokenRefresh: Boolean) {
+        if (auth.currentUser == null) {
+            publishSignedOut()
+            return
+        }
+        executor.execute {
+            try {
+                val user = auth.currentUser ?: throw IllegalStateException("The account signed out.")
+                cachedIdToken = Tasks.await(user.getIdToken(forceTokenRefresh)).token.orEmpty()
+                if (cachedIdToken.isBlank()) throw IllegalStateException("Firebase did not return an ID token.")
+                val account = api("/api/v1/me", "GET", null)
+                val accountToken = api("/api/v1/store-account-token", "GET", null)
+                    .getString("storeAccountToken")
+                UUID.fromString(accountToken)
+                cachedStoreAccountToken = accountToken
+                publishEntitlements(account.optJSONObject("entitlements"), account)
+                evaluate("window.WLAccountEntitlements?._nativeToken?.(" + JSONObject.quote(cachedIdToken) + ")")
+                evaluate("window.WLAccountEntitlements?._nativeAccount?.(" + JSONObject.quote(account.toString()) + ")")
+            } catch (error: Exception) {
+                Log.w(tag, "Account refresh failed: ${error.javaClass.simpleName}")
+                evaluate(
+                    "window.dispatchEvent(new CustomEvent('wl-account-error',{detail:{message:" +
+                        JSONObject.quote(safeMessage(error, "WonderLang could not refresh this account.")) + "}}))"
+                )
+            }
+        }
+    }
+
+    private fun publishEntitlements(entitlements: JSONObject?, fullResponse: JSONObject) {
+        if (entitlements == null) throw IllegalStateException("The entitlement response was incomplete.")
+        fullGameEntitled = entitlements.optBoolean("fullGame", false)
+        cloudSaveEntitled = entitlements.optBoolean("cloudSave", false)
+        cachedAccountJson = fullResponse.toString()
+        evaluate(
+            "window.WLAccountEntitlements?._nativeAccount?.(" +
+                JSONObject.quote(fullResponse.toString()) + ")"
+        )
+    }
+
+    private fun publishSignedOut() {
+        cachedIdToken = ""
+        cachedStoreAccountToken = ""
+        cachedAccountJson = ""
+        fullGameEntitled = false
+        cloudSaveEntitled = false
+        evaluate("window.WLAccountEntitlements?._nativeSignedOut?.()")
+    }
+
+    private fun currentUserLabel(user: FirebaseUser?): String =
+        user?.email ?: user?.displayName ?: "WonderLang account"
+
+    private fun showAuthError(error: Exception, fallback: String) {
+        Log.w(tag, "$fallback (${error.javaClass.simpleName})")
+        activity.runOnUiThread {
+            AlertDialog.Builder(activity)
+                .setTitle("Account not changed")
+                .setMessage(safeMessage(error, fallback))
+                .setPositiveButton("OK", null)
+                .show()
+        }
+    }
+
+    private fun api(path: String, method: String, body: JSONObject?): JSONObject {
+        val user = auth.currentUser ?: throw IllegalStateException("Sign in to WonderLang first.")
+        val token = Tasks.await(user.getIdToken(false)).token.orEmpty()
+        if (token.isBlank()) throw IllegalStateException("Firebase sign-in needs to be refreshed.")
+        cachedIdToken = token
+        val connection = URL(apiBase + path).openConnection() as HttpURLConnection
+        return try {
+            connection.requestMethod = method
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 20_000
+            connection.instanceFollowRedirects = false
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection.setRequestProperty("Accept", "application/json")
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            if (body != null) {
+                connection.doOutput = true
+                connection.outputStream.use { stream ->
+                    stream.write(body.toString().toByteArray(Charsets.UTF_8))
+                }
+            }
+            val code = connection.responseCode
+            val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            if (code !in 200..299) {
+                val serverMessage = runCatching { JSONObject(text).optString("error") }.getOrNull()
+                throw IllegalStateException(serverMessage?.takeIf { it.isNotBlank() } ?: "Account service returned HTTP $code.")
+            }
+            JSONObject(text)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun safeMessage(error: Exception, fallback: String): String {
+        val raw = error.message?.trim().orEmpty()
+        return if (raw.isBlank()) fallback else raw.take(300)
+    }
+
+    private fun evaluate(script: String) {
+        activity.runOnUiThread {
+            if (!activity.isFinishing && !activity.isDestroyed) {
+                webView.evaluateJavascript(script, null)
+            }
+        }
+    }
+}

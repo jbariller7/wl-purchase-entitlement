@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>WonderLang Mobile Account UI Test</title>
+  <link rel="stylesheet" href="/rmmz-test/harness.css">
+</head>
+<body>
+  <main class="harness">
+    <p class="eyebrow">ISOLATED RPG MAKER UI TEST</p>
+    <h1>WonderLang mobile account</h1>
+    <p>This page runs the same account/cloud-save plugin packaged in the Android mirror, against local mock data. It cannot charge, authenticate, overwrite a real save, or call production automation.</p>
+    <div class="controls">
+      <button id="open-account">Test account panel</button>
+      <button id="open-saves">Test cloud-save list</button>
+      <button id="open-conflict">Test save conflict</button>
+    </div>
+    <pre id="status" aria-live="polite">Ready. Choose a UI test.</pre>
+  </main>
+  <script src="/rmmz-test/harness.js"></script>
+  <script src="/rmmz-test/WonderLangAccountCloudSync.js"></script>
+</body>
+</html>
