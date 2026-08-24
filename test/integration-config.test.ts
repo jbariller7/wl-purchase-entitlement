@@ -160,6 +160,9 @@ describe("isolated integration configuration", () => {
     expect(storefront).toContain("JavaScript must not infer permanent full access from an undated chapter receipt");
     expect(storefront).not.toContain("const historicalChapterOwned");
     expect(plugins).toContain('{"name":"WonderLangAccountCloudSync","status":true');
+    expect(plugins).toContain("Polyglot Permanent Access");
+    expect(plugins).toContain("$31.99");
+    expect(plugins).not.toContain('$25.99');
     for (const dependency of ["firebase-auth", "credentials-play-services-auth", "googleid"]) {
       expect(gradle).toContain(dependency);
     }
