@@ -10,7 +10,7 @@ Required integration:
 - Obtain `/api/v1/store-account-token` after Firebase sign-in and pass its UUID through StoreKit's `.appAccountToken(...)` option.
 - Send `VerificationResult.jwsRepresentation` to `/api/v1/apple/claim`; only finish the StoreKit transaction after the backend accepts it.
 - Configure App Store Server Notifications V2 at `/webhooks/apple` and upload Apple G2/G3 root certificates to Netlify as base64 secrets.
-- Continue restoring legacy chapter and full-game transactions even though the new storefront presents monthly plus lifetime instead of chapter-by-chapter offers.
-- For an Apple-billed subscriber buying lifetime on the website, show the App Store subscription-management link. Apple controls cancellation; the website must not claim it canceled the Apple subscription.
+- Continue restoring legacy chapter and `wonderlangfull` transactions even though the new storefront presents Mobile Monthly plus Polyglot Permanent instead of chapter-by-chapter offers. `wonderlangfull` is one-platform permanent access and does not include cloud save.
+- For an Apple-billed subscriber buying Premium Lifetime on the website, show the App Store subscription-management link. Apple controls cancellation; the website must not claim it canceled the Apple subscription.
 
 The adapter must be compiled and exercised in the real Xcode project before release.

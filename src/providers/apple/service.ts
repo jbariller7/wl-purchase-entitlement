@@ -88,7 +88,7 @@ async function applyAppleTransaction(input: {
   const now = new Date(input.eventCreated * 1000);
   let product: LedgerGrant["product"];
   if (productId === env().APPLE_MONTHLY_PRODUCT_ID) product = "mobile_full_monthly";
-  else if (productId === env().APPLE_LIFETIME_PRODUCT_ID) product = "mobile_full_lifetime";
+  else if (productId === env().APPLE_POLYGLOT_PRODUCT_ID) product = "mobile_polyglot_permanent";
   else product = LEGACY_PLAY_PRODUCT_MAP[productId] ?? (() => { throw new HttpError(403, "Unknown Apple product ID."); })();
 
   if (product === "mobile_full_monthly") {

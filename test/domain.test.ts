@@ -6,14 +6,16 @@ import { planLifetimeTransition } from "../src/domain/lifetime-transition.js";
 import type { LedgerGrant } from "../src/domain/model.js";
 import { normalizeStripeSubscriptionState, stripeGraceEndsAt } from "../src/domain/subscription.js";
 import { summarizeSubscription } from "../src/domain/account-summary.js";
-import { routeLegacyOrder } from "../src/legacy/catalog.js";
+import { routeLegacyOrder, routePremiumDesktopAccess } from "../src/legacy/catalog.js";
 import {
   LEGACY_PLAY_PRODUCT_MAP,
   LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF,
-  LIFETIME_PRICE_USD_CENTS,
   MONTHLY_PRICE_USD_CENTS,
+  POLYGLOT_PERMANENT_PRICE_USD_CENTS,
+  PREMIUM_LIFETIME_PRICE_USD_CENTS,
   STRIPE_SUBSCRIPTION_TRIAL_DAYS
 } from "../src/domain/catalog.js";
+import { REGIONAL_PRICES, stripeMinorAmount } from "../src/domain/regional-pricing.js";
 import { chapterMigrationGrant, chapterMigrationTransactionId, isEligibleHistoricalChapterPurchase } from "../src/domain/legacy-chapter-migration.js";
 
 const now = new Date("2026-08-23T12:00:00.000Z");
@@ -69,21 +71,30 @@ describe("effective entitlement projection", () => {
     ];
     const value = projectEntitlements("user-1", grants, now);
     expect(value).toMatchObject({
-      cloudSave: true,
+      cloudSave: false,
       fullGame: true,
       allLanguages: true,
       chapters: [2],
-      accessKind: "lifetime"
+      mobilePlatforms: ["android"],
+      accessKind: "permanent"
     });
   });
 
-  it("makes lifetime access dominant and permanent", () => {
+  it("grandfathers a pre-split website lifetime grant as Premium", () => {
     const value = projectEntitlements(
       "user-1",
       [grant({ state: "expired" }), grant({ id: "life", product: "mobile_full_lifetime" })],
       now
     );
-    expect(value).toMatchObject({ fullGame: true, allLanguages: true, cloudSave: true, accessKind: "lifetime" });
+    expect(value).toMatchObject({
+      fullGame: true,
+      allLanguages: true,
+      cloudSave: true,
+      pcMacAccess: true,
+      futureContent: true,
+      secondMobilePlatformEligible: true,
+      accessKind: "premium_lifetime"
+    });
   });
 
   it("fails closed when an active period has actually ended", () => {
@@ -104,16 +115,16 @@ describe("effective entitlement projection", () => {
 });
 
 describe("legacy desktop routing", () => {
-  it("treats the existing full mobile SKU as lifetime, including cloud save", () => {
-    expect(LEGACY_PLAY_PRODUCT_MAP.wonderlangfull).toBe("mobile_full_lifetime");
+  it("treats the existing full mobile SKU as platform-scoped Polyglot access", () => {
+    expect(LEGACY_PLAY_PRODUCT_MAP.wonderlangfull).toBe("mobile_polyglot_permanent");
     const value = projectEntitlements("user-1", [grant({
       provider: "google_play",
       product: LEGACY_PLAY_PRODUCT_MAP.wonderlangfull!
     })], now);
-    expect(value).toMatchObject({ accessKind: "lifetime", fullGame: true, cloudSave: true });
+    expect(value).toMatchObject({ accessKind: "permanent", fullGame: true, cloudSave: false, mobilePlatforms: ["android"] });
   });
 
-  it("upgrades every restored historical chapter purchase to full lifetime access", () => {
+  it("upgrades every restored historical chapter purchase to Polyglot access on its original platform", () => {
     expect(LEGACY_PLAY_PRODUCT_MAP).toMatchObject({ wonderlangch1: "legacy_chapter_1", wonderlangch2: "legacy_chapter_2", wonderlangch3: "legacy_chapter_3", wonderlangch4: "legacy_chapter_4" });
     expect(chapterMigrationTransactionId("GPA.1234")).toBe("chapter-full-upgrade:GPA.1234");
     expect(isEligibleHistoricalChapterPurchase("2026-08-24T23:59:59.999Z")).toBe(true);
@@ -124,7 +135,7 @@ describe("legacy desktop routing", () => {
   it("keeps the original chapter audit record from unlocking new post-cutoff purchases", () => {
     expect(projectEntitlements("user-1", [grant({ product: "legacy_chapter_1" })], now)).toMatchObject({ accessKind: "legacy", chapters: [1], fullGame: false, cloudSave: false });
     expect(chapterMigrationGrant(grant({ product: "legacy_chapter_1", startsAt: "2026-08-25T00:00:00.000Z" }))).toBeUndefined();
-    expect(projectEntitlements("user-1", [grant({ product: "legacy_mobile_full" })], now)).toMatchObject({ accessKind: "lifetime", fullGame: true, allLanguages: true, cloudSave: true });
+    expect(projectEntitlements("user-1", [grant({ provider: "google_play", product: "legacy_mobile_full" })], now)).toMatchObject({ accessKind: "permanent", fullGame: true, allLanguages: true, cloudSave: false, mobilePlatforms: ["android"] });
   });
 
   it("routes a known single-language Steam checkout to its exact inventory", () => {
@@ -150,6 +161,11 @@ describe("legacy desktop routing", () => {
       customFields: [{ key: "play_mode", dropdown: { value: "Steam" } }]
     })).toBeUndefined();
   });
+
+  it("routes each Premium PC/Mac choice to exactly one existing Polyglot key inventory", () => {
+    expect(routePremiumDesktopAccess("steam")).toEqual({ productCode: "POLY_STEAM", playMode: "STEAM", sheetTab: "Polyglot Steam", quantity: 1 });
+    expect(routePremiumDesktopAccess("direct")).toEqual({ productCode: "POLY_ITCH", playMode: "DIRECT", sheetTab: "Polyglot Itch", quantity: 1 });
+  });
 });
 
 describe("subscription and conversion policy", () => {
@@ -171,8 +187,17 @@ describe("subscription and conversion policy", () => {
   });
   it("keeps the confirmed test catalog and trial terms in code", () => {
     expect(MONTHLY_PRICE_USD_CENTS).toBe(699);
-    expect(LIFETIME_PRICE_USD_CENTS).toBe(6000);
+    expect(POLYGLOT_PERMANENT_PRICE_USD_CENTS).toBe(3199);
+    expect(PREMIUM_LIFETIME_PRICE_USD_CENTS).toBe(5999);
     expect(STRIPE_SUBSCRIPTION_TRIAL_DAYS).toBe(3);
+    expect(Object.keys(REGIONAL_PRICES.monthly)).toHaveLength(37);
+    expect(Object.keys(REGIONAL_PRICES.polyglot)).toHaveLength(37);
+    expect(Object.keys(REGIONAL_PRICES.premium)).toHaveLength(37);
+    expect(REGIONAL_PRICES.monthly.EUR).toBe("6.49");
+    expect(REGIONAL_PRICES.polyglot.GBP).toBe("26.80");
+    expect(REGIONAL_PRICES.premium.CAD).toBe("77.99");
+    expect(stripeMinorAmount("USD", REGIONAL_PRICES.polyglot.USD!)).toBe(3199);
+    expect(stripeMinorAmount("JPY", REGIONAL_PRICES.monthly.JPY!)).toBe(787);
   });
   it("computes exactly seven days of Stripe failure grace", () => {
     expect(stripeGraceEndsAt(now)).toBe("2026-08-30T12:00:00.000Z");

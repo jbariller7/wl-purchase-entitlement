@@ -494,8 +494,12 @@ class WonderLangAccountManager(
 
     private fun publishEntitlements(entitlements: JSONObject?, fullResponse: JSONObject) {
         if (entitlements == null) throw IllegalStateException("The entitlement response was incomplete.")
-        fullGameEntitled = entitlements.optBoolean("fullGame", false)
-        cloudSaveEntitled = entitlements.optBoolean("cloudSave", false)
+        val platforms = entitlements.optJSONArray("mobilePlatforms")
+        val androidGranted = platforms != null && (0 until platforms.length()).any {
+            platforms.optString(it).equals("android", ignoreCase = true)
+        }
+        fullGameEntitled = entitlements.optBoolean("fullGame", false) && androidGranted
+        cloudSaveEntitled = entitlements.optBoolean("cloudSave", false) && androidGranted
         cachedAccountJson = fullResponse.toString()
         evaluate(
             "window.WLAccountEntitlements?._nativeAccount?.(" +

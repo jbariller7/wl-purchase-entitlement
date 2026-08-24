@@ -29,7 +29,7 @@ async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<
       const uid = String(job.payload.uid ?? "");
       const subscriptionId = String(job.payload.subscriptionId ?? "");
       const effective = await store.effectiveEntitlements(uid, new Date());
-      if (effective.accessKind !== "lifetime") throw new Error("Refusing subscription cancellation before lifetime access is effective.");
+      if (effective.accessKind !== "premium_lifetime") throw new Error("Refusing subscription cancellation before Premium Lifetime Pass access is effective.");
       const subscription = await stripeClient().subscriptions.retrieve(subscriptionId);
       const linkedUid = await store.uidForProviderSubscription("stripe", subscriptionId);
       if (linkedUid !== uid) throw new Error("Refusing to cancel a subscription not linked to this account.");

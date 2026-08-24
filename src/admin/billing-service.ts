@@ -56,7 +56,7 @@ export class AdminBillingService {
     const currency = input.currency.trim().toUpperCase();
     if (!/^[A-Z]{3}$/.test(currency)) throw new HttpError(400, "Currency must be a three-letter ISO code.");
     const catalog = await this.catalog.get();
-    const current = input.kind === "monthly" ? catalog.monthly : catalog.lifetime;
+    const current = catalog[input.kind];
     if (current.unitAmount === input.unitAmount && current.currency === currency) throw new HttpError(409, "The proposed price is already active.");
     const id = randomUUID();
     const confirmationPhrase = `CHANGE ${input.kind.toUpperCase()} TO ${phraseAmount(input.unitAmount, currency)}`;

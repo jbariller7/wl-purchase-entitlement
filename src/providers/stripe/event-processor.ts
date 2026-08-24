@@ -5,7 +5,7 @@ import { checkoutAdDecision, stripeInvoiceAdDecision, type AdConversionName } fr
 import type { LedgerGrant, LegacyOrder } from "../../domain/model.js";
 import { normalizeStripeSubscriptionState, stripeGraceEndsAt } from "../../domain/subscription.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
-import { paymentLinkId, routeLegacyOrder } from "../../legacy/catalog.js";
+import { paymentLinkId, routeLegacyOrder, routePremiumDesktopAccess, type PremiumDesktopDelivery } from "../../legacy/catalog.js";
 import { stripeClient } from "./client.js";
 
 type Expandable = string | { id: string } | null | undefined;
@@ -16,6 +16,16 @@ function objectId(value: Expandable): string | undefined {
 
 function customerIdFrom(value: unknown): string | undefined {
   return objectId(value as Expandable);
+}
+
+async function checkoutBuyerEmail(session: Stripe.Checkout.Session): Promise<string | undefined> {
+  const inline = session.customer_details?.email ?? session.customer_email;
+  if (inline) return inline.trim().toLowerCase();
+  const customerId = customerIdFrom(session.customer);
+  if (!customerId) return undefined;
+  const customer = await stripeClient().customers.retrieve(customerId);
+  if (customer.deleted || !customer.email) return undefined;
+  return customer.email.trim().toLowerCase();
 }
 
 function metadataOf(value: unknown): Record<string, string> {
@@ -146,9 +156,18 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
     return;
   }
 
-  if (metadata.wl_product === "mobile_full_lifetime") {
-    if (!uid) throw new Error(`Lifetime Checkout ${session.id} has no Firebase UID.`);
+  if (metadata.wl_product === "mobile_polyglot_permanent" || metadata.wl_product === "premium_lifetime_pass") {
+    if (!uid) throw new Error(`Permanent Checkout ${session.id} has no Firebase UID.`);
     if (session.payment_status !== "paid" && session.payment_status !== "no_payment_required") return;
+    const product = metadata.wl_product;
+    const mobilePlatform = metadata.wl_mobile_platform;
+    if (mobilePlatform !== "android" && mobilePlatform !== "ios") {
+      throw new Error(`Permanent Checkout ${session.id} has no valid first mobile platform.`);
+    }
+    const premiumDesktopDelivery = metadata.wl_desktop_delivery;
+    if (product === "premium_lifetime_pass" && premiumDesktopDelivery !== "steam" && premiumDesktopDelivery !== "direct") {
+      throw new Error(`Premium Checkout ${session.id} has no valid PC/Mac delivery choice.`);
+    }
     const transactionId = objectId(session.payment_intent as Expandable) ?? session.id;
     const customerId = customerIdFrom(session.customer);
     await store.upsertGrant({
@@ -157,15 +176,39 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
       provider: "stripe",
       ...(customerId ? { providerCustomerId: customerId } : {}),
       providerTransactionId: transactionId,
-      product: "mobile_full_lifetime",
+      product,
       state: "active",
       startsAt: new Date(event.created * 1000).toISOString(),
-      metadata: { stripeCheckoutSessionId: session.id }
+      metadata: {
+        stripeCheckoutSessionId: session.id,
+        ...(product === "premium_lifetime_pass" ? { primaryMobilePlatform: mobilePlatform } : { mobilePlatform })
+      }
     }, { id: event.id, created: event.created });
-    if (metadata.wl_legacy_discount === "1") {
+    if (product === "premium_lifetime_pass") {
+      const buyerEmail = await checkoutBuyerEmail(session);
+      if (!buyerEmail) throw new Error(`Paid Premium order ${session.id} has no customer email for PC/Mac delivery.`);
+      const route = routePremiumDesktopAccess(premiumDesktopDelivery as PremiumDesktopDelivery);
+      const paymentIntentId = objectId(session.payment_intent as Expandable);
+      const order: LegacyOrder = {
+        id: session.id,
+        stripeCheckoutSessionId: session.id,
+        ...(paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : {}),
+        buyerEmail,
+        productCode: route.productCode,
+        playMode: route.playMode,
+        quantity: route.quantity,
+        amountTotal: session.amount_total ?? 0,
+        currency: session.currency?.toUpperCase() ?? "USD",
+        paidAt: new Date(event.created * 1000).toISOString(),
+        firebaseUid: uid
+      };
+      await store.saveLegacyOrder(order);
+      await store.enqueue("fulfill_legacy_order", session.id, { ...order, sheetTab: route.sheetTab }, new Date(event.created * 1000));
+    }
+    if (product === "premium_lifetime_pass" && metadata.wl_legacy_discount === "1") {
       await store.redeemLegacyDiscount(uid, session.id, new Date(event.created * 1000));
     }
-    if (metadata.wl_cancel_stripe_subscription) {
+    if (product === "premium_lifetime_pass" && metadata.wl_cancel_stripe_subscription) {
       await store.enqueue(
         "cancel_stripe_subscription",
         `lifetime:${transactionId}:${metadata.wl_cancel_stripe_subscription}`,
@@ -184,7 +227,7 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
         email: session.customer_details?.email ?? session.customer_email,
         value: (session.amount_total ?? 0) / 100,
         currency: session.currency ?? "usd",
-        product: "mobile_full_lifetime",
+        product,
         ...(context ? { context } : {})
       });
     }

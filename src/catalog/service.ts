@@ -2,8 +2,9 @@ import type { Firestore } from "firebase-admin/firestore";
 import type Stripe from "stripe";
 import { env } from "../config/env.js";
 import { stripeClient } from "../providers/stripe/client.js";
+import { REGIONAL_PRICES, stripeMinorAmount, type OfferPriceKind } from "../domain/regional-pricing.js";
 
-export type CatalogOfferKind = "monthly" | "lifetime";
+export type CatalogOfferKind = OfferPriceKind;
 
 export interface CatalogOffer {
   stripePriceId: string;
@@ -15,9 +16,12 @@ export interface CatalogOffer {
 export interface CatalogConfiguration {
   revision: number;
   monthly: CatalogOffer;
-  lifetime: CatalogOffer;
+  polyglot: CatalogOffer;
+  premium: CatalogOffer;
   monthlyPriceHistory: string[];
-  lifetimePriceHistory: string[];
+  polyglotPriceHistory: string[];
+  premiumPriceHistory: string[];
+  regionalPrices: Record<CatalogOfferKind, Record<string, string>>;
   updatedAt?: string;
   updatedBy?: string;
 }
@@ -31,7 +35,7 @@ function asOffer(price: Stripe.Price, kind: CatalogOfferKind): CatalogOffer {
   if (kind === "monthly" && (price.type !== "recurring" || price.recurring?.interval !== "month")) {
     throw new Error(`Stripe Price ${price.id} must recur monthly.`);
   }
-  if (kind === "lifetime" && price.type === "recurring") {
+  if (kind !== "monthly" && price.type === "recurring") {
     throw new Error(`Stripe Price ${price.id} must be a one-time Price.`);
   }
   return {
@@ -49,19 +53,37 @@ export class CatalogService {
 
   async get(): Promise<CatalogConfiguration> {
     const snapshot = await this.ref().get();
-    if (snapshot.exists) return snapshot.data() as CatalogConfiguration;
-    const [monthlyPrice, lifetimePrice] = await Promise.all([
-      stripeClient().prices.retrieve(env().STRIPE_PRICE_MOBILE_MONTHLY),
-      stripeClient().prices.retrieve(env().STRIPE_PRICE_MOBILE_LIFETIME)
+    const stored = snapshot.exists ? snapshot.data() as Partial<CatalogConfiguration> & {
+      lifetime?: CatalogOffer;
+      lifetimePriceHistory?: string[];
+    } : {};
+    const [monthlyPrice, polyglotPrice, premiumPrice] = await Promise.all([
+      stored.monthly ? undefined : stripeClient().prices.retrieve(env().STRIPE_PRICE_MOBILE_MONTHLY),
+      stored.polyglot ? undefined : stripeClient().prices.retrieve(env().STRIPE_PRICE_POLYGLOT_PERMANENT),
+      stored.premium ? undefined : stripeClient().prices.retrieve(env().STRIPE_PRICE_PREMIUM_LIFETIME)
     ]);
-    const monthly = asOffer(monthlyPrice, "monthly");
-    const lifetime = asOffer(lifetimePrice, "lifetime");
+    const monthly = stored.monthly ?? asOffer(monthlyPrice as Stripe.Price, "monthly");
+    const polyglot = stored.polyglot ?? asOffer(polyglotPrice as Stripe.Price, "polyglot");
+    const premium = stored.premium ?? asOffer(premiumPrice as Stripe.Price, "premium");
     return {
-      revision: 0,
+      revision: Number(stored.revision ?? 0),
       monthly,
-      lifetime,
-      monthlyPriceHistory: [monthly.stripePriceId],
-      lifetimePriceHistory: [lifetime.stripePriceId]
+      polyglot,
+      premium,
+      monthlyPriceHistory: [...new Set([...(stored.monthlyPriceHistory ?? []), monthly.stripePriceId])],
+      polyglotPriceHistory: [...new Set([...(stored.polyglotPriceHistory ?? []), polyglot.stripePriceId])],
+      premiumPriceHistory: [...new Set([
+        ...(stored.premiumPriceHistory ?? []),
+        ...(stored.lifetimePriceHistory ?? []),
+        premium.stripePriceId
+      ])],
+      regionalPrices: {
+        monthly: { ...REGIONAL_PRICES.monthly, ...(stored.regionalPrices?.monthly ?? {}) },
+        polyglot: { ...REGIONAL_PRICES.polyglot, ...(stored.regionalPrices?.polyglot ?? {}) },
+        premium: { ...REGIONAL_PRICES.premium, ...(stored.regionalPrices?.premium ?? {}) }
+      },
+      ...(stored.updatedAt ? { updatedAt: stored.updatedAt } : {}),
+      ...(stored.updatedBy ? { updatedBy: stored.updatedBy } : {})
     };
   }
 
@@ -85,15 +107,31 @@ export class CatalogService {
     if (!/^[a-z]{3}$/.test(currency)) throw new Error("Currency must be a three-letter ISO code.");
     const current = await this.get();
     if (current.revision !== input.expectedRevision) throw new Error("Catalog changed since preview. Refresh and review the new values.");
-    const oldOffer = input.kind === "monthly" ? current.monthly : current.lifetime;
+    const oldOffer = current[input.kind];
     const oldPrice = await stripeClient().prices.retrieve(oldOffer.stripePriceId);
+    const nextRegionalPrices = {
+      ...current.regionalPrices[input.kind],
+      [input.currency.toUpperCase()]: (input.unitAmount / (input.currency.toUpperCase() === "CLP" || input.currency.toUpperCase() === "JPY" || input.currency.toUpperCase() === "KRW" || input.currency.toUpperCase() === "VND" ? 1 : 100)).toFixed(
+        input.currency.toUpperCase() === "CLP" || input.currency.toUpperCase() === "JPY" || input.currency.toUpperCase() === "KRW" || input.currency.toUpperCase() === "VND" ? 0 : 2
+      )
+    };
+    const usdPrice = nextRegionalPrices.USD;
+    if (!usdPrice) throw new Error("Every WonderLang Price must keep a USD currency option.");
+    const defaultAmount = stripeMinorAmount("USD", usdPrice);
+    const currencyOptions = Object.fromEntries(
+      Object.entries(nextRegionalPrices)
+        .filter(([code]) => code !== "USD")
+        .map(([code, amount]) => [code.toLowerCase(), { unit_amount: stripeMinorAmount(code, amount) }])
+    );
     const created = await stripeClient().prices.create({
       product: priceProductId(oldPrice),
-      unit_amount: input.unitAmount,
-      currency,
+      unit_amount: defaultAmount,
+      currency: "usd",
+      currency_options: currencyOptions,
       ...(input.kind === "monthly" ? { recurring: { interval: "month" } } : {}),
       metadata: {
-        wl_product: input.kind === "monthly" ? "mobile_full_monthly" : "mobile_full_lifetime",
+        wl_product: input.kind === "monthly" ? "mobile_full_monthly"
+          : input.kind === "polyglot" ? "mobile_polyglot_permanent" : "premium_lifetime_pass",
         wl_catalog_revision: String(current.revision + 1),
         wl_changed_by: input.actorUid
       }
@@ -102,13 +140,15 @@ export class CatalogService {
     const next: CatalogConfiguration = {
       ...current,
       revision: current.revision + 1,
+      [input.kind]: offer,
       ...(input.kind === "monthly" ? {
-        monthly: offer,
         monthlyPriceHistory: [...new Set([...current.monthlyPriceHistory, offer.stripePriceId])]
+      } : input.kind === "polyglot" ? {
+        polyglotPriceHistory: [...new Set([...current.polyglotPriceHistory, offer.stripePriceId])]
       } : {
-        lifetime: offer,
-        lifetimePriceHistory: [...new Set([...current.lifetimePriceHistory, offer.stripePriceId])]
+        premiumPriceHistory: [...new Set([...current.premiumPriceHistory, offer.stripePriceId])]
       }),
+      regionalPrices: { ...current.regionalPrices, [input.kind]: nextRegionalPrices },
       updatedAt: input.now.toISOString(),
       updatedBy: input.actorUid
     };

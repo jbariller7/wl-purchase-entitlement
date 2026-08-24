@@ -10,7 +10,7 @@ Apply these changes only in a duplicate Android branch:
 4. After Firebase sign-in, fetch `/api/v1/store-account-token` and call `BillingFlowParams.Builder.setObfuscatedAccountId(token)`. It is a random UUID, not an email or Firebase UID.
 5. Send every `PURCHASED` token to `/api/v1/google-play/claim`. Do not grant the subscription or acknowledge it until that endpoint succeeds. The backend verifies with `purchases.subscriptionsv2.get` or `purchases.productsv2.getproductpurchasev2`, prevents token replay, grants, then acknowledges.
 6. Preserve a visible pending state for `PENDING`; never grant it. On restore/onResume, submit both INAPP and SUBS purchases again—the endpoint is idempotent.
-7. Make the server entitlement snapshot authoritative for monthly/lifetime access. Merge it with verified legacy local chapters so old customers are never relocked.
+7. Make the server entitlement snapshot authoritative for Monthly, platform-scoped Polyglot Permanent, and Premium Lifetime access. Enforce `mobilePlatforms` before unlocking Android, and merge it with verified legacy local chapters so old customers are never relocked.
 8. Do not send Meta/TikTok subscription renewals. Keep the current on-device one-time-purchase analytics only until the server conversion policy is deliberately expanded; otherwise a purchase can be double-counted.
 9. Keep Close/Hide/Restore controls release-tap safe. A billing or network error must never trap the WebView paywall.
 

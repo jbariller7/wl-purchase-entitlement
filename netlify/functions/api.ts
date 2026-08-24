@@ -6,7 +6,7 @@ import { CatalogService } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
 import { env } from "../../src/config/env.js";
-import { MONTHLY_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
+import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { summarizeSubscription } from "../../src/domain/account-summary.js";
 import { HttpError, requireUser } from "../../src/http/auth.js";
 import { errorResponse, json, parseJsonBody } from "../../src/http/response.js";
@@ -92,11 +92,16 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       catalog: {
         revision: catalog.revision,
         monthly: catalog.monthly,
-        lifetime: catalog.lifetime,
+        polyglot: catalog.polyglot,
+        premium: catalog.premium,
+        regionalPrices: catalog.regionalPrices,
         monthlyUsdCents: catalog.monthly.currency === "USD" ? catalog.monthly.unitAmount : MONTHLY_PRICE_USD_CENTS,
+        polyglotUsdCents: catalog.polyglot.currency === "USD" ? catalog.polyglot.unitAmount : POLYGLOT_PERMANENT_PRICE_USD_CENTS,
+        premiumUsdCents: catalog.premium.currency === "USD" ? catalog.premium.unitAmount : PREMIUM_LIFETIME_PRICE_USD_CENTS,
         trialDays: STRIPE_SUBSCRIPTION_TRIAL_DAYS,
-        monthlyIncludes: ["all_chapters", "all_languages", "cloud_save"],
-        lifetimeIncludes: ["all_chapters", "all_languages", "cloud_save"]
+        monthlyIncludes: ["full_mobile_game", "cloud_save"],
+        polyglotIncludes: ["full_game", "one_mobile_platform", "permanent_access"],
+        premiumIncludes: ["polyglot_permanent", "one_pc_mac_access", "cross_platform_cloud_save", "future_sequels", "future_content", "second_mobile_platform_on_request"]
       }
     });
   }

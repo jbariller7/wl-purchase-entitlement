@@ -10,6 +10,8 @@ import { chapterMigrationGrant } from "../domain/legacy-chapter-migration.js";
 
 export type AdminImportKind =
   | "mobile_lifetime"
+  | "mobile_polyglot_permanent"
+  | "premium_lifetime_pass"
   | "legacy_mobile_full"
   | "legacy_chapter_1"
   | "legacy_chapter_2"
@@ -21,6 +23,7 @@ export interface AdminImportRow {
   email: string;
   kind: AdminImportKind;
   externalId: string;
+  mobilePlatform?: "android" | "ios";
   startsAt?: string;
   endsAt?: string;
   note: string;
@@ -33,6 +36,8 @@ interface NormalizedImportRow extends AdminImportRow {
 
 const productByKind: Partial<Record<AdminImportKind, Product>> = {
   mobile_lifetime: "mobile_full_lifetime",
+  mobile_polyglot_permanent: "mobile_polyglot_permanent",
+  premium_lifetime_pass: "premium_lifetime_pass",
   legacy_mobile_full: "legacy_mobile_full",
   legacy_chapter_1: "legacy_chapter_1",
   legacy_chapter_2: "legacy_chapter_2",
@@ -48,6 +53,9 @@ function normalizeRow(row: AdminImportRow, now: Date): NormalizedImportRow {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, `Invalid email: ${row.email}`);
   if (!row.externalId.trim() || row.externalId.length > 200) throw new HttpError(400, `External ID is missing or too long for ${email}.`);
   if (row.note.trim().length < 5) throw new HttpError(400, `Import note is too short for ${email}.`);
+  if ((row.kind === "mobile_polyglot_permanent" || row.kind === "premium_lifetime_pass") && !row.mobilePlatform) {
+    throw new HttpError(400, `Choose Android or iOS for ${email}.`);
+  }
   const startsAt = row.startsAt ? new Date(row.startsAt) : now;
   if (!Number.isFinite(startsAt.getTime())) throw new HttpError(400, `Invalid startsAt for ${email}.`);
   if (row.endsAt) {
@@ -153,7 +161,14 @@ export class AdminImportService {
       state: "active",
       startsAt: row.startsAt,
       ...(row.endsAt ? { endsAt: row.endsAt } : {}),
-      metadata: { importExternalId: row.externalId, importNote: row.note, importedBy: actorUid }
+      metadata: {
+        importExternalId: row.externalId,
+        importNote: row.note,
+        importedBy: actorUid,
+        ...(row.mobilePlatform ? (product === "premium_lifetime_pass"
+          ? { primaryMobilePlatform: row.mobilePlatform }
+          : { mobilePlatform: row.mobilePlatform }) : {})
+      }
     } satisfies import("../domain/model.js").LedgerGrant;
     const source = { id: `admin-import:${row.externalId}`, created: Math.floor(Date.parse(row.startsAt) / 1000) };
     await this.store.upsertGrant(originalGrant, source);

@@ -18,7 +18,9 @@ Key allocation, MailerLite, ads and subscription cancellation are not performed 
 
 ## Entitlement precedence
 
-`mobile_full_lifetime` > effective `mobile_full_monthly` > legacy mobile full/chapter ownership > free.
+Premium Lifetime Pass > effective Mobile Monthly > platform-scoped Polyglot Permanent/legacy full ownership > legacy chapter ownership > free.
+
+Mobile Monthly grants Android and iOS access plus cloud save only while active. Polyglot Permanent grants the full game forever on exactly one mobile platform and never grants cloud save. Premium Lifetime grants one selected mobile platform, PC/Mac, cloud save, future content, and eligibility for an audited second-platform grant. Premium checkout records a required Steam-key or direct-download choice and enqueues exactly one deduplicated Polyglot desktop fulfillment through the existing key inventory; delivery remains governed by the fulfillment and outbox kill switches. The deprecated `mobile_full_lifetime` identifier is retained only to grandfather pre-split website ledger rows as Premium.
 
 Desktop Steam/Itch grants are recorded for account history and discount proof, but their capability map deliberately grants no mobile content.
 

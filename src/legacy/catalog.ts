@@ -66,6 +66,19 @@ export interface LegacyRoute {
   quantity: number;
 }
 
+export type PremiumDesktopDelivery = "steam" | "direct";
+
+export function routePremiumDesktopAccess(delivery: PremiumDesktopDelivery): LegacyRoute {
+  const playMode = delivery === "steam" ? "STEAM" : "DIRECT";
+  const productCode = playMode === "STEAM" ? "POLY_STEAM" : "POLY_ITCH";
+  return {
+    productCode,
+    playMode,
+    sheetTab: SHEET_TAB_BY_PRODUCT[productCode] ?? "",
+    quantity: 1
+  };
+}
+
 function normalized(value: unknown): string {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }

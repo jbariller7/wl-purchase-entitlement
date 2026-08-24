@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { normalizeImportRows } from "../src/admin/import-service.js";
 import { cloudObjectMatches, cloudRevisionConflicts } from "../src/cloud-save/service.js";
 import { providerEventDecision } from "../src/domain/provider-event.js";
+import { checkoutRequestSchema } from "../src/providers/stripe/checkout-service.js";
 
 const now = new Date("2026-08-24T12:00:00.000Z");
 
@@ -62,5 +63,19 @@ describe("purchase import validation and idempotency keys", () => {
   it("rejects invalid expiry ordering and malformed email addresses", () => {
     expect(() => normalizeImportRows([{ ...row, startsAt: "2026-08-25T00:00:00Z", endsAt: "2026-08-24T00:00:00Z" }], now)).toThrow(/Invalid endsAt/);
     expect(() => normalizeImportRows([{ ...row, email: "not-an-email" }], now)).toThrow(/Invalid email/);
+  });
+});
+
+describe("new checkout product contract", () => {
+  it("requires both the first mobile platform and PC/Mac delivery for Premium", () => {
+    expect(checkoutRequestSchema.safeParse({ product: "premium_lifetime_pass", mobilePlatform: "android" }).success).toBe(false);
+    expect(checkoutRequestSchema.safeParse({ product: "premium_lifetime_pass", mobilePlatform: "ios", desktopDelivery: "steam" }).success).toBe(true);
+    expect(checkoutRequestSchema.safeParse({ product: "premium_lifetime_pass", mobilePlatform: "android", desktopDelivery: "direct" }).success).toBe(true);
+  });
+
+  it("keeps Polyglot mobile-only and Monthly cross-mobile", () => {
+    expect(checkoutRequestSchema.safeParse({ product: "mobile_polyglot_permanent" }).success).toBe(false);
+    expect(checkoutRequestSchema.safeParse({ product: "mobile_polyglot_permanent", mobilePlatform: "android" }).success).toBe(true);
+    expect(checkoutRequestSchema.safeParse({ product: "mobile_full_monthly" }).success).toBe(true);
   });
 });

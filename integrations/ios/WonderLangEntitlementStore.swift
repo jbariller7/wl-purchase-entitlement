@@ -6,7 +6,7 @@ import StoreKit
 @MainActor
 final class WonderLangEntitlementStore: ObservableObject {
     static let monthlyProductID = "wonderlangmonthly"
-    static let lifetimeProductID = "wonderlangfull"
+    static let polyglotProductID = "wonderlangfull"
 
     @Published private(set) var entitlementJSON = "{}"
     @Published private(set) var lastError: String?
@@ -36,7 +36,7 @@ final class WonderLangEntitlementStore: ObservableObject {
     }
 
     func purchase(productID: String) async throws {
-        guard productID == Self.monthlyProductID || productID == Self.lifetimeProductID else {
+        guard productID == Self.monthlyProductID || productID == Self.polyglotProductID else {
             throw AccountError.unknownProduct
         }
         guard let product = try await Product.products(for: [productID]).first else {

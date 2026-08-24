@@ -25,13 +25,13 @@ export function chapterMigrationGrant(original: LedgerGrant): LedgerGrant | unde
     provider: original.provider,
     ...(original.providerCustomerId ? { providerCustomerId: original.providerCustomerId } : {}),
     providerTransactionId: chapterMigrationTransactionId(original.providerTransactionId),
-    product: "mobile_full_lifetime",
+    product: "mobile_polyglot_permanent",
     state: original.state,
     startsAt: original.startsAt,
     ...(original.state === "revoked" || original.state === "refunded" || original.state === "expired" ? { endsAt: original.endsAt ?? original.refundedAt ?? original.startsAt } : {}),
     ...(original.refundedAt ? { refundedAt: original.refundedAt } : {}),
     metadata: {
-      migration: "historical_chapter_to_full_lifetime",
+      migration: "historical_chapter_to_polyglot_permanent",
       originalProduct: original.product,
       originalTransactionId: original.providerTransactionId,
       cutoff: LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF

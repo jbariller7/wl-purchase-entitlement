@@ -2,6 +2,10 @@ export type Provider = "stripe" | "google_play" | "apple" | "steam" | "itch" | "
 
 export type Product =
   | "mobile_full_monthly"
+  | "mobile_polyglot_permanent"
+  | "premium_lifetime_pass"
+  // Deprecated pre-split website lifetime identifier. Existing ledger rows keep
+  // their original product while receiving Premium Lifetime Pass capabilities.
   | "mobile_full_lifetime"
   | "legacy_chapter_1"
   | "legacy_chapter_2"
@@ -38,8 +42,13 @@ export interface EffectiveEntitlements {
   fullGame: boolean;
   allLanguages: boolean;
   cloudSave: boolean;
+  mobilePlatforms: Array<"android" | "ios">;
+  pcMacAccess: boolean;
+  futureContent: boolean;
+  premiumLifetime: boolean;
+  secondMobilePlatformEligible: boolean;
   chapters: number[];
-  accessKind: "lifetime" | "subscription" | "legacy" | "none";
+  accessKind: "premium_lifetime" | "permanent" | "subscription" | "legacy" | "none";
   subscriptionState: "active" | "grace" | "inactive";
   subscriptionEndsAt?: string;
   graceEndsAt?: string;

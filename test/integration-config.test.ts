@@ -147,13 +147,15 @@ describe("isolated integration configuration", () => {
     expect(gradle).toContain("resValues = true");
     expect(manager).toContain("GetGoogleIdOption.Builder()");
     expect(manager).toContain("sendSignInLinkToEmail");
+    expect(manager).toContain('entitlements.optJSONArray("mobilePlatforms")');
+    expect(manager).toContain('equals("android", ignoreCase = true)');
     expect(storefront).toContain('sku: "wonderlangmonthly"');
     expect(storefront).toContain('sku: "wonderlangfull"');
-    expect(storefront).toMatch(/const LIFETIME_PRODUCT = \{[\s\S]*?RAW_PRODUCTS\.find[\s\S]*?fallbackPrice: "\$60\.00"[\s\S]*?\};/);
+    expect(storefront).toMatch(/const POLYGLOT_PRODUCT = \{[\s\S]*?RAW_PRODUCTS\.find[\s\S]*?fallbackPrice: "\$31\.99"[\s\S]*?\};/);
     expect(storefront).toMatch(/const MONTHLY_PRODUCT = \{[\s\S]*?RAW_PRODUCTS\.find[\s\S]*?fallbackPrice: "\$6\.99"[\s\S]*?\};/);
     expect(storefront).toMatch(/function shouldShowChapterOffers\(\)\s*\{\s*return false;\s*\}/);
     expect(storefront).toContain("RESTORE_PRODUCTS");
-    expect(storefront).toContain("JavaScript must not infer lifetime access from an undated chapter receipt");
+    expect(storefront).toContain("JavaScript must not infer permanent full access from an undated chapter receipt");
     expect(storefront).not.toContain("const historicalChapterOwned");
     expect(plugins).toContain('{"name":"WonderLangAccountCloudSync","status":true');
     for (const dependency of ["firebase-auth", "credentials-play-services-auth", "googleid"]) {
@@ -180,6 +182,8 @@ describe("isolated integration configuration", () => {
     expect(rmmz).toContain("await sha256Hex(bytes)");
     expect(rmmz).toContain("baseRevision: remoteRevision");
     expect(rmmz).toContain("OFFLINE_SUBSCRIPTION_GRACE_MS");
+    expect(rmmz).toContain("restrictToGrantedPlatform");
+    expect(rmmz).toContain("mobilePlatforms");
     expect(rmmz).toContain("queueUpload(savefileId, error)");
     expect(rmmz).toContain('window.addEventListener("online"');
     expect(packaged).toBe(rmmz);

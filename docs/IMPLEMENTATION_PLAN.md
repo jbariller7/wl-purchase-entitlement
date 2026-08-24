@@ -15,7 +15,7 @@
 
 1. Create or select a Firebase project in an EU location. Enable Anonymous (for a later game-first-run flow), Google, Apple and Email Link providers. Add `wonderlang.net`, `www.wonderlang.net` and the Netlify domain as authorized domains.
 2. Configure Apple's Services ID/domain/return URL for Firebase web login. Configure the native iOS Sign in with Apple capability separately.
-3. Create a Stripe recurring Price for exactly USD 6.99/month, a lifetime Price, and a 50% Coupon. Do not create a public promotion code. Put only their IDs in Netlify secrets.
+3. Create Stripe test Prices for Mobile Monthly (USD 6.99/month with a three-day trial), Polyglot Permanent Access (USD 31.99 once) and Premium Lifetime Pass (USD 59.99 once), with the approved regional currency options, plus the 50% historical-owner Coupon. Do not create a public promotion code. Put only their IDs in Netlify secrets.
 4. Run `npm run validate:catalog` before production to reject an incorrect amount, currency, interval, disabled Price or non-50% Coupon.
 5. Enable Stripe Customer Portal cancellation/payment-method features and set its return URL to the account page.
 
@@ -47,14 +47,14 @@ Stripe events:
 
 1. Publish the account widget assets and embed the two tags documented under `integrations/web/account-widget`.
 2. Replace every “No subscription” claim on `wonderlang.net` before offering monthly access.
-3. Add clear recurring-price, cancellation and seven-day Stripe grace copy. Keep lifetime copy distinct from the old desktop product descriptions.
+3. Add clear recurring-price, cancellation and seven-day Stripe grace copy. Keep Polyglot Permanent (one mobile platform, no cloud save) visibly distinct from Premium Lifetime (mobile + PC/Mac + cloud + future content). Premium checkout must require both the first mobile platform and the included PC/Mac delivery choice (Steam key or direct download).
 4. Test Google, Apple and email-link login in normal/private browser sessions and on iOS/Android browsers.
 5. Test a verified legacy receipt, a wrong-email receipt, a reused receipt, two concurrent discounted checkout attempts, expired checkout release and successful single redemption.
-6. Test subscriber-to-lifetime: unchecked confirmation blocks; successful lifetime payment grants first; Stripe subscription then becomes canceled; duplicate webhook delivery does not cancel twice.
+6. Test subscriber-to-Premium: unchecked confirmation blocks; successful Premium payment grants first; exactly one selected desktop key/download is queued; Stripe subscription then becomes canceled; duplicate webhook delivery does not allocate or cancel twice. Buying Polyglot Permanent must never cancel the subscription automatically.
 
 ## 5. Google Play rollout
 
-1. In the duplicate Android project, add Firebase Auth and the account bridge. Create the `wonderlangmonthly` subscription/base plan at the local equivalent of USD 6.99.
+1. In the duplicate Android project, add Firebase Auth and the account bridge. Create the `wonderlangmonthly` subscription/base plan at the approved regional prices and keep `wonderlangfull` as the USD 31.99-equivalent Polyglot Permanent one-time product.
 2. Configure Play Developer API access for the service account.
 3. Create the Pub/Sub topic, grant Google Play publish access, create an authenticated push subscription to `/webhooks/google-play`, and set its exact OIDC audience in `GOOGLE_PLAY_RTDN_AUDIENCE`.
 4. Pass the backend UUID through `setObfuscatedAccountId`, verify every purchase on the backend, and acknowledge there.
@@ -64,7 +64,7 @@ Stripe events:
 ## 6. Apple rollout
 
 1. When the Xcode project is available, integrate the duplicate Swift adapter and Firebase Auth.
-2. Create the monthly product and retain legacy product IDs. Pass the backend UUID with StoreKit 2 `appAccountToken`.
+2. Create the monthly product and retain `wonderlangfull` as the Polyglot Permanent non-consumable at the approved regional prices. Pass the backend UUID with StoreKit 2 `appAccountToken`.
 3. Download Apple G2/G3 root certificates from Apple PKI, base64-encode them into secrets, set the numeric Apple app ID/bundle ID, and configure App Store Server Notifications V2 at `/webhooks/apple`.
 4. Test Sandbox in a non-production environment configured with `APPLE_ENVIRONMENT=Sandbox`; production accepts only Production-signed payloads.
 5. Validate purchase, pending, renewal, grace, billing retry, expiration, refund/revoke, restore and family-sharing policy.

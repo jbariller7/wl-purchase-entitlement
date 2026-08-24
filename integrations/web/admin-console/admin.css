@@ -53,7 +53,7 @@ button { touch-action: manipulation; }
 .button.primary { background: var(--ink); color: #fff; }
 .button.secondary { background: transparent; color: var(--ink); }
 .button.danger { border-color: #9e3939; background: #9e3939; color: #fff; }
-.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 13px; margin-bottom: 18px; }
+.metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 13px; margin-bottom: 18px; }
 .metric-card { position: relative; min-height: 168px; padding: 22px; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: var(--shadow); }
 .metric-card::after { content: ""; position: absolute; right: -35px; bottom: -50px; width: 120px; height: 120px; border-radius: 50%; background: #dde6df; opacity: .55; }
 .metric-card p { margin: 0; color: var(--muted); font-size: 12px; font-weight: 800; }
@@ -113,7 +113,7 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
 .stack-form textarea { min-height: 90px; resize: vertical; line-height: 1.45; }
 .stack-form .code-input { min-height: 240px; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .field-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
-.price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.price-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
 .price-card { display: grid; min-height: 200px; align-content: center; padding: 30px; border: 1px solid var(--line); border-radius: 17px; background: #fff; box-shadow: var(--shadow); }
 .price-card:first-child { border-color: #c8dc5a; background: var(--lime); }
 .price-card p { margin: 0; color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .12em; }
@@ -177,6 +177,8 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
   .nav-item { justify-content: center; padding: 0; font-size: 0; }
   .nav-item::after { content: attr(data-view); font-size: 9px; text-transform: capitalize; }
   .dashboard-grid { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .price-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 760px) {
   .ops-shell { display: block; }

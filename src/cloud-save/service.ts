@@ -62,7 +62,7 @@ export class CloudSaveService {
   private async requireCloudSave(uid: string, now: Date): Promise<void> {
     const effective = await this.entitlements.effectiveEntitlements(uid, now);
     if (!effective.cloudSave) {
-      throw new HttpError(403, "Cloud save requires an active monthly subscription or lifetime access.");
+      throw new HttpError(403, "Cloud save requires an active monthly subscription or Premium Lifetime Pass.");
     }
   }
 

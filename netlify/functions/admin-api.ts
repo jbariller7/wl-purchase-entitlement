@@ -18,12 +18,17 @@ export const config: Config = {
 const reason = z.string().trim().min(10).max(500);
 const confirmation = z.string().trim().min(3).max(100);
 const grantSchema = z.object({
-  product: z.enum(["mobile_full_lifetime", "legacy_mobile_full", "legacy_chapter_1", "legacy_chapter_2", "legacy_chapter_3", "legacy_chapter_4"]),
+  product: z.enum(["mobile_polyglot_permanent", "premium_lifetime_pass", "mobile_full_lifetime", "legacy_mobile_full", "legacy_chapter_1", "legacy_chapter_2", "legacy_chapter_3", "legacy_chapter_4"]),
+  mobilePlatform: z.enum(["android", "ios"]).optional(),
   reason,
   endsAt: z.string().datetime().optional()
+}).superRefine((value, context) => {
+  if ((value.product === "mobile_polyglot_permanent" || value.product === "premium_lifetime_pass") && !value.mobilePlatform) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["mobilePlatform"], message: "Choose Android or iOS." });
+  }
 });
 const pricePreviewSchema = z.object({
-  kind: z.enum(["monthly", "lifetime"]),
+  kind: z.enum(["monthly", "polyglot", "premium"]),
   unitAmount: z.number().int().min(50).max(500_000),
   currency: z.string().trim().length(3)
 });
@@ -37,11 +42,16 @@ const refundPreviewSchema = z.object({
 });
 const importRowSchema = z.object({
   email: z.string().trim().email().max(320),
-  kind: z.enum(["mobile_lifetime", "legacy_mobile_full", "legacy_chapter_1", "legacy_chapter_2", "legacy_chapter_3", "legacy_chapter_4", "desktop_discount"]),
+  kind: z.enum(["mobile_lifetime", "mobile_polyglot_permanent", "premium_lifetime_pass", "legacy_mobile_full", "legacy_chapter_1", "legacy_chapter_2", "legacy_chapter_3", "legacy_chapter_4", "desktop_discount"]),
   externalId: z.string().trim().min(1).max(200),
+  mobilePlatform: z.enum(["android", "ios"]).optional(),
   startsAt: z.string().datetime().optional(),
   endsAt: z.string().datetime().optional(),
   note: z.string().trim().min(5).max(500)
+}).superRefine((value, context) => {
+  if ((value.kind === "mobile_polyglot_permanent" || value.kind === "premium_lifetime_pass") && !value.mobilePlatform) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["mobilePlatform"], message: "Choose Android or iOS." });
+  }
 });
 const importPreviewSchema = z.object({ rows: z.array(importRowSchema).min(1).max(500) });
 const reasonSchema = z.object({ reason });
@@ -109,6 +119,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       actor,
       uid: grantCustomerMatch[1],
       product: input.product,
+      ...(input.mobilePlatform ? { mobilePlatform: input.mobilePlatform } : {}),
       reason: input.reason,
       ...(input.endsAt ? { endsAt: input.endsAt } : {}),
       now

@@ -1,6 +1,6 @@
 /*:
  * @target MZ
- * @plugindesc [v3.2.0] Asset Downloader + account-linked monthly/lifetime storefront
+ * @plugindesc [v3.2.1] Asset Downloader + account-linked monthly/Polyglot storefront
  * @author Gemini
  *
  * @help
@@ -66,7 +66,7 @@
  * @param Products
  * @text Paywall Products (Store)
  * @type struct<Product>[]
- * @desc Historical products remain restore-only. The storefront always adds wonderlangmonthly and wonderlangfull.
+ * @desc Historical products remain restore-only. The storefront adds Mobile Monthly and Polyglot Permanent (wonderlangfull).
  * @default []
  *
  * @param IOSBridgeObject
@@ -301,18 +301,18 @@
     const RAW_PACKS = parseStructArray(P["Packs"], "Packs");
     const RAW_PRODUCTS = parseStructArray(P["Products"], "Products");
     const HISTORICAL_CHAPTER_SKUS = new Set(["wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4"]);
-    const LIFETIME_PRODUCT = {
+    const POLYGLOT_PRODUCT = {
         ...(RAW_PRODUCTS.find(product => normalizeSkuForPlatformEarly(product?.sku) === "wonderlangfull" || product?.isBundle === true || product?.isBundle === "true") || {}),
         sku: "wonderlangfull",
         isBundle: true,
         isSubscription: false,
-        text: "Lifetime access",
-        description: "Own every chapter and language forever, including cloud saves.",
-        fallbackPrice: "$60.00"
+        text: "Polyglot Permanent Access",
+        description: "Own the full game forever on this mobile platform. Cloud save is not included.",
+        fallbackPrice: "$31.99"
     };
-    LIFETIME_PRODUCT.sku = "wonderlangfull";
-    LIFETIME_PRODUCT.isBundle = true;
-    LIFETIME_PRODUCT.isSubscription = false;
+    POLYGLOT_PRODUCT.sku = "wonderlangfull";
+    POLYGLOT_PRODUCT.isBundle = true;
+    POLYGLOT_PRODUCT.isSubscription = false;
     const MONTHLY_PRODUCT = {
         ...(RAW_PRODUCTS.find(product => normalizeSkuForPlatformEarly(product?.sku) === "wonderlangmonthly") || {}),
         sku: "wonderlangmonthly",
@@ -327,9 +327,9 @@
     MONTHLY_PRODUCT.isSubscription = true;
     const RESTORE_PRODUCTS = RAW_PRODUCTS.length ? RAW_PRODUCTS : [
         ...Array.from(HISTORICAL_CHAPTER_SKUS).map((sku, index) => ({ sku, text: `Chapter ${index + 1}` })),
-        LIFETIME_PRODUCT
+        POLYGLOT_PRODUCT
     ];
-    const PRODUCTS = [MONTHLY_PRODUCT, LIFETIME_PRODUCT];
+    const PRODUCTS = [MONTHLY_PRODUCT, POLYGLOT_PRODUCT];
 
     function normalizeSkuForPlatformEarly(sku) {
         return String(sku || "").trim().toLowerCase();
@@ -492,7 +492,7 @@
     }
 
     function activeProducts() {
-        // New sales are deliberately limited to monthly and lifetime. Historical chapter
+        // New mobile-store sales are deliberately limited to Monthly and Polyglot Permanent. Historical chapter
         // products remain in RESTORE_PRODUCTS and the native query allowlist only.
         return PRODUCTS;
     }
@@ -1435,7 +1435,7 @@ window.WL_AssetPackDebug = {
         if (accountOwned) return true;
 
         // The native/account bridge owns the dated chapter-to-full migration decision.
-        // JavaScript must not infer lifetime access from an undated chapter receipt.
+        // JavaScript must not infer permanent full access from an undated chapter receipt.
 
         const ownsBundle = normalizedSku !== bundleSku && (
             isIOSRuntime()
@@ -2304,7 +2304,7 @@ executeDownload(alreadyStarted = false) {
 
     function productAnalyticsType(product) {
         if (isSubscriptionProduct(product)) return "subscription";
-        if (isBundleProduct(product)) return "lifetime";
+        if (isBundleProduct(product)) return "polyglot_permanent";
         return "legacy_chapter";
     }
 
@@ -2330,7 +2330,7 @@ executeDownload(alreadyStarted = false) {
             return translatedValue("Paywall_Product_Monthly_Title", product?.text || "WonderLang Monthly");
         }
         if (isBundleProduct(product)) {
-            return translatedValue("Paywall_Product_Full_Title", product?.text || "Lifetime access");
+            return translatedValue("Paywall_Product_Polyglot_Title", product?.text || "Polyglot Permanent Access");
         }
         const chapterNumber = chapterNumberForProduct(product);
         return translatedValue(`Paywall_Product_Chapter${chapterNumber}_Title`, product?.text || `Chapter ${chapterNumber}`);
@@ -2341,7 +2341,7 @@ executeDownload(alreadyStarted = false) {
             return translatedValue("Paywall_Product_Monthly_Description", "Every chapter, every language, and cloud saves. Cancel anytime.");
         }
         if (isBundleProduct(product)) {
-            return translatedValue("Paywall_Product_Full_Description", "Own every chapter and language forever, including cloud saves.");
+            return translatedValue("Paywall_Product_Polyglot_Description", "Own the full game forever on this mobile platform. Cloud save is not included.");
         }
         return translatedValue("Paywall_Product_Chapter_Description", product?.description || "Approximately 15 hours of learning and adventure.");
     }
@@ -2632,7 +2632,7 @@ executeDownload(alreadyStarted = false) {
         currentOfferStructure() {
             const bundle = activeProducts().find(isBundleProduct);
             if (bundle && isProductPurchased(bundle.sku)) return "owned_full";
-            return "monthly_plus_lifetime";
+            return "monthly_plus_polyglot_permanent";
         }
 
         maybeLogPaywallView() {
@@ -2994,8 +2994,9 @@ executeDownload(alreadyStarted = false) {
                         <div class="hero-title">${productDisplayName(bundle)}</div>
                         <div class="hero-desc">${productDisplayDescription(bundle)}</div>
                         <div class="hero-benefits">
-                            <span class="hero-benefit">${translatedValue("Paywall_OneTimePurchase", "One-time $60 purchase")}</span>
-                            <span class="hero-benefit">${translatedValue("Paywall_CloudSaves", "Cross-platform cloud saves")}</span>
+                            <span class="hero-benefit">${translatedValue("Paywall_OneTimePurchase", "One-time permanent purchase")}</span>
+                            <span class="hero-benefit">${translatedValue("Paywall_OneMobilePlatform", "Full game on this mobile platform")}</span>
+                            <span class="hero-benefit">${translatedValue("Paywall_NoCloudSaves", "Cloud save not included")}</span>
                             <span class="hero-benefit">${translatedValue("Paywall_ProgressImmediate", "Your progress is saved. Continue immediately.")}</span>
                         </div>
                         ${savingHtml}

@@ -10,7 +10,9 @@ import type { EntitlementStore } from "../../infrastructure/entitlement-store.js
 import { stripeClient } from "./client.js";
 
 export const checkoutRequestSchema = z.object({
-  product: z.enum(["mobile_full_monthly", "mobile_full_lifetime"]),
+  product: z.enum(["mobile_full_monthly", "mobile_polyglot_permanent", "premium_lifetime_pass"]),
+  mobilePlatform: z.enum(["android", "ios"]).optional(),
+  desktopDelivery: z.enum(["steam", "direct"]).optional(),
   useLegacyDesktopDiscount: z.boolean().optional().default(false),
   confirmCancelExistingSubscription: z.boolean().optional().default(false),
   attribution: z.object({
@@ -19,6 +21,21 @@ export const checkoutRequestSchema = z.object({
     ttclid: z.string().max(255).optional(),
     ttp: z.string().max(255).optional()
   }).optional()
+}).superRefine((value, context) => {
+  if (value.product !== "mobile_full_monthly" && !value.mobilePlatform) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["mobilePlatform"],
+      message: "Choose Android or iOS for the first permanent mobile access."
+    });
+  }
+  if (value.product === "premium_lifetime_pass" && !value.desktopDelivery) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["desktopDelivery"],
+      message: "Choose a Steam key or direct download for the included PC/Mac access."
+    });
+  }
 });
 
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
@@ -51,14 +68,19 @@ export async function createCheckout(input: {
   if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Checkout is disabled for this deployment.");
   const { store, user, request, now } = input;
   const effective = await store.effectiveEntitlements(user.uid, now);
-  if (effective.accessKind === "lifetime") throw new HttpError(409, "This account already has lifetime access.");
+  if (request.product === "premium_lifetime_pass" && effective.premiumLifetime) {
+    throw new HttpError(409, "This account already has the Premium Lifetime Pass.");
+  }
+  if (request.product === "mobile_polyglot_permanent" && request.mobilePlatform && effective.mobilePlatforms.includes(request.mobilePlatform)) {
+    throw new HttpError(409, `This account already has permanent ${request.mobilePlatform} access.`);
+  }
 
   const activeSubscription = await store.activeSubscription(user.uid);
   if (request.product === "mobile_full_monthly" && activeSubscription) {
     throw new HttpError(409, "This account already has an active subscription.");
   }
-  if (request.useLegacyDesktopDiscount && request.product !== "mobile_full_lifetime") {
-    throw new HttpError(400, "The historical-customer discount applies only to lifetime access.");
+  if (request.useLegacyDesktopDiscount && request.product !== "premium_lifetime_pass") {
+    throw new HttpError(400, "The historical-customer discount applies only to the Premium Lifetime Pass.");
   }
 
   const transition = planLifetimeTransition({
@@ -71,7 +93,7 @@ export async function createCheckout(input: {
       ? { activeStoreSubscription: activeSubscription.provider }
       : {})
   });
-  if (request.product === "mobile_full_lifetime" && !transition.allowCheckout) {
+  if (request.product === "premium_lifetime_pass" && !transition.allowCheckout) {
     throw new HttpError(409, transition.warning ?? "Subscription cancellation confirmation is required.");
   }
 
@@ -88,11 +110,13 @@ export async function createCheckout(input: {
   const metadata: Record<string, string> = {
     wl_uid: user.uid,
     wl_product: request.product,
+    ...(request.mobilePlatform ? { wl_mobile_platform: request.mobilePlatform } : {}),
+    ...(request.desktopDelivery ? { wl_desktop_delivery: request.desktopDelivery } : {}),
     wl_legacy_discount: request.useLegacyDesktopDiscount ? "1" : "0",
-    ...(transition.cancelStripeSubscriptionAfterPayment
+    ...(request.product === "premium_lifetime_pass" && transition.cancelStripeSubscriptionAfterPayment
       ? { wl_cancel_stripe_subscription: transition.cancelStripeSubscriptionAfterPayment }
       : {}),
-    ...(transition.externalCancellationRequired
+    ...(request.product === "premium_lifetime_pass" && transition.externalCancellationRequired
       ? { wl_external_cancellation_required: transition.externalCancellationRequired }
       : {})
   };
@@ -102,7 +126,9 @@ export async function createCheckout(input: {
     customer: customerId,
     client_reference_id: user.uid,
     line_items: [{
-      price: isMonthly ? catalog.monthly.stripePriceId : catalog.lifetime.stripePriceId,
+      price: request.product === "mobile_full_monthly" ? catalog.monthly.stripePriceId
+        : request.product === "mobile_polyglot_permanent" ? catalog.polyglot.stripePriceId
+          : catalog.premium.stripePriceId,
       quantity: 1
     }],
     success_url: withSessionId(env().STRIPE_SUCCESS_URL),
@@ -119,7 +145,7 @@ export async function createCheckout(input: {
     ...(request.useLegacyDesktopDiscount
       ? { discounts: [{ coupon: env().STRIPE_COUPON_LEGACY_DESKTOP_50 }] }
       : {})
-  }, { idempotencyKey: `checkout-${user.uid}-${request.product}-${request.useLegacyDesktopDiscount ? "discount" : "standard"}-${Math.floor(now.getTime() / 300000)}` });
+  }, { idempotencyKey: `checkout-${user.uid}-${request.product}-${request.mobilePlatform ?? "cross-mobile"}-${request.desktopDelivery ?? "no-desktop"}-${request.useLegacyDesktopDiscount ? "discount" : "standard"}-${Math.floor(now.getTime() / 300000)}` });
 
   if (!session.url) throw new Error("Stripe did not return a Checkout URL.");
   try {
@@ -143,7 +169,7 @@ export async function createCheckout(input: {
   return {
     url: session.url,
     sessionId: session.id,
-    ...(transition.warning ? { warning: transition.warning } : {})
+    ...(request.product === "premium_lifetime_pass" && transition.warning ? { warning: transition.warning } : {})
   };
 }
 

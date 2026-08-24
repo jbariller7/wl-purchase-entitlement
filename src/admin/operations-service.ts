@@ -12,6 +12,8 @@ import { AccountDeletionService } from "../account-deletion/service.js";
 import { chapterMigrationTransactionId, isLegacyChapterProduct } from "../domain/legacy-chapter-migration.js";
 
 const ADMIN_GRANT_PRODUCTS: Product[] = [
+  "mobile_polyglot_permanent",
+  "premium_lifetime_pass",
   "mobile_full_lifetime",
   "legacy_mobile_full",
   "legacy_chapter_1",
@@ -61,9 +63,10 @@ export class AdminOperationsService {
 
   async overview(): Promise<Record<string, unknown>> {
     const entitlements = this.db.collection("entitlements");
-    const [activeSubscriptions, lifetimeCustomers, graceSubscriptions, failedOutbox, failedEvents, inventory, recent] = await Promise.all([
+    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, inventory, recent] = await Promise.all([
       this.count(entitlements.where("accessKind", "==", "subscription").where("subscriptionState", "==", "active")),
-      this.count(entitlements.where("accessKind", "==", "lifetime")),
+      this.count(entitlements.where("accessKind", "==", "permanent")),
+      this.count(entitlements.where("accessKind", "==", "premium_lifetime")),
       this.count(entitlements.where("subscriptionState", "==", "grace")),
       this.count(this.db.collection("outbox").where("state", "==", "failed")),
       this.count(this.db.collection("providerEvents").where("status", "==", "failed")),
@@ -83,7 +86,7 @@ export class AdminOperationsService {
       ...(graceSubscriptions ? [{ tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];
     return {
-      metrics: { activeSubscriptions, lifetimeCustomers, graceSubscriptions, failedOperations },
+      metrics: { activeSubscriptions, permanentCustomers, premiumCustomers, lifetimeCustomers: permanentCustomers + premiumCustomers, graceSubscriptions, failedOperations },
       alerts,
       activity: recentRows.map((row) => {
         const user = users.get(String(row.uid ?? ""));
@@ -228,11 +231,15 @@ export class AdminOperationsService {
     actor: AdminActor;
     uid: string;
     product: Product;
+    mobilePlatform?: "android" | "ios";
     reason: string;
     endsAt?: string;
     now: Date;
   }): Promise<Record<string, unknown>> {
     if (!ADMIN_GRANT_PRODUCTS.includes(input.product)) throw new HttpError(400, "This product cannot be granted manually.");
+    if ((input.product === "mobile_polyglot_permanent" || input.product === "premium_lifetime_pass") && !input.mobilePlatform) {
+      throw new HttpError(400, "Choose Android or iOS as the first mobile platform for this grant.");
+    }
     if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
     await this.auth.getUser(input.uid);
     const transactionId = `manual-${randomUUID()}`;
@@ -247,11 +254,17 @@ export class AdminOperationsService {
       state: "active",
       startsAt: input.now.toISOString(),
       ...(endsAt ? { endsAt: endsAt.toISOString() } : {}),
-      metadata: { reason: input.reason.trim(), actorUid: input.actor.uid }
+      metadata: {
+        reason: input.reason.trim(),
+        actorUid: input.actor.uid,
+        ...(input.mobilePlatform ? (input.product === "premium_lifetime_pass"
+          ? { primaryMobilePlatform: input.mobilePlatform }
+          : { mobilePlatform: input.mobilePlatform }) : {})
+      }
     }, { id: `admin-grant:${transactionId}`, created: Math.floor(input.now.getTime() / 1000) });
     await recordAdminAudit({
       db: this.db, actor: input.actor, action: "grant.create", targetType: "user", targetId: input.uid,
-      summary: `Granted ${input.product}`, metadata: { transactionId, reason: input.reason.trim(), endsAt: endsAt?.toISOString() ?? null }, now: input.now
+      summary: `Granted ${input.product}`, metadata: { transactionId, reason: input.reason.trim(), mobilePlatform: input.mobilePlatform ?? null, endsAt: endsAt?.toISOString() ?? null }, now: input.now
     });
     return this.customerDetail(input.uid);
   }

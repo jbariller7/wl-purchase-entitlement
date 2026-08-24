@@ -39,7 +39,7 @@
  * Local saves always finish first. Cloud access never deletes data when an entitlement
  * lapses. A revision conflict never overwrites either side automatically: the player sees
  * timestamps and chooses Keep device, Use cloud, or Not now.
- * Verified lifetime access remains available offline. A cached subscription remains usable
+ * Verified permanent and Premium Lifetime access remains available offline on its granted platform. A cached subscription remains usable
  * through its paid period or for seven days after the last server refresh, whichever is later;
  * provider grace access ends at the server-provided grace deadline.
  */
@@ -51,9 +51,9 @@
   const apiBase = String(params.ApiBaseUrl || "https://wl-purchase-entitlement.netlify.app").replace(/\/$/, "");
   if (!/^https:\/\//i.test(apiBase)) throw new Error("WonderLang account API must use HTTPS.");
 
-  const cacheKey = "wl-account-entitlements-v2";
-  const revisionsPrefix = "wl-cloud-revisions-v2";
-  const retryPrefix = "wl-cloud-upload-retry-v2";
+  const cacheKey = "wl-account-entitlements-v3";
+  const revisionsPrefix = "wl-cloud-revisions-v3";
+  const retryPrefix = "wl-cloud-upload-retry-v3";
   const OFFLINE_SUBSCRIPTION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
   const textEncoder = new TextEncoder();
   const textDecoder = new TextDecoder();
@@ -75,6 +75,26 @@
   }
 
   function bridge() { return window.WLAccountManager; }
+  function runtimeMobilePlatform() {
+    const userAgent = String(navigator.userAgent || navigator.vendor || "");
+    if (window.AndroidManager || /Android/i.test(userAgent)) return "android";
+    if (window.WLiOSManager || /iPad|iPhone|iPod/i.test(userAgent) ||
+        (String(navigator.platform || "") === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1)) return "ios";
+    return null;
+  }
+  function restrictToGrantedPlatform(value) {
+    const platform = runtimeMobilePlatform();
+    if (!value?.fullGame || !platform) return value;
+    const allowedPlatforms = Array.isArray(value.mobilePlatforms) ? value.mobilePlatforms : [];
+    if (allowedPlatforms.includes(platform)) return value;
+    return {
+      ...value,
+      fullGame: false,
+      allLanguages: false,
+      cloudSave: false,
+      platformRestricted: true
+    };
+  }
   function loadJson(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || "") ?? fallback; }
     catch (_) { return fallback; }
@@ -95,9 +115,9 @@
   }
   function entitlement() { return current?.entitlements || null; }
   function effectiveCachedEntitlement(now = Date.now()) {
-    const value = entitlement();
+    const value = restrictToGrantedPlatform(entitlement());
     if (!value?.fullGame) return value;
-    if (value.accessKind === "lifetime" || value.accessKind === "legacy") return value;
+    if (value.accessKind === "premium_lifetime" || value.accessKind === "permanent" || value.accessKind === "legacy") return value;
     if (value.accessKind !== "subscription") return value;
     const computedAt = Date.parse(value.computedAt || "");
     if (!Number.isFinite(computedAt) || computedAt > now + 5 * 60 * 1000) return { ...value, fullGame: false, allLanguages: false, cloudSave: false, offlineExpired: true };
@@ -379,8 +399,10 @@
     }
 
     const access = effectiveCachedEntitlement() || {};
-    const accessLabel = access.accessKind === "subscription" ? "Monthly subscription" :
-      access.accessKind === "lifetime" ? "Lifetime" : access.fullGame ? "Full game" : "Free demo";
+    const accessLabel = access.platformRestricted ? "Owned on another mobile platform" :
+      access.accessKind === "subscription" ? "Mobile Monthly" :
+      access.accessKind === "premium_lifetime" ? "Premium Lifetime Pass" :
+      access.accessKind === "permanent" ? "Polyglot Permanent Access" : access.fullGame ? "Full game" : "Free demo";
     const subscription = current?.subscription?.phase
       ? `${current.subscription.phase}${current.subscription.renewsAt ? ` · renews ${formatTime(current.subscription.renewsAt)}` : current.subscription.endsAt ? ` · ends ${formatTime(current.subscription.endsAt)}` : ""}`
       : access.subscriptionState && access.subscriptionState !== "inactive"
