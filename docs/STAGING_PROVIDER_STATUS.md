@@ -53,8 +53,9 @@ Last verified: 2026-08-24. This file records only non-secret identifiers and saf
 - Unsaved base-plan draft: `monthly`, monthly renewal, USD 6.99, 177 regions. Google computed regional prices, but its automatic conversions do not reproduce the approved regional-discount table.
 - Base-plan save returns `Your changes couldn't be saved`; the known account prerequisite is unresolved Taiwan and Ireland payments-profile tax information.
 - The three-day introductory offer can be created only after the base plan saves.
-- `wonderlangfull` is displayed as Polyglot Permanent Access with a no-cloud-save description. Its currently saved United States price remains USD 25.99.
-- Google disables all `wonderlangfull` price controls because the product is included in an active promotion or experiment. The USD 31.99 and regional price change cannot be saved until that participation is ended or removed with owner approval.
+- `wonderlangfull` is displayed as Polyglot Permanent Access with a no-cloud-save description. Its legacy-compatible `buy` purchase option remains active at its original United States price of USD 25.99 for the currently released app.
+- Promo-code campaign `PR Code` (`120231895`) is paused. Its two historical redemptions remain recorded; additional redemptions are disabled.
+- A second, non-legacy purchase option is prepared but not yet saved: `buy-polyglot-permanent`, USD 31.99 base with Google-managed localized equivalents. The Android Billing 9 build explicitly selects this option by `purchaseOptionId` and will not silently fall back to `buy`.
 - `wonderlangch1` through `wonderlangch4` remain restorable; chapter offers remain hidden from new-sale UI.
 
 ## Apple
@@ -86,5 +87,6 @@ GitHub secret scanning detected the Firebase Android client key in an earlier pu
 - Apple Sandbox purchase and App Store Server Notification verification
 - Two-installation cloud-save upload/restore/conflict test
 - Real-device Android tap, cancel, scroll and rapid-double-tap Billing matrix
+- The deterministic storefront audit still contains a legacy rule requiring all four chapter offers to remain on sale. This conflicts with the approved commercial model in which chapter SKUs are restore-only; do not satisfy that rule by reintroducing chapter sales.
 
 Code complete; real-device Android tap-to-Billing verification is still required before release.

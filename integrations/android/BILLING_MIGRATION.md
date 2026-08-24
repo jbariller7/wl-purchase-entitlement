@@ -6,7 +6,7 @@ Apply these changes only in a duplicate Android branch:
 
 1. Keep `wonderlangch1`…`wonderlangch4` and `wonderlangfull` in the restore/query allowlist. Stop presenting chapter SKUs as new offers; never remove their ownership checks.
 2. Add `wonderlangmonthly` to a separate `SUBS_SKUS` set. Query product details and purchases once for `INAPP` and once for `SUBS`; merge the two authoritative snapshots without letting an older response erase a newer callback.
-3. For `SUBS`, select an eligible `subscriptionOfferDetails.offerToken` and include it in `ProductDetailsParams` before `launchBillingFlow`.
+3. For `SUBS`, select an eligible `subscriptionOfferDetails.offerToken` and include it in `ProductDetailsParams` before `launchBillingFlow`. For `wonderlangfull`, select the non-legacy one-time purchase option `buy-polyglot-permanent` by `purchaseOptionId`, display its `formattedPrice`, and pass its `offerToken`. Never silently fall back to the legacy-compatible `buy` option in the new build.
 4. After Firebase sign-in, fetch `/api/v1/store-account-token` and call `BillingFlowParams.Builder.setObfuscatedAccountId(token)`. It is a random UUID, not an email or Firebase UID.
 5. Send every `PURCHASED` token to `/api/v1/google-play/claim`. Do not grant the subscription or acknowledge it until that endpoint succeeds. The backend verifies with `purchases.subscriptionsv2.get` or `purchases.productsv2.getproductpurchasev2`, prevents token replay, grants, then acknowledges.
 6. Preserve a visible pending state for `PENDING`; never grant it. On restore/onResume, submit both INAPP and SUBS purchases again—the endpoint is idempotent.

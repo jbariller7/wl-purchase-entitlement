@@ -8,6 +8,7 @@ Use a real Google Play internal-track install with production-equivalent product
 - Legacy `wonderlangch1`…`wonderlangch4` and `wonderlangfull` remain in restore/query and ownership code.
 - New mobile storefront renders Mobile Monthly and Polyglot Permanent; chapter purchase cards and the website-only Premium Lifetime Pass are absent by explicit product decision.
 - Every `SUBS` purchase path selects a valid offer token and attaches the server account token.
+- The Polyglot path selects `wonderlangfull` purchase option `buy-polyglot-permanent`, uses its live localized price and offer token, and fails closed instead of falling back to legacy option `buy`.
 - Subscription access is granted only after `/api/v1/google-play/claim` succeeds.
 - Account authentication uses the named `wonderlang-entitlements` secondary Firebase app; the existing default Firebase app remains dedicated to WonderLang Analytics and Crashlytics.
 - The Firebase test Android app registers the local debug, WonderLang upload/release, and Google Play app-signing SHA-1 certificates.

@@ -130,6 +130,10 @@ describe("isolated integration configuration", () => {
 
     expect(activity).toContain('private val SUBS_SKUS = setOf("wonderlangmonthly")');
     expect(activity).toContain('private val IN_APP_SKUS = setOf("wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4", "wonderlangfull")');
+    expect(activity).toContain('private val POLYGLOT_PURCHASE_OPTION_ID = "buy-polyglot-permanent"');
+    expect(activity).toContain("offer.purchaseOptionId == POLYGLOT_PURCHASE_OPTION_ID");
+    expect(activity).toContain('normalizedSku in SUBS_SKUS || normalizedSku == "wonderlangfull"');
+    expect(activity).toMatch(/storePrice = StoreProductPrice\([\s\S]*?offerToken = offer\.offerToken/);
     expect(activity).toContain("BillingClient.ProductType.SUBS");
     expect(activity).toContain("setObfuscatedAccountId(storeAccountToken)");
     expect(activity).toContain("preferredSubscriptionOffer");

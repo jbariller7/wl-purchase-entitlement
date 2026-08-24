@@ -226,6 +226,9 @@ class MainActivity : AppCompatActivity() {
     private val SUBS_SKUS = setOf("wonderlangmonthly")
     private val ALL_STORE_SKUS = IN_APP_SKUS + SUBS_SKUS
     private val CHAPTER_SKUS = setOf("wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4")
+    // The legacy-compatible `buy` option remains active for already-released app
+    // versions. This build must select the staged USD 31.99 Polyglot option by ID.
+    private val POLYGLOT_PURCHASE_OPTION_ID = "buy-polyglot-permanent"
     // Must match LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF in the entitlement service.
     private val LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF_MS = 1_787_615_999_999L
     private val ACCOUNT_API_BASE_URL = "https://wl-purchase-entitlement.netlify.app"
@@ -2558,6 +2561,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun preferredOneTimeOffer(productDetails: ProductDetails): ProductDetails.OneTimePurchaseOfferDetails? {
+        val normalizedSku = normalizeSku(productDetails.productId)
+        if (normalizedSku == "wonderlangfull") {
+            return productDetails.oneTimePurchaseOfferDetailsList
+                ?.firstOrNull { offer -> offer.purchaseOptionId == POLYGLOT_PURCHASE_OPTION_ID }
+        }
         return productDetails.oneTimePurchaseOfferDetails
             ?: productDetails.oneTimePurchaseOfferDetailsList?.firstOrNull()
     }
@@ -2608,7 +2616,8 @@ class MainActivity : AppCompatActivity() {
             storePrice = StoreProductPrice(
                 amountMicros = offer.priceAmountMicros,
                 currencyCode = offer.priceCurrencyCode
-            )
+            ),
+            offerToken = offer.offerToken
         )
     }
 
@@ -3947,7 +3956,8 @@ class MainActivity : AppCompatActivity() {
                         normalizedSku in SUBS_SKUS -> preferredSubscriptionOffer(productDetails)?.offerToken
                         else -> preferredOneTimeOffer(productDetails)?.offerToken
                     }
-                    if (productDetails == null || (normalizedSku in SUBS_SKUS && offerToken.isNullOrBlank())) {
+                    val requiresOfferToken = normalizedSku in SUBS_SKUS || normalizedSku == "wonderlangfull"
+                    if (productDetails == null || (requiresOfferToken && offerToken.isNullOrBlank())) {
                         setPurchaseStatus("PRODUCT_NOT_FOUND", "This product is not currently available from Google Play.")
                         Log.e(TAG, "Google Play returned no eligible $productType offer for $normalizedSku.")
                         return@queryProductDetailsAsync
