@@ -23,11 +23,14 @@ Last verified: 2026-08-24. This file records only non-secret identifiers and saf
 
 ## Stripe test catalog
 
-- Monthly product: `prod_V88ycRQwGJwJXL`
-- Existing monthly price: `price_1U7sgkBFbQoDa6p0nb1vGaSy`, USD 6.99/month, USD only
-- Pre-split lifetime product: `prod_V8B2TQgSmAHShK`
-- Pre-split lifetime price: `price_1U7ug9BFbQoDa6p0qrHmdEdq`, USD 60.00
-- The three replacement multi-currency Prices (Monthly USD 6.99, Polyglot USD 31.99 and Premium USD 59.99) are implemented in code but not yet created/saved in Stripe.
+- Mobile Monthly product: `prod_V88ycRQwGJwJXL`
+- Mobile Monthly replacement price: `price_1U80wvBFbQoDa6p0gyuJ7ibY`, USD 6.99/month plus the approved regional prices
+- Polyglot Permanent product: `prod_V8HMfV6ZjgSsYA`
+- Polyglot Permanent price: `price_1U80o0BFbQoDa6p0b8u97nPq`, USD 31.99 plus the approved regional prices
+- Premium Lifetime product: `prod_V8B2TQgSmAHShK`
+- Premium Lifetime replacement price: `price_1U80jyBFbQoDa6p0RI72ckxu`, USD 59.99 plus the approved regional prices
+- The pre-split lifetime price `price_1U7ug9BFbQoDa6p0qrHmdEdq` and original monthly price `price_1U7sgkBFbQoDa6p0nb1vGaSy` remain available for transaction history and existing customers.
+- Stripe offered 36 of the 37 requested currencies. KWD was unavailable in the price selector and was not substituted. JPY Monthly is stored as JPY 787 because Stripe treats JPY as zero-decimal.
 - Historical-owner coupon: `wonderlang_desktop_owner_lifetime_50`
 - Billing Portal is configured.
 - Restricted API key and webhook signing secret are not yet created; processing remains disabled.
@@ -36,11 +39,12 @@ Last verified: 2026-08-24. This file records only non-secret identifiers and saf
 
 - Developer organization ID: `6814081401818264265`
 - App: `com.wonderlang.app`, Play app ID `4972386637208238631`
-- Monthly subscription product: `wonderlangmonthly`
-- Unsaved base-plan draft: `monthly`, monthly renewal, USD 6.99, 177 regions
-- Base-plan save is blocked by unresolved Taiwan and Ireland payments-profile tax information.
+- Monthly subscription product: `wonderlangmonthly`, displayed as Mobile Monthly with full-game, cloud-save and Android/iOS benefits
+- Unsaved base-plan draft: `monthly`, monthly renewal, USD 6.99, 177 regions. Google computed regional prices, but its automatic conversions do not reproduce the approved regional-discount table.
+- Base-plan save returns `Your changes couldn't be saved`; the known account prerequisite is unresolved Taiwan and Ireland payments-profile tax information.
 - The three-day introductory offer can be created only after the base plan saves.
-- `wonderlangfull` is the Polyglot Permanent product. Its currently saved United States price is USD 25.99; the USD 31.99 price change is prepared but not saved.
+- `wonderlangfull` is displayed as Polyglot Permanent Access with a no-cloud-save description. Its currently saved United States price remains USD 25.99.
+- Google disables all `wonderlangfull` price controls because the product is included in an active promotion or experiment. The USD 31.99 and regional price change cannot be saved until that participation is ended or removed with owner approval.
 - `wonderlangch1` through `wonderlangch4` remain restorable; chapter offers remain hidden from new-sale UI.
 
 ## Apple
@@ -53,9 +57,10 @@ Last verified: 2026-08-24. This file records only non-secret identifiers and saf
 - Web sign-in domain: `wonderlang-entitlements-9590f.firebaseapp.com`
 - Return URL: `https://wonderlang-entitlements-9590f.firebaseapp.com/__/auth/handler`
 - Subscription group: `WonderLang Premium`, ID `22331966`
-- Monthly product: `wonderlangmonthly`, Apple ID `6804702003`, one month, USD 6.99 base, all 175 regions
+- Monthly product: `wonderlangmonthly`, displayed as Mobile Monthly, Apple ID `6804702003`, one month, USD 6.99 base, all 175 regions
 - Introductory offer: free for the first three days, starts 2026-08-24, no end date, all 175 regions
-- Polyglot Permanent non-consumable: existing `wonderlangfull`, Apple ID `6789931887`; its currently saved base price is USD 59.99 across 175 regions. The USD 31.99 price change and Polyglot naming are prepared but not saved.
+- Polyglot Permanent non-consumable: existing `wonderlangfull`, displayed as Polyglot Permanent Access, Apple ID `6789931887`; its current base price is USD 31.99 across 175 regions with Apple-managed comparable tiers.
+- Apple storefront tiers do not exactly reproduce the website/Stripe regional table; the USD 31.99 global price schedule is the saved provider-authoritative catalog.
 - Existing `wonderlangch1` through `wonderlangch4` products remain present for restore and server-side migration.
 - Sign in with Apple key, App Store Server API key and Notifications V2 secrets remain pending explicit private-key approval.
 
