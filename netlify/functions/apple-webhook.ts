@@ -2,6 +2,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import type { LambdaHandler } from "@netlify/aws-lambda-compat";
 import { z } from "zod";
 import { deploymentControls } from "../../src/config/env.js";
+import { safeErrorMessage } from "../../src/infrastructure/safe-error.js";
 
 const bodySchema = z.object({ signedPayload: z.string().min(20) });
 
@@ -23,7 +24,7 @@ export const lambdaHandler: LambdaHandler = async (event) => {
   let verified;
   try { verified = await verifyAppleNotification(parsedBody.data.signedPayload); }
   catch (error) {
-    console.warn("Rejected unverified Apple notification", error);
+    console.warn("Rejected unverified Apple notification", safeErrorMessage(error));
     return { statusCode: 401, body: "Verification failed" };
   }
   const eventId = verified.notification.notificationUUID;
@@ -36,14 +37,6 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     eventType: String(verified.notification.notificationType ?? "UNKNOWN"),
     eventCreated,
     payloadSha256: sha256(parsedBody.data.signedPayload),
-    payload: {
-      notificationType: verified.notification.notificationType,
-      subtype: verified.notification.subtype,
-      signedDate: verified.notification.signedDate,
-      transactionId: verified.transaction?.transactionId,
-      originalTransactionId: verified.transaction?.originalTransactionId,
-      productId: verified.transaction?.productId
-    },
     now: new Date()
   });
   if (decision === "duplicate") return { statusCode: 200, body: "Duplicate accepted" };
@@ -53,7 +46,7 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     return { statusCode: 200, body: "Processed" };
   } catch (error) {
     await store.failProviderEvent("apple", eventId, error, new Date()).catch(() => undefined);
-    console.error("Apple notification processing failed", { eventId, error });
+    console.error("Apple notification processing failed", { eventId, error: safeErrorMessage(error) });
     return { statusCode: 500, body: "Retry" };
   }
 };

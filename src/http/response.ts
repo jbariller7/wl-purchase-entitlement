@@ -1,4 +1,5 @@
 import { HttpError } from "./auth.js";
+import { safeErrorMessage } from "../infrastructure/safe-error.js";
 
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -11,7 +12,7 @@ export function json(statusCode: number, body: unknown): { statusCode: number; h
 
 export function errorResponse(error: unknown): ReturnType<typeof json> {
   if (error instanceof HttpError) return json(error.status, { error: error.message });
-  console.error("Unhandled request error", error);
+  console.error("Unhandled request error", safeErrorMessage(error));
   return json(500, { error: "Internal server error" });
 }
 

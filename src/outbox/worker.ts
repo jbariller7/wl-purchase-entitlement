@@ -8,6 +8,7 @@ import { AccountDeletionService } from "../account-deletion/service.js";
 import { LegacyKeyFulfillmentService } from "../legacy/key-fulfillment.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { deploymentControls } from "../config/env.js";
+import { safeErrorMessage } from "../infrastructure/safe-error.js";
 
 async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<string, unknown> | undefined> {
   switch (job.kind) {
@@ -71,7 +72,12 @@ export async function runOutboxWorker(limit = 20): Promise<{ processed: number; 
       await store.completeOutboxJob(job.id, new Date(), result);
       processed += 1;
     } catch (error) {
-      console.error("Outbox job failed", { jobId: job.id, kind: job.kind, attempt: job.attemptCount, error });
+      console.error("Outbox job failed", {
+        jobId: job.id,
+        kind: job.kind,
+        attempt: job.attemptCount,
+        error: safeErrorMessage(error)
+      });
       await store.failOutboxJob(job, error, new Date());
       failed += 1;
     }

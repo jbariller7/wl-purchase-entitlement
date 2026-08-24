@@ -111,8 +111,10 @@ export class LegacyKeyFulfillmentService {
       signal: AbortSignal.timeout(20_000)
     });
     if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`MailerLite upsert failed (${response.status}): ${body.slice(0, 300)}`);
+      // Provider bodies may echo subscriber data. Keep only safe request
+      // metadata in retry records and Netlify logs.
+      const requestId = response.headers.get("x-request-id");
+      throw new Error(`MailerLite upsert failed (${response.status})${requestId ? ` [request ${requestId}]` : ""}.`);
     }
   }
 

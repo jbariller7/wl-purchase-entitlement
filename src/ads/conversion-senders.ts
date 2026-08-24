@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { env } from "../config/env.js";
 
 interface ConversionPayload {
@@ -6,7 +5,7 @@ interface ConversionPayload {
   eventId: string;
   eventTime: number;
   eventSourceUrl: string;
-  email?: string;
+  emailSha256?: string;
   ipAddress?: string;
   userAgent?: string;
   fbp?: string;
@@ -16,10 +15,6 @@ interface ConversionPayload {
   value: number;
   currency: string;
   product: string;
-}
-
-function hash(value: string): string {
-  return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
 
 function asConversion(payload: Record<string, unknown>): ConversionPayload {
@@ -32,7 +27,7 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
   if (!pixel || !token) throw new Error("Meta conversion credentials are not configured.");
   const event = asConversion(raw);
   const userData: Record<string, unknown> = {
-    ...(event.email ? { em: [hash(event.email)] } : {}),
+    ...(event.emailSha256 ? { em: [event.emailSha256] } : {}),
     ...(event.ipAddress ? { client_ip_address: event.ipAddress } : {}),
     ...(event.userAgent ? { client_user_agent: event.userAgent } : {}),
     ...(event.fbp ? { fbp: event.fbp } : {}),
@@ -61,7 +56,7 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
     }),
     signal: AbortSignal.timeout(20_000)
   });
-  if (!response.ok) throw new Error(`Meta conversion failed (${response.status}): ${(await response.text()).slice(0, 300)}`);
+  if (!response.ok) throw new Error(`Meta conversion failed (${response.status}).`);
 }
 
 export async function sendTikTokConversion(raw: Record<string, unknown>): Promise<void> {
@@ -86,7 +81,7 @@ export async function sendTikTokConversion(raw: Record<string, unknown>): Promis
         event_id: event.eventId,
         page: { url: event.eventSourceUrl },
         user: {
-          ...(event.email ? { email: [hash(event.email)] } : {}),
+          ...(event.emailSha256 ? { email: [event.emailSha256] } : {}),
           ...(event.ipAddress ? { ip: event.ipAddress } : {}),
           ...(event.userAgent ? { user_agent: event.userAgent } : {}),
           ...(event.ttclid ? { ttclid: event.ttclid } : {}),
@@ -111,7 +106,7 @@ export async function sendTikTokConversion(raw: Record<string, unknown>): Promis
     signal: AbortSignal.timeout(20_000)
   });
   const body = await response.text();
-  if (!response.ok) throw new Error(`TikTok conversion failed (${response.status}): ${body.slice(0, 300)}`);
+  if (!response.ok) throw new Error(`TikTok conversion failed (${response.status}).`);
   const parsed = JSON.parse(body) as { code?: number; message?: string };
-  if (parsed.code && parsed.code !== 0) throw new Error(`TikTok conversion rejected (${parsed.code}): ${parsed.message ?? "unknown"}`);
+  if (parsed.code && parsed.code !== 0) throw new Error(`TikTok conversion rejected (${parsed.code}).`);
 }

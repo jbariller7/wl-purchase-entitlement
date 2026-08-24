@@ -53,3 +53,7 @@ export function stripeMajorAmount(currency: string, minorAmount: number): string
   const digits = currencyFractionDigits(currency);
   return (minorAmount / (digits === 0 ? 1 : 100)).toFixed(digits);
 }
+
+export function stripeMajorValue(currency: string, minorAmount: number): number {
+  return Number(stripeMajorAmount(currency, minorAmount));
+}

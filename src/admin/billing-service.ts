@@ -9,6 +9,7 @@ import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
 import { LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF } from "../domain/catalog.js";
 import { stripeMajorAmount } from "../domain/regional-pricing.js";
+import { safeErrorMessage } from "../infrastructure/safe-error.js";
 
 type RefundReason = "duplicate" | "fraudulent" | "requested_by_customer";
 
@@ -123,7 +124,7 @@ export class AdminBillingService {
       });
       return result as unknown as Record<string, unknown>;
     } catch (error) {
-      await ref.update({ state: "failed", failedAt: new Date().toISOString(), lastError: error instanceof Error ? error.message : "Unknown error" }).catch(() => undefined);
+      await ref.update({ state: "failed", failedAt: new Date().toISOString(), lastError: safeErrorMessage(error, "Unknown error") }).catch(() => undefined);
       throw error;
     }
   }
@@ -221,7 +222,7 @@ export class AdminBillingService {
       });
       return result;
     } catch (error) {
-      await ref.update({ state: "failed", failedAt: new Date().toISOString(), lastError: error instanceof Error ? error.message : "Unknown error" }).catch(() => undefined);
+      await ref.update({ state: "failed", failedAt: new Date().toISOString(), lastError: safeErrorMessage(error, "Unknown error") }).catch(() => undefined);
       throw error;
     }
   }

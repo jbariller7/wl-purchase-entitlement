@@ -9,6 +9,7 @@ import {
 } from "../src/cloud-save/service.js";
 import { providerEventDecision } from "../src/domain/provider-event.js";
 import { checkoutRequestSchema } from "../src/providers/stripe/checkout-service.js";
+import { safeErrorMessage } from "../src/infrastructure/safe-error.js";
 
 const now = new Date("2026-08-24T12:00:00.000Z");
 
@@ -23,6 +24,21 @@ describe("provider webhook replay policy", () => {
   it("rejects completed and fresh in-flight duplicates", () => {
     expect(providerEventDecision({ status: "processed" }, now)).toBe("duplicate");
     expect(providerEventDecision({ status: "processing", lastAttemptAt: "2026-08-24T11:59:00.000Z" }, now)).toBe("duplicate");
+  });
+});
+
+describe("operational error redaction", () => {
+  it("removes customer identity and secret material before logs or retry records", () => {
+    const stripeSecret = ["sk", "test", "1234567890ABCDEFGHIJKLMNOP"].join("_");
+    const googleApiKey = ["AI", "zaSyDUMMYDUMMYDUMMYDUMMY12"].join("");
+    const message = safeErrorMessage(new Error(
+      `buyer@example.com Bearer abc.def ${stripeSecret} ${googleApiKey}`
+    ));
+    expect(message).not.toContain("buyer@example.com");
+    expect(message).not.toContain("abc.def");
+    expect(message).not.toContain("sk_test_");
+    expect(message).not.toContain("AIza");
+    expect(message).toContain("[redacted-email]");
   });
 });
 

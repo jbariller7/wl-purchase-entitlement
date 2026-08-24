@@ -1,6 +1,7 @@
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { LambdaHandler } from "@netlify/aws-lambda-compat";
 import { deploymentControls, env } from "../../src/config/env.js";
+import { safeErrorMessage } from "../../src/infrastructure/safe-error.js";
 
 export const lambdaHandler: LambdaHandler = async (request) => {
   if (request.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
@@ -26,7 +27,7 @@ export const lambdaHandler: LambdaHandler = async (request) => {
   try {
     event = stripeClient().webhooks.constructEvent(rawBody, signature, env().STRIPE_WEBHOOK_SECRET);
   } catch (error) {
-    console.warn("Rejected Stripe webhook signature", error instanceof Error ? error.message : error);
+    console.warn("Rejected Stripe webhook signature", safeErrorMessage(error));
     return { statusCode: 400, body: "Invalid signature" };
   }
 
@@ -38,7 +39,6 @@ export const lambdaHandler: LambdaHandler = async (request) => {
     eventType: event.type,
     eventCreated: event.created,
     payloadSha256: sha256(rawBody),
-    payload: event,
     now
   });
   if (decision === "duplicate") return { statusCode: 200, body: "Duplicate accepted" };
@@ -48,7 +48,7 @@ export const lambdaHandler: LambdaHandler = async (request) => {
     return { statusCode: 200, body: "Processed" };
   } catch (error) {
     await store.failProviderEvent("stripe", event.id, error, new Date()).catch(() => undefined);
-    console.error("Stripe webhook processing failed", { eventId: event.id, type: event.type, error });
+    console.error("Stripe webhook processing failed", { eventId: event.id, type: event.type, error: safeErrorMessage(error) });
     return { statusCode: 500, body: "Processing failed; Stripe should retry" };
   }
 };

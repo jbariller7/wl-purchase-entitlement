@@ -12,6 +12,7 @@ import type {
 import type { LegacyDiscountClaim } from "../domain/legacy-discount.js";
 import { stableDocumentId } from "./ids.js";
 import { providerEventDecision } from "../domain/provider-event.js";
+import { safeErrorMessage } from "./safe-error.js";
 
 interface StoredGrant extends LedgerGrant {
   sourceEventCreated: number;
@@ -29,7 +30,6 @@ export class EntitlementStore {
     eventType: string;
     eventCreated: number;
     payloadSha256: string;
-    payload: unknown;
     now: Date;
   }): Promise<"process" | "duplicate"> {
     const ref = this.db.collection("providerEvents").doc(
@@ -57,8 +57,9 @@ export class EntitlementStore {
         lastAttemptAt: input.now.toISOString(),
         status: "processing",
         attemptCount: 1,
-        payloadSha256: input.payloadSha256,
-        payload: input.payload
+        // The digest proves replay identity without retaining provider-controlled
+        // payloads that can contain email, billing, device, or receipt data.
+        payloadSha256: input.payloadSha256
       });
       return "process";
     });
@@ -76,7 +77,7 @@ export class EntitlementStore {
     await this.db.collection("providerEvents").doc(stableDocumentId(provider, providerEventId)).update({
       status: "failed",
       failedAt: now.toISOString(),
-      lastError: error instanceof Error ? error.message.slice(0, 1000) : "Unknown processor error"
+      lastError: safeErrorMessage(error, "Unknown processor error")
     });
   }
 
@@ -370,12 +371,12 @@ export class EntitlementStore {
         transaction.get(claimRef)
       ]);
       if (!orderSnapshot.exists) throw new Error("The historical order has not been imported or verified.");
-      const order = orderSnapshot.data() as LegacyOrder & { claimedByUid?: string };
-      if (order.buyerEmail.toLowerCase() !== input.email.toLowerCase()) {
-        throw new Error("The receipt email does not match the verified account email.");
-      }
+      const order = orderSnapshot.data() as LegacyOrder & { claimedByUid?: string; buyerEmail?: string };
       if (order.claimedByUid && order.claimedByUid !== input.uid) {
         throw new Error("This historical order is already claimed by another account.");
+      }
+      if (!order.buyerEmail || order.buyerEmail.toLowerCase() !== input.email.toLowerCase()) {
+        throw new Error("The receipt email does not match the verified account email.");
       }
       const current = claimSnapshot.data() as LegacyDiscountClaim | undefined;
       const transactionIds = new Set(current?.verifiedDesktopTransactionIds ?? []);
@@ -489,6 +490,10 @@ export class EntitlementStore {
       completedAt: now.toISOString(),
       leaseExpiresAt: null,
       workerId: null,
+      // Delivery payloads can contain short-lived attribution or fulfillment
+      // identifiers. Dedupe key, kind, timestamps, and result are sufficient
+      // after successful delivery.
+      payload: { redacted: true, redactedAt: now.toISOString() },
       ...(result ? { result } : {})
     });
   }
@@ -498,7 +503,7 @@ export class EntitlementStore {
     const retryMinutes = Math.min(6 * 60, Math.max(1, 2 ** Math.min(job.attemptCount, 8)));
     await this.db.collection("outbox").doc(job.id).update({
       state: terminal ? "failed" : "pending",
-      lastError: error instanceof Error ? error.message.slice(0, 1000) : "Unknown worker error",
+      lastError: safeErrorMessage(error, "Unknown worker error"),
       lastFailedAt: now.toISOString(),
       notBefore: new Date(now.getTime() + retryMinutes * 60 * 1000).toISOString(),
       leaseExpiresAt: null,

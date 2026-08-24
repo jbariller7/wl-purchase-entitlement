@@ -23,6 +23,9 @@ export function checkoutAdDecision(input: { mode: string | null; paymentStatus: 
     return { send: false, reason: "checkout_not_paid" };
   }
   if (input.mode === "subscription") {
+    if (input.paymentStatus === "no_payment_required") {
+      return { send: true, eventName: "StartTrial", reason: "subscription_trial_started" };
+    }
     return { send: false, reason: "subscription_conversion_comes_from_initial_invoice" };
   }
   return { send: true, eventName: "Purchase", reason: "one_time_purchase" };

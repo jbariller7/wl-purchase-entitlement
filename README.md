@@ -10,7 +10,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - New chapter-by-chapter sales are retired. Historical chapter and "wonderlangfull" purchases remain restorable forever; a historical chapter owner receives Polyglot Permanent on the purchase platform while the original chapter transaction remains in the ledger.
 - Cloud save is enabled only for effective Mobile Monthly or Premium Lifetime access. Lapsed access never deletes stored saves.
 - Stripe payment failure gets seven days of access grace.
-- Subscription renewals never enqueue Meta or TikTok conversion events.
+- A no-payment-required Stripe trial checkout emits one deduplicated `StartTrial`; the first paid invoice emits `Subscribe`; subscription renewals never enqueue Meta or TikTok conversion events.
 - A verified historical website Steam/Itch buyer gets one private, single-use 50% Premium Lifetime checkout. The old purchase does not itself grant mobile access.
 - A Stripe subscriber buying Premium Lifetime must explicitly confirm cancellation. Premium is granted first; cancellation is then performed by a retrying job. Buying Polyglot Permanent never cancels a subscription. Apple/Google subscriptions remain store-managed and are never falsely reported as canceled by the website.
 
@@ -27,7 +27,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - Google Play Developer API verification, backend acknowledgment, OIDC-authenticated RTDN and token replay prevention.
 - Apple official JWS verification for StoreKit 2 and App Store Server Notifications V2.
 - Transactional legacy key allocation with retryable Google Sheets and MailerLite mirroring.
-- Meta/TikTok server conversion outbox with real checkout attribution and stable event IDs.
+- Meta/TikTok server conversion outbox with real checkout attribution, stable event IDs, pre-storage email hashing, and correct zero-decimal currency values.
 - Versioned SHA-256-verified cloud saves using short-lived staging URLs, immutable finalized revisions and conflict detection.
 - Reviewed RPG Maker, Android and iOS integration sources, including the synchronized mirror used to update the editable RMMZ project and authoritative Android project. The iOS adapter remains a reviewed integration source until the Xcode project is supplied.
 

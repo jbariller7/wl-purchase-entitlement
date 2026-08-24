@@ -1,6 +1,7 @@
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { LambdaHandler } from "@netlify/aws-lambda-compat";
 import { deploymentControls } from "../../src/config/env.js";
+import { safeErrorMessage } from "../../src/infrastructure/safe-error.js";
 
 export const lambdaHandler: LambdaHandler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
@@ -17,13 +18,13 @@ export const lambdaHandler: LambdaHandler = async (event) => {
   const { parseRtdn, processRtdn, verifyPubSubAuthorization } = rtdnModule;
   try { await verifyPubSubAuthorization(event.headers.authorization); }
   catch (error) {
-    console.warn("Rejected Google Play RTDN authorization", error);
+    console.warn("Rejected Google Play RTDN authorization", safeErrorMessage(error));
     return { statusCode: 401, body: "Unauthorized" };
   }
   let parsed;
   try { parsed = parseRtdn(JSON.parse(event.body ?? "{}")); }
   catch (error) {
-    console.warn("Rejected malformed Google Play RTDN", error);
+    console.warn("Rejected malformed Google Play RTDN", safeErrorMessage(error));
     return { statusCode: 400, body: "Malformed notification" };
   }
   const store = new EntitlementStore(firestore());
@@ -35,7 +36,6 @@ export const lambdaHandler: LambdaHandler = async (event) => {
       : parsed.notification.oneTimeProductNotification ? "one_time_product" : "other",
     eventCreated: parsed.eventCreated,
     payloadSha256: sha256(JSON.stringify(parsed.raw)),
-    payload: parsed.raw,
     now: new Date()
   });
   if (decision === "duplicate") return { statusCode: 204, body: "" };
@@ -45,7 +45,7 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     return { statusCode: 204, body: "" };
   } catch (error) {
     await store.failProviderEvent("google_play", parsed.messageId, error, new Date()).catch(() => undefined);
-    console.error("Google Play RTDN processing failed", { messageId: parsed.messageId, error });
+    console.error("Google Play RTDN processing failed", { messageId: parsed.messageId, error: safeErrorMessage(error) });
     return { statusCode: 500, body: "Retry" };
   }
 };

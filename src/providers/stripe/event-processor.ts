@@ -4,7 +4,9 @@ import { deploymentControls, env } from "../../config/env.js";
 import { checkoutAdDecision, stripeInvoiceAdDecision, type AdConversionName } from "../../domain/ad-policy.js";
 import type { LedgerGrant, LegacyOrder } from "../../domain/model.js";
 import { normalizeStripeSubscriptionState, stripeGraceEndsAt } from "../../domain/subscription.js";
+import { stripeMajorValue } from "../../domain/regional-pricing.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
+import { sha256 } from "../../infrastructure/ids.js";
 import { paymentLinkId, routeLegacyOrder, routePremiumDesktopAccess, type PremiumDesktopDelivery } from "../../legacy/catalog.js";
 import { stripeClient } from "./client.js";
 
@@ -127,16 +129,28 @@ async function enqueueAdConversion(input: {
   context?: Record<string, unknown>;
 }): Promise<void> {
   if (!deploymentControls().AD_CONVERSIONS_ENABLED) return;
+  const context = input.context ?? {};
+  const contextString = (key: string): string | undefined => {
+    const value = context[key];
+    return typeof value === "string" && value ? value : undefined;
+  };
+  const uid = contextString("uid");
   const payload = {
     eventName: input.eventName,
     eventId: input.eventSourceId,
     eventTime: input.event.created,
     eventSourceUrl: env().PUBLIC_APP_ORIGIN,
-    ...(input.email ? { email: input.email.trim().toLowerCase() } : {}),
+    ...(input.email ? { emailSha256: sha256(input.email.trim().toLowerCase()) } : {}),
+    ...(uid ? { subjectUidHash: sha256(uid) } : {}),
     value: input.value,
     currency: input.currency.toUpperCase(),
     product: input.product,
-    ...(input.context ?? {})
+    ...(contextString("ipAddress") ? { ipAddress: contextString("ipAddress") } : {}),
+    ...(contextString("userAgent") ? { userAgent: contextString("userAgent") } : {}),
+    ...(contextString("fbp") ? { fbp: contextString("fbp") } : {}),
+    ...(contextString("fbc") ? { fbc: contextString("fbc") } : {}),
+    ...(contextString("ttclid") ? { ttclid: contextString("ttclid") } : {}),
+    ...(contextString("ttp") ? { ttp: contextString("ttp") } : {})
   };
   const now = new Date(input.event.created * 1000);
   await Promise.all([
@@ -152,7 +166,23 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
   if (subscriptionId) await store.linkCheckoutContextToSubscription(session.id, subscriptionId, new Date(event.created * 1000));
 
   if (metadata.wl_product === "mobile_full_monthly") {
-    if (subscriptionId) await syncSubscription({ store, subscriptionId, event });
+    if (!subscriptionId) throw new Error(`Monthly Checkout ${session.id} has no Stripe subscription.`);
+    await syncSubscription({ store, subscriptionId, event });
+    const decision = checkoutAdDecision({ mode: session.mode, paymentStatus: session.payment_status });
+    if (decision.send && decision.eventName) {
+      const context = await store.checkoutContext(session.id);
+      await enqueueAdConversion({
+        store,
+        event,
+        eventName: decision.eventName,
+        eventSourceId: session.id,
+        email: session.customer_details?.email ?? session.customer_email,
+        value: stripeMajorValue(session.currency ?? "usd", session.amount_total ?? 0),
+        currency: session.currency ?? "usd",
+        product: "mobile_full_monthly",
+        ...(context ? { context } : {})
+      });
+    }
     return;
   }
 
@@ -225,7 +255,7 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
         eventName: decision.eventName,
         eventSourceId: session.id,
         email: session.customer_details?.email ?? session.customer_email,
-        value: (session.amount_total ?? 0) / 100,
+        value: stripeMajorValue(session.currency ?? "usd", session.amount_total ?? 0),
         currency: session.currency ?? "usd",
         product,
         ...(context ? { context } : {})
@@ -265,7 +295,7 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
       eventName: decision.eventName,
       eventSourceId: session.id,
       email: buyerEmail,
-      value: (session.amount_total ?? 0) / 100,
+      value: stripeMajorValue(session.currency ?? "usd", session.amount_total ?? 0),
       currency: session.currency ?? "usd",
       product: route.productCode,
       ...(context ? { context } : {})
@@ -298,7 +328,7 @@ async function invoicePaid(store: EntitlementStore, invoice: Stripe.Invoice, eve
     eventName: decision.eventName,
     eventSourceId: invoice.id ?? event.id,
     email: invoice.customer_email,
-    value: invoice.amount_paid / 100,
+    value: stripeMajorValue(invoice.currency, invoice.amount_paid),
     currency: invoice.currency,
     product: "mobile_full_monthly",
     ...(context ? { context } : {})

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Auth } from "firebase-admin/auth";
-import type { Firestore, Query } from "firebase-admin/firestore";
+import { FieldValue, type Firestore, type Query, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
 import { HttpError } from "../http/auth.js";
 import { stableDocumentId, sha256 } from "../infrastructure/ids.js";
@@ -110,7 +110,7 @@ export class AccountDeletionService {
     return { state: "canceled", uid: input.uid };
   }
 
-  private async rewriteUid(query: Query, uid: string, replacement: string, scrubMetadata = false): Promise<number> {
+  private async rewriteUid(query: Query, uid: string, replacement: string, now: Date, scrubMetadata = false): Promise<number> {
     const snapshot = await query.where("uid", "==", uid).get();
     let count = 0;
     for (let offset = 0; offset < snapshot.docs.length; offset += 400) {
@@ -119,13 +119,93 @@ export class AccountDeletionService {
         batch.set(doc.ref, {
           uid: replacement,
           ...(scrubMetadata ? { metadata: { accountDeleted: true } } : {}),
-          accountDeletedAt: new Date().toISOString()
+          accountDeletedAt: now.toISOString()
         }, { merge: true });
         count += 1;
       }
       await batch.commit();
     }
     return count;
+  }
+
+  private async linkedLegacyOrders(uid: string): Promise<QueryDocumentSnapshot[]> {
+    const snapshots = await Promise.all([
+      this.db.collection("legacyOrders").where("firebaseUid", "==", uid).get(),
+      this.db.collection("legacyOrders").where("claimedByUid", "==", uid).get()
+    ]);
+    const documents = new Map<string, QueryDocumentSnapshot>();
+    for (const snapshot of snapshots) {
+      for (const document of snapshot.docs) documents.set(document.ref.path, document);
+    }
+    return [...documents.values()];
+  }
+
+  private async scrubLegacyPurchaseData(uid: string, deletedUid: string, now: Date): Promise<{ orders: number; keys: number }> {
+    const orders = await this.linkedLegacyOrders(uid);
+    for (let offset = 0; offset < orders.length; offset += 400) {
+      const batch = this.db.batch();
+      for (const order of orders.slice(offset, offset + 400)) {
+        batch.set(order.ref, {
+          buyerEmail: FieldValue.delete(),
+          firebaseUid: deletedUid,
+          claimedByUid: deletedUid,
+          accountDeletedAt: now.toISOString()
+        }, { merge: true });
+      }
+      await batch.commit();
+    }
+
+    const keyDocuments = new Map<string, QueryDocumentSnapshot>();
+    for (const order of orders) {
+      const snapshot = await this.db.collection("legacyKeys").where("assignedOrderId", "==", order.id).get();
+      for (const document of snapshot.docs) keyDocuments.set(document.ref.path, document);
+    }
+    const keys = [...keyDocuments.values()];
+    for (let offset = 0; offset < keys.length; offset += 400) {
+      const batch = this.db.batch();
+      for (const key of keys.slice(offset, offset + 400)) {
+        batch.set(key.ref, {
+          assignedEmail: FieldValue.delete(),
+          accountDeletedAt: now.toISOString()
+        }, { merge: true });
+      }
+      await batch.commit();
+    }
+    return { orders: orders.length, keys: keys.length };
+  }
+
+  private async scrubAccountOutbox(uid: string, now: Date): Promise<number> {
+    const snapshots = await Promise.all([
+      this.db.collection("outbox").where("payload.uid", "==", uid).get(),
+      this.db.collection("outbox").where("payload.firebaseUid", "==", uid).get(),
+      this.db.collection("outbox").where("payload.subjectUidHash", "==", sha256(uid)).get()
+    ]);
+    const documents = new Map<string, QueryDocumentSnapshot>();
+    for (const snapshot of snapshots) {
+      for (const document of snapshot.docs) {
+        const data = document.data() as { kind?: string; payload?: { uid?: string }; state?: string };
+        // The worker still needs its own UID until purge returns. Completion
+        // immediately redacts the payload in completeOutboxJob.
+        if (data.kind === "delete_account_data" && data.payload?.uid === uid) continue;
+        documents.set(document.ref.path, document);
+      }
+    }
+    const jobs = [...documents.values()];
+    for (let offset = 0; offset < jobs.length; offset += 400) {
+      const batch = this.db.batch();
+      for (const job of jobs.slice(offset, offset + 400)) {
+        const state = String(job.data().state ?? "");
+        batch.set(job.ref, {
+          ...(state === "complete" || state === "canceled" ? {} : { state: "canceled", canceledAt: now.toISOString() }),
+          payload: { redacted: true, redactedAt: now.toISOString() },
+          lastError: FieldValue.delete(),
+          workerId: FieldValue.delete(),
+          leaseExpiresAt: FieldValue.delete()
+        }, { merge: true });
+      }
+      await batch.commit();
+    }
+    return jobs.length;
   }
 
   private async deleteQuery(query: Query): Promise<number> {
@@ -161,11 +241,15 @@ export class AccountDeletionService {
       this.deleteQuery(this.db.collection("pendingImports").where("claimedByUid", "==", uid)),
       this.deleteQuery(this.db.collection("accountDeletionPreviews").where("uid", "==", uid))
     ]);
+    const [legacyPurchaseRows, scrubbedOutboxRows] = await Promise.all([
+      this.scrubLegacyPurchaseData(uid, deletedUid, now),
+      this.scrubAccountOutbox(uid, now)
+    ]);
     const pseudonymizedRows = await Promise.all([
-      this.rewriteUid(this.db.collection("grants"), uid, deletedUid, true),
-      this.rewriteUid(this.db.collection("providerTransactions"), uid, deletedUid),
-      this.rewriteUid(this.db.collection("providerSubscriptions"), uid, deletedUid),
-      this.rewriteUid(this.db.collection("providerCustomers"), uid, deletedUid)
+      this.rewriteUid(this.db.collection("grants"), uid, deletedUid, now, true),
+      this.rewriteUid(this.db.collection("providerTransactions"), uid, deletedUid, now),
+      this.rewriteUid(this.db.collection("providerSubscriptions"), uid, deletedUid, now),
+      this.rewriteUid(this.db.collection("providerCustomers"), uid, deletedUid, now)
     ]);
     const batch = this.db.batch();
     batch.delete(this.db.collection("users").doc(uid));
@@ -182,7 +266,10 @@ export class AccountDeletionService {
     return {
       deleted: true,
       deletedPrivateRows: deletedPrivateRows.reduce((sum, value) => sum + value, 0),
-      pseudonymizedLedgerRows: pseudonymizedRows.reduce((sum, value) => sum + value, 0)
+      pseudonymizedLedgerRows: pseudonymizedRows.reduce((sum, value) => sum + value, 0),
+      pseudonymizedLegacyOrders: legacyPurchaseRows.orders,
+      scrubbedLegacyKeyAssignments: legacyPurchaseRows.keys,
+      scrubbedOutboxRows
     };
   }
 }

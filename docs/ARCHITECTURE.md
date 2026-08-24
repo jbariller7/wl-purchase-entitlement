@@ -29,14 +29,14 @@ An active monthly grant ends at the provider period end unless a newer provider 
 ## Main collections
 
 - `users/{uid}`: provider customer link and random store account token.
-- `providerEvents/{hash}`: durable idempotency inbox.
+- `providerEvents/{hash}`: durable idempotency inbox containing event metadata and a payload digest, never the raw provider payload.
 - `providerCustomers`, `providerSubscriptions`, `providerTransactions`: uniqueness indexes to UID/grant.
 - `grants/{hash}`: normalized provider truth.
 - `entitlements/{uid}`: cached projection; APIs also project from current grants/time.
 - `legacyOrders`, `legacyDiscountClaims`: verified historical purchases and one-use reservation/redemption.
 - `legacyKeys`, `legacyFulfillments`: exclusive key inventory and durable fulfillment result.
 - `checkoutContexts`, `subscriptionContexts`: browser attribution captured before Stripe redirect.
-- `outbox/{hash}`: leased, retrying external side effects.
+- `outbox/{hash}`: leased, retrying external side effects; successful payloads are immediately replaced by a redaction marker.
 - `cloudSaves/{uid}/slots/{slot}` and `cloudSaveUploads`: manifests and upload transactions.
 
 Clients are denied direct Firestore/Storage access. Authenticated HTTP endpoints gate reads/writes. Ten-minute signed write URLs target disposable staging objects; finalization verifies SHA-256 and size, then creates an immutable revision object before advancing the manifest.

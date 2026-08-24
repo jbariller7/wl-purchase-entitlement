@@ -7,6 +7,7 @@ import { sha256 } from "../infrastructure/ids.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
 import { chapterMigrationGrant } from "../domain/legacy-chapter-migration.js";
+import { safeErrorMessage } from "../infrastructure/safe-error.js";
 
 export type AdminImportKind =
   | "mobile_lifetime"
@@ -226,7 +227,7 @@ export class AdminImportService {
       });
       return result;
     } catch (error) {
-      await ref.update({ state: "failed", failedAt: new Date().toISOString(), lastError: error instanceof Error ? error.message : "Unknown error" }).catch(() => undefined);
+      await ref.update({ state: "failed", failedAt: new Date().toISOString(), lastError: safeErrorMessage(error, "Unknown error") }).catch(() => undefined);
       throw error;
     }
   }
@@ -250,7 +251,7 @@ export class AdminImportService {
       await ref.update({ state: "claimed", claimedAt: new Date().toISOString(), claimedByUid: input.uid });
       return rows.length;
     } catch (error) {
-      await ref.update({ state: "failed", lastError: error instanceof Error ? error.message : "Unknown error" }).catch(() => undefined);
+      await ref.update({ state: "failed", lastError: safeErrorMessage(error, "Unknown error") }).catch(() => undefined);
       throw error;
     }
   }
