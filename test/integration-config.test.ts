@@ -9,6 +9,14 @@ describe("isolated integration configuration", () => {
     expect(JSON.parse(read("package.json")).engines.node).toBe(">=24.19 <25");
   });
 
+  it("uses the Netlify-compatible Firebase Admin authentication chain", () => {
+    const packageJson = JSON.parse(read("package.json"));
+    const packageLock = JSON.parse(read("package-lock.json"));
+    expect(packageJson.dependencies["firebase-admin"]).toBe("13.10.0");
+    expect(packageLock.packages["node_modules/firebase-admin"].version).toBe("13.10.0");
+    expect(packageLock.packages["node_modules/jwks-rsa"].version).toMatch(/^3\./);
+  });
+
   it("wraps every Lambda-style function for the modern Netlify runtime", () => {
     const packageJson = read("package.json");
     const functions = [
