@@ -4,14 +4,15 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 
 ## Commercial contract implemented
 
-- Monthly full access: **USD 6.99/month**, all chapters and all languages.
-- Lifetime full access remains available.
-- New chapter-by-chapter sales are replaced by monthly; historical chapter/full purchases remain restorable forever.
-- Cloud save is enabled only for an effective monthly or website lifetime entitlement. Lapsed access never deletes stored saves.
+- **Mobile Monthly:** USD 6.99/month with a three-day trial, full mobile access on Android and iOS, and cloud save while the subscription is effective.
+- **Polyglot Permanent Access:** USD 31.99 once, full game forever on exactly one selected mobile platform (Android or iOS), without cloud save. The existing Apple/Google "wonderlangfull" product maps to this offer.
+- **Premium Lifetime Pass:** USD 59.99 once, one selected mobile platform, one PC/Mac delivery choice (Steam key or direct download), cross-platform cloud save, future sequels/additional content, and eligibility for an audited second-mobile-platform request.
+- New chapter-by-chapter sales are retired. Historical chapter and "wonderlangfull" purchases remain restorable forever; a historical chapter owner receives Polyglot Permanent on the purchase platform while the original chapter transaction remains in the ledger.
+- Cloud save is enabled only for effective Mobile Monthly or Premium Lifetime access. Lapsed access never deletes stored saves.
 - Stripe payment failure gets seven days of access grace.
 - Subscription renewals never enqueue Meta or TikTok conversion events.
-- A verified historical website Steam/Itch buyer gets one private, single-use 50% lifetime checkout. The old purchase does not itself grant mobile access.
-- A Stripe subscriber buying lifetime must explicitly confirm cancellation. Lifetime is granted first; cancellation is then performed by a retrying job. Apple/Google subscriptions remain store-managed and are never falsely reported as canceled by the website.
+- A verified historical website Steam/Itch buyer gets one private, single-use 50% Premium Lifetime checkout. The old purchase does not itself grant mobile access.
+- A Stripe subscriber buying Premium Lifetime must explicitly confirm cancellation. Premium is granted first; cancellation is then performed by a retrying job. Buying Polyglot Permanent never cancels a subscription. Apple/Google subscriptions remain store-managed and are never falsely reported as canceled by the website.
 
 ## What is implemented
 
@@ -28,15 +29,18 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - Transactional legacy key allocation with retryable Google Sheets and MailerLite mirroring.
 - Meta/TikTok server conversion outbox with real checkout attribution and stable event IDs.
 - Versioned SHA-256-verified cloud saves using short-lived signed URLs and conflict detection.
-- Duplicate-only RPG Maker, Android and iOS integration sources. No production game/mobile file is changed by this repository.
+- Reviewed RPG Maker, Android and iOS integration sources, including the synchronized mirror used to update the editable RMMZ project and authoritative Android project. The iOS adapter remains a reviewed integration source until the Xcode project is supplied.
 
 ## Local verification
 
 ```bash
 npm install
 npm run check
+npm run test:rules
 npm run build
 ```
+
+The Rules test starts isolated Firestore and Storage emulators under a demo project ID and proves that unauthenticated, authenticated and client-forged admin contexts are all denied direct access.
 
 Copy `.env.example` to a secure local environment source. Never commit private keys. Deploy the Firestore/Storage deny-by-default rules before exposing an API.
 

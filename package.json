@@ -15,6 +15,7 @@
     "import:legacy-keys": "tsx scripts/import-legacy-keys.ts",
     "admin:set-claim": "tsx scripts/set-admin-claim.ts",
     "test": "vitest run",
+    "test:rules": "node scripts/run-firebase-rules-tests.mjs",
     "test:watch": "vitest",
     "validate:catalog": "tsx scripts/validate-catalog.ts"
   },
@@ -30,6 +31,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/node": "^22.15.30",
     "esbuild": "^0.25.5",
     "tsx": "^4.20.3",
