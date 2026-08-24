@@ -76,7 +76,7 @@ Stripe events:
 3. Test two devices editing the same base revision; the second finalize must receive 409 and preserve both copies for user choice.
 4. Test corrupt/truncated upload and download SHA-256 rejection.
 5. Lapse a subscription: local saves still work; cloud API denies access; stored objects remain. Renew and confirm they reappear.
-6. Define retention/privacy policy and a user-request account deletion job before public launch. Current code retains the current plus three prior manifest revisions; object garbage collection should be scheduled after the chosen retention period.
+6. Approve the provider-payload retention period and configure its time-based lifecycle before public launch. The user-request account deletion and 30-day recovery workflow is implemented behind separately disabled processing switches. Current cloud-save code retains the current plus three prior manifest revisions; object garbage collection should be scheduled after the chosen retention period.
 
 ## 8. Operational gates
 

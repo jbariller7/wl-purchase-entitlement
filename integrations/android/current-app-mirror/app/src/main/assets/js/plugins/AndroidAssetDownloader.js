@@ -1434,16 +1434,8 @@ window.WL_AssetPackDebug = {
         const accountOwned = window.WLAccountEntitlements?.isProductPurchased?.(normalizedSku) === true;
         if (accountOwned) return true;
 
-        // Migration promise: ownership of any historical chapter is permanent full-game
-        // ownership. Apply it in JavaScript too so iOS and older native bridges cannot relock
-        // those few purchasers while their receipt is being linked to an account.
-        const historicalChapterOwned = RESTORE_PRODUCTS.some(product => {
-            const candidate = normalizeSkuForPlatform(product?.sku);
-            return HISTORICAL_CHAPTER_SKUS.has(candidate) && isDirectProductPurchased(candidate);
-        });
-        if (historicalChapterOwned && (normalizedSku === bundleSku || HISTORICAL_CHAPTER_SKUS.has(normalizedSku))) {
-            return true;
-        }
+        // The native/account bridge owns the dated chapter-to-full migration decision.
+        // JavaScript must not infer lifetime access from an undated chapter receipt.
 
         const ownsBundle = normalizedSku !== bundleSku && (
             isIOSRuntime()

@@ -198,6 +198,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var gameContentReadyLogged: Boolean = false
     private lateinit var billingClient: BillingClient
     private val purchasedProducts = ConcurrentHashMap.newKeySet<String>()
+    private val historicalFullUpgradeProducts = ConcurrentHashMap.newKeySet<String>()
     private val pendingProducts = ConcurrentHashMap.newKeySet<String>()
     @Volatile private var productPrices: Map<String, String> = emptyMap()
     @Volatile private var subscriptionOfferTokens: Map<String, String> = emptyMap()
@@ -225,6 +226,8 @@ class MainActivity : AppCompatActivity() {
     private val SUBS_SKUS = setOf("wonderlangmonthly")
     private val ALL_STORE_SKUS = ONE_TIME_SKUS + SUBS_SKUS
     private val CHAPTER_SKUS = setOf("wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4")
+    // Must match LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF in the entitlement service.
+    private val LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF_MS = 1_787_615_999_999L
     private val ACCOUNT_API_BASE_URL = "https://wl-purchase-entitlement.netlify.app"
     private val purchaseQueryLock = Any()
     @Volatile private var purchaseQueryInFlight: Boolean = false
@@ -2839,7 +2842,8 @@ class MainActivity : AppCompatActivity() {
     private fun handlePurchase(
         purchase: Purchase,
         ownedTarget: MutableSet<String> = purchasedProducts,
-        pendingTarget: MutableSet<String> = pendingProducts
+        pendingTarget: MutableSet<String> = pendingProducts,
+        historicalFullTarget: MutableSet<String> = historicalFullUpgradeProducts
     ): PurchaseHandlingResult {
         val products = acceptedProducts(purchase)
         if (products.isEmpty()) return PurchaseHandlingResult.IGNORED
@@ -2848,13 +2852,17 @@ class MainActivity : AppCompatActivity() {
             Purchase.PurchaseState.PURCHASED -> {
                 pendingTarget.removeAll(products)
 
-                // Acknowledged historical one-time purchases predate the account service.
-                // Keep those permanently usable even when the player is offline, then link
-                // them to the signed-in account opportunistically. Any chapter counts as full.
+                // Acknowledged one-time purchases remain usable offline. Chapter receipts
+                // preserve their exact chapter forever; only receipts completed by the
+                // migration cutoff receive the local full-game fallback.
                 val locallyRestorable = products.filterTo(mutableSetOf()) { productId ->
                     purchase.isAcknowledged && productId in ONE_TIME_SKUS
                 }
                 ownedTarget.addAll(locallyRestorable)
+                historicalFullTarget.removeAll(products)
+                historicalFullTarget.addAll(locallyRestorable.filter { productId ->
+                    productId in CHAPTER_SKUS && purchase.purchaseTime <= LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF_MS
+                })
 
                 if (!::accountManager.isInitialized || !accountManager.isSignedIn()) {
                     if (locallyRestorable.isEmpty()) {
@@ -3072,8 +3080,9 @@ class MainActivity : AppCompatActivity() {
 
             val activeOwned = mutableSetOf<String>()
             val activePending = mutableSetOf<String>()
+            val activeHistoricalFull = mutableSetOf<String>()
             val handlingResults = snapshots.values.flatMap { (_, purchasesForType) ->
-                purchasesForType.map { purchase -> handlePurchase(purchase, activeOwned, activePending) }
+                purchasesForType.map { purchase -> handlePurchase(purchase, activeOwned, activePending, activeHistoricalFull) }
             }
 
             val committed = synchronized(purchaseQueryLock) {
@@ -3085,6 +3094,8 @@ class MainActivity : AppCompatActivity() {
                     // account backend verifies them, or read from accountManager entitlements.
                     purchasedProducts.clear()
                     purchasedProducts.addAll(activeOwned)
+                    historicalFullUpgradeProducts.clear()
+                    historicalFullUpgradeProducts.addAll(activeHistoricalFull)
                     pendingProducts.clear()
                     pendingProducts.addAll(activePending)
                     purchaseEntitlementSyncCompleted = true
@@ -3697,7 +3708,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun isPurchased(sku: String): Boolean {
             val normalizedSku = normalizeSku(sku)
-            val historicalLifetime = purchasedProducts.any { it in ONE_TIME_SKUS }
+            val historicalLifetime = purchasedProducts.contains("wonderlangfull") || historicalFullUpgradeProducts.isNotEmpty()
             val nativeOwned = when {
                 normalizedSku in ONE_TIME_SKUS && historicalLifetime -> true
                 else -> purchasedProducts.contains(normalizedSku)

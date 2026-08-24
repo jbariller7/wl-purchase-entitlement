@@ -12,4 +12,4 @@
 - Cloud paths are UID-scoped; signed URLs expire after ten minutes; upload size and SHA-256 are checked before manifest commit.
 - Firestore and Storage client rules deny everything. Service-account and provider credentials belong only in Netlify secrets.
 
-Before production: enable Firebase App Check/rate limiting on public APIs, configure Netlify log redaction, restrict service-account IAM, rotate credentials after migration, add an audited account-deletion workflow, and commission an external review of auth linking and store receipt replay cases.
+The audited account-deletion workflow is implemented with recent-login confirmation, immediate session revocation, a 30-day recovery window, and a separately disabled purge worker. Before production: approve and configure a time-based lifecycle for retained raw provider payloads, enable Firebase App Check/rate limiting on public APIs, configure Netlify log redaction, restrict service-account IAM, rotate credentials after migration, and commission an external review of auth linking and store receipt replay cases.

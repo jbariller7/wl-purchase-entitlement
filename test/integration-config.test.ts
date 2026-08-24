@@ -97,6 +97,8 @@ describe("isolated integration configuration", () => {
     expect(activity).toContain("BillingClient.ProductType.SUBS");
     expect(activity).toContain("setObfuscatedAccountId(storeAccountToken)");
     expect(activity).toContain("preferredSubscriptionOffer");
+    expect(activity).toContain("LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF_MS = 1_787_615_999_999L");
+    expect(activity).toContain("historicalFullUpgradeProducts");
     expect(activity).not.toContain("acknowledgePurchase(");
     expect(manager).toContain('api("/api/v1/google-play/claim"');
     expect(manager).toContain('OAuthProvider.newBuilder("apple.com")');
@@ -106,6 +108,8 @@ describe("isolated integration configuration", () => {
     expect(storefront).toContain('sku: "wonderlangfull"');
     expect(storefront).toMatch(/function shouldShowChapterOffers\(\)\s*\{\s*return false;\s*\}/);
     expect(storefront).toContain("RESTORE_PRODUCTS");
+    expect(storefront).toContain("JavaScript must not infer lifetime access from an undated chapter receipt");
+    expect(storefront).not.toContain("const historicalChapterOwned");
     expect(plugins).toContain('{"name":"WonderLangAccountCloudSync","status":true');
     for (const dependency of ["firebase-auth", "credentials-play-services-auth", "googleid"]) {
       expect(gradle).toContain(dependency);
