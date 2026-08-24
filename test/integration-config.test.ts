@@ -103,6 +103,11 @@ describe("isolated integration configuration", () => {
     expect(css).toMatch(/\.user-menu \{[^}]*min-height: 44px/);
   });
 
+  it("keeps setup actions at a touch-safe minimum size", () => {
+    const css = read("integrations/web/setup-status/setup.css");
+    expect(css).toMatch(/\.actions button,\.actions a,\.failure button \{[^}]*min-height:44px/);
+  });
+
   it("closes the native Play verification loop for both success and failure", () => {
     const bridge = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
     const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");

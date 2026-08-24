@@ -42,7 +42,7 @@ progress::-webkit-progress-value { background:var(--green); }
 .next ol { display:grid; gap:12px; padding:22px 48px 8px; color:var(--muted); line-height:1.5; }
 .next code { color:var(--ink); font-weight:800; }
 .actions { display:flex; gap:10px; padding:12px 24px 24px; }
-.actions button,.actions a,.failure button { min-height:43px; padding:0 17px; border:1px solid var(--ink); border-radius:10px; background:var(--ink); color:#fff; cursor:pointer; font-size:12px; font-weight:900; text-decoration:none; }
+.actions button,.actions a,.failure button { min-height:44px; padding:0 17px; border:1px solid var(--ink); border-radius:10px; background:var(--ink); color:#fff; cursor:pointer; font-size:12px; font-weight:900; text-decoration:none; }
 .actions a { display:inline-flex; align-items:center; background:transparent; color:var(--ink); }
 footer { padding-top:22px; color:var(--muted); font-size:11px; text-align:center; }
 .failure { display:grid; min-height:80vh; place-items:center; align-content:center; text-align:center; }
