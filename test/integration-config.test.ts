@@ -87,6 +87,7 @@ describe("isolated integration configuration", () => {
     expect(widget).toContain("if (demoMode) return this.demoRequest(path, options)");
     expect(widget).toContain("no real sign-in, purchase, save, or deletion can occur.");
     expect(widget).toContain("No payment page was opened.");
+    expect(widget).toContain('phraseInput.addEventListener("input", () => phraseInput.setCustomValidity(""))');
   });
 
   it("closes the native Play verification loop for both success and failure", () => {

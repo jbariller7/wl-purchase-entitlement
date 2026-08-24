@@ -426,11 +426,13 @@ class WonderLangAccount extends HTMLElement {
       let settled = false;
       const close = (value) => { if (settled) return; settled = true; document.removeEventListener("keydown", onKeydown); holder.remove(); resolve(value); };
       const onKeydown = (event) => { if (event.key === "Escape") close(null); };
+      const phraseInput = holder.querySelector('input[name="phrase"]');
+      phraseInput.addEventListener("input", () => phraseInput.setCustomValidity(""));
       holder.querySelector("[data-close]").addEventListener("click", () => close(null));
-      holder.querySelector("form").addEventListener("submit", (event) => { event.preventDefault(); const value = String(new FormData(event.currentTarget).get("phrase") || "").trim(); if (value === phrase) close(value); else { const input = event.currentTarget.querySelector("input"); input.setCustomValidity("The confirmation phrase does not match."); input.reportValidity(); } });
+      holder.querySelector("form").addEventListener("submit", (event) => { event.preventDefault(); const value = String(new FormData(event.currentTarget).get("phrase") || "").trim(); if (value === phrase) close(value); else { phraseInput.setCustomValidity("The confirmation phrase does not match."); phraseInput.reportValidity(); } });
       document.addEventListener("keydown", onKeydown);
       this.append(holder);
-      holder.querySelector("input").focus();
+      phraseInput.focus();
     });
   }
 
