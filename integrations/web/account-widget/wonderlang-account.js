@@ -15,9 +15,11 @@ import {
 } from "firebase/auth";
 import "./wonderlang-account.css";
 
-const localDemo = ["localhost", "127.0.0.1"].includes(location.hostname)
-  ? new URLSearchParams(location.search).get("demo")
-  : null;
+const previewParam = new URLSearchParams(location.search).get("demo");
+const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"].includes(location.hostname)
+  && previewParam === "1";
+const localEmailLinkDemo = ["localhost", "127.0.0.1"].includes(location.hostname)
+  && previewParam === "email-link";
 
 const html = `
   <section class="wl-card">
@@ -104,28 +106,60 @@ function appleProvider() {
   return provider;
 }
 
+const demoConfig = {
+  checkoutEnabled: true,
+  catalog: {
+    monthly: { unitAmount: 699, currency: "USD" },
+    lifetime: { unitAmount: 6000, currency: "USD" },
+    trialDays: 3
+  }
+};
+
+function createDemoAccount() {
+  return {
+    email: "demo-player@example.com",
+    linkedLoginProviders: ["google.com", "apple.com"],
+    entitlements: {
+      accessKind: "subscription",
+      subscriptionState: "active",
+      cloudSave: true,
+      chapters: []
+    },
+    subscription: {
+      phase: "trialing",
+      trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+      renewsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    },
+    cloudSave: {
+      slotCount: 2,
+      lastUpdatedAt: new Date().toISOString()
+    },
+    legacyLifetimeDiscount: { eligible: true }
+  };
+}
+
 class WonderLangAccount extends HTMLElement {
   async connectedCallback() {
     this.innerHTML = html;
     this.apiBase = (this.getAttribute("api-base") || location.origin).replace(/\/$/, "");
     this.bind();
-    if (localDemo === "email-link") {
+    if (localEmailLinkDemo) {
       this.querySelector(".wl-signed-out").hidden = false;
       this.status("Local cross-device sign-in preview.");
       const email = await this.confirmEmailForLink();
       this.status(email ? `Confirmed ${email} in the local preview.` : "Email confirmation canceled in the local preview.");
       return;
     }
+    if (demoMode) {
+      this.demoAccount = createDemoAccount();
+      this.configureCatalog(demoConfig);
+      await this.renderUser(null);
+      this.status("Safe account demo. Choose Google, Apple, or email; no real sign-in, purchase, save, or deletion can occur.");
+      return;
+    }
     try {
       const config = await this.request("/api/v1/config", { authenticated: false });
-      this.config = config;
-      const price = (offer, suffix = "") => `${new Intl.NumberFormat(undefined, { style: "currency", currency: offer.currency }).format(offer.unitAmount / 100)}${suffix}`;
-      this.querySelector('[data-field="monthly-price"]').textContent = price(config.catalog.monthly, "/month");
-      this.querySelector('[data-field="monthly-trial"]').textContent = `${Number(config.catalog.trialDays || 3)} days free`;
-      this.querySelector('[data-field="lifetime-price"]').textContent = price(config.catalog.lifetime);
-      for (const action of ["monthly", "lifetime", "discounted-lifetime", "portal"]) {
-        this.querySelector(`[data-action="${action}"]`).disabled = !config.checkoutEnabled;
-      }
+      this.configureCatalog(config);
       this.auth = getAuth(initializeApp(config.firebase));
       await this.finishEmailLink();
       await getRedirectResult(this.auth).catch((error) => { throw error; });
@@ -136,7 +170,7 @@ class WonderLangAccount extends HTMLElement {
   bind() {
     this.querySelector('[data-action="google"]').addEventListener("click", () => this.provider(new GoogleAuthProvider()));
     this.querySelector('[data-action="apple"]').addEventListener("click", () => this.provider(appleProvider()));
-    this.querySelector('[data-action="sign-out"]').addEventListener("click", () => signOut(this.auth));
+    this.querySelector('[data-action="sign-out"]').addEventListener("click", () => this.signOutCurrent());
     this.querySelector('[data-action="monthly"]').addEventListener("click", () => this.checkout("mobile_full_monthly", false));
     this.querySelector('[data-action="lifetime"]').addEventListener("click", () => this.checkout("mobile_full_lifetime", false));
     this.querySelector('[data-action="discounted-lifetime"]').addEventListener("click", () => this.checkout("mobile_full_lifetime", true));
@@ -150,7 +184,34 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-form="legacy"]').addEventListener("submit", (event) => this.claimLegacy(event));
   }
 
+  configureCatalog(config) {
+    this.config = config;
+    const price = (offer, suffix = "") => `${new Intl.NumberFormat(undefined, { style: "currency", currency: offer.currency }).format(offer.unitAmount / 100)}${suffix}`;
+    this.querySelector('[data-field="monthly-price"]').textContent = price(config.catalog.monthly, "/month");
+    this.querySelector('[data-field="monthly-trial"]').textContent = `${Number(config.catalog.trialDays || 3)} days free`;
+    this.querySelector('[data-field="lifetime-price"]').textContent = price(config.catalog.lifetime);
+    for (const action of ["monthly", "lifetime", "discounted-lifetime", "portal"]) {
+      this.querySelector(`[data-action="${action}"]`).disabled = !config.checkoutEnabled;
+    }
+  }
+
+  async signOutCurrent() {
+    if (demoMode) {
+      await this.renderUser(null);
+      this.status("Signed out of the safe account demo.");
+      return;
+    }
+    await signOut(this.auth);
+  }
+
   async provider(provider) {
+    if (demoMode) {
+      const providerId = provider.providerId || "demo";
+      if (!this.demoAccount.linkedLoginProviders.includes(providerId)) this.demoAccount.linkedLoginProviders.push(providerId);
+      await this.renderUser({ email: this.demoAccount.email, providerId });
+      this.status(`Signed in with ${providerId === "apple.com" ? "Apple" : "Google"} in the safe demo.`);
+      return;
+    }
     this.status("Opening secure sign-in…");
     try {
       await signInWithPopup(this.auth, provider);
@@ -164,6 +225,14 @@ class WonderLangAccount extends HTMLElement {
   }
 
   async linkProvider(provider) {
+    if (demoMode) {
+      if (!this.user) return this.status("Sign in first.");
+      const providerId = provider.providerId || "demo";
+      if (!this.demoAccount.linkedLoginProviders.includes(providerId)) this.demoAccount.linkedLoginProviders.push(providerId);
+      await this.renderUser(this.user);
+      this.status(`${providerId === "apple.com" ? "Apple" : "Google"} login linked in the safe demo.`);
+      return;
+    }
     if (!this.auth?.currentUser) return this.status("Sign in first.");
     this.status("Linking sign-in method…");
     try {
@@ -175,6 +244,12 @@ class WonderLangAccount extends HTMLElement {
   async emailLink(event) {
     event.preventDefault();
     const email = new FormData(event.currentTarget).get("email").trim().toLowerCase();
+    if (demoMode) {
+      this.demoAccount.email = email;
+      await this.renderUser({ email, providerId: "passwordless-email" });
+      this.status(`Secure email-link sign-in simulated for ${email}.`);
+      return;
+    }
     try {
       await sendSignInLinkToEmail(this.auth, email, { url: location.href, handleCodeInApp: true });
       localStorage.setItem("wl-email-link", email);
@@ -266,6 +341,11 @@ class WonderLangAccount extends HTMLElement {
       confirmation.focus();
       return;
     }
+    if (demoMode) {
+      const offer = product === "mobile_full_monthly" ? "monthly subscription" : useDiscount ? "discounted lifetime purchase" : "lifetime purchase";
+      this.status(`Safe demo: ${offer} checkout validated. No payment page was opened.`);
+      return;
+    }
     try {
       const result = await this.request("/api/v1/checkout", {
         method: "POST",
@@ -284,11 +364,19 @@ class WonderLangAccount extends HTMLElement {
   }
 
   async openPortal() {
+    if (demoMode) {
+      this.status("Safe demo: the Stripe customer portal would open here.");
+      return;
+    }
     try { location.assign((await this.request("/api/v1/billing-portal", { method: "POST", body: {} })).url); }
     catch (error) { this.fail(error); }
   }
 
   async restorePurchases() {
+    if (demoMode) {
+      this.status("Safe demo: mobile purchase restoration requested. No store was contacted.");
+      return;
+    }
     const native = window.AndroidManager;
     if (!native?.refreshPurchases) {
       this.status("Open WonderLang on Android or iOS to restore that store's purchases; website purchases are already synchronized after sign-in.");
@@ -309,7 +397,7 @@ class WonderLangAccount extends HTMLElement {
     if (!phrase) return;
     try {
       await this.request("/api/v1/me/revoke-sessions", { method: "POST", body: { confirmationPhrase: phrase } });
-      await signOut(this.auth);
+      if (demoMode) await this.renderUser(null); else await signOut(this.auth);
       this.status("All WonderLang sessions were revoked. Sign in again on devices you still use.");
     } catch (error) { this.fail(error); }
   }
@@ -324,7 +412,7 @@ class WonderLangAccount extends HTMLElement {
       );
       if (!phrase) return;
       const result = await this.request("/api/v1/me/deletion-commit", { method: "POST", body: { previewId: preview.previewId, confirmationPhrase: phrase } });
-      await signOut(this.auth);
+      if (demoMode) await this.renderUser(null); else await signOut(this.auth);
       this.status(`Account deletion is scheduled for ${new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(new Date(result.deleteAfter))}. Contact support before then to recover it.`);
     } catch (error) { this.fail(error); }
   }
@@ -357,6 +445,7 @@ class WonderLangAccount extends HTMLElement {
   }
 
   async request(path, options = {}) {
+    if (demoMode) return this.demoRequest(path, options);
     const headers = { "content-type": "application/json" };
     if (options.authenticated !== false) {
       if (!this.auth?.currentUser) throw new Error("Sign in first.");
@@ -369,6 +458,28 @@ class WonderLangAccount extends HTMLElement {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || `Request failed (${response.status}).`);
     return result;
+  }
+
+  demoRequest(path) {
+    if (path === "/api/v1/config") return demoConfig;
+    if (path === "/api/v1/me/deletion-preview") {
+      return {
+        previewId: "demo-deletion-preview",
+        confirmationPhrase: "DELETE WONDERLANG ACCOUNT",
+        recoveryDays: 14,
+        consequences: ["Login sessions will be revoked.", "Cloud saves will be queued for deletion.", "Purchase records remain for accounting and restore fraud prevention."]
+      };
+    }
+    if (path === "/api/v1/me/deletion-commit") {
+      return { deleteAfter: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() };
+    }
+    if (path === "/api/v1/me/revoke-sessions") return { revoked: true };
+    if (path === "/api/v1/legacy/claim") {
+      this.demoAccount.legacyLifetimeDiscount.eligible = true;
+      return { eligible: true };
+    }
+    if (path === "/api/v1/me") return this.demoAccount;
+    throw new Error(`The safe demo does not implement ${path}.`);
   }
 
   status(message) { this.querySelector(".wl-status").textContent = message; }

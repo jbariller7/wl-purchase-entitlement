@@ -80,6 +80,15 @@ describe("isolated integration configuration", () => {
     expect(widget).toContain('provider.addScope("name")');
   });
 
+  it("publishes a host-restricted, side-effect-free account UI demo", () => {
+    const widget = read("integrations/web/account-widget/wonderlang-account.js");
+    expect(widget).toContain('"wl-purchase-entitlement.netlify.app"');
+    expect(widget).toContain('previewParam === "1"');
+    expect(widget).toContain("if (demoMode) return this.demoRequest(path, options)");
+    expect(widget).toContain("no real sign-in, purchase, save, or deletion can occur.");
+    expect(widget).toContain("No payment page was opened.");
+  });
+
   it("closes the native Play verification loop for both success and failure", () => {
     const bridge = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
     const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
