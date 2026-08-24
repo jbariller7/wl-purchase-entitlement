@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 describe("isolated integration configuration", () => {
+  it("pins the function runtime to the supported Node 24 LTS line", () => {
+    expect(read(".nvmrc").trim()).toBe("24.19.0");
+    expect(JSON.parse(read("package.json")).engines.node).toBe(">=24.19 <25");
+  });
+
   it("wraps every Lambda-style function for the modern Netlify runtime", () => {
     const packageJson = read("package.json");
     const functions = [
