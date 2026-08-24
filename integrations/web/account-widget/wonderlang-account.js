@@ -441,8 +441,8 @@ class WonderLangAccount extends HTMLElement {
     const checkoutSessionId = new FormData(event.currentTarget).get("checkoutSessionId").trim();
     try {
       await this.request("/api/v1/legacy/claim", { method: "POST", body: { checkoutSessionId } });
-      this.status("Desktop purchase verified. Your private 50% lifetime offer is ready.");
       await this.renderUser(this.user);
+      this.status("Desktop purchase verified. Your private 50% lifetime offer is ready.");
     } catch (error) { this.fail(error); }
   }
 

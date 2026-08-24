@@ -1,0 +1,8 @@
+/account/
+  Cache-Control: no-cache
+
+/wonderlang-account.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/wonderlang-account.css
+  Cache-Control: public, max-age=0, must-revalidate

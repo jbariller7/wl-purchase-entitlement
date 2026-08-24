@@ -83,13 +83,16 @@ describe("isolated integration configuration", () => {
   it("publishes a host-restricted, side-effect-free account UI demo", () => {
     const widget = read("integrations/web/account-widget/wonderlang-account.js");
     const page = read("public/account/index.html");
+    const headers = read("public/_headers");
     expect(widget).toContain('"wl-purchase-entitlement.netlify.app"');
     expect(widget).toContain('previewParam === "1"');
     expect(widget).toContain("if (demoMode) return this.demoRequest(path, options)");
     expect(widget).toContain("no real sign-in, purchase, save, or deletion can occur.");
     expect(widget).toContain("No payment page was opened.");
     expect(widget).toContain('phraseInput.addEventListener("input", () => phraseInput.setCustomValidity(""))');
+    expect(widget).toMatch(/await this\.renderUser\(this\.user\);\s*this\.status\("Desktop purchase verified\./);
     expect(page).toMatch(/wonderlang-account\.js\?v=/);
+    expect(headers).toContain("Cache-Control: public, max-age=0, must-revalidate");
   });
 
   it("closes the native Play verification loop for both success and failure", () => {
