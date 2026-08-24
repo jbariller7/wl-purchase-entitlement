@@ -48,7 +48,7 @@ const html = `
       <div class="wl-offers">
         <article>
           <p class="wl-eyebrow">FLEXIBLE</p><h3>Monthly full access</h3>
-          <p><strong data-field="monthly-price">Loading price…</strong> · Every chapter · Every language · Cloud save</p>
+          <p><strong data-field="monthly-price">Loading price…</strong> · <span data-field="monthly-trial">3 days free</span> · Every chapter · Every language · Cloud save</p>
           <button type="button" data-action="monthly">Start monthly</button>
         </article>
         <article>
@@ -106,6 +106,7 @@ class WonderLangAccount extends HTMLElement {
       this.config = config;
       const price = (offer, suffix = "") => `${new Intl.NumberFormat(undefined, { style: "currency", currency: offer.currency }).format(offer.unitAmount / 100)}${suffix}`;
       this.querySelector('[data-field="monthly-price"]').textContent = price(config.catalog.monthly, "/month");
+      this.querySelector('[data-field="monthly-trial"]').textContent = `${Number(config.catalog.trialDays || 3)} days free`;
       this.querySelector('[data-field="lifetime-price"]').textContent = price(config.catalog.lifetime);
       for (const action of ["monthly", "lifetime", "discounted-lifetime", "portal"]) {
         this.querySelector(`[data-action="${action}"]`).disabled = !config.checkoutEnabled;

@@ -6,7 +6,12 @@ import { planLifetimeTransition } from "../src/domain/lifetime-transition.js";
 import type { LedgerGrant } from "../src/domain/model.js";
 import { normalizeStripeSubscriptionState, stripeGraceEndsAt } from "../src/domain/subscription.js";
 import { routeLegacyOrder } from "../src/legacy/catalog.js";
-import { LEGACY_PLAY_PRODUCT_MAP } from "../src/domain/catalog.js";
+import {
+  LEGACY_PLAY_PRODUCT_MAP,
+  LIFETIME_PRICE_USD_CENTS,
+  MONTHLY_PRICE_USD_CENTS,
+  STRIPE_SUBSCRIPTION_TRIAL_DAYS
+} from "../src/domain/catalog.js";
 
 const now = new Date("2026-08-23T12:00:00.000Z");
 
@@ -90,6 +95,12 @@ describe("legacy desktop routing", () => {
     expect(value).toMatchObject({ accessKind: "lifetime", fullGame: true, cloudSave: true });
   });
 
+  it("upgrades every restored historical chapter purchase to full lifetime access", () => {
+    for (const productId of ["wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4"]) {
+      expect(LEGACY_PLAY_PRODUCT_MAP[productId]).toBe("mobile_full_lifetime");
+    }
+  });
+
   it("routes a known single-language Steam checkout to its exact inventory", () => {
     expect(routeLegacyOrder({
       paymentLink: "plink_1RoKYZBFbQoDa6p0hCPS3d2g",
@@ -116,6 +127,11 @@ describe("legacy desktop routing", () => {
 });
 
 describe("subscription and conversion policy", () => {
+  it("keeps the confirmed test catalog and trial terms in code", () => {
+    expect(MONTHLY_PRICE_USD_CENTS).toBe(699);
+    expect(LIFETIME_PRICE_USD_CENTS).toBe(6000);
+    expect(STRIPE_SUBSCRIPTION_TRIAL_DAYS).toBe(3);
+  });
   it("computes exactly seven days of Stripe failure grace", () => {
     expect(stripeGraceEndsAt(now)).toBe("2026-08-30T12:00:00.000Z");
     expect(normalizeStripeSubscriptionState({

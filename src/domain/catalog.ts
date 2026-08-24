@@ -1,6 +1,8 @@
 import type { Product } from "./model.js";
 
 export const MONTHLY_PRICE_USD_CENTS = 699;
+export const LIFETIME_PRICE_USD_CENTS = 6000;
+export const STRIPE_SUBSCRIPTION_TRIAL_DAYS = 3;
 export const STRIPE_FAILURE_GRACE_DAYS = 7;
 
 export const PRODUCT_CAPABILITIES: Record<
@@ -20,9 +22,9 @@ export const PRODUCT_CAPABILITIES: Record<
 };
 
 export const LEGACY_PLAY_PRODUCT_MAP: Record<string, Product> = {
-  wonderlangch1: "legacy_chapter_1",
-  wonderlangch2: "legacy_chapter_2",
-  wonderlangch3: "legacy_chapter_3",
-  wonderlangch4: "legacy_chapter_4",
+  wonderlangch1: "mobile_full_lifetime",
+  wonderlangch2: "mobile_full_lifetime",
+  wonderlangch3: "mobile_full_lifetime",
+  wonderlangch4: "mobile_full_lifetime",
   wonderlangfull: "mobile_full_lifetime"
 };

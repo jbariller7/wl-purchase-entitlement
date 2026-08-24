@@ -4,7 +4,7 @@ import { CatalogService } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
 import { env } from "../../src/config/env.js";
-import { MONTHLY_PRICE_USD_CENTS } from "../../src/domain/catalog.js";
+import { MONTHLY_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { HttpError, requireUser } from "../../src/http/auth.js";
 import { errorResponse, json, parseJsonBody } from "../../src/http/response.js";
 import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
@@ -82,6 +82,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
         monthly: catalog.monthly,
         lifetime: catalog.lifetime,
         monthlyUsdCents: catalog.monthly.currency === "USD" ? catalog.monthly.unitAmount : MONTHLY_PRICE_USD_CENTS,
+        trialDays: STRIPE_SUBSCRIPTION_TRIAL_DAYS,
         monthlyIncludes: ["all_chapters", "all_languages", "cloud_save"],
         lifetimeIncludes: ["all_chapters", "all_languages", "cloud_save"]
       }

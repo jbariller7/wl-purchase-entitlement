@@ -4,6 +4,7 @@ import { CatalogService } from "../../catalog/service.js";
 import { env } from "../../config/env.js";
 import { canUseLegacyLifetimeDiscount } from "../../domain/legacy-discount.js";
 import { planLifetimeTransition } from "../../domain/lifetime-transition.js";
+import { STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../domain/catalog.js";
 import { HttpError } from "../../http/auth.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import { stripeClient } from "./client.js";
@@ -109,7 +110,12 @@ export async function createCheckout(input: {
     expires_at: expiresAt,
     allow_promotion_codes: false,
     metadata,
-    ...(isMonthly ? { subscription_data: { metadata } } : {}),
+    ...(isMonthly ? {
+      subscription_data: {
+        metadata,
+        trial_period_days: STRIPE_SUBSCRIPTION_TRIAL_DAYS
+      }
+    } : {}),
     ...(request.useLegacyDesktopDiscount
       ? { discounts: [{ coupon: env().STRIPE_COUPON_LEGACY_DESKTOP_50 }] }
       : {})

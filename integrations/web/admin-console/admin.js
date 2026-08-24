@@ -32,7 +32,7 @@ const demoCustomer = {
 const demoCatalog = {
   revision: 3,
   monthly: { stripePriceId: "price_test_monthly", unitAmount: 699, currency: "USD", recurring: true },
-  lifetime: { stripePriceId: "price_test_lifetime", unitAmount: 7900, currency: "USD", recurring: false },
+  lifetime: { stripePriceId: "price_test_lifetime", unitAmount: 6000, currency: "USD", recurring: false },
   monthlyHistory: [], lifetimeHistory: [],
   notes: { priceChangesAffect: "new_checkouts_only", existingSubscriptions: "keep_their_existing_stripe_price", oldPrices: "retained_for_existing_subscriptions_and_webhook_history" }
 };
