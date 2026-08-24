@@ -68,7 +68,8 @@ export type OutboxKind =
   | "mailerlite_sync"
   | "meta_conversion"
   | "tiktok_conversion"
-  | "cancel_stripe_subscription";
+  | "cancel_stripe_subscription"
+  | "delete_account_data";
 
 export interface OutboxJob {
   id: string;
@@ -77,7 +78,7 @@ export interface OutboxJob {
   createdAt: string;
   notBefore: string;
   attemptCount: number;
-  state: "pending" | "processing" | "complete" | "failed";
+  state: "pending" | "processing" | "complete" | "failed" | "canceled";
   payload: Record<string, unknown>;
   completedAt?: string;
   lastError?: string;

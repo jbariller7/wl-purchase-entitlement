@@ -8,6 +8,7 @@ import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { SHEET_TAB_BY_PRODUCT } from "../legacy/catalog.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
+import { AccountDeletionService } from "../account-deletion/service.js";
 
 const ADMIN_GRANT_PRODUCTS: Product[] = [
   "mobile_full_lifetime",
@@ -165,13 +166,14 @@ export class AdminOperationsService {
   }
 
   async customerDetail(uid: string): Promise<Record<string, unknown>> {
-    const [user, entitlements, grants, discount, userDoc, cloudSlots] = await Promise.all([
+    const [user, entitlements, grants, discount, userDoc, cloudSlots, deletionRequest] = await Promise.all([
       this.auth.getUser(uid),
       this.store.effectiveEntitlements(uid, new Date()),
       this.store.grantsForUid(uid),
       this.store.legacyDiscountClaim(uid),
       this.db.collection("users").doc(uid).get(),
-      this.db.collection("cloudSaves").doc(uid).collection("slots").get()
+      this.db.collection("cloudSaves").doc(uid).collection("slots").get(),
+      this.db.collection("accountDeletionRequests").doc(uid).get()
     ]);
     const stripeCustomerId = userDoc.data()?.stripeCustomerId as string | undefined;
     const paymentIntents = stripeCustomerId
@@ -212,8 +214,13 @@ export class AdminOperationsService {
           metadata: payment.metadata
         };
       }) ?? [],
-      cloudSaves: dataRows(cloudSlots)
+      cloudSaves: dataRows(cloudSlots),
+      deletionRequest: deletionRequest.exists ? deletionRequest.data() : null
     };
+  }
+
+  async cancelAccountDeletion(input: { actor: AdminActor; uid: string; reason: string; now: Date }): Promise<Record<string, unknown>> {
+    return new AccountDeletionService(this.db, this.auth).cancel(input);
   }
 
   async createGrant(input: {

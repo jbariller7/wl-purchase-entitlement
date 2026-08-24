@@ -66,6 +66,7 @@ describe("isolated integration configuration", () => {
     expect(netlify).toMatch(/\[functions\."outbox-worker"\][\s\S]*schedule\s*=\s*"\*\/5 \* \* \* \*"/);
     expect(example).toMatch(/^OUTBOX_PROCESSING_ENABLED=false$/m);
     expect(example).toMatch(/^LEGACY_FULFILLMENT_ENABLED=false$/m);
+    expect(example).toMatch(/^ACCOUNT_DELETION_PROCESSING_ENABLED=false$/m);
   });
 
   it("requests the verified Apple identity fields used for secure account linking", () => {
@@ -162,5 +163,8 @@ describe("isolated integration configuration", () => {
     expect(accountCss).toContain("wonderlang-account button");
     expect(accountCss).toContain("wonderlang-account input");
     expect(admin).toContain("state.notice");
+    expect(account).toContain("/api/v1/me/deletion-preview");
+    expect(account).toContain("/api/v1/me/deletion-commit");
+    expect(admin).toContain("cancel-deletion");
   });
 });

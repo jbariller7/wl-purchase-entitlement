@@ -87,6 +87,7 @@ const html = `
       <details>
         <summary>Account recovery and security</summary>
         <p>You can recover this same account with any linked Google, Apple, or email method. Linking is always explicit; WonderLang never merges unrelated accounts merely because an unverified email matches.</p>
+        <button type="button" data-action="delete-account" class="wl-danger">Request account deletion</button>
       </details>
     </div>
   </section>`;
@@ -142,6 +143,7 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="portal"]').addEventListener("click", () => this.openPortal());
     this.querySelector('[data-action="restore"]').addEventListener("click", () => this.restorePurchases());
     this.querySelector('[data-action="revoke-sessions"]').addEventListener("click", () => this.revokeSessions());
+    this.querySelector('[data-action="delete-account"]').addEventListener("click", () => this.deleteAccount());
     this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(new GoogleAuthProvider()));
     this.querySelector('[data-action="link-apple"]').addEventListener("click", () => this.linkProvider(appleProvider()));
     this.querySelector('[data-form="email"]').addEventListener("submit", (event) => this.emailLink(event));
@@ -309,6 +311,21 @@ class WonderLangAccount extends HTMLElement {
       await this.request("/api/v1/me/revoke-sessions", { method: "POST", body: { confirmationPhrase: phrase } });
       await signOut(this.auth);
       this.status("All WonderLang sessions were revoked. Sign in again on devices you still use.");
+    } catch (error) { this.fail(error); }
+  }
+
+  async deleteAccount() {
+    try {
+      const preview = await this.request("/api/v1/me/deletion-preview", { method: "POST", body: {} });
+      const phrase = await this.confirmPhrase(
+        "Schedule account deletion?",
+        `${(preview.consequences || []).join(" ")} You have ${preview.recoveryDays} days to ask support to cancel.`,
+        preview.confirmationPhrase
+      );
+      if (!phrase) return;
+      const result = await this.request("/api/v1/me/deletion-commit", { method: "POST", body: { previewId: preview.previewId, confirmationPhrase: phrase } });
+      await signOut(this.auth);
+      this.status(`Account deletion is scheduled for ${new Intl.DateTimeFormat(undefined, { dateStyle: "long" }).format(new Date(result.deleteAfter))}. Contact support before then to recover it.`);
     } catch (error) { this.fail(error); }
   }
 

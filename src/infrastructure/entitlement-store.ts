@@ -290,7 +290,7 @@ export class EntitlementStore {
     };
   }
 
-  async enqueue(kind: OutboxKind, dedupeKey: string, payload: Record<string, unknown>, now: Date): Promise<boolean> {
+  async enqueue(kind: OutboxKind, dedupeKey: string, payload: Record<string, unknown>, now: Date, notBefore = now): Promise<boolean> {
     const ref = this.db.collection("outbox").doc(stableDocumentId(kind, dedupeKey));
     return this.db.runTransaction(async (transaction) => {
       const current = await transaction.get(ref);
@@ -300,7 +300,7 @@ export class EntitlementStore {
         kind,
         dedupeKey,
         createdAt: now.toISOString(),
-        notBefore: now.toISOString(),
+        notBefore: notBefore.toISOString(),
         attemptCount: 0,
         state: "pending",
         payload

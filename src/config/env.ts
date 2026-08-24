@@ -11,6 +11,7 @@ const controlsSchema = z.object({
   AD_CONVERSIONS_ENABLED: disabledByDefault,
   LEGACY_FULFILLMENT_ENABLED: disabledByDefault,
   SUBSCRIPTION_CANCELLATION_ENABLED: disabledByDefault,
+  ACCOUNT_DELETION_PROCESSING_ENABLED: disabledByDefault,
   STRIPE_MUTATIONS_ENABLED: disabledByDefault
 });
 

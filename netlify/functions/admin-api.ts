@@ -123,6 +123,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     await operations.revokeSessions({ actor, uid: sessionsMatch[1], ...body(reasonSchema, event), now });
     return json(200, { revoked: true });
   }
+  const cancelDeletionMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/cancel-deletion$/);
+  if (event.httpMethod === "POST" && cancelDeletionMatch?.[1]) {
+    return json(200, await operations.cancelAccountDeletion({ actor, uid: cancelDeletionMatch[1], ...body(reasonSchema, event), now }));
+  }
   const revokeGrantMatch = path.match(/^\/v1\/grants\/([A-Za-z0-9_-]{1,128})\/revoke$/);
   if (event.httpMethod === "POST" && revokeGrantMatch?.[1]) {
     return json(200, await operations.revokeAdminGrant({ actor, grantId: revokeGrantMatch[1], ...body(reasonSchema, event), now }));

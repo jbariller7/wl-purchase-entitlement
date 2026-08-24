@@ -19,6 +19,7 @@ const controlLabels = {
   AD_CONVERSIONS_ENABLED: "Ad conversions",
   LEGACY_FULFILLMENT_ENABLED: "Legacy fulfillment",
   SUBSCRIPTION_CANCELLATION_ENABLED: "Subscription cancellation",
+  ACCOUNT_DELETION_PROCESSING_ENABLED: "Account deletion purge",
   STRIPE_MUTATIONS_ENABLED: "Stripe mutations"
 };
 

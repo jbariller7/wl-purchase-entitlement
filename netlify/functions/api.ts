@@ -17,6 +17,7 @@ import { claimHistoricalDesktopOrder } from "../../src/providers/stripe/legacy-c
 import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "../../src/providers/google-play/service.js";
 import { sha256 } from "../../src/infrastructure/ids.js";
 import { claimAppleTransaction } from "../../src/providers/apple/service.js";
+import { ACCOUNT_DELETION_CONFIRMATION, AccountDeletionService } from "../../src/account-deletion/service.js";
 
 export const config: Config = {
   rateLimit: { windowSize: 60, windowLimit: 240, aggregateBy: ["domain", "ip"] }
@@ -30,6 +31,10 @@ const googlePlayClaimSchema = z.object({
 });
 const appleClaimSchema = z.object({ signedTransactionInfo: z.string().min(20).max(100_000) });
 const revokeSessionsSchema = z.object({ confirmationPhrase: z.literal("SIGN OUT ALL DEVICES") });
+const deletionCommitSchema = z.object({
+  previewId: z.string().uuid(),
+  confirmationPhrase: z.literal(ACCOUNT_DELETION_CONFIRMATION)
+});
 
 function routePath(event: HandlerEvent): string {
   return event.path
@@ -140,6 +145,19 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     if (!parsed.success) throw new HttpError(400, "Type SIGN OUT ALL DEVICES to confirm.");
     await firebaseAuth().revokeRefreshTokens(user.uid);
     return json(200, { revoked: true });
+  }
+
+  if (event.httpMethod === "POST" && path === "/v1/me/deletion-preview") {
+    return json(200, await new AccountDeletionService(db, firebaseAuth()).preview(user.uid, now));
+  }
+
+  if (event.httpMethod === "POST" && path === "/v1/me/deletion-commit") {
+    const parsed = deletionCommitSchema.safeParse(parseJsonBody(event.body));
+    if (!parsed.success) throw new HttpError(400, `Type ${ACCOUNT_DELETION_CONFIRMATION} to confirm.`);
+    if (!user.auth_time || Math.floor(now.getTime() / 1000) - user.auth_time > 10 * 60) {
+      throw new HttpError(401, "For security, sign out and sign in again before scheduling account deletion.");
+    }
+    return json(200, await new AccountDeletionService(db, firebaseAuth()).commit({ uid: user.uid, ...parsed.data, now }));
   }
 
   if (event.httpMethod === "GET" && path === "/v1/store-account-token") {
