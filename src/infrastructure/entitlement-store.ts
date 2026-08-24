@@ -11,6 +11,7 @@ import type {
 } from "../domain/model.js";
 import type { LegacyDiscountClaim } from "../domain/legacy-discount.js";
 import { stableDocumentId } from "./ids.js";
+import { providerEventDecision } from "../domain/provider-event.js";
 
 interface StoredGrant extends LedgerGrant {
   sourceEventCreated: number;
@@ -38,9 +39,7 @@ export class EntitlementStore {
       const snapshot = await transaction.get(ref);
       if (snapshot.exists) {
         const existing = snapshot.data() as { status?: string; attemptCount?: number; lastAttemptAt?: string };
-        const processingIsFresh = existing.status === "processing" && existing.lastAttemptAt &&
-          Date.parse(existing.lastAttemptAt) > input.now.getTime() - 5 * 60 * 1000;
-        if (existing.status === "processed" || processingIsFresh) return "duplicate";
+        if (providerEventDecision(existing, input.now) === "duplicate") return "duplicate";
         transaction.update(ref, {
           status: "processing",
           attemptCount: (existing.attemptCount ?? 0) + 1,

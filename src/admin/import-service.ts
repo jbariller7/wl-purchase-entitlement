@@ -63,6 +63,17 @@ function normalizeRow(row: AdminImportRow, now: Date): NormalizedImportRow {
   };
 }
 
+export function normalizeImportRows(rows: AdminImportRow[], now: Date): NormalizedImportRow[] {
+  if (!rows.length || rows.length > 500) throw new HttpError(400, "Import must contain between 1 and 500 records.");
+  const normalized = rows.map((row) => normalizeRow(row, now));
+  const externalIds = new Set<string>();
+  for (const row of normalized) {
+    if (externalIds.has(row.externalId)) throw new HttpError(400, `Duplicate external ID in this file: ${row.externalId}`);
+    externalIds.add(row.externalId);
+  }
+  return normalized;
+}
+
 async function userUidByEmail(auth: Auth, email: string): Promise<string | undefined> {
   try { return (await auth.getUserByEmail(email)).uid; }
   catch (error) {
@@ -79,13 +90,7 @@ export class AdminImportService {
   }
 
   async preview(input: { actor: AdminActor; rows: AdminImportRow[]; now: Date }): Promise<Record<string, unknown>> {
-    if (!input.rows.length || input.rows.length > 500) throw new HttpError(400, "Import must contain between 1 and 500 records.");
-    const rows = input.rows.map((row) => normalizeRow(row, input.now));
-    const externalIds = new Set<string>();
-    for (const row of rows) {
-      if (externalIds.has(row.externalId)) throw new HttpError(400, `Duplicate external ID in this file: ${row.externalId}`);
-      externalIds.add(row.externalId);
-    }
+    const rows = normalizeImportRows(input.rows, input.now);
     const resolutions = await Promise.all(rows.map(async (row) => ({ row, uid: await userUidByEmail(this.auth, row.email) })));
     const previewId = randomUUID();
     const expiresAt = new Date(input.now.getTime() + 30 * 60 * 1000);

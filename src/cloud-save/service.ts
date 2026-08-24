@@ -44,6 +44,14 @@ interface SaveManifest {
   previousRevisions: Array<{ revision: string; objectPath: string; updatedAt: string }>;
 }
 
+export function cloudObjectMatches(contents: Buffer, expected: { byteLength: number; sha256: string }): boolean {
+  return contents.byteLength === expected.byteLength && sha256(contents) === expected.sha256;
+}
+
+export function cloudRevisionConflicts(baseRevision: string | null, currentRevision: string | null): boolean {
+  return baseRevision !== currentRevision;
+}
+
 export class CloudSaveService {
   constructor(
     private readonly db: Firestore,
@@ -107,7 +115,7 @@ export class CloudSaveService {
     const [exists] = await file.exists();
     if (!exists) throw new HttpError(409, "Upload the save file before finalizing it.");
     const [contents] = await file.download();
-    if (contents.byteLength !== pending.byteLength || sha256(contents) !== pending.sha256) {
+    if (!cloudObjectMatches(contents, pending)) {
       await file.delete({ ignoreNotFound: true });
       throw new HttpError(422, "Uploaded cloud save failed its size or SHA-256 integrity check.");
     }
@@ -125,7 +133,7 @@ export class CloudSaveService {
       if (fresh.state === "complete" && current) return { manifest: current };
       const expected = fresh.baseRevision;
       const actual = current?.currentRevision ?? null;
-      if (expected !== actual) {
+      if (cloudRevisionConflicts(expected, actual)) {
         transaction.update(uploadRef, { state: "conflict", conflictRevision: actual, updatedAt: now.toISOString() });
         return { conflictRevision: actual };
       }

@@ -90,6 +90,12 @@ describe("effective entitlement projection", () => {
     const value = projectEntitlements("user-1", [grant({ product: "desktop_lifetime" })], now);
     expect(value).toMatchObject({ fullGame: false, cloudSave: false, accessKind: "none" });
   });
+
+  it("removes refunded, revoked, pending, and expired grants from effective access", () => {
+    for (const state of ["refunded", "revoked", "pending", "expired"] as const) {
+      expect(projectEntitlements("user-1", [grant({ state })], now)).toMatchObject({ fullGame: false, cloudSave: false, accessKind: "none" });
+    }
+  });
 });
 
 describe("legacy desktop routing", () => {
@@ -179,6 +185,10 @@ describe("subscription and conversion policy", () => {
       now,
       graceEndsAt: "2026-08-24T00:00:00.000Z"
     })).toBe("grace");
+    expect(normalizeStripeSubscriptionState({ stripeStatus: "past_due", now, graceEndsAt: "2026-08-23T11:59:00.000Z" })).toBe("expired");
+    expect(normalizeStripeSubscriptionState({ stripeStatus: "unpaid", now })).toBe("expired");
+    expect(normalizeStripeSubscriptionState({ stripeStatus: "incomplete", now })).toBe("pending");
+    expect(normalizeStripeSubscriptionState({ stripeStatus: "paused", now })).toBe("expired");
   });
 
   it("sends Subscribe for the first paid invoice but never for renewals", () => {
