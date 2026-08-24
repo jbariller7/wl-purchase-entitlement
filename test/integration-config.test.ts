@@ -17,6 +17,9 @@ describe("isolated integration configuration", () => {
     expect(operations).toContain("uidForProviderTransaction");
     expect(operations).toContain("uidForProviderSubscription");
     expect(admin).toContain("store transaction");
+    expect(admin).toContain("PROVIDER IDENTITIES");
+    expect(admin).toContain("Retained save inventory");
+    expect(admin).toContain("refundableAmount > 0");
   });
 
   it("uses the Netlify-compatible Firebase Admin authentication chain", () => {

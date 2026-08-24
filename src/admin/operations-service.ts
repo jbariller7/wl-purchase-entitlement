@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Firestore, Query } from "firebase-admin/firestore";
 import type { Auth, UserRecord } from "firebase-admin/auth";
 import type { Product, Provider } from "../domain/model.js";
+import { summarizeSubscription } from "../domain/account-summary.js";
 import { HttpError } from "../http/auth.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { SHEET_TAB_BY_PRODUCT } from "../legacy/catalog.js";
@@ -174,24 +175,43 @@ export class AdminOperationsService {
     ]);
     const stripeCustomerId = userDoc.data()?.stripeCustomerId as string | undefined;
     const paymentIntents = stripeCustomerId
-      ? await stripeClient().paymentIntents.list({ customer: stripeCustomerId, limit: 20 })
+      ? await stripeClient().paymentIntents.list({ customer: stripeCustomerId, limit: 20, expand: ["data.latest_charge"] })
       : undefined;
+    const sourceGrantIds = new Set(entitlements.sourceGrantIds);
     return {
       user: publicUser(user),
       entitlements,
+      effectiveProducts: [...new Set(grants.filter((grant) => sourceGrantIds.has(grant.id)).map((grant) => grant.product))].sort(),
+      subscription: summarizeSubscription(grants),
       grants: grants.sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt)),
+      providerIdentities: grants.map((grant) => ({
+        provider: grant.provider,
+        product: grant.product,
+        customerId: grant.providerCustomerId ?? null,
+        transactionId: grant.providerTransactionId,
+        subscriptionId: grant.providerSubscriptionId ?? null,
+        state: grant.state
+      })),
       legacyDiscount: discount ?? null,
       stripeCustomerId: stripeCustomerId ?? null,
-      payments: paymentIntents?.data.map((payment) => ({
-        id: payment.id,
-        amount: payment.amount,
-        amountReceived: payment.amount_received,
-        currency: payment.currency.toUpperCase(),
-        status: payment.status,
-        createdAt: new Date(payment.created * 1000).toISOString(),
-        description: payment.description,
-        metadata: payment.metadata
-      })) ?? [],
+      payments: paymentIntents?.data.map((payment) => {
+        const charge = typeof payment.latest_charge === "object" && payment.latest_charge && !("deleted" in payment.latest_charge)
+          ? payment.latest_charge
+          : undefined;
+        return {
+          id: payment.id,
+          amount: payment.amount,
+          amountReceived: payment.amount_received,
+          amountRefunded: charge?.amount_refunded ?? 0,
+          refundableAmount: charge ? Math.max(0, charge.amount - charge.amount_refunded) : 0,
+          currency: payment.currency.toUpperCase(),
+          status: payment.status,
+          createdAt: new Date(payment.created * 1000).toISOString(),
+          description: payment.description,
+          refunds: charge?.refunds?.data.map((refund) => ({ id: refund.id, amount: refund.amount, status: refund.status, createdAt: new Date(refund.created * 1000).toISOString() })) ?? [],
+          metadata: payment.metadata
+        };
+      }) ?? [],
       cloudSaves: dataRows(cloudSlots)
     };
   }
