@@ -6,10 +6,13 @@ import { AdminBillingService } from "../../src/admin/billing-service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { AdminOperationsService } from "../../src/admin/operations-service.js";
 import type { AdminActor } from "../../src/admin/audit.js";
-import { env } from "../../src/config/env.js";
+import { deploymentControls } from "../../src/config/env.js";
+import { requireAppCheck } from "../../src/http/app-check.js";
 import { HttpError, requireAdmin, requireUser } from "../../src/http/auth.js";
+import { apiAllowedOrigins, requestHeader, requireAllowedOrigin } from "../../src/http/origin.js";
+import { consumeRateLimit, type RateLimitPolicy } from "../../src/http/rate-limit.js";
 import { errorResponse, json, parseJsonBody } from "../../src/http/response.js";
-import { firebaseAuth, firestore } from "../../src/infrastructure/firebase.js";
+import { firebaseAppCheck, firebaseAuth, firestore } from "../../src/infrastructure/firebase.js";
 
 export const config: Config = {
   rateLimit: { windowSize: 60, windowLimit: 120, aggregateBy: ["domain", "ip"] }
@@ -62,18 +65,14 @@ function routePath(event: HandlerEvent): string {
 }
 
 function secured(event: HandlerEvent, response: HandlerResponse): HandlerResponse {
-  const origin = event.headers.origin;
-  const allowed = new Set([
-    ...(process.env.PUBLIC_APP_ORIGIN ? [process.env.PUBLIC_APP_ORIGIN] : []),
-    "https://wonderlang.net",
-    "https://www.wonderlang.net"
-  ]);
+  const origin = requestHeader(event.headers, "origin");
+  const allowed = apiAllowedOrigins(false);
   return {
     ...response,
     headers: {
       ...(response.headers ?? {}),
       ...(origin && allowed.has(origin) ? { "access-control-allow-origin": origin } : {}),
-      "access-control-allow-headers": "authorization, content-type",
+      "access-control-allow-headers": "authorization, content-type, x-firebase-appcheck",
       "access-control-allow-methods": "GET, POST, OPTIONS",
       "cache-control": "no-store, max-age=0",
       "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
@@ -84,6 +83,12 @@ function secured(event: HandlerEvent, response: HandlerResponse): HandlerRespons
   };
 }
 
+function adminRateLimitPolicy(method: string, path: string): RateLimitPolicy {
+  if (path.endsWith("/commit")) return { action: "admin-commit", limit: 10, windowSeconds: 60 * 60 };
+  if (method === "POST") return { action: "admin-write", limit: 30, windowSeconds: 10 * 60 };
+  return { action: "admin-read", limit: 180, windowSeconds: 60 };
+}
+
 function body<T>(schema: z.ZodType<T>, event: HandlerEvent): T {
   const parsed = schema.safeParse(parseJsonBody(event.body));
   if (!parsed.success) throw new HttpError(400, parsed.error.issues.map((issue) => issue.message).join("; "));
@@ -91,15 +96,22 @@ function body<T>(schema: z.ZodType<T>, event: HandlerEvent): T {
 }
 
 async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
+  requireAllowedOrigin(requestHeader(event.headers, "origin"), apiAllowedOrigins(false));
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
-  const token = requireAdmin(await requireUser(event.headers.authorization));
+  const token = requireAdmin(await requireUser(requestHeader(event.headers, "authorization")));
+  await requireAppCheck(
+    requestHeader(event.headers, "x-firebase-appcheck"),
+    firebaseAppCheck(),
+    deploymentControls().APP_CHECK_ENFORCEMENT_ENABLED
+  );
   const actor: AdminActor = { uid: token.uid, email: token.email! };
   const db = firestore();
+  const path = routePath(event);
+  const now = new Date();
+  await consumeRateLimit({ db, namespace: "admin", subject: token.uid, policy: adminRateLimitPolicy(event.httpMethod, path), now });
   const operations = new AdminOperationsService(db, firebaseAuth());
   const billing = new AdminBillingService(db);
   const imports = new AdminImportService(db, firebaseAuth());
-  const path = routePath(event);
-  const now = new Date();
 
   if (event.httpMethod === "GET" && path === "/v1/session") {
     return json(200, { actor, providers: token.firebase?.sign_in_provider ? [token.firebase.sign_in_provider] : [], capabilities: ["customers", "grants", "prices", "refunds", "imports", "operations", "inventory", "audit"] });

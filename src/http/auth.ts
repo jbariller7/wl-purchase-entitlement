@@ -2,7 +2,11 @@ import type { DecodedIdToken } from "firebase-admin/auth";
 import { firebaseAuth } from "../infrastructure/firebase.js";
 
 export class HttpError extends Error {
-  constructor(public readonly status: number, message: string) { super(message); }
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly headers: Readonly<Record<string, string>> = {}
+  ) { super(message); }
 }
 
 export async function requireUser(authorization: string | undefined): Promise<DecodedIdToken> {

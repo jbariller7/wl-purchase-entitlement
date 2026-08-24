@@ -5,13 +5,16 @@ import { z } from "zod";
 import { CatalogService } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
-import { env } from "../../src/config/env.js";
+import { deploymentControls, env } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { summarizeSubscription } from "../../src/domain/account-summary.js";
 import { HttpError, requireUser } from "../../src/http/auth.js";
+import { requireAppCheck } from "../../src/http/app-check.js";
+import { apiAllowedOrigins, requestHeader, requireAllowedOrigin } from "../../src/http/origin.js";
+import { consumeRateLimit, type RateLimitPolicy } from "../../src/http/rate-limit.js";
 import { errorResponse, json, parseJsonBody } from "../../src/http/response.js";
 import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js";
-import { firebaseAuth, firebaseStorage, firestore } from "../../src/infrastructure/firebase.js";
+import { firebaseAppCheck, firebaseAuth, firebaseStorage, firestore } from "../../src/infrastructure/firebase.js";
 import { checkoutRequestSchema, createBillingPortal, createCheckout } from "../../src/providers/stripe/checkout-service.js";
 import { claimHistoricalDesktopOrder } from "../../src/providers/stripe/legacy-claim-service.js";
 import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "../../src/providers/google-play/service.js";
@@ -43,35 +46,45 @@ function routePath(event: HandlerEvent): string {
 }
 
 function clientIp(event: HandlerEvent): string | undefined {
-  const direct = event.headers["x-nf-client-connection-ip"];
+  const direct = requestHeader(event.headers, "x-nf-client-connection-ip");
   if (direct) return direct;
-  return event.headers["x-forwarded-for"]?.split(",")[0]?.trim();
+  return requestHeader(event.headers, "x-forwarded-for")?.split(",")[0]?.trim();
 }
 
 function withCors(event: HandlerEvent, response: HandlerResponse): HandlerResponse {
-  const origin = event.headers.origin;
-  const allowed = new Set([
-    ...(process.env.PUBLIC_APP_ORIGIN ? [process.env.PUBLIC_APP_ORIGIN] : []),
-    // Trusted Android WebViewAssetLoader origin. The game is served from HTTPS,
-    // never file://, and sends Firebase bearer tokens only to this API.
-    "https://appassets.local",
-    "https://wonderlang.net",
-    "https://www.wonderlang.net"
-  ]);
+  const origin = requestHeader(event.headers, "origin");
+  const allowed = apiAllowedOrigins(true);
   return {
     ...response,
     headers: {
       ...(response.headers ?? {}),
       ...(origin && allowed.has(origin) ? { "access-control-allow-origin": origin } : {}),
-      "access-control-allow-headers": "authorization, content-type",
+      "access-control-allow-headers": "authorization, content-type, x-firebase-appcheck",
       "access-control-allow-methods": "GET, POST, OPTIONS",
       vary: "Origin"
     }
   };
 }
 
+function userRateLimitPolicy(method: string, path: string): RateLimitPolicy {
+  if (path === "/v1/checkout") return { action: "checkout", limit: 8, windowSeconds: 10 * 60 };
+  if (path === "/v1/billing-portal") return { action: "billing-portal", limit: 10, windowSeconds: 10 * 60 };
+  if (path === "/v1/legacy/claim") return { action: "legacy-claim", limit: 10, windowSeconds: 60 * 60 };
+  if (path === "/v1/google-play/claim" || path === "/v1/apple/claim") return { action: "store-claim", limit: 30, windowSeconds: 10 * 60 };
+  if (path === "/v1/me/revoke-sessions" || path.startsWith("/v1/me/deletion-")) return { action: "account-security", limit: 10, windowSeconds: 10 * 60 };
+  if (path.includes("/cloud-saves")) {
+    return method === "GET"
+      ? { action: "cloud-read", limit: 120, windowSeconds: 60 }
+      : { action: "cloud-write", limit: 60, windowSeconds: 10 * 60 };
+  }
+  return method === "GET"
+    ? { action: "account-read", limit: 120, windowSeconds: 60 }
+    : { action: "account-write", limit: 60, windowSeconds: 10 * 60 };
+}
+
 async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const path = routePath(event);
+  requireAllowedOrigin(requestHeader(event.headers, "origin"), apiAllowedOrigins(true));
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
   if (event.httpMethod === "GET" && path === "/v1/config") {
     let runtime: ReturnType<typeof env>;
@@ -83,6 +96,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     return json(200, {
       environment: runtime.APP_ENVIRONMENT,
       checkoutEnabled: runtime.STRIPE_MUTATIONS_ENABLED,
+      appCheckEnforced: runtime.APP_CHECK_ENFORCEMENT_ENABLED,
       firebase: {
         apiKey: runtime.FIREBASE_WEB_API_KEY,
         authDomain: runtime.FIREBASE_AUTH_DOMAIN,
@@ -106,10 +120,22 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     });
   }
 
-  const user = await requireUser(event.headers.authorization);
+  const user = await requireUser(requestHeader(event.headers, "authorization"));
+  await requireAppCheck(
+    requestHeader(event.headers, "x-firebase-appcheck"),
+    firebaseAppCheck(),
+    deploymentControls().APP_CHECK_ENFORCEMENT_ENABLED
+  );
   const db = firestore();
   const store = new EntitlementStore(db);
   const now = new Date();
+  await consumeRateLimit({
+    db,
+    namespace: "api",
+    subject: user.uid,
+    policy: userRateLimitPolicy(event.httpMethod, path),
+    now
+  });
 
   if (event.httpMethod === "GET" && path === "/v1/me") {
     if (user.email && user.email_verified) {
@@ -173,7 +199,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const parsed = checkoutRequestSchema.safeParse(parseJsonBody(event.body));
     if (!parsed.success) throw new HttpError(400, parsed.error.issues.map((issue) => issue.message).join("; "));
     const ipAddress = clientIp(event);
-    const userAgent = event.headers["user-agent"];
+    const userAgent = requestHeader(event.headers, "user-agent");
     const checkout = await createCheckout({
       store,
       user,

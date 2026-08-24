@@ -44,6 +44,7 @@ Last verified: 2026-08-24. This file records only non-secret identifiers and saf
 - Historical-owner coupon: `wonderlang_desktop_owner_lifetime_50`
 - Billing Portal is configured.
 - Restricted API key and webhook signing secret are not yet created; processing remains disabled.
+- A fresh signed-in browser check confirmed that Mobile Monthly is active in Stripe's sandbox, retains the original USD 6.99/month Price for history, and exposes `price_1U80wvBFbQoDa6p0gyuJ7ibY` as the separate "approved regional prices" Price. No live-mode Stripe object was changed.
 
 ## Google Play
 
@@ -51,11 +52,13 @@ Last verified: 2026-08-24. This file records only non-secret identifiers and saf
 - App: `com.wonderlang.app`, Play app ID `4972386637208238631`
 - Monthly subscription product: `wonderlangmonthly`, displayed as Mobile Monthly with full-game, cloud-save and Android/iOS benefits
 - Unsaved base-plan draft: `monthly`, monthly renewal, USD 6.99, 177 regions. Google computed regional prices, but its automatic conversions do not reproduce the approved regional-discount table.
-- Base-plan save returns `Your changes couldn't be saved`; the known account prerequisite is unresolved Taiwan and Ireland payments-profile tax information.
+- Base-plan save returns `Your changes couldn't be saved`; a fresh authorized retry on 2026-08-24 returned the same provider-side failure. The known account prerequisite is unresolved Taiwan and Ireland payments-profile tax information.
 - The three-day introductory offer can be created only after the base plan saves.
 - `wonderlangfull` is displayed as Polyglot Permanent Access with a no-cloud-save description. Its legacy-compatible `buy` purchase option remains active at its original United States price of USD 25.99 for the currently released app.
 - Promo-code campaign `PR Code` (`120231895`) is paused. Its two historical redemptions remain recorded; additional redemptions are disabled.
 - A second, non-legacy purchase option is saved as a draft: `buy-polyglot-permanent`, USD 31.99 base with Google-managed localized equivalents across 173 countries/regions. It has not been activated. The Android Billing 9 build explicitly selects this option by `purchaseOptionId` and will not silently fall back to `buy`.
+- A fresh signed-in browser check confirmed the intended live/draft split: `buy` remains Active, `buy-polyglot-permanent` remains Draft, and the latter has not been activated ahead of the matching app update.
+- The immutable historical `PR Code` campaign still references `wonderlangfull` because two codes were previously redeemed, but its current status is Paused and the only available action is `Resume promotion`; no additional redemptions are enabled.
 - `wonderlangch1` through `wonderlangch4` remain restorable; chapter offers remain hidden from new-sale UI.
 
 ## Apple

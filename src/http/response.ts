@@ -11,7 +11,10 @@ export function json(statusCode: number, body: unknown): { statusCode: number; h
 }
 
 export function errorResponse(error: unknown): ReturnType<typeof json> {
-  if (error instanceof HttpError) return json(error.status, { error: error.message });
+  if (error instanceof HttpError) {
+    const response = json(error.status, { error: error.message });
+    return { ...response, headers: { ...response.headers, ...error.headers } };
+  }
   console.error("Unhandled request error", safeErrorMessage(error));
   return json(500, { error: "Internal server error" });
 }

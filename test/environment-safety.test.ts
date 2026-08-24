@@ -42,7 +42,8 @@ describe("deployment safety", () => {
       LEGACY_FULFILLMENT_ENABLED: false,
       SUBSCRIPTION_CANCELLATION_ENABLED: false,
       ACCOUNT_DELETION_PROCESSING_ENABLED: false,
-      STRIPE_MUTATIONS_ENABLED: false
+      STRIPE_MUTATIONS_ENABLED: false,
+      APP_CHECK_ENFORCEMENT_ENABLED: false
     });
   });
 });

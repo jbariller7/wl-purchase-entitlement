@@ -73,6 +73,7 @@ describe("isolated integration configuration", () => {
     expect(example).toMatch(/^OUTBOX_PROCESSING_ENABLED=false$/m);
     expect(example).toMatch(/^LEGACY_FULFILLMENT_ENABLED=false$/m);
     expect(example).toMatch(/^ACCOUNT_DELETION_PROCESSING_ENABLED=false$/m);
+    expect(example).toMatch(/^APP_CHECK_ENFORCEMENT_ENABLED=false$/m);
   });
 
   it("requests the verified Apple identity fields used for secure account linking", () => {
@@ -176,6 +177,7 @@ describe("isolated integration configuration", () => {
     const activity = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/MainActivity.kt");
     const manifest = read("integrations/android/current-app-mirror/app/src/main/AndroidManifest.xml");
     const api = read("netlify/functions/api.ts");
+    const originPolicy = read("src/http/origin.ts");
     const cloudSave = read("src/cloud-save/service.ts");
     const adminApi = read("netlify/functions/admin-api.ts");
     const cors = read("storage.cors.json");
@@ -187,7 +189,8 @@ describe("isolated integration configuration", () => {
     expect(activity).toContain("WebView.setWebContentsDebuggingEnabled(webViewDebuggable)");
     expect(activity).toContain('url.startsWith("https://appassets.local/")');
     expect(activity).toContain("Never let an");
-    expect(api).toContain('"https://appassets.local"');
+    expect(api).toContain("apiAllowedOrigins(true)");
+    expect(originPolicy).toContain('"https://appassets.local"');
     expect(cors).toContain('"https://appassets.local"');
     expect(cloudSave).toContain("cloud-save-uploads/${uid}/${uploadId}.json");
     expect(cloudSave).toContain("preconditionOpts: { ifGenerationMatch: 0 }");

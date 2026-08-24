@@ -16,6 +16,7 @@ vi.mock("../src/providers/google-play/service.js", () => ({
   syncGooglePlaySubscription: vi.fn()
 }));
 vi.mock("../src/infrastructure/firebase.js", () => ({
+  firebaseAppCheck: vi.fn(),
   firebaseAuth: vi.fn(),
   firebaseStorage: vi.fn(),
   firestore: vi.fn()
@@ -125,5 +126,16 @@ describe("staging function boundaries", () => {
     expect(JSON.parse(String(response?.body))).toEqual({
       error: "Account testing is not configured yet. Finish the Firebase and Stripe test setup at /setup/."
     });
+  });
+
+  it("rejects an untrusted browser Origin before configuration or authentication work", async () => {
+    const response = await apiHandler({
+      ...event(),
+      path: "/api/v1/config",
+      httpMethod: "GET",
+      headers: { origin: "https://evil.example" }
+    }, {} as never);
+    expect(response).toMatchObject({ statusCode: 403 });
+    expect(response?.headers).not.toHaveProperty("access-control-allow-origin");
   });
 });

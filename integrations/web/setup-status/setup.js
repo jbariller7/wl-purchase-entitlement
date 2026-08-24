@@ -20,7 +20,8 @@ const controlLabels = {
   LEGACY_FULFILLMENT_ENABLED: "Legacy fulfillment",
   SUBSCRIPTION_CANCELLATION_ENABLED: "Subscription cancellation",
   ACCOUNT_DELETION_PROCESSING_ENABLED: "Account deletion purge",
-  STRIPE_MUTATIONS_ENABLED: "Stripe mutations"
+  STRIPE_MUTATIONS_ENABLED: "Stripe mutations",
+  APP_CHECK_ENFORCEMENT_ENABLED: "Firebase App Check enforcement"
 };
 
 function escapeHtml(value) {
