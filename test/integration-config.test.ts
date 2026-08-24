@@ -161,6 +161,24 @@ describe("isolated integration configuration", () => {
     expect(account).toContain('data-field="second-platform"');
   });
 
+  it("keeps the PC/Mac custom-token exchange out of Git-hosted credentials", () => {
+    const bridge = read("integrations/rmmz/WonderLangDesktopAccountBridge.js");
+    const account = read("integrations/rmmz/WonderLangAccountCloudSync.js");
+    const api = read("netlify/functions/api.ts");
+    expect(bridge).toContain("/api/v1/device-sign-in/config");
+    expect(bridge).toContain("/api/v1/device-sign-in/start");
+    expect(bridge).toContain("/api/v1/device-sign-in/poll");
+    expect(bridge).toContain("accounts:signInWithCustomToken");
+    expect(bridge).toContain("securetoken.googleapis.com/v1/token");
+    expect(bridge).toContain("wonderlang-account-session-v1.json");
+    expect(bridge).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
+    expect(api).toContain('path === "/v1/device-sign-in/config"');
+    expect(api).toContain("FIREBASE_WEB_API_KEY");
+    expect(account).toContain("Approve this PC/Mac");
+    expect(account).toContain("wl-device-sign-in-state");
+    expect(account).toContain('button.addEventListener("touchend"');
+  });
+
   it("keeps mobile admin actions at a touch-safe minimum size", () => {
     const css = read("integrations/web/admin-console/admin.css");
     expect(css).toMatch(/\.button \{[^}]*min-height: 44px/);
@@ -277,14 +295,17 @@ describe("isolated integration configuration", () => {
     const harness = read("public/rmmz-test/harness.js");
     const buildScript = read("scripts/build-widget.mjs");
     expect(page).toContain("Test account panel");
+    expect(page).toContain("Test PC/Mac sign-in");
     expect(page).toContain("Test cloud-save list");
     expect(page).toContain("Test save conflict");
     expect(harness).toContain("mock-firebase-id-token");
     expect(harness).toContain("No real save is touched.");
+    expect(harness).toContain('userCode: "ABCD-2345"');
     expect(harness).toContain("computedAt: new Date().toISOString()");
     expect(harness).toContain("subscriptionEndsAt:");
     expect(harness).not.toContain("STRIPE_SECRET_KEY");
     expect(buildScript).toContain("public/rmmz-test/WonderLangAccountCloudSync.js");
+    expect(buildScript).toContain("public/rmmz-test/WonderLangDesktopAccountBridge.js");
     expect(buildScript).toContain("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/WonderLangAccountCloudSync.js");
   });
 

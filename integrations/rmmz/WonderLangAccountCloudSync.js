@@ -171,8 +171,8 @@
     return (text || fallback).slice(0, 300);
   }
 
-  async function idToken() {
-    const immediate = String(bridge()?.getCachedIdToken?.() || "");
+  async function idToken(forceRefresh = false) {
+    const immediate = forceRefresh ? "" : String(bridge()?.getCachedIdToken?.() || "");
     if (immediate) return immediate;
     if (!bridge()?.refreshIdToken?.()) throw new Error("Sign in to your WonderLang account first.");
     return new Promise((resolve, reject) => {
@@ -185,14 +185,14 @@
   }
 
   async function request(path, options = {}) {
-    const response = await fetch(`${apiBase}${path}`, {
+    const body = options.body ? JSON.stringify(options.body) : undefined;
+    const send = token => fetch(`${apiBase}${path}`, {
       method: options.method || "GET",
-      headers: {
-        authorization: `Bearer ${await idToken()}`,
-        "content-type": "application/json"
-      },
-      ...(options.body ? { body: JSON.stringify(options.body) } : {})
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      ...(body ? { body } : {})
     });
+    let response = await send(await idToken());
+    if (response.status === 401) response = await send(await idToken(true));
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new AccountApiError(response.status, result.error || `Account request failed (${response.status}).`);
     return result;
@@ -327,7 +327,7 @@
     style.textContent = `
       .wl-account-overlay{position:fixed;inset:0;z-index:999999;background:rgba(4,9,18,.88);display:flex;align-items:center;justify-content:center;padding:4vh 4vw;box-sizing:border-box;color:#f6f8ff;font-family:Arial,sans-serif}
       .wl-account-panel{width:min(900px,92vw);max-height:88vh;overflow:auto;background:#101827;border:1px solid #31405c;border-radius:18px;box-shadow:0 30px 90px #000;padding:28px;box-sizing:border-box}
-      .wl-account-panel h2{font-size:30px;margin:0 0 8px}.wl-account-panel h3{font-size:21px;margin:24px 0 8px}.wl-account-muted{color:#aab6cb;line-height:1.5}.wl-account-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:20px 0}.wl-account-card{background:#172238;border:1px solid #2b3b59;border-radius:12px;padding:16px}.wl-account-card b{display:block;color:#8fd5ff;font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}.wl-account-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}.wl-account-btn{min-height:48px;border:0;border-radius:11px;padding:12px 18px;background:#2c78ff;color:white;font-size:17px;font-weight:700;cursor:pointer}.wl-account-btn.secondary{background:#263550}.wl-account-btn.danger{background:#9d3947}.wl-account-save{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;border-top:1px solid #2b3b59;padding:16px 0}.wl-account-save-actions{display:flex;flex-wrap:wrap;gap:9px}.wl-account-error{background:#4a1f2a;border:1px solid #9d3947;padding:14px;border-radius:10px;color:#ffdce2}.wl-account-success{background:#173f32;border:1px solid #27795b;padding:14px;border-radius:10px;color:#d8ffed}@media(max-width:650px){.wl-account-panel{padding:20px}.wl-account-save{grid-template-columns:1fr}.wl-account-btn{width:100%}}
+      .wl-account-panel h2{font-size:30px;margin:0 0 8px}.wl-account-panel h3{font-size:21px;margin:24px 0 8px}.wl-account-muted{color:#aab6cb;line-height:1.5}.wl-account-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:20px 0}.wl-account-card{background:#172238;border:1px solid #2b3b59;border-radius:12px;padding:16px}.wl-account-card b{display:block;color:#8fd5ff;font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}.wl-account-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}.wl-account-btn{min-height:48px;border:0;border-radius:11px;padding:12px 18px;background:#2c78ff;color:white;font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation}.wl-account-btn:disabled{cursor:not-allowed;opacity:.5}.wl-account-btn.secondary{background:#263550}.wl-account-btn.danger{background:#9d3947}.wl-account-code{display:inline-block;margin:12px 0;padding:14px 18px;border:1px solid #536b93;border-radius:12px;background:#0a1220;color:#fff;font:700 30px/1.1 monospace;letter-spacing:.12em}.wl-account-save{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;border-top:1px solid #2b3b59;padding:16px 0}.wl-account-save-actions{display:flex;flex-wrap:wrap;gap:9px}.wl-account-error{background:#4a1f2a;border:1px solid #9d3947;padding:14px;border-radius:10px;color:#ffdce2}.wl-account-success{background:#173f32;border:1px solid #27795b;padding:14px;border-radius:10px;color:#d8ffed}@media(max-width:650px){.wl-account-panel{padding:20px}.wl-account-save{grid-template-columns:1fr}.wl-account-btn{width:100%}}
     `;
     document.head.appendChild(style);
   }
@@ -338,17 +338,41 @@
   }
 
   function bindReleaseTap(button, action) {
-    let pointerStarted = false;
-    button.addEventListener("pointerdown", () => { pointerStarted = true; });
-    button.addEventListener("pointercancel", () => { pointerStarted = false; });
-    button.addEventListener("pointerup", event => {
-      if (!pointerStarted) return;
-      pointerStarted = false;
+    let touch = null;
+    let suppressClickUntil = 0;
+    button.addEventListener("touchstart", event => {
+      if (button.disabled || event.touches.length !== 1) return;
+      const point = event.touches[0];
+      touch = { x: point.clientX, y: point.clientY, moved: false };
+      event.stopPropagation();
       event.preventDefault();
-      action();
-    });
+    }, { passive: false });
+    button.addEventListener("touchmove", event => {
+      if (!touch || event.touches.length !== 1) return;
+      const point = event.touches[0];
+      if (Math.hypot(point.clientX - touch.x, point.clientY - touch.y) > 12) touch.moved = true;
+      event.stopPropagation();
+    }, { passive: true });
+    button.addEventListener("touchcancel", event => {
+      touch = null;
+      event.stopPropagation();
+    }, { passive: true });
+    button.addEventListener("touchend", event => {
+      if (!touch) return;
+      const activate = !touch.moved && !button.disabled;
+      touch = null;
+      suppressClickUntil = Date.now() + 750;
+      event.stopPropagation();
+      event.preventDefault();
+      if (activate) action();
+    }, { passive: false });
     button.addEventListener("click", event => {
-      if (event.detail !== 0) return;
+      if (button.disabled || Date.now() < suppressClickUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      event.stopPropagation();
       action();
     });
   }
@@ -380,6 +404,52 @@
     ]);
   }
 
+  function beginSignIn() {
+    try {
+      const manager = bridge();
+      if (!manager?.openSignIn || manager.openSignIn() !== true) {
+        throw new Error("Account sign-in is not available in this build yet.");
+      }
+      return true;
+    } catch (error) {
+      showError("Sign-in unavailable", error, beginSignIn);
+      return false;
+    }
+  }
+
+  function showDeviceSignInState(detail) {
+    const state = String(detail?.state || "");
+    if (state === "starting") {
+      showPanel("Sign in to WonderLang", `<p class="wl-account-muted">Preparing a secure one-time device code…</p>`, [
+        { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() }
+      ]);
+      return;
+    }
+    if (state === "pending") {
+      showPanel("Approve this PC/Mac", `
+        <p class="wl-account-muted">Your browser has opened the WonderLang account page. Sign in there, then confirm that its code exactly matches the code shown here.</p>
+        <div class="wl-account-code" aria-label="Device code ${escapeHtml(detail.userCode)}">${escapeHtml(detail.userCode)}</div>
+        <p class="wl-account-muted">Expires ${escapeHtml(formatTime(detail.expiresAt))}. WonderLang will finish automatically after approval. Never approve a different code.</p>`, [
+        { label: "Open approval page", run: () => bridge()?.openExternalUrl?.(detail.verificationUrl) },
+        { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() },
+        { label: "Close", kind: "secondary", run: closeOverlay }
+      ]);
+      return;
+    }
+    if (state === "authorized") {
+      showPanel("PC/Mac signed in", `<p class="wl-account-success">This WonderLang build is now linked to the account you approved. Refreshing access and cloud saves…</p>`, [
+        { label: "Continue", run: openAccountPanel },
+        { label: "Close", kind: "secondary", run: closeOverlay }
+      ]);
+      return;
+    }
+    if (state === "error") {
+      showError("PC/Mac sign-in failed", new Error(detail.message || "Device sign-in failed."), beginSignIn);
+      return;
+    }
+    if (state === "cancelled") closeOverlay();
+  }
+
   async function openAccountPanel() {
     showPanel("WonderLang account", `<p class="wl-account-muted">Refreshing your secure account and access…</p>`, [
       { label: "Close", kind: "secondary", run: closeOverlay }
@@ -389,7 +459,7 @@
     } catch (error) {
       if (error?.status === 401 || !bridge()?.getCachedIdToken?.()) {
         showPanel("Sign in to WonderLang", `<p class="wl-account-muted">One easy account links Google, Apple, email, website purchases, mobile access, and cloud saves.</p>`, [
-          { label: "Sign in", run: () => bridge()?.openSignIn?.() },
+          { label: "Sign in", run: beginSignIn },
           { label: "Close", kind: "secondary", run: closeOverlay }
         ]);
         return;
@@ -530,7 +600,7 @@
     restoreSlot,
     openAccount: openAccountPanel,
     openCloudSaves: openCloudSavesPanel,
-    openSignIn: () => Boolean(bridge()?.openSignIn?.()),
+    openSignIn: beginSignIn,
     _nativeToken(token) {
       const waiters = tokenWaiters;
       tokenWaiters = [];
@@ -570,6 +640,8 @@
       window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: null }));
     }
   };
+
+  window.addEventListener("wl-device-sign-in-state", event => showDeviceSignInState(event.detail));
 
   window.addEventListener("online", () => drainUploadQueue().catch(error => console.warn("[WonderLang Cloud Save] Retry queue paused.", safeMessage(error))));
   setTimeout(() => drainUploadQueue().catch(() => undefined), 5_000);

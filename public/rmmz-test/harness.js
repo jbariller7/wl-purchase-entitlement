@@ -43,7 +43,24 @@
   window.WLAccountManager = {
     getCachedIdToken: () => "mock-firebase-id-token",
     refreshIdToken: () => true,
-    openSignIn: () => { status().textContent = "Native sign-in dialog requested (mock)."; return true; },
+    openSignIn: () => {
+      status().textContent = "Showing a simulated PC/Mac device code. No account request is made.";
+      window.dispatchEvent(new CustomEvent("wl-device-sign-in-state", { detail: { state: "starting" } }));
+      setTimeout(() => window.dispatchEvent(new CustomEvent("wl-device-sign-in-state", {
+        detail: {
+          state: "pending",
+          userCode: "ABCD-2345",
+          verificationUrl: "https://wl-purchase-entitlement.netlify.app/account/?demo=1&device_code=ABCD-2345",
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+        }
+      })), 120);
+      return true;
+    },
+    cancelSignIn: () => {
+      window.dispatchEvent(new CustomEvent("wl-device-sign-in-state", { detail: { state: "cancelled" } }));
+      status().textContent = "Simulated device sign-in cancelled.";
+      return true;
+    },
     openAccount: () => { status().textContent = "Native login-method manager requested (mock)."; return true; },
     openExternalUrl: url => { status().textContent = `External billing URL allowed in mock:\n${url}`; return true; }
   };
@@ -63,6 +80,9 @@
   };
 
   window.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("open-device-signin").addEventListener("click", () => {
+      window.WLAccountEntitlements.openSignIn();
+    });
     document.getElementById("open-account").addEventListener("click", async () => {
       status().textContent = "Opening account panel with an active monthly test entitlement…";
       await window.WLAccountEntitlements.openAccount();

@@ -49,9 +49,9 @@ Stripe events:
 2. Replace every “No subscription” claim on `wonderlang.net` before offering monthly access.
 3. Add clear recurring-price, cancellation and seven-day Stripe grace copy. Keep Polyglot Permanent (one mobile platform, no cloud save) visibly distinct from Premium Lifetime (mobile + PC/Mac + cloud + future content). Premium checkout must require both the first mobile platform and the included PC/Mac delivery choice (Steam key or direct download).
 4. Test Google, Apple and email-link login in normal/private browser sessions and on iOS/Android browsers.
-5. Test the PC/Mac approval UI and backend cases in `PC_MAC_DEVICE_SIGN_IN.md`; do not enable the production desktop plugin until the real NW.js token exchange and revocation tests pass.
-5. Test a verified legacy receipt, a wrong-email receipt, a reused receipt, two concurrent discounted checkout attempts, expired checkout release and successful single redemption.
-6. Test subscriber-to-Premium: unchecked confirmation blocks; successful Premium payment grants first; exactly one selected desktop key/download is queued; Stripe subscription then becomes canceled; duplicate webhook delivery does not allocate or cancel twice. Buying Polyglot Permanent must never cancel the subscription automatically.
+5. Test the implemented PC/Mac approval UI, runtime configuration, custom-token exchange, persisted refresh, sign-out and backend cases in `PC_MAC_DEVICE_SIGN_IN.md`; do not enable the production desktop plugins until the real NW.js token exchange and revocation tests pass.
+6. Test a verified legacy receipt, a wrong-email receipt, a reused receipt, two concurrent discounted checkout attempts, expired checkout release and successful single redemption.
+7. Test subscriber-to-Premium: unchecked confirmation blocks; successful Premium payment grants first; exactly one selected desktop key/download is queued; Stripe subscription then becomes canceled; duplicate webhook delivery does not allocate or cancel twice. Buying Polyglot Permanent must never cancel the subscription automatically.
 
 ## 5. Google Play rollout
 

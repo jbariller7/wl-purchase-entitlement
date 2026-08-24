@@ -1,8 +1,33 @@
 # RPG Maker MZ duplicate integration
 
-`WonderLangAccountCloudSync.js` is a new standalone plugin, not a modification of the live project. It keeps every local save authoritative first, uploads only after local success, validates SHA-256 in both directions, retains revision IDs, and never deletes cloud data when access lapses.
+`WonderLangAccountCloudSync.js` is a new standalone plugin. It keeps every local save authoritative first, uploads only after local success, validates SHA-256 in both directions, retains revision IDs, and never deletes cloud data when access lapses.
 
-Its duplicate-build default is the isolated `https://wl-purchase-entitlement.netlify.app` test service. Production builds must override `ApiBaseUrl` deliberately during the release cutover; never point a test build back at `purchased-keys-automation`.
+`WonderLangDesktopAccountBridge.js` supplies the missing NW.js PC/Mac identity bridge. In a duplicated desktop test build, load it immediately before `WonderLangAccountCloudSync`. Do not enable either plugin in the published desktop build until the real-engine device-code test passes.
+
+The desktop flow is:
+
+1. The game requests a ten-minute code and separate high-entropy polling secret.
+2. It displays the code in-game and opens the approval page in the system browser.
+3. The player signs in with Google, Apple, or email and explicitly approves the matching code.
+4. The game receives a one-time Firebase custom token, exchanges it directly with Firebase over HTTPS, and exposes only the short-lived ID token to the cloud-save plugin.
+5. NW.js retains only the refresh token in its per-user app-data directory (`0600` on Unix-like systems; inherited per-user application-data ACLs on Windows). It never writes the polling secret, custom token, Firebase API key, or private credential to disk.
+
+The Firebase Web API key is public client configuration, but it is still not committed or bundled. The bridge obtains it at runtime from `/api/v1/device-sign-in/config`; Netlify reads it from `FIREBASE_WEB_API_KEY`. The returned Firebase ID token is rejected unless its audience and issuer match the configured entitlement project.
+
+Duplicate-build plugin order:
+
+```text
+WonderLangDesktopAccountBridge   status: true
+WonderLangAccountCloudSync       status: true
+```
+
+Both use this test parameter:
+
+```text
+ApiBaseUrl = https://wl-purchase-entitlement.netlify.app
+```
+
+The duplicate-build default is the isolated `https://wl-purchase-entitlement.netlify.app` test service. Production builds must override `ApiBaseUrl` deliberately during the release cutover; never point a test build back at `purchased-keys-automation`.
 
 The paywall duplicate should merge ownership as follows:
 

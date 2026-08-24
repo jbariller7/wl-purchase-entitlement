@@ -59,7 +59,19 @@ function clientIp(event: HandlerEvent): string | undefined {
 }
 
 function isPublicDeviceSignInRoute(path: string): boolean {
-  return path === "/v1/device-sign-in/start" || path === "/v1/device-sign-in/poll";
+  return path === "/v1/device-sign-in/config" || path === "/v1/device-sign-in/start" || path === "/v1/device-sign-in/poll";
+}
+
+function publicDeviceFirebaseConfig(): { firebaseApiKey: string; firebaseProjectId: string } {
+  const parsed = z.object({
+    FIREBASE_WEB_API_KEY: z.string().min(20).max(256),
+    FIREBASE_PROJECT_ID: z.string().regex(/^[a-z][a-z0-9-]{4,29}$/)
+  }).safeParse(process.env);
+  if (!parsed.success) throw new HttpError(503, "PC/Mac sign-in configuration is incomplete.");
+  return {
+    firebaseApiKey: parsed.data.FIREBASE_WEB_API_KEY,
+    firebaseProjectId: parsed.data.FIREBASE_PROJECT_ID
+  };
 }
 
 function withCors(event: HandlerEvent, response: HandlerResponse): HandlerResponse {
@@ -135,6 +147,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
 
   if (isPublicDeviceSignInRoute(path)) {
     if (!deploymentControls().DEVICE_SIGN_IN_ENABLED) throw new HttpError(503, "PC/Mac device sign-in is disabled in this deployment.");
+    if (event.httpMethod === "GET" && path === "/v1/device-sign-in/config") {
+      // Firebase Web API keys identify a client project; they are not private credentials.
+      // Serve the restricted key from Netlify at runtime so no key is embedded in Git or a game build.
+      return json(200, publicDeviceFirebaseConfig());
+    }
     const db = firestore();
     const now = new Date();
     if (event.httpMethod === "POST" && path === "/v1/device-sign-in/start") {

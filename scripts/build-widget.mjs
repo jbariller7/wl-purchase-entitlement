@@ -37,6 +37,10 @@ await Promise.all([
     "public/rmmz-test/WonderLangAccountCloudSync.js"
   ),
   copyFile(
+    "integrations/rmmz/WonderLangDesktopAccountBridge.js",
+    "public/rmmz-test/WonderLangDesktopAccountBridge.js"
+  ),
+  copyFile(
     "integrations/rmmz/WonderLangAccountCloudSync.js",
     "integrations/android/current-app-mirror/app/src/main/assets/js/plugins/WonderLangAccountCloudSync.js"
   )
