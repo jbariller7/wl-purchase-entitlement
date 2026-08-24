@@ -11,7 +11,7 @@ let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.s
 const state = { auth: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, previews: {}, notice: null };
 
 const demoOverview = {
-  metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, failedOperations: 3 },
+  metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
   alerts: [
     { tone: "danger", title: "2 delivery jobs need attention", detail: "Retries are paused in this test deployment", action: "Open operations" },
     { tone: "warning", title: "Japanese Steam inventory is low", detail: "8 keys available · threshold 10", action: "Review inventory" },
@@ -45,7 +45,9 @@ const demoOperations = {
   providerEvents: [{ id: "evt_demo_failed", provider: "stripe", eventType: "invoice.payment_failed", status: "failed", receivedAt: new Date().toISOString(), lastError: "Demo delivery failure" }],
   outbox: [{ id: "job_demo_failed", kind: "meta_conversion", state: "failed", attemptCount: 6, createdAt: new Date().toISOString(), lastError: "Demo token rejected" }],
   reconciliationRuns: [{ id: "reconcile_demo", state: "complete", startedAt: new Date().toISOString(), attempted: 24, succeeded: 24, failed: 0, providerAccess: "read_only" }],
-  providerTokenVault: { encryptedTokens: 12, keys: [{ keyId: "staging-2026-08", tokens: 12 }] }
+  providerTokenVault: { encryptedTokens: 12, keys: [{ keyId: "staging-2026-08", tokens: 12 }] },
+  cloudStorage: { capturedAt: new Date().toISOString(), revisionObjects: 384, revisionBytes: 17825792, stagingObjects: 4, stagingBytes: 602112, staleStagingObjects: 1, staleStagingBytes: 150528, totalObjects: 388, totalBytes: 18427904, dailyChangeBytes: 524288, growthAlert: false, staleUploadAlert: true },
+  cloudStorageMonitor: { state: "succeeded", lastSucceededAt: new Date().toISOString(), lastError: null }
 };
 const demoInventory = { summary: [{ sheetTab: "Steam English", available: 42, assigned: 318 }, { sheetTab: "Steam Japanese", available: 8, assigned: 94 }, { sheetTab: "Itch English", available: 27, assigned: 71 }], recentFulfillments: [] };
 const demoAudit = { entries: [{ id: "audit_demo", actorEmail: "owner@wonderlang.net", action: "catalog.price.change", targetType: "catalog", targetId: "monthly", summary: "Changed monthly price for new checkouts", createdAt: new Date().toISOString() }] };
@@ -77,6 +79,7 @@ function formatMoney(amount, currency = "USD") {
   return new Intl.NumberFormat(undefined, { style: "currency", currency: normalizedCurrency }).format(Number(amount || 0) / divisor);
 }
 function formatDate(value) { if (!value) return "—"; const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(value); }
+function formatBytes(value) { if (value === null || value === undefined || !Number.isFinite(Number(value))) return "Not sampled"; const bytes = Number(value); const sign = bytes < 0 ? "−" : ""; const absolute = Math.abs(bytes); const units = ["B", "KB", "MB", "GB", "TB"]; let index = 0; let scaled = absolute; while (scaled >= 1024 && index < units.length - 1) { scaled /= 1024; index += 1; } return `${sign}${scaled.toFixed(index === 0 ? 0 : scaled >= 10 ? 1 : 2)} ${units[index]}`; }
 function jsonCell(value) { return escapeHtml(typeof value === "string" ? value : JSON.stringify(value ?? "")); }
 function navItem(id, number) { return `<button type="button" data-view="${id}" class="nav-item${state.view === id ? " selected" : ""}"><span>${number}</span>${views[id]}</button>`; }
 function pageIntro(kicker, title, copy, actions = "") { return `<section class="page-intro"><div><p class="section-kicker">${kicker}</p><h2>${title}</h2><p>${copy}</p></div><div class="hero-actions">${actions}</div></section>`; }
@@ -94,11 +97,11 @@ function shell(content) {
   </header><div class="page-content">${content}</div></main></div><div id="toast" class="toast" role="status" aria-live="polite"></div>`;
 }
 
-function metric(label, value, note, tone) { return `<article class="metric-card ${tone}"><p>${label}</p><strong>${Number(value || 0).toLocaleString()}</strong><span>${note}</span></article>`; }
+function metric(label, value, note, tone) { const display = typeof value === "number" ? value.toLocaleString() : escapeHtml(value); return `<article class="metric-card ${tone}"><p>${label}</p><strong>${display}</strong><span>${note}</span></article>`; }
 function renderOverview(data) {
   const m = data.metrics || {};
   return `${pageIntro("TODAY AT A GLANCE", "Your business, in one view.", "Purchases, access, delivery health and anything that needs intervention.", '<button class="button secondary" data-view="customers">Find a customer</button><button class="button primary" data-view="imports">Import customers</button>')}
-  <section class="metric-grid">${metric("Active monthly", m.activeSubscriptions, "Full mobile game + cloud", "accent")}${metric("Polyglot permanent", m.permanentCustomers, "One mobile platform", "dark")}${metric("Premium Lifetime", m.premiumCustomers, "PC/Mac, cloud and future content", "dark")}${metric("Payment grace", m.graceSubscriptions, "Seven-day access window", "warning")}${metric("Needs attention", m.failedOperations, "Manual review queue", "danger")}</section>
+  <section class="metric-grid">${metric("Active monthly", m.activeSubscriptions, "Full mobile game + cloud", "accent")}${metric("Polyglot permanent", m.permanentCustomers, "One mobile platform", "dark")}${metric("Premium Lifetime", m.premiumCustomers, "PC/Mac, cloud and future content", "dark")}${metric("Payment grace", m.graceSubscriptions, "Seven-day access window", "warning")}${metric("Cloud storage", formatBytes(m.cloudStorageBytes), `${formatBytes(m.cloudStorageDailyChangeBytes)} since prior snapshot`, "dark")}${metric("Needs attention", m.failedOperations, "Manual review queue", "danger")}</section>
   <section class="dashboard-grid"><article class="panel attention-panel"><header><div><p class="section-kicker">ATTENTION QUEUE</p><h3>What needs you</h3></div><button class="text-button" data-view="operations">See all</button></header><div class="alert-list">${(data.alerts || []).length ? data.alerts.map((a) => `<button class="alert-row" data-view="${a.tone === "warning" ? "inventory" : "operations"}"><span class="alert-icon ${escapeHtml(a.tone)}"></span><span><strong>${escapeHtml(a.title)}</strong><small>${escapeHtml(a.detail)}</small></span><b>${escapeHtml(a.action)} →</b></button>`).join("") : empty("Nothing needs attention.")}</div></article>
   <article class="panel quick-panel"><header><div><p class="section-kicker">SAFE SHORTCUTS</p><h3>Quick actions</h3></div></header><div class="quick-grid">${[["Customer lookup", "Search access, purchases and saves", "customers"], ["Change a price", "New checkouts only", "billing"], ["Issue a refund", "Preview before money moves", "billing"], ["Import purchases", "Dry-run before applying", "imports"]].map(([t,d,v]) => `<button class="quick-action" data-view="${v}"><span>↗</span><strong>${t}</strong><small>${d}</small></button>`).join("")}</div></article></section>
   <section class="panel activity-panel"><header><div><p class="section-kicker">LIVE LEDGER</p><h3>Recent entitlement activity</h3></div></header>${table(["When", "Customer", "Event", "Value", "Status"], (data.activity || []).map((r) => [formatDate(r.time), r.customer, r.event, r.amount ? formatMoney(r.amount, r.currency) : "—", `<span class="state-pill">${escapeHtml(r.state)}</span>`]))}</section>`;
@@ -140,9 +143,11 @@ function renderOperations(data) {
   const events = (data.providerEvents || []).map((e) => [formatDate(e.receivedAt), e.provider, e.eventType, e.status, jsonCell(e.lastError), e.status === "failed" ? `<button class="text-button" data-release-event="${escapeHtml(e.id)}">Release</button>` : "—"]);
   const reconciliation = (data.reconciliationRuns || []).map((r) => [formatDate(r.startedAt), r.state, r.attempted ?? 0, r.succeeded ?? 0, r.failed ?? 0, r.providerAccess || "read_only"]);
   const tokenKeys = (data.providerTokenVault?.keys || []).map((k) => [k.keyId, k.tokens]);
+  const storage = data.cloudStorage;
   return `${pageIntro("DELIVERY CONTROL", "Every side effect is traceable.", "Webhook ingestion, asynchronous work, and read-only provider reconciliation are idempotent. Only terminal failures can be manually retried.")}
   <section class="panel"><header><div><p class="section-kicker">SUBSCRIPTION RECONCILIATION</p><h3>Missed-webhook safety</h3></div></header>${table(["Started", "State", "Checked", "Succeeded", "Failed", "Provider access"], reconciliation)}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">PROVIDER TOKEN VAULT</p><h3>${Number(data.providerTokenVault?.encryptedTokens || 0).toLocaleString()} encrypted Play subscription tokens</h3></div></header><p class="panel-copy">Only key identifiers and token counts are visible here; purchase tokens and key material never leave the server vault.</p>${table(["Encryption key ID", "Tokens"], tokenKeys)}</section>
+  <section class="panel spaced"><header><div><p class="section-kicker">CLOUD STORAGE</p><h3>${storage ? formatBytes(storage.totalBytes) : "No inventory snapshot yet"}</h3></div><span class="state-pill">${data.cloudStorageMonitor?.state === "failed" ? "Monitor failed" : storage ? formatDate(storage.capturedAt) : "Monitoring off"}</span></header>${data.cloudStorageMonitor?.state === "failed" ? `<p class="panel-copy">${escapeHtml(data.cloudStorageMonitor.lastError || "Cloud Storage inventory request failed.")}</p>` : ""}${storage ? table(["Inventory", "Objects", "Bytes", "Needs attention"], [["Immutable revisions", storage.revisionObjects, formatBytes(storage.revisionBytes), "—"], ["Staging uploads", storage.stagingObjects, formatBytes(storage.stagingBytes), storage.staleStagingObjects ? `${storage.staleStagingObjects} stale · ${formatBytes(storage.staleStagingBytes)}` : "None"], ["Daily change", "—", formatBytes(storage.dailyChangeBytes), storage.growthAlert ? "Over threshold" : "Within threshold"]]) : empty("Enable the isolated monitor only after Firebase Storage is provisioned.")}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">OUTBOX</p><h3>Queued operations</h3></div></header>${table(["Created", "Kind", "State", "Attempts", "Last error", "Action"], outbox)}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">PROVIDER EVENTS</p><h3>Webhook ledger</h3></div></header>${table(["Received", "Provider", "Type", "Status", "Last error", "Action"], events)}</section>`;
 }
@@ -159,7 +164,7 @@ function renderAudit(data) {
 }
 
 function renderSettings(data) {
-  const switches = ["Stripe webhooks", "Google Play webhooks", "Apple webhooks", "Outbox worker", "Subscription reconciliation", "Ad conversions", "Legacy fulfillment"];
+  const switches = ["Stripe webhooks", "Google Play webhooks", "Apple webhooks", "Outbox worker", "Subscription reconciliation", "Cloud storage monitoring", "Ad conversions", "Legacy fulfillment"];
   return `${pageIntro("SECURITY & SETUP", "Test mode is enforced by the server.", "The visible label is informational; secret-key mode and administrator claims are validated on every protected request.")}
   <section class="settings-grid"><article class="panel detail-card"><header><div><p class="section-kicker">ADMIN SESSION</p><h3>${escapeHtml(data.actor?.email || state.user?.email)}</h3></div></header><dl class="definition-grid"><div><dt>Firebase UID</dt><dd>${escapeHtml(data.actor?.uid || "Demo")}</dd></div><div><dt>Signed in through</dt><dd>${escapeHtml((data.providers || ["demo"]).join(", "))}</dd></div><div><dt>Authorization</dt><dd>Server-verified admin claim</dd></div><div><dt>Capabilities</dt><dd>${escapeHtml((data.capabilities || []).join(", "))}</dd></div></dl></article>
   <article class="panel"><header><div><p class="section-kicker">DEPLOYMENT GUARDS</p><h3>${escapeHtml(state.config.environment || "Unknown")} environment</h3></div></header><div class="guard-list">${switches.map((s) => `<div><span>${s}</span><b>Configured in Netlify</b></div>`).join("")}</div></article></section>

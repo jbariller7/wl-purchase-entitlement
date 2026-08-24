@@ -53,7 +53,7 @@ button { touch-action: manipulation; }
 .button.primary { background: var(--ink); color: #fff; }
 .button.secondary { background: transparent; color: var(--ink); }
 .button.danger { border-color: #9e3939; background: #9e3939; color: #fff; }
-.metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 13px; margin-bottom: 18px; }
+.metric-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 13px; margin-bottom: 18px; }
 .metric-card { position: relative; min-height: 168px; padding: 22px; overflow: hidden; border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: var(--shadow); }
 .metric-card::after { content: ""; position: absolute; right: -35px; bottom: -50px; width: 120px; height: 120px; border-radius: 50%; background: #dde6df; opacity: .55; }
 .metric-card p { margin: 0; color: var(--muted); font-size: 12px; font-weight: 800; }

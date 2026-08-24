@@ -28,6 +28,7 @@ import { lambdaHandler as healthHandler } from "../netlify/functions/health.js";
 import { lambdaHandler as outboxHandler } from "../netlify/functions/outbox-worker.js";
 import { lambdaHandler as stripeHandler } from "../netlify/functions/stripe-webhook.js";
 import { lambdaHandler as reconciliationHandler } from "../netlify/functions/subscription-reconciliation.js";
+import { lambdaHandler as cloudStorageMonitorHandler } from "../netlify/functions/cloud-storage-monitor.js";
 import { resetEnvironmentForTests } from "../src/config/env.js";
 
 const original = { ...process.env };
@@ -61,7 +62,8 @@ beforeEach(() => {
     GOOGLE_PLAY_WEBHOOKS_ENABLED: "false",
     APPLE_WEBHOOKS_ENABLED: "false",
     OUTBOX_PROCESSING_ENABLED: "false",
-    SUBSCRIPTION_RECONCILIATION_ENABLED: "false"
+    SUBSCRIPTION_RECONCILIATION_ENABLED: "false",
+    CLOUD_STORAGE_MONITORING_ENABLED: "false"
   });
   resetEnvironmentForTests();
 });
@@ -94,6 +96,12 @@ describe("staging function boundaries", () => {
     expect(JSON.parse(String(response?.body))).toEqual({
       state: "disabled", attempted: 0, succeeded: 0, failed: 0
     });
+  });
+
+  it("does not list Firebase Storage while cloud monitoring is disabled", async () => {
+    const response = await cloudStorageMonitorHandler(event(), {} as never);
+    expect(response).toMatchObject({ statusCode: 200 });
+    expect(JSON.parse(String(response?.body))).toEqual({ state: "disabled", scanned: 0 });
   });
 
   it("reports safe mode without requiring or exposing credentials", async () => {

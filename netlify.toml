@@ -18,6 +18,9 @@
   # more than once per 24 hours. Frequent checks safely drain retry backlogs.
   schedule = "17 * * * *"
 
+[functions."cloud-storage-monitor"]
+  schedule = "43 2 * * *"
+
 [[redirects]]
   from = "/"
   to = "/admin/"

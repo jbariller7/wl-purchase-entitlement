@@ -23,7 +23,8 @@ const controlLabels = {
   ACCOUNT_DELETION_PROCESSING_ENABLED: "Account deletion purge",
   STRIPE_MUTATIONS_ENABLED: "Stripe mutations",
   APP_CHECK_ENFORCEMENT_ENABLED: "Firebase App Check enforcement",
-  SUBSCRIPTION_RECONCILIATION_ENABLED: "Daily subscription reconciliation"
+  SUBSCRIPTION_RECONCILIATION_ENABLED: "Daily subscription reconciliation",
+  CLOUD_STORAGE_MONITORING_ENABLED: "Cloud storage monitoring"
 };
 
 function escapeHtml(value) {

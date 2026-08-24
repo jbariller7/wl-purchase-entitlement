@@ -19,6 +19,8 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("store transaction");
     expect(admin).toContain("PROVIDER IDENTITIES");
     expect(admin).toContain("Retained save inventory");
+    expect(admin).toContain("CLOUD STORAGE");
+    expect(admin).toContain("staleStagingObjects");
     expect(admin).toContain("refundableAmount > 0");
     expect(admin).toContain("Number(options.body?.amount)");
     expect(admin).toContain("A partial refund does not revoke access automatically.");
@@ -47,6 +49,7 @@ describe("isolated integration configuration", () => {
       "outbox-worker",
       "stripe-webhook",
       "subscription-reconciliation",
+      "cloud-storage-monitor",
     ];
 
     expect(packageJson).toContain('"@netlify/aws-lambda-compat"');
@@ -77,7 +80,9 @@ describe("isolated integration configuration", () => {
     expect(example).toMatch(/^APP_CHECK_ENFORCEMENT_ENABLED=false$/m);
     expect(example).toMatch(/^SUBSCRIPTION_RECONCILIATION_ENABLED=false$/m);
     expect(example).toMatch(/^PROVIDER_TOKEN_ENCRYPTION_KEYS=$/m);
+    expect(example).toMatch(/^CLOUD_STORAGE_MONITORING_ENABLED=false$/m);
     expect(netlify).toMatch(/\[functions\."subscription-reconciliation"\][\s\S]*schedule\s*=\s*"17 \* \* \* \*"/);
+    expect(netlify).toMatch(/\[functions\."cloud-storage-monitor"\][\s\S]*schedule\s*=\s*"43 2 \* \* \*"/);
   });
 
   it("keeps scheduled reconciliation read-only at every billing provider", () => {

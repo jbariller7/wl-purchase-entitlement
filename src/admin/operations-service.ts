@@ -63,7 +63,7 @@ export class AdminOperationsService {
 
   async overview(): Promise<Record<string, unknown>> {
     const entitlements = this.db.collection("entitlements");
-    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, inventory, recent] = await Promise.all([
+    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, inventory, recent, cloudStorage, cloudStorageMonitor] = await Promise.all([
       this.count(entitlements.where("accessKind", "==", "subscription").where("subscriptionState", "==", "active")),
       this.count(entitlements.where("accessKind", "==", "permanent")),
       this.count(entitlements.where("accessKind", "==", "premium_lifetime")),
@@ -72,7 +72,9 @@ export class AdminOperationsService {
       this.count(this.db.collection("providerEvents").where("status", "==", "failed")),
       this.count(this.db.collection("providerSubscriptions").where("lastReconciliationState", "==", "failed")),
       this.inventorySummary(),
-      this.db.collection("grants").orderBy("startsAt", "desc").limit(12).get()
+      this.db.collection("grants").orderBy("startsAt", "desc").limit(12).get(),
+      this.db.collection("operationalMetrics").doc("cloudStorage").get(),
+      this.db.collection("operationalMetrics").doc("cloudStorageMonitor").get()
     ]);
     const recentRows = dataRows(recent);
     const users = new Map<string, UserRecord | undefined>();
@@ -80,14 +82,31 @@ export class AdminOperationsService {
       users.set(uid, await this.auth.getUser(uid).catch(() => undefined));
     }));
     const lowStock = inventory.filter((row) => row.available <= 10);
-    const failedOperations = failedOutbox + failedEvents + failedReconciliations;
+    const cloud = cloudStorage.exists ? cloudStorage.data() : undefined;
+    const cloudMonitor = cloudStorageMonitor.exists ? cloudStorageMonitor.data() : undefined;
+    const failedOperations = failedOutbox + failedEvents + failedReconciliations + (cloudMonitor?.state === "failed" ? 1 : 0);
     const alerts = [
       ...(failedOperations ? [{ tone: "danger", title: `${failedOperations} operation${failedOperations === 1 ? "" : "s"} need attention`, detail: "Review failed webhooks, jobs, and provider reconciliation", action: "Open operations" }] : []),
+      ...(cloud?.staleUploadAlert ? [{ tone: "warning", title: `${Number(cloud.staleStagingObjects ?? 0)} stale cloud upload${Number(cloud.staleStagingObjects ?? 0) === 1 ? "" : "s"}`, detail: "Expired staging objects should be removed", action: "Open operations" }] : []),
+      ...(cloud?.growthAlert ? [{ tone: "warning", title: "Cloud storage growth exceeded its daily threshold", detail: `${Number(cloud.dailyChangeBytes ?? 0).toLocaleString()} bytes since the previous snapshot`, action: "Open operations" }] : []),
+      ...(cloudMonitor?.state === "failed" ? [{ tone: "danger", title: "Cloud storage inventory failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
       ...lowStock.slice(0, 3).map((row) => ({ tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available`, action: "Review inventory" })),
       ...(graceSubscriptions ? [{ tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];
     return {
-      metrics: { activeSubscriptions, permanentCustomers, premiumCustomers, lifetimeCustomers: permanentCustomers + premiumCustomers, graceSubscriptions, failedOperations, failedReconciliations },
+      metrics: {
+        activeSubscriptions,
+        permanentCustomers,
+        premiumCustomers,
+        lifetimeCustomers: permanentCustomers + premiumCustomers,
+        graceSubscriptions,
+        failedOperations,
+        failedReconciliations,
+        cloudStorageBytes: cloud?.totalBytes ?? null,
+        cloudStorageDailyChangeBytes: cloud?.dailyChangeBytes ?? null,
+        cloudStorageObjects: cloud?.totalObjects ?? null,
+        cloudStorageCapturedAt: cloud?.capturedAt ?? null
+      },
       alerts,
       activity: recentRows.map((row) => {
         const user = users.get(String(row.uid ?? ""));
@@ -318,11 +337,13 @@ export class AdminOperationsService {
   }
 
   async operations(): Promise<Record<string, unknown>> {
-    const [events, outbox, reconciliationRuns, providerSecrets] = await Promise.all([
+    const [events, outbox, reconciliationRuns, providerSecrets, cloudStorage, cloudStorageMonitor] = await Promise.all([
       this.db.collection("providerEvents").orderBy("receivedAt", "desc").limit(80).get(),
       this.db.collection("outbox").orderBy("createdAt", "desc").limit(80).get(),
       this.db.collection("subscriptionReconciliationRuns").orderBy("startedAt", "desc").limit(30).get(),
-      this.db.collection("providerSecrets").select("encrypted.keyId").get()
+      this.db.collection("providerSecrets").select("encrypted.keyId").get(),
+      this.db.collection("operationalMetrics").doc("cloudStorage").get(),
+      this.db.collection("operationalMetrics").doc("cloudStorageMonitor").get()
     ]);
     const tokensByKeyId = new Map<string, number>();
     for (const secret of providerSecrets.docs) {
@@ -337,7 +358,9 @@ export class AdminOperationsService {
       providerTokenVault: {
         encryptedTokens: providerSecrets.size,
         keys: [...tokensByKeyId.entries()].map(([keyId, tokens]) => ({ keyId, tokens })).sort((a, b) => a.keyId.localeCompare(b.keyId))
-      }
+      },
+      cloudStorage: cloudStorage.exists ? cloudStorage.data() : null,
+      cloudStorageMonitor: cloudStorageMonitor.exists ? cloudStorageMonitor.data() : null
     };
   }
 

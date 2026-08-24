@@ -30,6 +30,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - Transactional legacy key allocation with retryable Google Sheets and MailerLite mirroring.
 - Meta/TikTok server conversion outbox with real checkout attribution, stable event IDs, pre-storage email hashing, and correct zero-decimal currency values.
 - Versioned SHA-256-verified cloud saves using short-lived staging URLs, immutable finalized revisions and conflict detection.
+- Daily aggregate Cloud Storage inventory snapshots with byte/object growth, stale staging-upload detection, threshold alerts and an Admin Operations view. Monitoring is independently disabled until the staging bucket is provisioned.
 - Reviewed RPG Maker, Android and iOS integration sources, including the synchronized mirror used to update the editable RMMZ project and authoritative Android project. The iOS adapter remains a reviewed integration source until the Xcode project is supplied.
 
 ## Local verification
