@@ -22,6 +22,8 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("refundableAmount > 0");
     expect(admin).toContain("Number(options.body?.amount)");
     expect(admin).toContain("A partial refund does not revoke access automatically.");
+    expect(admin).toContain("function demoConfirmed(options, preview)");
+    expect(admin).toContain("Confirmation phrase does not match.");
   });
 
   it("uses the Netlify-compatible Firebase Admin authentication chain", () => {
@@ -151,6 +153,8 @@ describe("isolated integration configuration", () => {
     expect(page).toContain("Test save conflict");
     expect(harness).toContain("mock-firebase-id-token");
     expect(harness).toContain("No real save is touched.");
+    expect(harness).toContain("computedAt: new Date().toISOString()");
+    expect(harness).toContain("subscriptionEndsAt:");
     expect(harness).not.toContain("STRIPE_SECRET_KEY");
     expect(buildScript).toContain("public/rmmz-test/WonderLangAccountCloudSync.js");
     expect(buildScript).toContain("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/WonderLangAccountCloudSync.js");

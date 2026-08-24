@@ -9,6 +9,8 @@
       cloudSave: true,
       accessKind: "subscription",
       subscriptionState: "active",
+      computedAt: new Date().toISOString(),
+      subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       chapters: [1, 2, 3, 4]
     }
   };

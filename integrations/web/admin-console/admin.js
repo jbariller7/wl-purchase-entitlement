@@ -161,6 +161,7 @@ function demoApi(path, options) {
   if (path.includes("audit")) return demoAudit;
   if (path.includes("session")) return { actor: { uid: "demo_admin", email: state.user.email }, providers: ["google.com"], capabilities: Object.keys(views) };
   if (path.includes("price-preview")) return { previewId: crypto.randomUUID(), confirmationPhrase: "CHANGE MONTHLY TO 7.99 USD", warning: "Existing subscribers keep their current price." };
+  if (path.includes("price-commit")) return demoConfirmed(options, state.previews.price);
   if (path.includes("refunds/preview")) {
     const requestedAmount = Number(options.body?.amount);
     const refundableAmount = demoCustomer.payments[0].refundableAmount;
@@ -174,7 +175,15 @@ function demoApi(path, options) {
       ]
     };
   }
+  if (path.includes("refunds/commit")) return demoConfirmed(options, state.previews.refund);
   if (path.includes("imports/preview")) return { previewId: crypto.randomUUID(), confirmationPhrase: "IMPORT 1 RECORD", summary: { records: 1, existingAccounts: 0, pendingFirstSignIn: 1, entitlements: 1, discounts: 0 }, rows: options.body?.rows || [], warnings: ["Unknown emails wait for verified first sign-in."] };
+  if (path.includes("imports/commit")) return demoConfirmed(options, state.previews.import);
+  return { ok: true };
+}
+
+function demoConfirmed(options, preview) {
+  if (!preview || options.body?.previewId !== preview.previewId) throw new Error("Preview expired. Create a fresh preview.");
+  if (options.body?.confirmationPhrase !== preview.confirmationPhrase) throw new Error("Confirmation phrase does not match.");
   return { ok: true };
 }
 
@@ -273,7 +282,7 @@ function bindView() {
 
 async function priceFlow(event) {
   event.preventDefault(); const f = new FormData(event.currentTarget); const amount = Math.round(Number(f.get("amount")) * 100);
-  try { const p = await api("/admin-api/v1/catalog/price-preview", { method: "POST", body: { kind: f.get("kind"), unitAmount: amount, currency: String(f.get("currency")).toUpperCase() } }); state.previews.price = p; document.querySelector("#price-preview").innerHTML = confirmPanel("Price preview", p.warning, p.confirmationPhrase, "confirm-price"); document.querySelector("#confirm-price").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/catalog/price-commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Price changed for new checkouts.")) loadView("billing"); }); } catch (error) { toast(error.message, true); }
+  try { const p = await api("/admin-api/v1/catalog/price-preview", { method: "POST", body: { kind: f.get("kind"), unitAmount: amount, currency: String(f.get("currency")).toUpperCase() } }); state.previews.price = p; document.querySelector("#price-preview").innerHTML = confirmPanel("Price preview", p.warning, p.confirmationPhrase, "confirm-price"); toast("Price preview ready."); document.querySelector("#confirm-price").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/catalog/price-commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Price changed for new checkouts.")) loadView("billing"); }); } catch (error) { toast(error.message, true); }
 }
 async function refundFlow(button) {
   const currency = escapeHtml(button.dataset.currency || "USD");
@@ -291,7 +300,7 @@ async function refundFlow(button) {
   const amountText = String(data.get("amount") || "").trim();
   const note = String(data.get("note") || "").trim();
   const refundReason = String(data.get("reason") || "requested_by_customer");
-  try { const p = await api("/admin-api/v1/refunds/preview", { method: "POST", body: { uid: state.customer.user.uid, paymentIntentId: button.dataset.refund, ...(amountText ? { amount: Math.round(Number(amountText) * 100) } : {}), reason: refundReason, note } }); const holder = document.createElement("div"); holder.className = "modal-backdrop"; holder.innerHTML = `<div class="confirm-modal">${confirmPanel("Refund preview", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-refund")}<button class="button secondary" data-close>Cancel</button></div>`; document.body.append(holder); holder.querySelector("[data-close]").addEventListener("click", () => holder.remove()); holder.querySelector("#confirm-refund").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/refunds/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Refund submitted to Stripe.")) { holder.remove(); state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }); } catch (error) { toast(error.message, true); }
+  try { const p = await api("/admin-api/v1/refunds/preview", { method: "POST", body: { uid: state.customer.user.uid, paymentIntentId: button.dataset.refund, ...(amountText ? { amount: Math.round(Number(amountText) * 100) } : {}), reason: refundReason, note } }); state.previews.refund = p; const holder = document.createElement("div"); holder.className = "modal-backdrop"; holder.innerHTML = `<div class="confirm-modal">${confirmPanel("Refund preview", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-refund")}<button class="button secondary" data-close>Cancel</button></div>`; document.body.append(holder); holder.querySelector("[data-close]").addEventListener("click", () => holder.remove()); holder.querySelector("#confirm-refund").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/refunds/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Refund submitted to Stripe.")) { holder.remove(); state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }); } catch (error) { toast(error.message, true); }
 }
 function confirmPanel(title, warning, phrase, id) { return `<div class="confirmation"><h4>${escapeHtml(title)}</h4><p>${escapeHtml(warning)}</p><code>${escapeHtml(phrase)}</code><form id="${id}" class="stack-form"><label>Type the phrase exactly<input name="phrase" required autocomplete="off"></label><button class="button danger">Confirm action</button></form></div>`; }
 function parseCsv(text) {
@@ -301,7 +310,7 @@ function parseCsv(text) {
   return lines.slice(1).map((line) => { const values = cells(line); return Object.fromEntries(headers.map((h, i) => [h, values[i] || undefined])); }).map((r) => ({ email: r.email, kind: r.kind, externalId: r.externalId, note: r.note, ...(r.startsAt ? { startsAt: new Date(r.startsAt).toISOString() } : {}), ...(r.endsAt ? { endsAt: new Date(r.endsAt).toISOString() } : {}) }));
 }
 async function importFlow(event) {
-  event.preventDefault(); try { const rows = parseCsv(new FormData(event.currentTarget).get("csv")); const p = await api("/admin-api/v1/imports/preview", { method: "POST", body: { rows } }); state.previews.import = p; document.querySelector("#import-preview").innerHTML = `<div class="preview-summary">${Object.entries(p.summary).map(([k,v]) => `<div><span>${escapeHtml(k)}</span><strong>${Number(v)}</strong></div>`).join("")}</div>${confirmPanel("Import is ready", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-import")}`; document.querySelector("#confirm-import").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/imports/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Import completed.")) loadView("imports"); }); } catch (error) { toast(error.message, true); }
+  event.preventDefault(); try { const rows = parseCsv(new FormData(event.currentTarget).get("csv")); const p = await api("/admin-api/v1/imports/preview", { method: "POST", body: { rows } }); state.previews.import = p; document.querySelector("#import-preview").innerHTML = `<div class="preview-summary">${Object.entries(p.summary).map(([k,v]) => `<div><span>${escapeHtml(k)}</span><strong>${Number(v)}</strong></div>`).join("")}</div>${confirmPanel("Import is ready", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-import")}`; toast("Import preview ready."); document.querySelector("#confirm-import").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/imports/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Import completed.")) loadView("imports"); }); } catch (error) { toast(error.message, true); }
 }
 function downloadTemplate() { const csv = "email,kind,externalId,startsAt,endsAt,note\nperson@example.com,mobile_lifetime,order_123,,,Historical mobile purchase\n"; const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const a = document.createElement("a"); a.href = url; a.download = "wonderlang-import-template.csv"; a.click(); URL.revokeObjectURL(url); }
 
