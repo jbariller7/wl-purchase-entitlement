@@ -9,7 +9,7 @@
 - Webhooks return 5xx on processing failure, use a durable inbox and recover claims stuck in `processing` for more than five minutes.
 - Outbox jobs have exclusive leases, stable dedupe keys, exponential retry and terminal failure after ten attempts.
 - Ad payload email is SHA-256-normalized at send time. Full card data is never handled. Logs avoid raw tokens and buyer emails.
-- Cloud paths are UID-scoped; signed URLs expire after ten minutes; upload size and SHA-256 are checked before manifest commit.
+- Cloud paths are UID-scoped; signed URLs expire after ten minutes and target staging objects only; upload size and SHA-256 are checked before a create-only immutable revision is copied and committed to the manifest.
 - Firestore and Storage client rules deny everything. Service-account and provider credentials belong only in Netlify secrets.
 
 The audited account-deletion workflow is implemented with recent-login confirmation, immediate session revocation, a 30-day recovery window, and a separately disabled purge worker. Before production: approve and configure a time-based lifecycle for retained raw provider payloads, enable Firebase App Check/rate limiting on public APIs, configure Netlify log redaction, restrict service-account IAM, rotate credentials after migration, and commission an external review of auth linking and store receipt replay cases.

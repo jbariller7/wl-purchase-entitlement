@@ -176,6 +176,8 @@ describe("isolated integration configuration", () => {
     const activity = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/MainActivity.kt");
     const manifest = read("integrations/android/current-app-mirror/app/src/main/AndroidManifest.xml");
     const api = read("netlify/functions/api.ts");
+    const cloudSave = read("src/cloud-save/service.ts");
+    const adminApi = read("netlify/functions/admin-api.ts");
     const cors = read("storage.cors.json");
     const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
     const packaged = read("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/WonderLangAccountCloudSync.js");
@@ -187,6 +189,12 @@ describe("isolated integration configuration", () => {
     expect(activity).toContain("Never let an");
     expect(api).toContain('"https://appassets.local"');
     expect(cors).toContain('"https://appassets.local"');
+    expect(cloudSave).toContain("cloud-save-uploads/${uid}/${uploadId}.json");
+    expect(cloudSave).toContain("preconditionOpts: { ifGenerationMatch: 0 }");
+    expect(cloudSave).toContain("objectPath: revisionObjectPath");
+    const accountDeletion = read("src/account-deletion/service.ts");
+    expect(accountDeletion).toContain("cloud-save-uploads/${uid}/");
+    expect(adminApi).toContain("...(row.mobilePlatform ? { mobilePlatform: row.mobilePlatform } : {})");
     for (const choice of ["Keep device", "Use cloud", "Not now"]) expect(rmmz).toContain(choice);
     expect(rmmz).toContain("await sha256Hex(bytes)");
     expect(rmmz).toContain("baseRevision: remoteRevision");
@@ -227,8 +235,15 @@ describe("isolated integration configuration", () => {
     expect(accountCss).toContain("wonderlang-account button");
     expect(accountCss).toContain("wonderlang-account input");
     expect(admin).toContain("state.notice");
+    expect(admin).toContain("ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? 1 : 100");
+    expect(admin).toContain("amount: minorAmount(currencyCode, amountText)");
+    expect(admin).toContain('step="${zeroDecimal ? "1" : "0.01"}"');
     expect(account).toContain("/api/v1/me/deletion-preview");
     expect(account).toContain("/api/v1/me/deletion-commit");
+    expect(account).toContain("EmailAuthProvider.credentialWithLink");
+    expect(account).toContain("linkWithCredential(current, credential)");
+    expect(account).toContain("current.uid !== intendedUid");
+    expect(account).toContain('data-action="link-email"');
     expect(admin).toContain("cancel-deletion");
   });
 });

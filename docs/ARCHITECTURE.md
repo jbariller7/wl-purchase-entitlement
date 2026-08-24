@@ -39,4 +39,4 @@ An active monthly grant ends at the provider period end unless a newer provider 
 - `outbox/{hash}`: leased, retrying external side effects.
 - `cloudSaves/{uid}/slots/{slot}` and `cloudSaveUploads`: manifests and upload transactions.
 
-Clients are denied direct Firestore/Storage access. Authenticated HTTP endpoints gate reads/writes, and cloud files use ten-minute signed URLs.
+Clients are denied direct Firestore/Storage access. Authenticated HTTP endpoints gate reads/writes. Ten-minute signed write URLs target disposable staging objects; finalization verifies SHA-256 and size, then creates an immutable revision object before advancing the manifest.

@@ -69,7 +69,11 @@ const endpoints = {
 
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[c]); }
 function initials(email = "WL") { return email.split("@")[0].split(/[._-]/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("") || "WL"; }
-function formatMoney(amount, currency = "USD") { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(Number(amount || 0) / 100); }
+function formatMoney(amount, currency = "USD") {
+  const normalizedCurrency = String(currency || "USD").toUpperCase();
+  const divisor = ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? 1 : 100;
+  return new Intl.NumberFormat(undefined, { style: "currency", currency: normalizedCurrency }).format(Number(amount || 0) / divisor);
+}
 function formatDate(value) { if (!value) return "—"; const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(value); }
 function jsonCell(value) { return escapeHtml(typeof value === "string" ? value : JSON.stringify(value ?? "")); }
 function navItem(id, number) { return `<button type="button" data-view="${id}" class="nav-item${state.view === id ? " selected" : ""}"><span>${number}</span>${views[id]}</button>`; }
@@ -309,12 +313,14 @@ async function priceFlow(event) {
   try { const p = await api("/admin-api/v1/catalog/price-preview", { method: "POST", body: { kind: f.get("kind"), unitAmount: amount, currency } }); state.previews.price = p; document.querySelector("#price-preview").innerHTML = confirmPanel("Price preview", p.warning, p.confirmationPhrase, "confirm-price"); toast("Price preview ready."); document.querySelector("#confirm-price").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/catalog/price-commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Price changed for new checkouts.")) loadView("billing"); }); } catch (error) { toast(error.message, true); }
 }
 async function refundFlow(button) {
-  const currency = escapeHtml(button.dataset.currency || "USD");
-  const maximum = (Number(button.dataset.amount) / 100).toFixed(2);
+  const currencyCode = String(button.dataset.currency || "USD").toUpperCase();
+  const currency = escapeHtml(currencyCode);
+  const zeroDecimal = ZERO_DECIMAL_CURRENCIES.has(currencyCode);
+  const maximum = majorAmount(currencyCode, Number(button.dataset.amount));
   const data = await formDialog({
     title: "Prepare a Stripe refund",
-    copy: `Review the amount and reason. The maximum shown is ${maximum} ${button.dataset.currency || "USD"}; leave amount blank to refund all remaining funds.`,
-    fields: `<label>Amount (${currency})<input name="amount" type="number" inputmode="decimal" min="0.01" max="${maximum}" step="0.01" placeholder="All remaining funds"></label>
+    copy: `Review the amount and reason. The maximum shown is ${maximum} ${currencyCode}; leave amount blank to refund all remaining funds.`,
+    fields: `<label>Amount (${currency})<input name="amount" type="number" inputmode="decimal" min="${zeroDecimal ? "1" : "0.01"}" max="${maximum}" step="${zeroDecimal ? "1" : "0.01"}" placeholder="All remaining funds"></label>
       <label>Stripe reason<select name="reason"><option value="requested_by_customer">Requested by customer</option><option value="duplicate">Duplicate</option><option value="fraudulent">Fraudulent</option></select></label>
       <label>Audit note<textarea name="note" minlength="10" maxlength="500" required placeholder="Explain why this refund is authorized."></textarea></label>`,
     confirmText: "Preview refund",
@@ -324,7 +330,7 @@ async function refundFlow(button) {
   const amountText = String(data.get("amount") || "").trim();
   const note = String(data.get("note") || "").trim();
   const refundReason = String(data.get("reason") || "requested_by_customer");
-  try { const p = await api("/admin-api/v1/refunds/preview", { method: "POST", body: { uid: state.customer.user.uid, paymentIntentId: button.dataset.refund, ...(amountText ? { amount: Math.round(Number(amountText) * 100) } : {}), reason: refundReason, note } }); state.previews.refund = p; const holder = document.createElement("div"); holder.className = "modal-backdrop"; holder.innerHTML = `<div class="confirm-modal">${confirmPanel("Refund preview", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-refund")}<button class="button secondary" data-close>Cancel</button></div>`; document.body.append(holder); holder.querySelector("[data-close]").addEventListener("click", () => holder.remove()); holder.querySelector("#confirm-refund").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/refunds/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Refund submitted to Stripe.")) { holder.remove(); state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }); } catch (error) { toast(error.message, true); }
+  try { const p = await api("/admin-api/v1/refunds/preview", { method: "POST", body: { uid: state.customer.user.uid, paymentIntentId: button.dataset.refund, ...(amountText ? { amount: minorAmount(currencyCode, amountText) } : {}), reason: refundReason, note } }); state.previews.refund = p; const holder = document.createElement("div"); holder.className = "modal-backdrop"; holder.innerHTML = `<div class="confirm-modal">${confirmPanel("Refund preview", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-refund")}<button class="button secondary" data-close>Cancel</button></div>`; document.body.append(holder); holder.querySelector("[data-close]").addEventListener("click", () => holder.remove()); holder.querySelector("#confirm-refund").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/refunds/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Refund submitted to Stripe.")) { holder.remove(); state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }); } catch (error) { toast(error.message, true); }
 }
 function confirmPanel(title, warning, phrase, id) { return `<div class="confirmation"><h4>${escapeHtml(title)}</h4><p>${escapeHtml(warning)}</p><code>${escapeHtml(phrase)}</code><form id="${id}" class="stack-form"><label>Type the phrase exactly<input name="phrase" required autocomplete="off"></label><button class="button danger">Confirm action</button></form></div>`; }
 function parseCsv(text) {

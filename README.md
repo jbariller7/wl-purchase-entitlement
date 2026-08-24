@@ -17,7 +17,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 ## What is implemented
 
 - Firebase Auth ID-token verification and account-bound Stripe customers.
-- Google, Apple and passwordless email-link website sign-in widget.
+- Google, Apple and passwordless email-link website sign-in widget with explicit same-account provider linking; email linking refuses to switch or merge accounts.
 - Responsive `/admin/` operations console with customer lookup, manual grants, two-step refunds and price changes, dry-run imports, delivery retries, key inventory and audit history.
 - Server-verified, email-verified Firebase `admin` custom claims; signing in with Google or Apple alone never grants operations access.
 - Fail-closed test deployment controls. Test mode rejects every non-`sk_test_` Stripe key and all side-effect switches default to off.
@@ -28,7 +28,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - Apple official JWS verification for StoreKit 2 and App Store Server Notifications V2.
 - Transactional legacy key allocation with retryable Google Sheets and MailerLite mirroring.
 - Meta/TikTok server conversion outbox with real checkout attribution and stable event IDs.
-- Versioned SHA-256-verified cloud saves using short-lived signed URLs and conflict detection.
+- Versioned SHA-256-verified cloud saves using short-lived staging URLs, immutable finalized revisions and conflict detection.
 - Reviewed RPG Maker, Android and iOS integration sources, including the synchronized mirror used to update the editable RMMZ project and authoritative Android project. The iOS adapter remains a reviewed integration source until the Xcode project is supplied.
 
 ## Local verification

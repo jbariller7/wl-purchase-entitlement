@@ -52,6 +52,19 @@ export function cloudRevisionConflicts(baseRevision: string | null, currentRevis
   return baseRevision !== currentRevision;
 }
 
+export function cloudStagingObjectPath(uid: string, uploadId: string): string {
+  return `cloud-save-uploads/${uid}/${uploadId}.json`;
+}
+
+export function cloudRevisionObjectPath(uid: string, slot: string, uploadId: string): string {
+  return `cloud-saves/${uid}/slots/${slot}/revisions/${uploadId}.json`;
+}
+
+function isPreconditionFailure(error: unknown): boolean {
+  const candidate = error as { code?: number | string; statusCode?: number };
+  return candidate.code === 412 || candidate.code === "412" || candidate.statusCode === 412;
+}
+
 export class CloudSaveService {
   constructor(
     private readonly db: Firestore,
@@ -74,7 +87,9 @@ export class CloudSaveService {
     await this.requireCloudSave(uid, now);
     const uploadId = randomUUID();
     const expiresAt = new Date(now.getTime() + URL_TTL_MS);
-    const objectPath = `cloud-saves/${uid}/slots/${request.slot}/${uploadId}.json`;
+    // Upload URLs can be reused until expiry, so they must never point at the
+    // immutable revision object referenced by the manifest.
+    const objectPath = cloudStagingObjectPath(uid, uploadId);
     const pending: PendingUpload = {
       uid,
       slot: request.slot,
@@ -95,6 +110,31 @@ export class CloudSaveService {
       contentType: "application/json"
     });
     return { uploadId, uploadUrl, expiresAt: expiresAt.toISOString() };
+  }
+
+  private async writeImmutableRevision(
+    objectPath: string,
+    contents: Buffer,
+    expected: { byteLength: number; sha256: string }
+  ): Promise<void> {
+    const file = this.storage.bucket().file(objectPath);
+    try {
+      await file.save(contents, {
+        resumable: false,
+        contentType: "application/json",
+        metadata: { cacheControl: "private, no-store" },
+        // A revision UUID is create-only. Retrying a completed server copy is
+        // safe; no caller can replace bytes already stored at this path.
+        preconditionOpts: { ifGenerationMatch: 0 }
+      });
+      return;
+    } catch (error) {
+      if (!isPreconditionFailure(error)) throw error;
+    }
+    const [existing] = await file.download();
+    if (!cloudObjectMatches(existing, expected)) {
+      throw new HttpError(409, "An immutable cloud-save revision already exists with different contents.");
+    }
   }
 
   async finalizeUpload(uid: string, uploadId: string, now: Date): Promise<SaveManifest> {
@@ -119,6 +159,9 @@ export class CloudSaveService {
       await file.delete({ ignoreNotFound: true });
       throw new HttpError(422, "Uploaded cloud save failed its size or SHA-256 integrity check.");
     }
+
+    const revisionObjectPath = cloudRevisionObjectPath(uid, pending.slot, pending.uploadId);
+    await this.writeImmutableRevision(revisionObjectPath, contents, pending);
 
     const manifestRef = this.db.collection("cloudSaves").doc(uid).collection("slots").doc(pending.slot);
     const result = await this.db.runTransaction(async (transaction): Promise<
@@ -147,7 +190,7 @@ export class CloudSaveService {
         uid,
         slot: fresh.slot,
         currentRevision: fresh.uploadId,
-        objectPath: fresh.objectPath,
+        objectPath: revisionObjectPath,
         byteLength: fresh.byteLength,
         sha256: fresh.sha256,
         updatedAt: now.toISOString(),
@@ -158,8 +201,13 @@ export class CloudSaveService {
       return { manifest };
     });
     if ("conflictRevision" in result) {
+      await this.storage.bucket().file(revisionObjectPath).delete({ ignoreNotFound: true }).catch(() => undefined);
+      await file.delete({ ignoreNotFound: true }).catch(() => undefined);
       throw new HttpError(409, `Cloud-save conflict: current revision is ${result.conflictRevision ?? "none"}.`);
     }
+    // The signed write URL can still be reused until it expires, but it only
+    // targets this unreferenced staging object. Remove the verified copy now.
+    await file.delete({ ignoreNotFound: true }).catch(() => undefined);
     return result.manifest;
   }
 

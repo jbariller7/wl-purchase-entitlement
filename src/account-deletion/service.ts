@@ -149,7 +149,10 @@ export class AccountDeletionService {
     const user = await this.db.collection("users").doc(uid).get();
     const storeAccountToken = user.data()?.storeAccountToken as string | undefined;
 
-    await this.storage.bucket().deleteFiles({ prefix: `cloud-saves/${uid}/`, force: true });
+    await Promise.all([
+      this.storage.bucket().deleteFiles({ prefix: `cloud-saves/${uid}/`, force: true }),
+      this.storage.bucket().deleteFiles({ prefix: `cloud-save-uploads/${uid}/`, force: true })
+    ]);
     await this.db.recursiveDelete(this.db.collection("cloudSaves").doc(uid));
     const deletedPrivateRows = await Promise.all([
       this.deleteQuery(this.db.collection("cloudSaveUploads").where("uid", "==", uid)),

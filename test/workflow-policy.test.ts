@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { normalizeImportRows } from "../src/admin/import-service.js";
-import { cloudObjectMatches, cloudRevisionConflicts } from "../src/cloud-save/service.js";
+import {
+  cloudObjectMatches,
+  cloudRevisionConflicts,
+  cloudRevisionObjectPath,
+  cloudStagingObjectPath
+} from "../src/cloud-save/service.js";
 import { providerEventDecision } from "../src/domain/provider-event.js";
 import { checkoutRequestSchema } from "../src/providers/stripe/checkout-service.js";
 
@@ -37,6 +42,16 @@ describe("cloud-save integrity and conflict policy", () => {
     expect(cloudRevisionConflicts(null, "rev-a")).toBe(true);
     expect(cloudRevisionConflicts("rev-a", "rev-b")).toBe(true);
   });
+
+  it("keeps reusable signed uploads separate from immutable revisions", () => {
+    const uid = "firebase-user";
+    const uploadId = "4acb303f-18d2-4b98-b665-058c332271df";
+    const staging = cloudStagingObjectPath(uid, uploadId);
+    const revision = cloudRevisionObjectPath(uid, "slot-1", uploadId);
+    expect(staging).toBe(`cloud-save-uploads/${uid}/${uploadId}.json`);
+    expect(revision).toBe(`cloud-saves/${uid}/slots/slot-1/revisions/${uploadId}.json`);
+    expect(staging).not.toBe(revision);
+  });
 });
 
 describe("purchase import validation and idempotency keys", () => {
@@ -63,6 +78,15 @@ describe("purchase import validation and idempotency keys", () => {
   it("rejects invalid expiry ordering and malformed email addresses", () => {
     expect(() => normalizeImportRows([{ ...row, startsAt: "2026-08-25T00:00:00Z", endsAt: "2026-08-24T00:00:00Z" }], now)).toThrow(/Invalid endsAt/);
     expect(() => normalizeImportRows([{ ...row, email: "not-an-email" }], now)).toThrow(/Invalid email/);
+  });
+
+  it("preserves the selected mobile platform for entitlement projection", () => {
+    const [normalized] = normalizeImportRows([{
+      ...row,
+      kind: "mobile_polyglot_permanent",
+      mobilePlatform: "ios"
+    }], now);
+    expect(normalized?.mobilePlatform).toBe("ios");
   });
 });
 

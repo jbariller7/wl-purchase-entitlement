@@ -168,11 +168,14 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const input = body(importPreviewSchema, event);
     return json(200, await imports.preview({
       actor,
+      // Zod has already stripped unknown properties. Preserve every validated
+      // optional field, especially the platform required by Polyglot/Premium.
       rows: input.rows.map((row) => ({
         email: row.email,
         kind: row.kind,
         externalId: row.externalId,
         note: row.note,
+        ...(row.mobilePlatform ? { mobilePlatform: row.mobilePlatform } : {}),
         ...(row.startsAt ? { startsAt: row.startsAt } : {}),
         ...(row.endsAt ? { endsAt: row.endsAt } : {})
       })),

@@ -2,10 +2,12 @@ import { initializeApp } from "firebase/app";
 import {
   getAuth,
   getRedirectResult,
+  EmailAuthProvider,
   GoogleAuthProvider,
   isSignInWithEmailLink,
   OAuthProvider,
   linkWithPopup,
+  linkWithCredential,
   onAuthStateChanged,
   sendSignInLinkToEmail,
   signInWithEmailLink,
@@ -20,6 +22,12 @@ const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app
   && previewParam === "1";
 const localEmailLinkDemo = ["localhost", "127.0.0.1"].includes(location.hostname)
   && previewParam === "email-link";
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+  })[character]);
+}
 
 const html = `
   <section class="wl-card">
@@ -87,6 +95,7 @@ const html = `
       <div class="wl-provider-grid wl-link-providers">
         <button type="button" data-action="link-google" class="wl-secondary">Link Google login</button>
         <button type="button" data-action="link-apple" class="wl-dark">Link Apple login</button>
+        <button type="button" data-action="link-email" class="wl-secondary">Link email login</button>
       </div>
       <details>
         <summary>Already bought a Steam or Itch key on wonderlang.net?</summary>
@@ -177,6 +186,7 @@ class WonderLangAccount extends HTMLElement {
       const config = await this.request("/api/v1/config", { authenticated: false });
       this.configureCatalog(config);
       this.auth = getAuth(initializeApp(config.firebase));
+      await this.auth.authStateReady();
       await this.finishEmailLink();
       await getRedirectResult(this.auth).catch((error) => { throw error; });
       onAuthStateChanged(this.auth, (user) => this.renderUser(user));
@@ -197,6 +207,7 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="delete-account"]').addEventListener("click", () => this.deleteAccount());
     this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(new GoogleAuthProvider()));
     this.querySelector('[data-action="link-apple"]').addEventListener("click", () => this.linkProvider(appleProvider()));
+    this.querySelector('[data-action="link-email"]').addEventListener("click", () => this.linkEmail());
     this.querySelector('[data-form="email"]').addEventListener("submit", (event) => this.emailLink(event));
     this.querySelector('[data-form="legacy"]').addEventListener("submit", (event) => this.claimLegacy(event));
   }
@@ -268,10 +279,46 @@ class WonderLangAccount extends HTMLElement {
       this.status(`Secure email-link sign-in simulated for ${email}.`);
       return;
     }
+    await this.sendEmailLink(email, false);
+  }
+
+  async linkEmail() {
+    if (demoMode) {
+      if (!this.user) return this.status("Sign in first.");
+      if (!this.demoAccount.linkedLoginProviders.includes("password")) this.demoAccount.linkedLoginProviders.push("password");
+      await this.renderUser(this.user);
+      this.status("Passwordless email login linked in the safe demo.");
+      return;
+    }
+    if (!this.auth?.currentUser) return this.status("Sign in first.");
+    const email = await this.confirmEmailForLink({
+      title: "Link passwordless email",
+      copy: "Enter the email address you want to use to recover this same WonderLang account. Open the link in this browser while you remain signed in.",
+      submitLabel: "Send link"
+    });
+    if (!email) return;
+    await this.sendEmailLink(email, true);
+  }
+
+  async sendEmailLink(email, linkToCurrentUser) {
     try {
-      await sendSignInLinkToEmail(this.auth, email, { url: location.href, handleCodeInApp: true });
+      const continueUrl = new URL(location.href);
+      continueUrl.searchParams.delete("mode");
+      continueUrl.searchParams.delete("oobCode");
+      continueUrl.searchParams.delete("apiKey");
+      continueUrl.searchParams.set("link_email", linkToCurrentUser ? "1" : "0");
+      await sendSignInLinkToEmail(this.auth, email, { url: continueUrl.toString(), handleCodeInApp: true });
       localStorage.setItem("wl-email-link", email);
-      this.status("Check your email for the secure sign-in link.");
+      if (linkToCurrentUser) {
+        localStorage.setItem("wl-email-link-purpose", "link");
+        localStorage.setItem("wl-email-link-uid", this.auth.currentUser.uid);
+      } else {
+        localStorage.removeItem("wl-email-link-purpose");
+        localStorage.removeItem("wl-email-link-uid");
+      }
+      this.status(linkToCurrentUser
+        ? "Check your email, then open the link in this browser to finish linking."
+        : "Check your email for the secure sign-in link.");
     } catch (error) { this.fail(error); }
   }
 
@@ -279,23 +326,38 @@ class WonderLangAccount extends HTMLElement {
     if (!isSignInWithEmailLink(this.auth, location.href)) return;
     const email = localStorage.getItem("wl-email-link") || await this.confirmEmailForLink();
     if (!email) throw new Error("Email confirmation is required to finish sign-in.");
-    await signInWithEmailLink(this.auth, email, location.href);
+    const linkRequested = new URL(location.href).searchParams.get("link_email") === "1"
+      && localStorage.getItem("wl-email-link-purpose") === "link";
+    if (linkRequested) {
+      const current = this.auth.currentUser;
+      const intendedUid = localStorage.getItem("wl-email-link-uid");
+      if (!current || !intendedUid || current.uid !== intendedUid) {
+        throw new Error("For security, sign in to the original WonderLang account in this browser before linking this email.");
+      }
+      const credential = EmailAuthProvider.credentialWithLink(email, location.href);
+      await linkWithCredential(current, credential);
+      this.status("Passwordless email login linked to this WonderLang account.");
+    } else {
+      await signInWithEmailLink(this.auth, email, location.href);
+    }
     localStorage.removeItem("wl-email-link");
+    localStorage.removeItem("wl-email-link-purpose");
+    localStorage.removeItem("wl-email-link-uid");
     history.replaceState({}, document.title, location.pathname);
   }
 
-  confirmEmailForLink() {
+  confirmEmailForLink(options = {}) {
     return new Promise((resolve) => {
       const holder = document.createElement("div");
       const titleId = `wl-email-dialog-${crypto.randomUUID()}`;
       holder.className = "wl-modal-backdrop";
       holder.innerHTML = `<section class="wl-modal" role="dialog" aria-modal="true" aria-labelledby="${titleId}">
         <p class="wl-eyebrow">SECURE SIGN-IN</p>
-        <h3 id="${titleId}">Confirm your email</h3>
-        <p>This sign-in link was opened on a different browser or device. Enter the same email address that received the link.</p>
+        <h3 id="${titleId}">${escapeHtml(options.title || "Confirm your email")}</h3>
+        <p>${escapeHtml(options.copy || "This sign-in link was opened on a different browser or device. Enter the same email address that received the link.")}</p>
         <form class="wl-modal-form">
           <label><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
-          <div><button type="button" class="wl-secondary" data-close>Cancel</button><button type="submit">Continue</button></div>
+          <div><button type="button" class="wl-secondary" data-close>Cancel</button><button type="submit">${escapeHtml(options.submitLabel || "Continue")}</button></div>
         </form>
       </section>`;
       let settled = false;
