@@ -15,6 +15,10 @@ import {
 } from "firebase/auth";
 import "./wonderlang-account.css";
 
+const localDemo = ["localhost", "127.0.0.1"].includes(location.hostname)
+  ? new URLSearchParams(location.search).get("demo")
+  : null;
+
 const html = `
   <section class="wl-card">
     <div class="wl-header">
@@ -90,6 +94,13 @@ class WonderLangAccount extends HTMLElement {
     this.innerHTML = html;
     this.apiBase = (this.getAttribute("api-base") || location.origin).replace(/\/$/, "");
     this.bind();
+    if (localDemo === "email-link") {
+      this.querySelector(".wl-signed-out").hidden = false;
+      this.status("Local cross-device sign-in preview.");
+      const email = await this.confirmEmailForLink();
+      this.status(email ? `Confirmed ${email} in the local preview.` : "Email confirmation canceled in the local preview.");
+      return;
+    }
     try {
       const config = await this.request("/api/v1/config", { authenticated: false });
       this.config = config;
@@ -154,11 +165,45 @@ class WonderLangAccount extends HTMLElement {
 
   async finishEmailLink() {
     if (!isSignInWithEmailLink(this.auth, location.href)) return;
-    const email = localStorage.getItem("wl-email-link") || window.prompt("Confirm the email address used for this sign-in link:");
+    const email = localStorage.getItem("wl-email-link") || await this.confirmEmailForLink();
     if (!email) throw new Error("Email confirmation is required to finish sign-in.");
     await signInWithEmailLink(this.auth, email, location.href);
     localStorage.removeItem("wl-email-link");
     history.replaceState({}, document.title, location.pathname);
+  }
+
+  confirmEmailForLink() {
+    return new Promise((resolve) => {
+      const holder = document.createElement("div");
+      const titleId = `wl-email-dialog-${crypto.randomUUID()}`;
+      holder.className = "wl-modal-backdrop";
+      holder.innerHTML = `<section class="wl-modal" role="dialog" aria-modal="true" aria-labelledby="${titleId}">
+        <p class="wl-eyebrow">SECURE SIGN-IN</p>
+        <h3 id="${titleId}">Confirm your email</h3>
+        <p>This sign-in link was opened on a different browser or device. Enter the same email address that received the link.</p>
+        <form class="wl-modal-form">
+          <label><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
+          <div><button type="button" class="wl-secondary" data-close>Cancel</button><button type="submit">Continue</button></div>
+        </form>
+      </section>`;
+      let settled = false;
+      const close = (value) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener("keydown", onKeydown);
+        holder.remove();
+        resolve(value);
+      };
+      const onKeydown = (event) => { if (event.key === "Escape") close(null); };
+      holder.querySelector("[data-close]").addEventListener("click", () => close(null));
+      holder.querySelector("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        close(String(new FormData(event.currentTarget).get("email")).trim().toLowerCase());
+      });
+      document.addEventListener("keydown", onKeydown);
+      this.append(holder);
+      holder.querySelector("input").focus();
+    });
   }
 
   async renderUser(user) {

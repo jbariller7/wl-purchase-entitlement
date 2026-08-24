@@ -40,9 +40,16 @@ describe("isolated integration configuration", () => {
 
   it("uses accessible in-console forms instead of blocking prompt dialogs", () => {
     const admin = read("integrations/web/admin-console/admin.js");
+    const account = read("integrations/web/account-widget/wonderlang-account.js");
+    const accountCss = read("integrations/web/account-widget/wonderlang-account.css");
     expect(admin).not.toMatch(/\bprompt\s*\(/);
+    expect(account).not.toMatch(/\bprompt\s*\(/);
     expect(admin).toContain('role="dialog"');
     expect(admin).toContain('aria-modal="true"');
+    expect(account).toContain('role="dialog"');
+    expect(account).toContain('aria-modal="true"');
+    expect(accountCss).toContain("wonderlang-account button");
+    expect(accountCss).toContain("wonderlang-account input");
     expect(admin).toContain("state.notice");
   });
 });

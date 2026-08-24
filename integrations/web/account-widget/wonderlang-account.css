@@ -12,13 +12,20 @@ wonderlang-account { display: block; color: var(--wl-ink); font: 16px/1.5 system
 .wl-entitlement { display: grid; gap: 3px; }
 .wl-row { align-items: end; }
 .wl-row label { flex: 1; }
-label span { display: block; margin-bottom: 5px; font-weight: 700; }
-input { box-sizing: border-box; width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #bcae9a; border-radius: 10px; font: inherit; }
-button { min-height: 46px; padding: 10px 18px; border: 0; border-radius: 10px; background: var(--wl-accent); color: #fff; font: inherit; font-weight: 800; cursor: pointer; touch-action: manipulation; }
-button:disabled { cursor: default; filter: grayscale(1); opacity: .55; }
+wonderlang-account label span { display: block; margin-bottom: 5px; font-weight: 700; }
+wonderlang-account input { box-sizing: border-box; width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid #bcae9a; border-radius: 10px; font: inherit; }
+wonderlang-account button { min-height: 46px; padding: 10px 18px; border: 0; border-radius: 10px; background: var(--wl-accent); color: #fff; font: inherit; font-weight: 800; cursor: pointer; touch-action: manipulation; }
+wonderlang-account button:disabled { cursor: default; filter: grayscale(1); opacity: .55; }
 .wl-dark { background: #161616; }.wl-secondary { background: #385870; }.wl-link { min-height: auto; padding: 4px; background: none; color: #6b4426; }
 .wl-divider { margin: 18px 0; text-align: center; }.wl-divider span { padding: 0 12px; background: var(--wl-panel); }
 .wl-confirm { display: flex; gap: 8px; margin: 14px 0; font-size: 14px; }.wl-confirm input { width: auto; min-height: auto; }
-details { margin-top: 18px; } summary { cursor: pointer; font-weight: 800; }
+wonderlang-account details { margin-top: 18px; } wonderlang-account summary { cursor: pointer; font-weight: 800; }
 .wl-link-providers { margin-top: 12px; }
+.wl-modal-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: #102019b8; backdrop-filter: blur(6px); }
+.wl-modal { width: min(480px, 100%); padding: 28px; border-radius: 20px; background: #fff; color: var(--wl-ink); box-shadow: 0 25px 90px #0006; }
+.wl-modal h3 { margin: 0; font: 600 29px/1.05 Georgia, serif; }
+.wl-modal > p:not(.wl-eyebrow) { margin: 12px 0 20px; color: #5f6670; line-height: 1.5; }
+.wl-modal-form { display: grid; gap: 18px; }
+.wl-modal-form label { display: grid; gap: 7px; color: #5f6670; font-size: 12px; font-weight: 800; }
+.wl-modal-form > div { display: flex; justify-content: flex-end; gap: 10px; }
 @media (max-width: 680px) { .wl-row, .wl-provider-grid, .wl-offers { flex-direction: column; align-items: stretch; } }
