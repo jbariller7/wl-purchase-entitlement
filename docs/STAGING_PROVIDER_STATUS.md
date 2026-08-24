@@ -21,6 +21,16 @@ Last verified: 2026-08-24. This file records only non-secret identifiers and saf
 - Storage is pending a separately approved Blaze billing upgrade.
 - The Android Firebase client key is injected from `WONDERLANG_ENTITLEMENTS_FIREBASE_API_KEY` in ignored `local.properties` or the Android build environment. It is not tracked in Git.
 
+## Netlify staging deployment
+
+- Published commit: `aaa836c8fc9585f2d41dbcfb3f70f8cc8e5b7b38`
+- Configuration-refresh deploy: `6a8c7ee3490d8cb7a59ef129`, completed successfully with seven functions.
+- `APP_ENVIRONMENT=test` in every deploy context.
+- Stripe, Google Play and Apple webhook processing; the async worker; ad conversions; legacy fulfillment; subscription cancellation; account-deletion processing; and Stripe mutations are all `false` in every deploy context.
+- Runtime readiness reports 2 of 7 connection groups ready: Firebase web configuration and the copied Sheets/MailerLite credentials. Firebase Admin, Stripe test secrets, ad-test delivery, Google Play server verification and App Store server verification remain intentionally unavailable.
+- Browser smoke test passed for the `/` redirect, all eight `/admin/` sections, `/account/?demo=1`, `/setup/`, and `/rmmz-test/`.
+- The isolated RPG Maker UI test passed the account panel, cloud-save list and non-destructive save-conflict dialog flows.
+
 ## Stripe test catalog
 
 - Mobile Monthly product: `prod_V88ycRQwGJwJXL`
