@@ -1,11 +1,12 @@
-import type { Handler } from "@netlify/functions";
+import { withLambda } from "@netlify/aws-lambda-compat";
+import type { LambdaHandler } from "@netlify/aws-lambda-compat";
 import { deploymentControls } from "../../src/config/env.js";
 
 function present(...names: string[]): boolean {
   return names.every((name) => Boolean(process.env[name]?.trim()));
 }
 
-export const handler: Handler = async (event) => {
+export const handler: LambdaHandler = async (event) => {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "Method Not Allowed" };
   const controls = deploymentControls();
   const configuration = {
@@ -36,3 +37,5 @@ export const handler: Handler = async (event) => {
     })
   };
 };
+
+export default withLambda(handler);

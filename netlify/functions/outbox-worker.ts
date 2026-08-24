@@ -1,9 +1,10 @@
-import type { Handler } from "@netlify/functions";
+import { withLambda } from "@netlify/aws-lambda-compat";
+import type { LambdaHandler } from "@netlify/aws-lambda-compat";
 import { deploymentControls } from "../../src/config/env.js";
 
 export const config = { schedule: "* * * * *" };
 
-export const handler: Handler = async () => {
+export const handler: LambdaHandler = async () => {
   if (!deploymentControls().OUTBOX_PROCESSING_ENABLED) {
     return { statusCode: 200, headers: { "content-type": "application/json" }, body: JSON.stringify({ processed: 0, failed: 0 }) };
   }
@@ -15,3 +16,5 @@ export const handler: Handler = async () => {
     body: JSON.stringify(result)
   };
 };
+
+export default withLambda(handler);

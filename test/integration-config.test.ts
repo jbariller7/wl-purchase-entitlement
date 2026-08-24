@@ -4,6 +4,26 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
 describe("isolated integration configuration", () => {
+  it("wraps every Lambda-style function for the modern Netlify runtime", () => {
+    const packageJson = read("package.json");
+    const functions = [
+      "api",
+      "admin-api",
+      "apple-webhook",
+      "google-play-webhook",
+      "health",
+      "outbox-worker",
+      "stripe-webhook",
+    ];
+
+    expect(packageJson).toContain('"@netlify/aws-lambda-compat"');
+    for (const functionName of functions) {
+      const source = read(`netlify/functions/${functionName}.ts`);
+      expect(source).toContain('from "@netlify/aws-lambda-compat"');
+      expect(source).toContain("export default withLambda(handler);");
+    }
+  });
+
   it("points duplicate mobile adapters at the isolated entitlement service", () => {
     const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
     const ios = read("integrations/ios/WonderLangEntitlementStore.swift");

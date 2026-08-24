@@ -1,4 +1,6 @@
-import type { Config, Handler, HandlerEvent, HandlerResponse } from "@netlify/functions";
+import type { Config } from "@netlify/functions";
+import { withLambda } from "@netlify/aws-lambda-compat";
+import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-lambda-compat";
 import { z } from "zod";
 import { AdminBillingService } from "../../src/admin/billing-service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
@@ -184,7 +186,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   return json(404, { error: "Not found" });
 }
 
-export const handler: Handler = async (event) => {
+export const handler: LambdaHandler = async (event) => {
   try { return secured(event, await dispatch(event)); }
   catch (error) { return secured(event, errorResponse(error)); }
 };
+
+export default withLambda(handler);

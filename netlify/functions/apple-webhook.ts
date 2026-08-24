@@ -1,10 +1,11 @@
-import type { Handler } from "@netlify/functions";
+import { withLambda } from "@netlify/aws-lambda-compat";
+import type { LambdaHandler } from "@netlify/aws-lambda-compat";
 import { z } from "zod";
 import { deploymentControls } from "../../src/config/env.js";
 
 const bodySchema = z.object({ signedPayload: z.string().min(20) });
 
-export const handler: Handler = async (event) => {
+export const handler: LambdaHandler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
   if (!deploymentControls().APPLE_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Apple webhook processing is disabled" };
   const [storeModule, firebaseModule, idsModule, appleModule] = await Promise.all([
@@ -56,3 +57,5 @@ export const handler: Handler = async (event) => {
     return { statusCode: 500, body: "Retry" };
   }
 };
+
+export default withLambda(handler);
