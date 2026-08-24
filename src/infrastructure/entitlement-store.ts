@@ -13,6 +13,14 @@ import type { LegacyDiscountClaim } from "../domain/legacy-discount.js";
 import { stableDocumentId } from "./ids.js";
 import { providerEventDecision } from "../domain/provider-event.js";
 import { safeErrorMessage } from "./safe-error.js";
+import {
+  decryptProviderToken,
+  encryptProviderToken,
+  type EncryptedProviderToken
+} from "./provider-token-crypto.js";
+
+const SUBSCRIPTION_RECONCILIATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const EXPIRED_SUBSCRIPTION_RECOVERY_MS = 90 * 24 * 60 * 60 * 1000;
 
 interface StoredGrant extends LedgerGrant {
   sourceEventCreated: number;
@@ -93,6 +101,7 @@ export class EntitlementStore {
     const subscriptionRef = grant.providerSubscriptionId
       ? this.db.collection("providerSubscriptions").doc(stableDocumentId(grant.provider, grant.providerSubscriptionId))
       : undefined;
+    const writtenAt = new Date();
     const updated = await this.db.runTransaction(async (transaction) => {
       const [current, transactionLink, subscriptionLink] = await Promise.all([
         transaction.get(ref),
@@ -110,22 +119,39 @@ export class EntitlementStore {
         id: ref.id,
         sourceEventId: sourceEvent.id,
         sourceEventCreated: sourceEvent.created,
-        updatedAt: new Date().toISOString()
+        updatedAt: writtenAt.toISOString()
       });
       transaction.set(linkRef, {
         provider: grant.provider,
         providerTransactionId: grant.providerTransactionId,
         uid: grant.uid,
         grantId: ref.id,
-        updatedAt: new Date().toISOString()
+        updatedAt: writtenAt.toISOString()
       }, { merge: true });
       if (grant.providerSubscriptionId && subscriptionRef) {
+        const existingReconcileUntil = subscriptionLink?.data()?.reconcileUntil as string | undefined;
+        const reconciliationDisabled = Boolean(subscriptionLink?.data()?.reconciliationDisabledReason);
+        const sourceTime = new Date(sourceEvent.created * 1000);
+        const defaultReconcileUntil = new Date(sourceTime.getTime() + EXPIRED_SUBSCRIPTION_RECOVERY_MS).toISOString();
+        const reconcileUntil = !reconciliationDisabled && grant.product === "mobile_full_monthly" && grant.state === "expired"
+          ? existingReconcileUntil ?? defaultReconcileUntil
+          : null;
+        const reconciliationActive = !reconciliationDisabled && grant.product === "mobile_full_monthly" && (
+          grant.state === "active" || grant.state === "grace" || grant.state === "pending" ||
+          (grant.state === "expired" && Boolean(reconcileUntil) && Date.parse(String(reconcileUntil)) > writtenAt.getTime())
+        );
         transaction.set(subscriptionRef, {
           provider: grant.provider,
           providerSubscriptionId: grant.providerSubscriptionId,
           uid: grant.uid,
           grantId: ref.id,
-          updatedAt: new Date().toISOString()
+          product: grant.product,
+          state: grant.state,
+          nextReconciliationAt: reconciliationActive
+            ? new Date(writtenAt.getTime() + SUBSCRIPTION_RECONCILIATION_INTERVAL_MS).toISOString()
+            : null,
+          reconcileUntil,
+          updatedAt: writtenAt.toISOString()
         }, { merge: true });
       }
       return true;
@@ -249,6 +275,82 @@ export class EntitlementStore {
       stableDocumentId(provider, subscriptionId)
     ).get();
     return link.data()?.uid as string | undefined;
+  }
+
+  private providerSecretRef(provider: Provider, subscriptionId: string) {
+    return this.db.collection("providerSecrets").doc(stableDocumentId(provider, subscriptionId));
+  }
+
+  private providerTokenAssociatedData(provider: Provider, subscriptionId: string, uid: string): string {
+    return `wonderlang:${provider}:${subscriptionId}:${uid}`;
+  }
+
+  async saveGooglePlaySubscriptionToken(input: {
+    uid: string;
+    providerSubscriptionId: string;
+    purchaseToken: string;
+    now: Date;
+  }): Promise<void> {
+    const subscriptionRef = this.db.collection("providerSubscriptions").doc(
+      stableDocumentId("google_play", input.providerSubscriptionId)
+    );
+    const secretRef = this.providerSecretRef("google_play", input.providerSubscriptionId);
+    const encrypted = encryptProviderToken(
+      input.purchaseToken,
+      this.providerTokenAssociatedData("google_play", input.providerSubscriptionId, input.uid)
+    );
+    await this.db.runTransaction(async (transaction) => {
+      const [subscription, secret] = await Promise.all([
+        transaction.get(subscriptionRef),
+        transaction.get(secretRef)
+      ]);
+      if (!subscription.exists || subscription.data()?.uid !== input.uid) {
+        throw new Error("Google Play subscription link is unavailable or belongs to another account.");
+      }
+      // A provider notification may race with final account deletion. The
+      // retained pseudonymous link can still accept lifecycle audit updates,
+      // but erased bearer-token ciphertext must never be recreated.
+      if (subscription.data()?.reconciliationDisabledReason === "account_deleted") return;
+      transaction.set(secretRef, {
+        provider: "google_play",
+        providerSubscriptionId: input.providerSubscriptionId,
+        uid: input.uid,
+        kind: "subscription_purchase_token",
+        encrypted,
+        updatedAt: input.now.toISOString(),
+        ...(secret.exists ? {} : { createdAt: input.now.toISOString() })
+      }, { merge: true });
+    });
+  }
+
+  async googlePlaySubscriptionToken(input: {
+    uid: string;
+    providerSubscriptionId: string;
+  }): Promise<string> {
+    const snapshot = await this.providerSecretRef("google_play", input.providerSubscriptionId).get();
+    if (!snapshot.exists) throw new Error("Encrypted Google Play subscription token is unavailable.");
+    const data = snapshot.data() as {
+      provider?: string;
+      providerSubscriptionId?: string;
+      uid?: string;
+      encrypted?: EncryptedProviderToken;
+    };
+    if (
+      data.provider !== "google_play" ||
+      data.providerSubscriptionId !== input.providerSubscriptionId ||
+      data.uid !== input.uid ||
+      !data.encrypted
+    ) {
+      throw new Error("Encrypted Google Play subscription token metadata is invalid.");
+    }
+    return decryptProviderToken(
+      data.encrypted,
+      this.providerTokenAssociatedData("google_play", input.providerSubscriptionId, input.uid)
+    );
+  }
+
+  async deleteGooglePlaySubscriptionToken(providerSubscriptionId: string): Promise<void> {
+    await this.providerSecretRef("google_play", providerSubscriptionId).delete();
   }
 
   async storeAccountToken(uid: string, now: Date): Promise<string> {

@@ -43,7 +43,9 @@ const demoCatalog = {
 };
 const demoOperations = {
   providerEvents: [{ id: "evt_demo_failed", provider: "stripe", eventType: "invoice.payment_failed", status: "failed", receivedAt: new Date().toISOString(), lastError: "Demo delivery failure" }],
-  outbox: [{ id: "job_demo_failed", kind: "meta_conversion", state: "failed", attemptCount: 6, createdAt: new Date().toISOString(), lastError: "Demo token rejected" }]
+  outbox: [{ id: "job_demo_failed", kind: "meta_conversion", state: "failed", attemptCount: 6, createdAt: new Date().toISOString(), lastError: "Demo token rejected" }],
+  reconciliationRuns: [{ id: "reconcile_demo", state: "complete", startedAt: new Date().toISOString(), attempted: 24, succeeded: 24, failed: 0, providerAccess: "read_only" }],
+  providerTokenVault: { encryptedTokens: 12, keys: [{ keyId: "staging-2026-08", tokens: 12 }] }
 };
 const demoInventory = { summary: [{ sheetTab: "Steam English", available: 42, assigned: 318 }, { sheetTab: "Steam Japanese", available: 8, assigned: 94 }, { sheetTab: "Itch English", available: 27, assigned: 71 }], recentFulfillments: [] };
 const demoAudit = { entries: [{ id: "audit_demo", actorEmail: "owner@wonderlang.net", action: "catalog.price.change", targetType: "catalog", targetId: "monthly", summary: "Changed monthly price for new checkouts", createdAt: new Date().toISOString() }] };
@@ -136,8 +138,12 @@ function renderImports() {
 function renderOperations(data) {
   const outbox = (data.outbox || []).map((j) => [formatDate(j.createdAt), j.kind, j.state, j.attemptCount ?? 0, jsonCell(j.lastError), j.state === "failed" ? `<button class="text-button" data-retry-job="${escapeHtml(j.id)}">Retry</button>` : "—"]);
   const events = (data.providerEvents || []).map((e) => [formatDate(e.receivedAt), e.provider, e.eventType, e.status, jsonCell(e.lastError), e.status === "failed" ? `<button class="text-button" data-release-event="${escapeHtml(e.id)}">Release</button>` : "—"]);
-  return `${pageIntro("DELIVERY CONTROL", "Every side effect is traceable.", "Webhook ingestion and asynchronous work are idempotent. Only terminal failures can be manually retried.")}
-  <section class="panel"><header><div><p class="section-kicker">OUTBOX</p><h3>Queued operations</h3></div></header>${table(["Created", "Kind", "State", "Attempts", "Last error", "Action"], outbox)}</section>
+  const reconciliation = (data.reconciliationRuns || []).map((r) => [formatDate(r.startedAt), r.state, r.attempted ?? 0, r.succeeded ?? 0, r.failed ?? 0, r.providerAccess || "read_only"]);
+  const tokenKeys = (data.providerTokenVault?.keys || []).map((k) => [k.keyId, k.tokens]);
+  return `${pageIntro("DELIVERY CONTROL", "Every side effect is traceable.", "Webhook ingestion, asynchronous work, and read-only provider reconciliation are idempotent. Only terminal failures can be manually retried.")}
+  <section class="panel"><header><div><p class="section-kicker">SUBSCRIPTION RECONCILIATION</p><h3>Missed-webhook safety</h3></div></header>${table(["Started", "State", "Checked", "Succeeded", "Failed", "Provider access"], reconciliation)}</section>
+  <section class="panel spaced"><header><div><p class="section-kicker">PROVIDER TOKEN VAULT</p><h3>${Number(data.providerTokenVault?.encryptedTokens || 0).toLocaleString()} encrypted Play subscription tokens</h3></div></header><p class="panel-copy">Only key identifiers and token counts are visible here; purchase tokens and key material never leave the server vault.</p>${table(["Encryption key ID", "Tokens"], tokenKeys)}</section>
+  <section class="panel spaced"><header><div><p class="section-kicker">OUTBOX</p><h3>Queued operations</h3></div></header>${table(["Created", "Kind", "State", "Attempts", "Last error", "Action"], outbox)}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">PROVIDER EVENTS</p><h3>Webhook ledger</h3></div></header>${table(["Received", "Provider", "Type", "Status", "Last error", "Action"], events)}</section>`;
 }
 
@@ -153,7 +159,7 @@ function renderAudit(data) {
 }
 
 function renderSettings(data) {
-  const switches = ["Stripe webhooks", "Google Play webhooks", "Apple webhooks", "Outbox worker", "Ad conversions", "Legacy fulfillment"];
+  const switches = ["Stripe webhooks", "Google Play webhooks", "Apple webhooks", "Outbox worker", "Subscription reconciliation", "Ad conversions", "Legacy fulfillment"];
   return `${pageIntro("SECURITY & SETUP", "Test mode is enforced by the server.", "The visible label is informational; secret-key mode and administrator claims are validated on every protected request.")}
   <section class="settings-grid"><article class="panel detail-card"><header><div><p class="section-kicker">ADMIN SESSION</p><h3>${escapeHtml(data.actor?.email || state.user?.email)}</h3></div></header><dl class="definition-grid"><div><dt>Firebase UID</dt><dd>${escapeHtml(data.actor?.uid || "Demo")}</dd></div><div><dt>Signed in through</dt><dd>${escapeHtml((data.providers || ["demo"]).join(", "))}</dd></div><div><dt>Authorization</dt><dd>Server-verified admin claim</dd></div><div><dt>Capabilities</dt><dd>${escapeHtml((data.capabilities || []).join(", "))}</dd></div></dl></article>
   <article class="panel"><header><div><p class="section-kicker">DEPLOYMENT GUARDS</p><h3>${escapeHtml(state.config.environment || "Unknown")} environment</h3></div></header><div class="guard-list">${switches.map((s) => `<div><span>${s}</span><b>Configured in Netlify</b></div>`).join("")}</div></article></section>

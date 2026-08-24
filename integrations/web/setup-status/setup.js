@@ -9,7 +9,8 @@ const configLabels = {
   legacyFulfillment: ["Sheets & MailerLite", "Legacy key delivery credentials (kept disabled initially)"],
   adDelivery: ["Ad test delivery", "Meta and TikTok credentials (not needed for account tests)"],
   googlePlay: ["Google Play sandbox", "Developer API and authenticated RTDN"],
-  appleStore: ["App Store sandbox", "Server API, notification certificates and IDs"]
+  appleStore: ["App Store sandbox", "Server API, notification certificates and IDs"],
+  providerTokenEncryption: ["Provider token vault", "Netlify-only AES-256-GCM key ring for Play subscription recovery"]
 };
 const controlLabels = {
   STRIPE_WEBHOOKS_ENABLED: "Stripe webhooks",
@@ -21,7 +22,8 @@ const controlLabels = {
   SUBSCRIPTION_CANCELLATION_ENABLED: "Subscription cancellation",
   ACCOUNT_DELETION_PROCESSING_ENABLED: "Account deletion purge",
   STRIPE_MUTATIONS_ENABLED: "Stripe mutations",
-  APP_CHECK_ENFORCEMENT_ENABLED: "Firebase App Check enforcement"
+  APP_CHECK_ENFORCEMENT_ENABLED: "Firebase App Check enforcement",
+  SUBSCRIPTION_RECONCILIATION_ENABLED: "Daily subscription reconciliation"
 };
 
 function escapeHtml(value) {
@@ -48,7 +50,7 @@ async function load() {
   if (demo) {
     render({
       status: "configuration_required", environment: "test", safeMode: true, deploy: "local-preview",
-      configuration: { firebaseAdmin: false, firebaseWeb: false, stripeTest: false, legacyFulfillment: false, adDelivery: false, googlePlay: false, appleStore: false },
+      configuration: { firebaseAdmin: false, firebaseWeb: false, stripeTest: false, legacyFulfillment: false, adDelivery: false, googlePlay: false, appleStore: false, providerTokenEncryption: false },
       controls: Object.fromEntries(Object.keys(controlLabels).map((key) => [key, false]))
     });
     return;

@@ -6,7 +6,7 @@
 2. Set `APP_ENVIRONMENT=test`. The service refuses a live or unrecognized Stripe secret key in this mode.
 3. Use a separate Firebase test project. Do not copy production Firebase Admin credentials because the Firestore collections are intentionally real, not mocked or namespaced.
 4. Use Stripe test products, Prices, Coupon and webhook secret. Never copy the production Stripe secret or webhook secret into this project.
-5. Initially keep `STRIPE_WEBHOOKS_ENABLED`, `GOOGLE_PLAY_WEBHOOKS_ENABLED`, `APPLE_WEBHOOKS_ENABLED`, `OUTBOX_PROCESSING_ENABLED`, `AD_CONVERSIONS_ENABLED`, `LEGACY_FULFILLMENT_ENABLED`, `SUBSCRIPTION_CANCELLATION_ENABLED` and `STRIPE_MUTATIONS_ENABLED` set to `false`.
+5. Initially keep `STRIPE_WEBHOOKS_ENABLED`, `GOOGLE_PLAY_WEBHOOKS_ENABLED`, `APPLE_WEBHOOKS_ENABLED`, `OUTBOX_PROCESSING_ENABLED`, `AD_CONVERSIONS_ENABLED`, `LEGACY_FULFILLMENT_ENABLED`, `SUBSCRIPTION_CANCELLATION_ENABLED`, `SUBSCRIPTION_RECONCILIATION_ENABLED` and `STRIPE_MUTATIONS_ENABLED` set to `false`.
 6. Do not copy production Meta/TikTok tokens into staging. Test event codes are not a substitute for isolation when delivery is not under test.
 7. The Google Sheets and MailerLite credentials may be added later only for an intentional fulfillment canary, with the outbox and legacy-fulfillment switches still off until the exact test begins.
 8. After creating a verified Firebase test user, grant operations access with `npm run admin:set-claim -- --email you@example.com --confirm "SET ADMIN you@example.com"`. The script revokes existing sessions so the new claim cannot be missed by a cached token.
@@ -83,6 +83,7 @@ Stripe events:
 - Dashboard failed `providerEvents`, terminal `outbox` jobs, remaining keys per tab, subscription states and cloud storage growth.
 - Alert before any key tab reaches its chosen minimum and on any outbox job reaching ten attempts.
 - Reconcile Stripe/Play/App Store active subscriptions daily against grants; webhook delivery is the fast path, not the sole source of truth.
+- Before reconciliation testing, generate a distinct 32-byte staging key, install only the versioned `PROVIDER_TOKEN_ENCRYPTION_KEYS` JSON in Netlify, and verify the operations-console token counts. During rotation, retain the old and new keys until every encrypted-token count has moved to the new key ID.
 - Export/back up Firestore before schema migrations. Never edit grants manually; use an audited admin-grant endpoint/tool with actor, reason and expiry.
 - Publish privacy-policy and terms updates for account data, cloud saves, recurring billing and cross-device processing.
 

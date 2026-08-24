@@ -63,13 +63,14 @@ export class AdminOperationsService {
 
   async overview(): Promise<Record<string, unknown>> {
     const entitlements = this.db.collection("entitlements");
-    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, inventory, recent] = await Promise.all([
+    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, inventory, recent] = await Promise.all([
       this.count(entitlements.where("accessKind", "==", "subscription").where("subscriptionState", "==", "active")),
       this.count(entitlements.where("accessKind", "==", "permanent")),
       this.count(entitlements.where("accessKind", "==", "premium_lifetime")),
       this.count(entitlements.where("subscriptionState", "==", "grace")),
       this.count(this.db.collection("outbox").where("state", "==", "failed")),
       this.count(this.db.collection("providerEvents").where("status", "==", "failed")),
+      this.count(this.db.collection("providerSubscriptions").where("lastReconciliationState", "==", "failed")),
       this.inventorySummary(),
       this.db.collection("grants").orderBy("startsAt", "desc").limit(12).get()
     ]);
@@ -79,14 +80,14 @@ export class AdminOperationsService {
       users.set(uid, await this.auth.getUser(uid).catch(() => undefined));
     }));
     const lowStock = inventory.filter((row) => row.available <= 10);
-    const failedOperations = failedOutbox + failedEvents;
+    const failedOperations = failedOutbox + failedEvents + failedReconciliations;
     const alerts = [
-      ...(failedOperations ? [{ tone: "danger", title: `${failedOperations} operation${failedOperations === 1 ? "" : "s"} need attention`, detail: "Review failed webhooks and retryable jobs", action: "Open operations" }] : []),
+      ...(failedOperations ? [{ tone: "danger", title: `${failedOperations} operation${failedOperations === 1 ? "" : "s"} need attention`, detail: "Review failed webhooks, jobs, and provider reconciliation", action: "Open operations" }] : []),
       ...lowStock.slice(0, 3).map((row) => ({ tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available`, action: "Review inventory" })),
       ...(graceSubscriptions ? [{ tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];
     return {
-      metrics: { activeSubscriptions, permanentCustomers, premiumCustomers, lifetimeCustomers: permanentCustomers + premiumCustomers, graceSubscriptions, failedOperations },
+      metrics: { activeSubscriptions, permanentCustomers, premiumCustomers, lifetimeCustomers: permanentCustomers + premiumCustomers, graceSubscriptions, failedOperations, failedReconciliations },
       alerts,
       activity: recentRows.map((row) => {
         const user = users.get(String(row.uid ?? ""));
@@ -317,11 +318,27 @@ export class AdminOperationsService {
   }
 
   async operations(): Promise<Record<string, unknown>> {
-    const [events, outbox] = await Promise.all([
+    const [events, outbox, reconciliationRuns, providerSecrets] = await Promise.all([
       this.db.collection("providerEvents").orderBy("receivedAt", "desc").limit(80).get(),
-      this.db.collection("outbox").orderBy("createdAt", "desc").limit(80).get()
+      this.db.collection("outbox").orderBy("createdAt", "desc").limit(80).get(),
+      this.db.collection("subscriptionReconciliationRuns").orderBy("startedAt", "desc").limit(30).get(),
+      this.db.collection("providerSecrets").select("encrypted.keyId").get()
     ]);
-    return { providerEvents: dataRows(events), outbox: dataRows(outbox) };
+    const tokensByKeyId = new Map<string, number>();
+    for (const secret of providerSecrets.docs) {
+      const keyId = secret.get("encrypted.keyId");
+      const label = typeof keyId === "string" && keyId ? keyId : "invalid_or_unknown";
+      tokensByKeyId.set(label, (tokensByKeyId.get(label) ?? 0) + 1);
+    }
+    return {
+      providerEvents: dataRows(events),
+      outbox: dataRows(outbox),
+      reconciliationRuns: dataRows(reconciliationRuns),
+      providerTokenVault: {
+        encryptedTokens: providerSecrets.size,
+        keys: [...tokensByKeyId.entries()].map(([keyId, tokens]) => ({ keyId, tokens })).sort((a, b) => a.keyId.localeCompare(b.keyId))
+      }
+    };
   }
 
   async retryOutbox(input: { actor: AdminActor; jobId: string; reason: string; now: Date }): Promise<void> {

@@ -26,6 +26,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - Stripe Checkout, Billing Portal, lifecycle webhooks, refunds/disputes, seven-day grace and conversion policy.
 - Google Play Developer API verification, backend acknowledgment, OIDC-authenticated RTDN and token replay prevention.
 - Apple official JWS verification for StoreKit 2 and App Store Server Notifications V2.
+- Scheduled Stripe, Google Play and Apple subscription reconciliation, with an exclusive lease, per-subscription retry backoff and an operations-console run history. Provider access is read-only; Google Play bearer tokens are AES-256-GCM encrypted with a rotatable Netlify-only key ring.
 - Transactional legacy key allocation with retryable Google Sheets and MailerLite mirroring.
 - Meta/TikTok server conversion outbox with real checkout attribution, stable event IDs, pre-storage email hashing, and correct zero-decimal currency values.
 - Versioned SHA-256-verified cloud saves using short-lived staging URLs, immutable finalized revisions and conflict detection.
@@ -51,7 +52,7 @@ Copy `.env.example` to a secure local environment source. Never commit private k
 - `src/infrastructure`: Firebase initialization, durable ledger, inbox and outbox.
 - `src/cloud-save`: upload integrity, revisions and conflict control.
 - `src/legacy`: migrated key fulfillment and exact legacy Payment Link routing.
-- `netlify/functions`: account API, provider webhooks and scheduled outbox worker.
+- `netlify/functions`: account API, provider webhooks, scheduled outbox worker and subscription reconciliation worker.
 - `integrations`: website widget plus clean-room game/mobile adapters.
 - `src/admin`: audited admin workflows and two-step financial confirmations.
 - `src/catalog`: versioned current prices with immutable Stripe Price history.

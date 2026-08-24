@@ -69,6 +69,7 @@ button { touch-action: manipulation; }
 .panel { border: 1px solid var(--line); border-radius: 17px; background: var(--panel); box-shadow: var(--shadow); }
 .panel > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; border-bottom: 1px solid var(--line); }
 .panel h3 { margin: 0; font: 600 23px/1.1 Georgia, serif; }
+.panel-copy { margin: 0; padding: 18px 24px; color: var(--muted); line-height: 1.5; }
 .text-button { min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--green); cursor: pointer; font-size: 12px; font-weight: 900; }
 .alert-list { display: grid; }
 .alert-row { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 13px; min-height: 76px; padding: 15px 24px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; text-align: left; }

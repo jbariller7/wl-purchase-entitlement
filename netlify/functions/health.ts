@@ -16,7 +16,8 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     legacyFulfillment: present("GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PRIVATE_KEY", "GOOGLE_SHEET_ID", "MAILERLITE_API_TOKEN"),
     adDelivery: present("META_PIXEL_ID", "META_ACCESS_TOKEN", "TIKTOK_PIXEL_ID", "TIKTOK_ACCESS_TOKEN"),
     googlePlay: present("GOOGLE_PLAY_PACKAGE_NAME", "GOOGLE_PLAY_RTDN_AUDIENCE", "GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL"),
-    appleStore: present("APPLE_BUNDLE_ID", "APPLE_KEY_ID", "APPLE_ISSUER_ID", "APPLE_PRIVATE_KEY", "APPLE_ROOT_CA_G2_BASE64", "APPLE_ROOT_CA_G3_BASE64")
+    appleStore: present("APPLE_BUNDLE_ID", "APPLE_KEY_ID", "APPLE_ISSUER_ID", "APPLE_PRIVATE_KEY", "APPLE_ROOT_CA_G2_BASE64", "APPLE_ROOT_CA_G3_BASE64"),
+    providerTokenEncryption: present("PROVIDER_TOKEN_ENCRYPTION_KEYS")
   };
   const readyForAccountTesting = configuration.firebaseAdmin && configuration.firebaseWeb && configuration.stripeTest;
   return {
@@ -30,7 +31,7 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     body: JSON.stringify({
       status: readyForAccountTesting ? "ready_for_account_testing" : "configuration_required",
       environment: controls.APP_ENVIRONMENT,
-      safeMode: !controls.STRIPE_WEBHOOKS_ENABLED && !controls.GOOGLE_PLAY_WEBHOOKS_ENABLED && !controls.APPLE_WEBHOOKS_ENABLED && !controls.OUTBOX_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED && !controls.LEGACY_FULFILLMENT_ENABLED && !controls.SUBSCRIPTION_CANCELLATION_ENABLED && !controls.ACCOUNT_DELETION_PROCESSING_ENABLED && !controls.STRIPE_MUTATIONS_ENABLED,
+      safeMode: !controls.STRIPE_WEBHOOKS_ENABLED && !controls.GOOGLE_PLAY_WEBHOOKS_ENABLED && !controls.APPLE_WEBHOOKS_ENABLED && !controls.OUTBOX_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED && !controls.LEGACY_FULFILLMENT_ENABLED && !controls.SUBSCRIPTION_CANCELLATION_ENABLED && !controls.ACCOUNT_DELETION_PROCESSING_ENABLED && !controls.STRIPE_MUTATIONS_ENABLED && !controls.SUBSCRIPTION_RECONCILIATION_ENABLED,
       controls,
       configuration,
       deploy: process.env.COMMIT_REF?.slice(0, 12) ?? null

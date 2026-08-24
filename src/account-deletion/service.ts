@@ -123,7 +123,14 @@ export class AccountDeletionService {
     return { state: "canceled", uid: input.uid };
   }
 
-  private async rewriteUid(query: Query, uid: string, replacement: string, now: Date, scrubMetadata = false): Promise<number> {
+  private async rewriteUid(
+    query: Query,
+    uid: string,
+    replacement: string,
+    now: Date,
+    scrubMetadata = false,
+    additional: Record<string, unknown> = {}
+  ): Promise<number> {
     const snapshot = await query.where("uid", "==", uid).get();
     let count = 0;
     for (let offset = 0; offset < snapshot.docs.length; offset += 400) {
@@ -132,6 +139,7 @@ export class AccountDeletionService {
         batch.set(doc.ref, {
           uid: replacement,
           ...(scrubMetadata ? { metadata: { accountDeleted: true } } : {}),
+          ...additional,
           accountDeletedAt: now.toISOString()
         }, { merge: true });
         count += 1;
@@ -289,6 +297,7 @@ export class AccountDeletionService {
       this.deleteQuery(this.db.collection("cloudSaveUploads").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("checkoutContexts").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("subscriptionContexts").where("uid", "==", uid)),
+      this.deleteQuery(this.db.collection("providerSecrets").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("pendingImports").where("claimedByUid", "==", uid)),
       this.deleteQuery(this.db.collection("accountDeletionPreviews").where("uid", "==", uid))
     ]);
@@ -299,7 +308,12 @@ export class AccountDeletionService {
     const pseudonymizedRows = await Promise.all([
       this.rewriteUid(this.db.collection("grants"), uid, deletedUid, now, true),
       this.rewriteUid(this.db.collection("providerTransactions"), uid, deletedUid, now),
-      this.rewriteUid(this.db.collection("providerSubscriptions"), uid, deletedUid, now),
+      this.rewriteUid(this.db.collection("providerSubscriptions"), uid, deletedUid, now, false, {
+        nextReconciliationAt: null,
+        reconcileUntil: null,
+        lastReconciliationError: FieldValue.delete(),
+        reconciliationDisabledReason: "account_deleted"
+      }),
       this.rewriteUid(this.db.collection("providerCustomers"), uid, deletedUid, now)
     ]);
     const batch = this.db.batch();

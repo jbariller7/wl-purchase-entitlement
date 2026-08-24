@@ -16,6 +16,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AccountDeletionService } from "../src/account-deletion/service.js";
 import { EntitlementStore } from "../src/infrastructure/entitlement-store.js";
 import { sha256, stableDocumentId } from "../src/infrastructure/ids.js";
+import {
+  FirestoreSubscriptionReconciliationRepository,
+  type SubscriptionReconciliationTarget
+} from "../src/reconciliation/subscription-reconciler.js";
 
 const projectId = "demo-wonderlang-entitlements";
 const bucketUrl = "gs://" + projectId + ".appspot.com";
@@ -146,6 +150,117 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
     }
   });
 
+  it("schedules active subscriptions and stops revoked subscriptions from reconciliation", async () => {
+    const app = initializeApp({ projectId }, `reconciliation-schedule-${Date.now()}`);
+    const database = getAdminFirestore(app);
+    const store = new EntitlementStore(database);
+    const eventCreated = Math.floor(Date.now() / 1000);
+    const grant = {
+      id: "",
+      uid: "subscriber-schedule-test",
+      provider: "stripe" as const,
+      providerTransactionId: "sub_schedule_test",
+      providerSubscriptionId: "sub_schedule_test",
+      product: "mobile_full_monthly" as const,
+      state: "active" as const,
+      startsAt: new Date(eventCreated * 1000).toISOString()
+    };
+    const subscriptionRef = database.collection("providerSubscriptions").doc(
+      stableDocumentId("stripe", "sub_schedule_test")
+    );
+    try {
+      await store.upsertGrant(grant, { id: "active", created: eventCreated });
+      expect((await subscriptionRef.get()).data()).toMatchObject({
+        product: "mobile_full_monthly",
+        state: "active"
+      });
+      expect(typeof (await subscriptionRef.get()).data()?.nextReconciliationAt).toBe("string");
+
+      await store.upsertGrant({ ...grant, state: "expired", endsAt: new Date().toISOString() }, {
+        id: "expired",
+        created: eventCreated + 1
+      });
+      const expired = (await subscriptionRef.get()).data();
+      expect(expired?.state).toBe("expired");
+      expect(Date.parse(String(expired?.reconcileUntil))).toBeGreaterThan(Date.now());
+      expect(typeof expired?.nextReconciliationAt).toBe("string");
+
+      await store.upsertGrant({ ...grant, state: "revoked", endsAt: new Date().toISOString() }, {
+        id: "revoked",
+        created: eventCreated + 2
+      });
+      expect((await subscriptionRef.get()).data()).toMatchObject({
+        state: "revoked",
+        nextReconciliationAt: null,
+        reconcileUntil: null
+      });
+    } finally {
+      await deleteApp(app);
+    }
+  });
+
+  it("cannot re-enable reconciliation after an account-deletion race", async () => {
+    const app = initializeApp({ projectId }, `reconciliation-deletion-race-${Date.now()}`);
+    const database = getAdminFirestore(app);
+    const id = stableDocumentId("stripe", "sub_deleted_race");
+    const ref = database.collection("providerSubscriptions").doc(id);
+    const target: SubscriptionReconciliationTarget = {
+      id,
+      provider: "stripe",
+      providerSubscriptionId: "sub_deleted_race",
+      uid: "original-user",
+      state: "active"
+    };
+    const repository = new FirestoreSubscriptionReconciliationRepository(database);
+    try {
+      await ref.set({
+        uid: "deleted_uid_hash",
+        state: "active",
+        reconciliationDisabledReason: "account_deleted",
+        nextReconciliationAt: null
+      });
+      await database.collection("grants").doc("deleted-race-grant").set({
+        uid: "deleted_uid_hash",
+        provider: "stripe",
+        providerSubscriptionId: "sub_deleted_race",
+        product: "mobile_full_monthly",
+        state: "active",
+        metadata: { accountDeleted: true }
+      });
+      await expect(repository.bootstrap(new Date())).resolves.toBe(0);
+      expect((await ref.get()).data()?.nextReconciliationAt).toBeNull();
+      await new EntitlementStore(database).upsertGrant({
+        id: "",
+        uid: "deleted_uid_hash",
+        provider: "stripe",
+        providerTransactionId: "sub_deleted_race",
+        providerSubscriptionId: "sub_deleted_race",
+        product: "mobile_full_monthly",
+        state: "active",
+        startsAt: new Date().toISOString()
+      }, { id: "late-webhook", created: Math.floor(Date.now() / 1000) });
+      expect((await ref.get()).data()).toMatchObject({
+        nextReconciliationAt: null,
+        reconcileUntil: null,
+        reconciliationDisabledReason: "account_deleted"
+      });
+      await repository.markFailed(target, "run-after-delete", new Error("late provider result"), new Date());
+      expect((await ref.get()).data()).toMatchObject({
+        nextReconciliationAt: null,
+        lastReconciliationState: "disabled",
+        lastReconciliationError: null
+      });
+      await ref.update({ nextReconciliationAt: new Date().toISOString() });
+      await repository.markSucceeded(target, "run-after-delete", new Date());
+      expect((await ref.get()).data()).toMatchObject({
+        nextReconciliationAt: null,
+        lastReconciliationState: "disabled"
+      });
+    } finally {
+      await deleteApp(app);
+    }
+  });
+
   it("pseudonymizes linked purchase records and cancels personal outbox work on final account deletion", async () => {
     const app = initializeApp({ projectId }, `account-deletion-${Date.now()}`);
     const database = getAdminFirestore(app);
@@ -174,6 +289,15 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         database.collection("entitlements").doc(uid).set({ uid }),
         database.collection("grants").doc("grant-delete-me").set({ uid, metadata: { email: "buyer@example.com" } }),
         database.collection("providerTransactions").doc("transaction-delete-me").set({ uid }),
+        database.collection("providerSubscriptions").doc("subscription-delete-me").set({
+          uid,
+          nextReconciliationAt: "2026-08-25T12:00:00.000Z",
+          lastReconciliationError: "buyer@example.com failed"
+        }),
+        database.collection("providerSecrets").doc("secret-delete-me").set({
+          uid,
+          encrypted: { ciphertext: "encrypted-only" }
+        }),
         database.collection("legacyOrders").doc("order-delete-me").set({
           buyerEmail: "buyer@example.com",
           firebaseUid: uid,
@@ -222,13 +346,15 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         mailerLiteSubscribersForgotten: 1
       });
 
-      const [order, key, fulfillment, conversion, deletion, grant, user, tombstone] = await Promise.all([
+      const [order, key, fulfillment, conversion, deletion, grant, providerSubscription, providerSecret, user, tombstone] = await Promise.all([
         database.collection("legacyOrders").doc("order-delete-me").get(),
         database.collection("legacyKeys").doc("key-delete-me").get(),
         database.collection("outbox").doc("fulfillment-delete-me").get(),
         database.collection("outbox").doc("conversion-delete-me").get(),
         database.collection("outbox").doc("deletion-delete-me").get(),
         database.collection("grants").doc("grant-delete-me").get(),
+        database.collection("providerSubscriptions").doc("subscription-delete-me").get(),
+        database.collection("providerSecrets").doc("secret-delete-me").get(),
         database.collection("users").doc(uid).get(),
         database.collection("accountDeletionTombstones").doc(sha256(uid)).get()
       ]);
@@ -240,6 +366,13 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
       expect(conversion.data()).not.toHaveProperty("lastError");
       expect(deletion.data()?.payload).toEqual({ uid });
       expect(grant.data()).toMatchObject({ uid: deletedUid, metadata: { accountDeleted: true } });
+      expect(providerSubscription.data()).toMatchObject({
+        uid: deletedUid,
+        nextReconciliationAt: null,
+        reconciliationDisabledReason: "account_deleted"
+      });
+      expect(providerSubscription.data()).not.toHaveProperty("lastReconciliationError");
+      expect(providerSecret.exists).toBe(false);
       expect(user.exists).toBe(false);
       expect(tombstone.data()?.deletedUid).toBe(deletedUid);
       expect(deletedAuthUsers).toEqual([uid]);

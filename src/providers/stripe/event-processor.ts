@@ -117,6 +117,18 @@ async function syncSubscription(input: {
   return { uid, subscription, state };
 }
 
+export async function reconcileStripeSubscription(input: {
+  store: EntitlementStore;
+  providerSubscriptionId: string;
+  eventId: string;
+  eventCreated: number;
+}): Promise<{ uid?: string; subscription?: Stripe.Subscription; state?: LedgerGrant["state"] }> {
+  // Only id and created are consumed by syncSubscription. Provider state is
+  // always retrieved fresh from Stripe before the local ledger is updated.
+  const event = { id: input.eventId, created: input.eventCreated } as Stripe.Event;
+  return syncSubscription({ store: input.store, subscriptionId: input.providerSubscriptionId, event });
+}
+
 async function enqueueAdConversion(input: {
   store: EntitlementStore;
   event: Stripe.Event;

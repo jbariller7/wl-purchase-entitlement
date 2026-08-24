@@ -5,6 +5,7 @@ import type { EffectiveEntitlements, LedgerGrant } from "../../domain/model.js";
 import { HttpError } from "../../http/auth.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import { sha256 } from "../../infrastructure/ids.js";
+import { assertProviderTokenEncryptionConfigured } from "../../infrastructure/provider-token-crypto.js";
 import { chapterMigrationGrant } from "../../domain/legacy-chapter-migration.js";
 
 let publisher: androidpublisher_v3.Androidpublisher | undefined;
@@ -70,7 +71,9 @@ export async function syncGooglePlaySubscription(input: {
   authenticatedUid?: string;
   eventId: string;
   eventCreated: number;
+  acknowledge?: boolean;
 }): Promise<EffectiveEntitlements> {
+  assertProviderTokenEncryptionConfigured();
   const api = await androidPublisher();
   const response = await api.purchases.subscriptionsv2.get({
     packageName: env().GOOGLE_PLAY_PACKAGE_NAME,
@@ -113,7 +116,13 @@ export async function syncGooglePlaySubscription(input: {
       latestOrderId: purchase.lineItems?.[0]?.latestSuccessfulOrderId ?? purchase.latestOrderId ?? ""
     }
   }, { id: input.eventId, created: input.eventCreated });
-  if (purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
+  await input.store.saveGooglePlaySubscriptionToken({
+    uid,
+    providerSubscriptionId: transactionId,
+    purchaseToken: input.purchaseToken,
+    now: new Date(input.eventCreated * 1000)
+  });
+  if (input.acknowledge !== false && purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
     await api.purchases.subscriptions.acknowledge({
       packageName: env().GOOGLE_PLAY_PACKAGE_NAME,
       subscriptionId: env().GOOGLE_PLAY_MONTHLY_PRODUCT_ID,
@@ -130,8 +139,35 @@ export async function syncGooglePlaySubscription(input: {
       sourceEvent: { id: input.eventId, created: input.eventCreated },
       at: new Date(input.eventCreated * 1000)
     });
+    await input.store.deleteGooglePlaySubscriptionToken(linkedTransaction);
   }
   return input.store.effectiveEntitlements(uid, new Date());
+}
+
+export async function reconcileGooglePlaySubscription(input: {
+  store: EntitlementStore;
+  uid: string;
+  providerSubscriptionId: string;
+  eventId: string;
+  eventCreated: number;
+}): Promise<EffectiveEntitlements> {
+  const purchaseToken = await input.store.googlePlaySubscriptionToken({
+    uid: input.uid,
+    providerSubscriptionId: input.providerSubscriptionId
+  });
+  if (tokenId(purchaseToken) !== input.providerSubscriptionId) {
+    throw new Error("Encrypted Google Play subscription token does not match its ledger identifier.");
+  }
+  return syncGooglePlaySubscription({
+    store: input.store,
+    purchaseToken,
+    authenticatedUid: input.uid,
+    eventId: input.eventId,
+    eventCreated: input.eventCreated,
+    // Reconciliation reads provider state; only the authenticated purchase or
+    // webhook flow is allowed to acknowledge a purchase at Google Play.
+    acknowledge: false
+  });
 }
 
 export async function syncGooglePlayOneTimeProduct(input: {

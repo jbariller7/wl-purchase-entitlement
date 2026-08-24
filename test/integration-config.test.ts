@@ -46,6 +46,7 @@ describe("isolated integration configuration", () => {
       "health",
       "outbox-worker",
       "stripe-webhook",
+      "subscription-reconciliation",
     ];
 
     expect(packageJson).toContain('"@netlify/aws-lambda-compat"');
@@ -74,6 +75,24 @@ describe("isolated integration configuration", () => {
     expect(example).toMatch(/^LEGACY_FULFILLMENT_ENABLED=false$/m);
     expect(example).toMatch(/^ACCOUNT_DELETION_PROCESSING_ENABLED=false$/m);
     expect(example).toMatch(/^APP_CHECK_ENFORCEMENT_ENABLED=false$/m);
+    expect(example).toMatch(/^SUBSCRIPTION_RECONCILIATION_ENABLED=false$/m);
+    expect(example).toMatch(/^PROVIDER_TOKEN_ENCRYPTION_KEYS=$/m);
+    expect(netlify).toMatch(/\[functions\."subscription-reconciliation"\][\s\S]*schedule\s*=\s*"17 \* \* \* \*"/);
+  });
+
+  it("keeps scheduled reconciliation read-only at every billing provider", () => {
+    const stripe = read("src/providers/stripe/event-processor.ts");
+    const play = read("src/providers/google-play/service.ts");
+    const apple = read("src/providers/apple/service.ts");
+    const worker = read("netlify/functions/subscription-reconciliation.ts");
+    expect(stripe).toContain("reconcileStripeSubscription");
+    expect(stripe).toContain("subscriptions.retrieve");
+    expect(play).toContain("reconcileGooglePlaySubscription");
+    expect(play).toContain("acknowledge: false");
+    expect(apple).toContain("reconcileAppleSubscription");
+    expect(apple).toContain("getAllSubscriptionStatuses");
+    expect(worker).toContain("SUBSCRIPTION_RECONCILIATION_ENABLED");
+    expect(worker).not.toMatch(/cancel|refund|acknowledge/i);
   });
 
   it("requests the verified Apple identity fields used for secure account linking", () => {

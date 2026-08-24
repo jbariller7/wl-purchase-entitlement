@@ -43,7 +43,8 @@ describe("deployment safety", () => {
       SUBSCRIPTION_CANCELLATION_ENABLED: false,
       ACCOUNT_DELETION_PROCESSING_ENABLED: false,
       STRIPE_MUTATIONS_ENABLED: false,
-      APP_CHECK_ENFORCEMENT_ENABLED: false
+      APP_CHECK_ENFORCEMENT_ENABLED: false,
+      SUBSCRIPTION_RECONCILIATION_ENABLED: false
     });
   });
 });

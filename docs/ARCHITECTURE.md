@@ -16,6 +16,8 @@ Firebase Auth answers **who is the player**. Stripe, Google Play and Apple answe
 
 Key allocation, MailerLite, ads and subscription cancellation are not performed inside the provider webhook. This prevents a temporary third-party outage from losing a paid order.
 
+The scheduled reconciliation worker is the second recovery path. It leases one run, finds due monthly subscriptions, performs only provider reads, and feeds current Stripe/Play/App Store state through the same monotonic ledger writers. Healthy subscriptions are checked at most once per 24 hours; individual failures receive exponential retry backoff and do not stop other providers. Expired subscriptions remain eligible for recovery checks for 90 days. The feature is separately fail-closed behind `SUBSCRIPTION_RECONCILIATION_ENABLED`.
+
 Final account deletion clears the linked buyer-email cells from the legacy key Sheet and sends each linked MailerLite subscriber through its GDPR forget endpoint before removing the local coordinates. Both calls are idempotent and run only inside the separately gated deletion outbox worker.
 
 ## Entitlement precedence
@@ -33,6 +35,8 @@ An active monthly grant ends at the provider period end unless a newer provider 
 - `users/{uid}`: provider customer link and random store account token.
 - `providerEvents/{hash}`: durable idempotency inbox containing event metadata and a payload digest, never the raw provider payload.
 - `providerCustomers`, `providerSubscriptions`, `providerTransactions`: uniqueness indexes to UID/grant.
+- `providerSecrets/{hash}`: server-only AES-256-GCM ciphertext for Google Play subscription tokens, authenticated to the provider subscription hash and Firebase UID. Key material exists only in Netlify.
+- `subscriptionReconciliationRuns`: aggregate run history without purchase tokens or customer identities.
 - `grants/{hash}`: normalized provider truth.
 - `entitlements/{uid}`: cached projection; APIs also project from current grants/time.
 - `legacyOrders`, `legacyDiscountClaims`: verified historical purchases and one-use reservation/redemption.

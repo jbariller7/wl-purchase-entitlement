@@ -13,7 +13,8 @@ const controlsSchema = z.object({
   SUBSCRIPTION_CANCELLATION_ENABLED: disabledByDefault,
   ACCOUNT_DELETION_PROCESSING_ENABLED: disabledByDefault,
   STRIPE_MUTATIONS_ENABLED: disabledByDefault,
-  APP_CHECK_ENFORCEMENT_ENABLED: disabledByDefault
+  APP_CHECK_ENFORCEMENT_ENABLED: disabledByDefault,
+  SUBSCRIPTION_RECONCILIATION_ENABLED: disabledByDefault
 });
 
 const schema = controlsSchema.extend({
@@ -45,6 +46,7 @@ const schema = controlsSchema.extend({
   GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: z.string().optional().default("wonderlangfull"),
   GOOGLE_PLAY_RTDN_AUDIENCE: z.string().optional(),
   GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
+  PROVIDER_TOKEN_ENCRYPTION_KEYS: z.string().optional(),
   APPLE_BUNDLE_ID: z.string().optional(),
   APPLE_APP_ID: z.string().regex(/^\d+$/).optional(),
   APPLE_MONTHLY_PRODUCT_ID: z.string().optional().default("wonderlangmonthly"),

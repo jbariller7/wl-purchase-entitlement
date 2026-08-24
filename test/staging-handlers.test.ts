@@ -27,6 +27,7 @@ import { lambdaHandler as googlePlayHandler } from "../netlify/functions/google-
 import { lambdaHandler as healthHandler } from "../netlify/functions/health.js";
 import { lambdaHandler as outboxHandler } from "../netlify/functions/outbox-worker.js";
 import { lambdaHandler as stripeHandler } from "../netlify/functions/stripe-webhook.js";
+import { lambdaHandler as reconciliationHandler } from "../netlify/functions/subscription-reconciliation.js";
 import { resetEnvironmentForTests } from "../src/config/env.js";
 
 const original = { ...process.env };
@@ -59,7 +60,8 @@ beforeEach(() => {
     STRIPE_WEBHOOKS_ENABLED: "false",
     GOOGLE_PLAY_WEBHOOKS_ENABLED: "false",
     APPLE_WEBHOOKS_ENABLED: "false",
-    OUTBOX_PROCESSING_ENABLED: "false"
+    OUTBOX_PROCESSING_ENABLED: "false",
+    SUBSCRIPTION_RECONCILIATION_ENABLED: "false"
   });
   resetEnvironmentForTests();
 });
@@ -84,6 +86,14 @@ describe("staging function boundaries", () => {
     const response = await outboxHandler(event(), {} as never);
     expect(response).toMatchObject({ statusCode: 200 });
     expect(JSON.parse(String(response?.body))).toEqual({ processed: 0, failed: 0 });
+  });
+
+  it("does not query billing providers while subscription reconciliation is disabled", async () => {
+    const response = await reconciliationHandler(event(), {} as never);
+    expect(response).toMatchObject({ statusCode: 200 });
+    expect(JSON.parse(String(response?.body))).toEqual({
+      state: "disabled", attempted: 0, succeeded: 0, failed: 0
+    });
   });
 
   it("reports safe mode without requiring or exposing credentials", async () => {

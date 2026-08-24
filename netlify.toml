@@ -13,6 +13,11 @@
 [functions."outbox-worker"]
   schedule = "*/5 * * * *"
 
+[functions."subscription-reconciliation"]
+  # The worker checks hourly, while each healthy subscription is scheduled no
+  # more than once per 24 hours. Frequent checks safely drain retry backlogs.
+  schedule = "17 * * * *"
+
 [[redirects]]
   from = "/"
   to = "/admin/"

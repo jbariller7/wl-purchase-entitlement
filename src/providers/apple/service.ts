@@ -1,4 +1,5 @@
 import {
+  AppStoreServerAPIClient,
   Environment,
   SignedDataVerifier,
   Status,
@@ -14,6 +15,24 @@ import type { EntitlementStore } from "../../infrastructure/entitlement-store.js
 import { chapterMigrationGrant } from "../../domain/legacy-chapter-migration.js";
 
 let verifier: SignedDataVerifier | undefined;
+let apiClient: AppStoreServerAPIClient | undefined;
+
+function appleApiClient(): AppStoreServerAPIClient {
+  if (apiClient) return apiClient;
+  const configuration = env();
+  if (!configuration.APPLE_PRIVATE_KEY || !configuration.APPLE_KEY_ID || !configuration.APPLE_ISSUER_ID || !configuration.APPLE_BUNDLE_ID) {
+    throw new Error("Apple App Store Server API credentials are not configured.");
+  }
+  const environment = configuration.APPLE_ENVIRONMENT === "Production" ? Environment.PRODUCTION : Environment.SANDBOX;
+  apiClient = new AppStoreServerAPIClient(
+    configuration.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    configuration.APPLE_KEY_ID,
+    configuration.APPLE_ISSUER_ID,
+    configuration.APPLE_BUNDLE_ID,
+    environment
+  );
+  return apiClient;
+}
 
 function appleVerifier(): SignedDataVerifier {
   if (verifier) return verifier;
@@ -194,4 +213,37 @@ export async function claimAppleTransaction(input: {
     eventId: `app-claim:${transaction.transactionId}`,
     eventCreated: Math.floor(input.now.getTime() / 1000)
   });
+}
+
+export async function reconcileAppleSubscription(input: {
+  store: EntitlementStore;
+  uid: string;
+  providerSubscriptionId: string;
+  eventId: string;
+  eventCreated: number;
+}): Promise<EffectiveEntitlements> {
+  const response = await appleApiClient().getAllSubscriptionStatuses(input.providerSubscriptionId);
+  const candidates = (response.data ?? [])
+    .flatMap((group) => group.lastTransactions ?? [])
+    .filter((item) => item.originalTransactionId === input.providerSubscriptionId && Boolean(item.signedTransactionInfo));
+  for (const candidate of candidates) {
+    const transaction = await appleVerifier().verifyAndDecodeTransaction(candidate.signedTransactionInfo as string);
+    if (
+      transaction.originalTransactionId !== input.providerSubscriptionId ||
+      transaction.productId !== env().APPLE_MONTHLY_PRODUCT_ID
+    ) continue;
+    const renewal = candidate.signedRenewalInfo
+      ? await appleVerifier().verifyAndDecodeRenewalInfo(candidate.signedRenewalInfo)
+      : undefined;
+    return applyAppleTransaction({
+      store: input.store,
+      transaction,
+      ...(renewal ? { renewal } : {}),
+      ...(candidate.status !== undefined ? { status: candidate.status } : {}),
+      authenticatedUid: input.uid,
+      eventId: input.eventId,
+      eventCreated: input.eventCreated
+    });
+  }
+  throw new Error("Apple subscription status response did not contain the linked WonderLang monthly subscription.");
 }
