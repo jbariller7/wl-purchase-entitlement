@@ -21,6 +21,7 @@ import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "../../
 import { sha256 } from "../../src/infrastructure/ids.js";
 import { claimAppleTransaction } from "../../src/providers/apple/service.js";
 import { ACCOUNT_DELETION_CONFIRMATION, AccountDeletionService } from "../../src/account-deletion/service.js";
+import { deleteDeviceSignInSessionsForUid, DeviceSignInService } from "../../src/device-sign-in/service.js";
 
 export const config: Config = {
   rateLimit: { windowSize: 60, windowLimit: 240, aggregateBy: ["domain", "ip"] }
@@ -38,6 +39,12 @@ const deletionCommitSchema = z.object({
   previewId: z.string().uuid(),
   confirmationPhrase: z.literal(ACCOUNT_DELETION_CONFIRMATION)
 });
+const deviceStartSchema = z.object({ deviceLabel: z.string().trim().min(1).max(64) });
+const devicePollSchema = z.object({
+  userCode: z.string().trim().min(8).max(9),
+  pollSecret: z.string().regex(/^[A-Za-z0-9_-]{43}$/)
+});
+const deviceApprovalSchema = z.object({ userCode: z.string().trim().min(8).max(9) });
 
 function routePath(event: HandlerEvent): string {
   return event.path
@@ -51,14 +58,19 @@ function clientIp(event: HandlerEvent): string | undefined {
   return requestHeader(event.headers, "x-forwarded-for")?.split(",")[0]?.trim();
 }
 
+function isPublicDeviceSignInRoute(path: string): boolean {
+  return path === "/v1/device-sign-in/start" || path === "/v1/device-sign-in/poll";
+}
+
 function withCors(event: HandlerEvent, response: HandlerResponse): HandlerResponse {
   const origin = requestHeader(event.headers, "origin");
   const allowed = apiAllowedOrigins(true);
+  const allowLocalFileOrigin = origin === "null" && isPublicDeviceSignInRoute(routePath(event));
   return {
     ...response,
     headers: {
       ...(response.headers ?? {}),
-      ...(origin && allowed.has(origin) ? { "access-control-allow-origin": origin } : {}),
+      ...(origin && (allowed.has(origin) || allowLocalFileOrigin) ? { "access-control-allow-origin": origin } : {}),
       "access-control-allow-headers": "authorization, content-type, x-firebase-appcheck",
       "access-control-allow-methods": "GET, POST, OPTIONS",
       vary: "Origin"
@@ -84,7 +96,8 @@ function userRateLimitPolicy(method: string, path: string): RateLimitPolicy {
 
 async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const path = routePath(event);
-  requireAllowedOrigin(requestHeader(event.headers, "origin"), apiAllowedOrigins(true));
+  const origin = requestHeader(event.headers, "origin");
+  if (!(origin === "null" && isPublicDeviceSignInRoute(path))) requireAllowedOrigin(origin, apiAllowedOrigins(true));
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
   if (event.httpMethod === "GET" && path === "/v1/config") {
     let runtime: ReturnType<typeof env>;
@@ -120,6 +133,42 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     });
   }
 
+  if (isPublicDeviceSignInRoute(path)) {
+    if (!deploymentControls().DEVICE_SIGN_IN_ENABLED) throw new HttpError(503, "PC/Mac device sign-in is disabled in this deployment.");
+    const db = firestore();
+    const now = new Date();
+    if (event.httpMethod === "POST" && path === "/v1/device-sign-in/start") {
+      const parsed = deviceStartSchema.safeParse(parseJsonBody(event.body));
+      if (!parsed.success) throw new HttpError(400, "A short PC/Mac device label is required.");
+      await consumeRateLimit({
+        db,
+        namespace: "api",
+        subject: `device-start:${sha256(clientIp(event) ?? "unknown")}`,
+        policy: { action: "device-sign-in-start", limit: 10, windowSeconds: 60 * 60 },
+        now
+      });
+      return json(201, await new DeviceSignInService(db, firebaseAuth()).start({
+        deviceLabel: parsed.data.deviceLabel,
+        now,
+        publicAppOrigin: process.env.PUBLIC_APP_ORIGIN || "https://wonderlang.net"
+      }));
+    }
+    if (event.httpMethod === "POST" && path === "/v1/device-sign-in/poll") {
+      const parsed = devicePollSchema.safeParse(parseJsonBody(event.body));
+      if (!parsed.success) throw new HttpError(400, "A valid device code and polling secret are required.");
+      await consumeRateLimit({
+        db,
+        namespace: "api",
+        subject: `device-poll:${sha256(`${parsed.data.pollSecret}:${clientIp(event) ?? "unknown"}`)}`,
+        policy: { action: "device-sign-in-poll", limit: 240, windowSeconds: 10 * 60 },
+        now
+      });
+      const result = await new DeviceSignInService(db, firebaseAuth()).poll({ ...parsed.data, now });
+      return json(result.state === "pending" ? 202 : 200, result);
+    }
+    throw new HttpError(405, "Method Not Allowed");
+  }
+
   const user = await requireUser(requestHeader(event.headers, "authorization"));
   await requireAppCheck(
     requestHeader(event.headers, "x-firebase-appcheck"),
@@ -136,6 +185,26 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     policy: userRateLimitPolicy(event.httpMethod, path),
     now
   });
+
+  if (path.startsWith("/v1/device-sign-in/")) {
+    if (!deploymentControls().DEVICE_SIGN_IN_ENABLED) throw new HttpError(503, "PC/Mac device sign-in is disabled in this deployment.");
+    const service = new DeviceSignInService(db, firebaseAuth());
+    const userCode = event.httpMethod === "GET"
+      ? event.queryStringParameters?.code
+      : deviceApprovalSchema.safeParse(parseJsonBody(event.body)).data?.userCode;
+    if (!userCode) throw new HttpError(400, "Enter the device code shown by WonderLang.");
+    if (event.httpMethod === "GET" && path === "/v1/device-sign-in/preview") {
+      return json(200, await service.preview({ uid: user.uid, userCode, now }));
+    }
+    if (event.httpMethod === "POST" && path === "/v1/device-sign-in/approve") {
+      if (!user.email || !user.email_verified) throw new HttpError(403, "Verify your WonderLang account email before approving a new device.");
+      if (!user.auth_time || Math.floor(now.getTime() / 1000) - user.auth_time > 10 * 60) {
+        throw new HttpError(401, "For security, sign out and sign in again before approving this device.");
+      }
+      return json(200, await service.approve({ uid: user.uid, userCode, now }));
+    }
+    throw new HttpError(405, "Method Not Allowed");
+  }
 
   if (event.httpMethod === "GET" && path === "/v1/me") {
     if (user.email && user.email_verified) {
@@ -174,8 +243,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (event.httpMethod === "POST" && path === "/v1/me/revoke-sessions") {
     const parsed = revokeSessionsSchema.safeParse(parseJsonBody(event.body));
     if (!parsed.success) throw new HttpError(400, "Type SIGN OUT ALL DEVICES to confirm.");
+    const canceledDeviceSignIns = await deleteDeviceSignInSessionsForUid(db, user.uid);
     await firebaseAuth().revokeRefreshTokens(user.uid);
-    return json(200, { revoked: true });
+    return json(200, { revoked: true, canceledDeviceSignIns });
   }
 
   if (event.httpMethod === "POST" && path === "/v1/me/deletion-preview") {

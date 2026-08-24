@@ -16,7 +16,9 @@ const controlsSchema = z.object({
   STRIPE_MUTATIONS_ENABLED: disabledByDefault,
   APP_CHECK_ENFORCEMENT_ENABLED: disabledByDefault,
   SUBSCRIPTION_RECONCILIATION_ENABLED: disabledByDefault,
-  CLOUD_STORAGE_MONITORING_ENABLED: disabledByDefault
+  CLOUD_STORAGE_MONITORING_ENABLED: disabledByDefault,
+  DEVICE_SIGN_IN_ENABLED: disabledByDefault,
+  DEVICE_SIGN_IN_CLEANUP_ENABLED: disabledByDefault
 });
 
 const schema = controlsSchema.extend({

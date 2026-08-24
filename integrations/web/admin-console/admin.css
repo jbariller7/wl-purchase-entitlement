@@ -41,6 +41,12 @@ button { touch-action: manipulation; }
 .top-actions { display: flex; align-items: center; gap: 10px; }
 .environment { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--muted); font-size: 12px; font-weight: 700; }
 .environment i, .live-label i { width: 7px; height: 7px; border-radius: 50%; background: #36a673; }
+.demo-banner { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 24px; padding: 16px 18px; border: 2px solid #b84c00; border-radius: 14px; background: #fff0e5; color: #672b00; }
+.demo-banner div { display: grid; gap: 3px; }
+.demo-banner strong { font-size: 13px; letter-spacing: .08em; }
+.demo-banner span { font-size: 14px; }
+.demo-banner a { flex: none; color: #672b00; font-weight: 800; }
+@media (max-width: 680px) { .demo-banner { align-items: flex-start; flex-direction: column; } }
 .user-menu { display: flex; align-items: center; gap: 9px; min-height: 44px; padding: 5px 12px 5px 5px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 700; }
 .user-menu span { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 50%; background: var(--ink); color: #fff; font-size: 10px; }
 .mobile-menu { display: none; }

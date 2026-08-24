@@ -18,6 +18,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 
 - Firebase Auth ID-token verification and account-bound Stripe customers.
 - Google, Apple and passwordless email-link website sign-in widget with explicit same-account provider linking; email linking refuses to switch or merge accounts.
+- Ten-minute PC/Mac device authorization with a separate high-entropy polling secret, explicit customer approval, one-time Firebase custom-token issuance, revocation cleanup and a fail-closed scheduled expiry worker. The real NW.js exchange remains a release gate.
 - Responsive `/admin/` operations console with customer lookup, manual grants, two-step refunds and price changes, dry-run imports, delivery retries, key inventory and audit history.
 - Server-verified, email-verified Firebase `admin` custom claims; signing in with Google or Apple alone never grants operations access.
 - Fail-closed test deployment controls. Test mode rejects every non-`sk_test_` Stripe key and all side-effect switches default to off.
@@ -53,7 +54,7 @@ Copy `.env.example` to a secure local environment source. Never commit private k
 - `src/infrastructure`: Firebase initialization, durable ledger, inbox and outbox.
 - `src/cloud-save`: upload integrity, revisions and conflict control.
 - `src/legacy`: migrated key fulfillment and exact legacy Payment Link routing.
-- `netlify/functions`: account API, provider webhooks, scheduled outbox worker and subscription reconciliation worker.
+- `netlify/functions`: account API, provider webhooks, scheduled outbox/reconciliation workers and device-code cleanup.
 - `integrations`: website widget plus clean-room game/mobile adapters.
 - `src/admin`: audited admin workflows and two-step financial confirmations.
 - `src/catalog`: versioned current prices with immutable Stripe Price history.

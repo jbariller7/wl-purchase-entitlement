@@ -29,7 +29,9 @@ import { lambdaHandler as outboxHandler } from "../netlify/functions/outbox-work
 import { lambdaHandler as stripeHandler } from "../netlify/functions/stripe-webhook.js";
 import { lambdaHandler as reconciliationHandler } from "../netlify/functions/subscription-reconciliation.js";
 import { lambdaHandler as cloudStorageMonitorHandler } from "../netlify/functions/cloud-storage-monitor.js";
+import { lambdaHandler as deviceSignInCleanupHandler } from "../netlify/functions/device-sign-in-cleanup.js";
 import { resetEnvironmentForTests } from "../src/config/env.js";
+import { firestore } from "../src/infrastructure/firebase.js";
 
 const original = { ...process.env };
 const credentialKeys = [
@@ -55,6 +57,7 @@ function event(): HandlerEvent {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   for (const key of credentialKeys) delete process.env[key];
   Object.assign(process.env, {
     APP_ENVIRONMENT: "test",
@@ -63,7 +66,9 @@ beforeEach(() => {
     APPLE_WEBHOOKS_ENABLED: "false",
     OUTBOX_PROCESSING_ENABLED: "false",
     SUBSCRIPTION_RECONCILIATION_ENABLED: "false",
-    CLOUD_STORAGE_MONITORING_ENABLED: "false"
+    CLOUD_STORAGE_MONITORING_ENABLED: "false",
+    DEVICE_SIGN_IN_ENABLED: "false",
+    DEVICE_SIGN_IN_CLEANUP_ENABLED: "false"
   });
   resetEnvironmentForTests();
 });
@@ -102,6 +107,27 @@ describe("staging function boundaries", () => {
     const response = await cloudStorageMonitorHandler(event(), {} as never);
     expect(response).toMatchObject({ statusCode: 200 });
     expect(JSON.parse(String(response?.body))).toEqual({ state: "disabled", scanned: 0 });
+  });
+
+  it("does not access Firebase or issue a token while PC/Mac device sign-in is disabled", async () => {
+    const response = await apiHandler({
+      ...event(),
+      rawUrl: "https://test.example.com/api/v1/device-sign-in/start",
+      path: "/api/v1/device-sign-in/start",
+      headers: { origin: "null" },
+      body: JSON.stringify({ deviceLabel: "WonderLang PC" })
+    }, {} as never);
+    expect(response).toMatchObject({ statusCode: 503 });
+    expect(JSON.parse(String(response?.body))).toEqual({ error: "PC/Mac device sign-in is disabled in this deployment." });
+    expect(vi.mocked(firestore)).not.toHaveBeenCalled();
+    expect(response?.headers).toMatchObject({ "access-control-allow-origin": "null" });
+  });
+
+  it("does not query or delete device codes while expiration cleanup is disabled", async () => {
+    const response = await deviceSignInCleanupHandler(event(), {} as never);
+    expect(response).toMatchObject({ statusCode: 200 });
+    expect(JSON.parse(String(response?.body))).toEqual({ state: "disabled", deleted: 0 });
+    expect(vi.mocked(firestore)).not.toHaveBeenCalled();
   });
 
   it("reports safe mode without requiring or exposing credentials", async () => {

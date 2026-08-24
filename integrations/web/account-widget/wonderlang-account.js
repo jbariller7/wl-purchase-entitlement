@@ -36,8 +36,14 @@ const html = `
       <button type="button" data-action="sign-out" class="wl-link" hidden>Sign out</button>
     </div>
     <p class="wl-status" role="status" aria-live="polite">Loading account…</p>
+    <aside class="wl-demo-banner" data-section="demo-banner" hidden><strong>SIMULATED ACCOUNT DEMO</strong><span>No login, payment, entitlement, cloud save, or account-security action on this page reaches a live service.</span><a href="/account/">Exit demo</a></aside>
 
     <div class="wl-signed-out" hidden>
+      <aside class="wl-device-prompt" data-section="device-prompt" hidden>
+        <p class="wl-eyebrow">PC / MAC SIGN-IN</p>
+        <h3>Sign in to approve your game.</h3>
+        <p>After signing in, confirm that the code on this page exactly matches the code currently shown inside WonderLang.</p>
+      </aside>
       <div class="wl-provider-grid">
         <button type="button" data-action="google">Continue with Google</button>
         <button type="button" data-action="apple" class="wl-dark">Continue with Apple</button>
@@ -50,6 +56,12 @@ const html = `
     </div>
 
     <div class="wl-signed-in" hidden>
+      <section class="wl-device-approval" data-section="device-approval" hidden>
+        <div><p class="wl-eyebrow">PC / MAC SIGN-IN REQUEST</p><h3>Approve this WonderLang game?</h3></div>
+        <div class="wl-device-code"><span>Code shown in the game</span><strong data-field="device-code">—</strong></div>
+        <p><strong data-field="device-label">WonderLang PC/Mac</strong> is waiting to use this account. Approve only if this exact code is still visible in your game. The code expires <span data-field="device-expires">shortly</span>.</p>
+        <div class="wl-device-actions"><button type="button" data-action="approve-device">Approve this game</button><button type="button" data-action="cancel-device" class="wl-secondary">Cancel</button></div>
+      </section>
       <div class="wl-entitlement">
         <p class="wl-eyebrow">YOUR ACCESS</p>
         <strong data-field="access">Checking…</strong>
@@ -62,6 +74,8 @@ const html = `
         <div><span>Cloud saves</span><strong data-field="cloud-status">—</strong></div>
         <div><span>Mobile platforms</span><strong data-field="mobile-platforms">—</strong></div>
         <div><span>PC / Mac</span><strong data-field="desktop-access">—</strong></div>
+        <div><span>Future content</span><strong data-field="future-content">—</strong></div>
+        <div><span>Second mobile platform</span><strong data-field="second-platform">—</strong></div>
       </div>
       <div class="wl-offers">
         <article>
@@ -167,6 +181,7 @@ class WonderLangAccount extends HTMLElement {
   async connectedCallback() {
     this.innerHTML = html;
     this.apiBase = (this.getAttribute("api-base") || location.origin).replace(/\/$/, "");
+    this.deviceCode = new URLSearchParams(location.search).get("device_code");
     this.bind();
     if (localEmailLinkDemo) {
       this.querySelector(".wl-signed-out").hidden = false;
@@ -176,10 +191,13 @@ class WonderLangAccount extends HTMLElement {
       return;
     }
     if (demoMode) {
+      this.querySelector('[data-section="demo-banner"]').hidden = false;
       this.demoAccount = createDemoAccount();
       this.configureCatalog(demoConfig);
       await this.renderUser(null);
-      this.status("Safe account demo. Choose Google, Apple, or email; no real sign-in, purchase, save, or deletion can occur.");
+      this.status(this.deviceCode
+        ? "Safe demo: sign in below to preview the PC/Mac approval flow. No device will be authorized."
+        : "Safe account demo. Choose Google, Apple, or email; no real sign-in, purchase, save, or deletion can occur.");
       return;
     }
     try {
@@ -205,6 +223,8 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="restore"]').addEventListener("click", () => this.restorePurchases());
     this.querySelector('[data-action="revoke-sessions"]').addEventListener("click", () => this.revokeSessions());
     this.querySelector('[data-action="delete-account"]').addEventListener("click", () => this.deleteAccount());
+    this.querySelector('[data-action="approve-device"]').addEventListener("click", () => this.approveDevice());
+    this.querySelector('[data-action="cancel-device"]').addEventListener("click", () => this.cancelDeviceApproval());
     this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(new GoogleAuthProvider()));
     this.querySelector('[data-action="link-apple"]').addEventListener("click", () => this.linkProvider(appleProvider()));
     this.querySelector('[data-action="link-email"]').addEventListener("click", () => this.linkEmail());
@@ -385,7 +405,14 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector(".wl-signed-out").hidden = Boolean(user);
     this.querySelector(".wl-signed-in").hidden = !user;
     this.querySelector('[data-action="sign-out"]').hidden = !user;
-    if (!user) { this.status("Sign in to sync purchases and cloud saves across platforms."); return; }
+    this.querySelector('[data-section="device-prompt"]').hidden = Boolean(user) || !this.deviceCode;
+    this.querySelector('[data-section="device-approval"]').hidden = true;
+    if (!user) {
+      this.status(this.deviceCode
+        ? "Sign in to review the PC/Mac request. No device is approved until you confirm it."
+        : "Sign in to sync purchases and cloud saves across platforms.");
+      return;
+    }
     this.status(`Signed in as ${user.email || "your WonderLang account"}`);
     try {
       this.account = await this.request("/api/v1/me");
@@ -406,6 +433,10 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="cloud-status"]').textContent = `${cloud.slotCount} saved slot${cloud.slotCount === 1 ? "" : "s"}${cloud.lastUpdatedAt ? ` · last sync ${date(cloud.lastUpdatedAt)}` : ""}`;
       this.querySelector('[data-field="mobile-platforms"]').textContent = (ent.mobilePlatforms || []).map((platform) => platform === "ios" ? "iOS" : "Android").join(", ") || "None";
       this.querySelector('[data-field="desktop-access"]').textContent = ent.pcMacAccess ? "Included" : "Not included";
+      this.querySelector('[data-field="future-content"]').textContent = ent.futureContent ? "Included" : "Not included";
+      this.querySelector('[data-field="second-platform"]').textContent = ent.secondMobilePlatformEligible
+        ? (ent.mobilePlatforms || []).length > 1 ? "Granted" : "Eligible on request"
+        : "Not included";
       const subscribed = ent.accessKind === "subscription";
       this.querySelector('[data-field="cancel-confirm"]').hidden = !subscribed;
       this.querySelector('[data-action="monthly"]').disabled = !this.config.checkoutEnabled || subscribed || ent.premiumLifetime;
@@ -414,7 +445,56 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-action="discounted-premium"]').hidden = !this.account.legacyLifetimeDiscount.eligible || ent.premiumLifetime;
       this.querySelector('[data-action="discounted-premium"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime;
       this.querySelector('[data-action="portal"]').disabled = !this.config.checkoutEnabled;
+      await this.loadDeviceApproval();
     } catch (error) { this.fail(error); }
+  }
+
+  async loadDeviceApproval() {
+    if (!this.deviceCode || !this.user) return;
+    const section = this.querySelector('[data-section="device-approval"]');
+    try {
+      const request = await this.request(`/api/v1/device-sign-in/preview?code=${encodeURIComponent(this.deviceCode)}`);
+      this.deviceCode = request.userCode;
+      this.querySelector('[data-field="device-code"]').textContent = request.userCode;
+      this.querySelector('[data-field="device-label"]').textContent = request.deviceLabel;
+      this.querySelector('[data-field="device-expires"]').textContent = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(request.expiresAt));
+      section.hidden = false;
+      this.status(request.state === "approved"
+        ? "This game is already approved and is finishing sign-in."
+        : "Review the PC/Mac sign-in request below.");
+      this.querySelector('[data-action="approve-device"]').disabled = request.state === "approved";
+    } catch (error) { this.fail(error); }
+  }
+
+  async approveDevice() {
+    if (!this.deviceCode || !this.user) return;
+    const button = this.querySelector('[data-action="approve-device"]');
+    button.disabled = true;
+    try {
+      const result = await this.request("/api/v1/device-sign-in/approve", { method: "POST", body: { userCode: this.deviceCode } });
+      this.querySelector('[data-field="device-code"]').textContent = result.userCode;
+      this.querySelector('[data-section="device-approval"]').classList.add("approved");
+      this.querySelector('[data-action="cancel-device"]').hidden = true;
+      this.clearDeviceCodeFromUrl();
+      this.status(`Approved ${result.deviceLabel}. Return to WonderLang; it will finish signing in automatically.`);
+    } catch (error) {
+      button.disabled = false;
+      this.fail(error);
+    }
+  }
+
+  cancelDeviceApproval() {
+    this.clearDeviceCodeFromUrl();
+    this.querySelector('[data-section="device-prompt"]').hidden = true;
+    this.querySelector('[data-section="device-approval"]').hidden = true;
+    this.status("PC/Mac sign-in was not approved. You can close this page.");
+  }
+
+  clearDeviceCodeFromUrl() {
+    this.deviceCode = null;
+    const next = new URL(location.href);
+    next.searchParams.delete("device_code");
+    history.replaceState({}, document.title, `${next.pathname}${next.search}${next.hash}`);
   }
 
   async checkout(product, useDiscount, mobilePlatform, desktopDelivery) {
@@ -564,6 +644,14 @@ class WonderLangAccount extends HTMLElement {
       return { deleteAfter: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() };
     }
     if (path === "/api/v1/me/revoke-sessions") return { revoked: true };
+    if (path.startsWith("/api/v1/device-sign-in/preview")) {
+      const raw = this.deviceCode || "W7ND-L4NG";
+      const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8).padEnd(8, "7");
+      return { userCode: `${normalized.slice(0, 4)}-${normalized.slice(4)}`, deviceLabel: "Jonathan's PC", expiresAt: new Date(Date.now() + 8 * 60 * 1000).toISOString(), state: "pending" };
+    }
+    if (path === "/api/v1/device-sign-in/approve") {
+      return { approved: true, userCode: this.deviceCode || "W7ND-L4NG", deviceLabel: "Jonathan's PC" };
+    }
     if (path === "/api/v1/legacy/claim") {
       this.demoAccount.legacyLifetimeDiscount.eligible = true;
       return { eligible: true };

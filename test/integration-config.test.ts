@@ -28,6 +28,9 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("Confirmation phrase does not match.");
     expect(admin).toContain("function minorAmount(currency, majorAmount)");
     expect(admin).not.toContain('confirmationPhrase: "CHANGE MONTHLY TO 7.99 USD"');
+    expect(admin).toContain("DEVICE_SIGN_IN_CLEANUP_ENABLED");
+    expect(admin).not.toContain("Configured in Netlify");
+    expect(admin).toContain("Eligible on request");
   });
 
   it("uses validated per-tab key-inventory thresholds in alerts and the admin UI", () => {
@@ -64,6 +67,7 @@ describe("isolated integration configuration", () => {
       "stripe-webhook",
       "subscription-reconciliation",
       "cloud-storage-monitor",
+      "device-sign-in-cleanup",
     ];
 
     expect(packageJson).toContain('"@netlify/aws-lambda-compat"');
@@ -95,8 +99,11 @@ describe("isolated integration configuration", () => {
     expect(example).toMatch(/^SUBSCRIPTION_RECONCILIATION_ENABLED=false$/m);
     expect(example).toMatch(/^PROVIDER_TOKEN_ENCRYPTION_KEYS=$/m);
     expect(example).toMatch(/^CLOUD_STORAGE_MONITORING_ENABLED=false$/m);
+    expect(example).toMatch(/^DEVICE_SIGN_IN_ENABLED=false$/m);
+    expect(example).toMatch(/^DEVICE_SIGN_IN_CLEANUP_ENABLED=false$/m);
     expect(netlify).toMatch(/\[functions\."subscription-reconciliation"\][\s\S]*schedule\s*=\s*"17 \* \* \* \*"/);
     expect(netlify).toMatch(/\[functions\."cloud-storage-monitor"\][\s\S]*schedule\s*=\s*"43 2 \* \* \*"/);
+    expect(netlify).toMatch(/\[functions\."device-sign-in-cleanup"\][\s\S]*schedule\s*=\s*"7 \* \* \* \*"/);
   });
 
   it("keeps scheduled reconciliation read-only at every billing provider", () => {
@@ -134,6 +141,24 @@ describe("isolated integration configuration", () => {
     expect(widget).toMatch(/await this\.renderUser\(this\.user\);\s*this\.status\("Desktop purchase verified\./);
     expect(page).toMatch(/wonderlang-account\.js\?v=/);
     expect(headers).toContain("Cache-Control: public, max-age=0, must-revalidate");
+    for (const asset of ["/admin.js", "/admin.css", "/setup.js", "/setup.css"]) expect(headers).toContain(asset);
+  });
+
+  it("never substitutes simulated admin data when real configuration is missing", () => {
+    const admin = read("integrations/web/admin-console/admin.js");
+    expect(admin).toContain("SIMULATED DEMO — NOT LIVE DATA");
+    expect(admin).toContain("Demo actions never call Firebase");
+    expect(admin).not.toMatch(/catch \(error\) \{\s*if \(previewHosts\.has\(location\.hostname\)\)/);
+  });
+
+  it("requires explicit customer approval for PC/Mac device sign-in", () => {
+    const account = read("integrations/web/account-widget/wonderlang-account.js");
+    expect(account).toContain('data-action="approve-device"');
+    expect(account).toContain("code on this page exactly matches the code currently shown inside WonderLang");
+    expect(account).toContain("/api/v1/device-sign-in/preview?code=");
+    expect(account).toContain('this.request("/api/v1/device-sign-in/approve"');
+    expect(account).toContain('data-field="future-content"');
+    expect(account).toContain('data-field="second-platform"');
   });
 
   it("keeps mobile admin actions at a touch-safe minimum size", () => {

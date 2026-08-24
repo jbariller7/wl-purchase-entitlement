@@ -114,7 +114,12 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const imports = new AdminImportService(db, firebaseAuth());
 
   if (event.httpMethod === "GET" && path === "/v1/session") {
-    return json(200, { actor, providers: token.firebase?.sign_in_provider ? [token.firebase.sign_in_provider] : [], capabilities: ["customers", "grants", "prices", "refunds", "imports", "operations", "inventory", "audit"] });
+    return json(200, {
+      actor,
+      providers: token.firebase?.sign_in_provider ? [token.firebase.sign_in_provider] : [],
+      capabilities: ["customers", "grants", "prices", "refunds", "imports", "operations", "inventory", "audit"],
+      controls: deploymentControls()
+    });
   }
   if (event.httpMethod === "GET" && path === "/v1/overview") return json(200, await operations.overview());
   if (event.httpMethod === "GET" && path === "/v1/customers/search") {

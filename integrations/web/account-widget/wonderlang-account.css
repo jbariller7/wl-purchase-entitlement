@@ -6,6 +6,10 @@ wonderlang-account { display: block; color: var(--wl-ink); font: 16px/1.5 system
 .wl-header h2 { margin: 0; font-size: clamp(26px, 4vw, 42px); line-height: 1.1; }
 .wl-eyebrow { margin: 0 0 6px; color: #9b5417; font-size: 12px; font-weight: 800; letter-spacing: .12em; }
 .wl-status { padding: 12px 16px; border-radius: 12px; background: #fff; }
+.wl-demo-banner { display: grid; grid-template-columns: 1fr auto; gap: 4px 18px; margin: 14px 0; padding: 16px; border: 2px solid #b84c00; border-radius: 14px; background: #fff0e5; color: #672b00; }
+.wl-demo-banner strong { font-size: 13px; letter-spacing: .08em; }
+.wl-demo-banner span { grid-column: 1; font-size: 14px; }
+.wl-demo-banner a { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: #672b00; font-weight: 800; }
 .wl-provider-grid > *, .wl-offers > * { flex: 1; }
 .wl-offers { flex-wrap: wrap; margin: 20px 0; }
 .wl-offers article, .wl-entitlement, details { padding: 20px; border: 1px solid #eadfce; border-radius: 16px; background: #fff; }
@@ -28,6 +32,13 @@ wonderlang-account button:disabled { cursor: default; filter: grayscale(1); opac
 wonderlang-account details { margin-top: 18px; } wonderlang-account summary { cursor: pointer; font-weight: 800; }
 .wl-link-providers { margin-top: 12px; }
 .wl-security-actions { margin-top: 12px; }
+.wl-device-prompt, .wl-device-approval { margin: 16px 0; padding: 20px; border: 2px solid #d06c18; border-radius: 16px; background: #fff4e8; }
+.wl-device-prompt h3, .wl-device-approval h3 { margin: 0; font-size: 24px; }
+.wl-device-code { display: grid; gap: 4px; margin: 16px 0; padding: 14px; border-radius: 12px; background: #18212f; color: #fff; text-align: center; }
+.wl-device-code span { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.wl-device-code strong { font: 800 clamp(28px, 7vw, 44px)/1 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .12em; }
+.wl-device-actions { display: flex; gap: 10px; }
+.wl-device-approval.approved { border-color: #2f865c; background: #eaf8f0; }
 .wl-modal-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 24px; background: #102019b8; backdrop-filter: blur(6px); }
 .wl-modal { width: min(480px, 100%); padding: 28px; border-radius: 20px; background: #fff; color: var(--wl-ink); box-shadow: 0 25px 90px #0006; }
 .wl-modal h3 { margin: 0; font: 600 29px/1.05 Georgia, serif; }
@@ -35,4 +46,4 @@ wonderlang-account details { margin-top: 18px; } wonderlang-account summary { cu
 .wl-modal-form { display: grid; gap: 18px; }
 .wl-modal-form label { display: grid; gap: 7px; color: #5f6670; font-size: 12px; font-weight: 800; }
 .wl-modal-form > div { display: flex; justify-content: flex-end; gap: 10px; }
-@media (max-width: 680px) { .wl-row, .wl-provider-grid, .wl-offers { flex-direction: column; align-items: stretch; } .wl-account-facts { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .wl-row, .wl-provider-grid, .wl-offers, .wl-device-actions { flex-direction: column; align-items: stretch; } .wl-account-facts { grid-template-columns: 1fr; } .wl-device-code strong { letter-spacing: .06em; } .wl-demo-banner { grid-template-columns: 1fr; } .wl-demo-banner span, .wl-demo-banner a { grid-column: 1; grid-row: auto; } }

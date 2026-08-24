@@ -24,7 +24,9 @@ const controlLabels = {
   STRIPE_MUTATIONS_ENABLED: "Stripe mutations",
   APP_CHECK_ENFORCEMENT_ENABLED: "Firebase App Check enforcement",
   SUBSCRIPTION_RECONCILIATION_ENABLED: "Daily subscription reconciliation",
-  CLOUD_STORAGE_MONITORING_ENABLED: "Cloud storage monitoring"
+  CLOUD_STORAGE_MONITORING_ENABLED: "Cloud storage monitoring",
+  DEVICE_SIGN_IN_ENABLED: "PC/Mac device sign-in",
+  DEVICE_SIGN_IN_CLEANUP_ENABLED: "Expired device-code cleanup"
 };
 
 function escapeHtml(value) {

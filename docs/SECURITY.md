@@ -2,6 +2,7 @@
 
 - Provider signatures, Google OIDC and Apple JWS are verified before event IDs or payloads are trusted.
 - Firebase ID tokens are checked for revocation on authenticated account APIs.
+- PC/Mac sign-in uses a short-lived displayed code plus a separate 256-bit polling secret whose plaintext is never stored. Approval requires a verified, recently authenticated Firebase account; collection is transaction-leased and one-time. Revoking sessions, disabling an account, or scheduling deletion cancels outstanding approvals. See `PC_MAC_DEVICE_SIGN_IN.md`.
 - Provider customer, transaction and subscription IDs are immutable to one Firebase UID; conflicting links fail closed.
 - Purchase tokens are hashed for identifiers and never returned to other clients. The Google Play subscription token needed for missed-webhook recovery is stored only as AES-256-GCM ciphertext authenticated to its subscription hash and Firebase UID. Its versioned key ring is a Netlify secret, supports overlap during rotation, and is never committed. Final account deletion destroys the ciphertext. Clients cannot write grants or entitlement documents.
 - Historical discount proof requires a paid, allowlisted WonderLang desktop Checkout Session and the same Firebase-verified email. The coupon is applied only by the server.

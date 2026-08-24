@@ -21,6 +21,9 @@
 [functions."cloud-storage-monitor"]
   schedule = "43 2 * * *"
 
+[functions."device-sign-in-cleanup"]
+  schedule = "7 * * * *"
+
 [[redirects]]
   from = "/"
   to = "/admin/"

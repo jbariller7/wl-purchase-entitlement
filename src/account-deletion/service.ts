@@ -10,6 +10,7 @@ import type {
   LegacyPersonalDataErasureResult,
   LegacyPersonalDataSubject
 } from "../legacy/personal-data-erasure.js";
+import { deleteDeviceSignInSessionsForUid } from "../device-sign-in/service.js";
 
 export const ACCOUNT_DELETION_CONFIRMATION = "DELETE MY WONDERLANG ACCOUNT";
 export const ACCOUNT_DELETION_RECOVERY_DAYS = 30;
@@ -85,6 +86,7 @@ export class AccountDeletionService {
     const result = preview.result as Record<string, unknown>;
     await this.auth.updateUser(input.uid, { disabled: true });
     await this.auth.revokeRefreshTokens(input.uid);
+    await deleteDeviceSignInSessionsForUid(this.db, input.uid);
     const store = new EntitlementStore(this.db);
     await store.enqueue("delete_account_data", `account-deletion:${input.uid}`, { uid: input.uid }, input.now, deleteAfter);
     await this.db.collection("accountAudit").add({
@@ -298,6 +300,7 @@ export class AccountDeletionService {
       this.deleteQuery(this.db.collection("checkoutContexts").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("subscriptionContexts").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("providerSecrets").where("uid", "==", uid)),
+      this.deleteQuery(this.db.collection("deviceSignInSessions").where("approvedUid", "==", uid)),
       this.deleteQuery(this.db.collection("pendingImports").where("claimedByUid", "==", uid)),
       this.deleteQuery(this.db.collection("accountDeletionPreviews").where("uid", "==", uid))
     ]);

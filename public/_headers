@@ -6,3 +6,15 @@
 
 /wonderlang-account.css
   Cache-Control: public, max-age=0, must-revalidate
+
+/admin.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/admin.css
+  Cache-Control: public, max-age=0, must-revalidate
+
+/setup.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/setup.css
+  Cache-Control: public, max-age=0, must-revalidate
