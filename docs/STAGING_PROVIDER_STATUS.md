@@ -55,7 +55,7 @@ Last verified: 2026-08-24. This file records only non-secret identifiers and saf
 - The three-day introductory offer can be created only after the base plan saves.
 - `wonderlangfull` is displayed as Polyglot Permanent Access with a no-cloud-save description. Its legacy-compatible `buy` purchase option remains active at its original United States price of USD 25.99 for the currently released app.
 - Promo-code campaign `PR Code` (`120231895`) is paused. Its two historical redemptions remain recorded; additional redemptions are disabled.
-- A second, non-legacy purchase option is prepared but not yet saved: `buy-polyglot-permanent`, USD 31.99 base with Google-managed localized equivalents. The Android Billing 9 build explicitly selects this option by `purchaseOptionId` and will not silently fall back to `buy`.
+- A second, non-legacy purchase option is saved as a draft: `buy-polyglot-permanent`, USD 31.99 base with Google-managed localized equivalents across 173 countries/regions. It has not been activated. The Android Billing 9 build explicitly selects this option by `purchaseOptionId` and will not silently fall back to `buy`.
 - `wonderlangch1` through `wonderlangch4` remain restorable; chapter offers remain hidden from new-sale UI.
 
 ## Apple
