@@ -95,6 +95,14 @@ describe("isolated integration configuration", () => {
     expect(headers).toContain("Cache-Control: public, max-age=0, must-revalidate");
   });
 
+  it("keeps mobile admin actions at a touch-safe minimum size", () => {
+    const css = read("integrations/web/admin-console/admin.css");
+    expect(css).toMatch(/\.button \{[^}]*min-height: 44px/);
+    expect(css).toMatch(/\.text-button \{[^}]*min-width: 44px; min-height: 44px/);
+    expect(css).toMatch(/\.mobile-menu \{[^}]*min-height: 44px/);
+    expect(css).toMatch(/\.user-menu \{[^}]*min-height: 44px/);
+  });
+
   it("closes the native Play verification loop for both success and failure", () => {
     const bridge = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
     const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
