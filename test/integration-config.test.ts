@@ -129,10 +129,15 @@ describe("isolated integration configuration", () => {
     expect(manager).not.toContain("R.string.default_web_client_id");
     expect(entitlementFirebase).toContain("wonderlang-entitlements-9590f");
     expect(entitlementFirebase).toContain("apps.googleusercontent.com");
+    expect(entitlementFirebase).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
+    expect(gradle).toContain('environmentVariable("WONDERLANG_ENTITLEMENTS_FIREBASE_API_KEY")');
+    expect(gradle).toContain("resValues = true");
     expect(manager).toContain("GetGoogleIdOption.Builder()");
     expect(manager).toContain("sendSignInLinkToEmail");
     expect(storefront).toContain('sku: "wonderlangmonthly"');
     expect(storefront).toContain('sku: "wonderlangfull"');
+    expect(storefront).toMatch(/const LIFETIME_PRODUCT = \{[\s\S]*?RAW_PRODUCTS\.find[\s\S]*?fallbackPrice: "\$60\.00"[\s\S]*?\};/);
+    expect(storefront).toMatch(/const MONTHLY_PRODUCT = \{[\s\S]*?RAW_PRODUCTS\.find[\s\S]*?fallbackPrice: "\$6\.99"[\s\S]*?\};/);
     expect(storefront).toMatch(/function shouldShowChapterOffers\(\)\s*\{\s*return false;\s*\}/);
     expect(storefront).toContain("RESTORE_PRODUCTS");
     expect(storefront).toContain("JavaScript must not infer lifetime access from an undated chapter receipt");

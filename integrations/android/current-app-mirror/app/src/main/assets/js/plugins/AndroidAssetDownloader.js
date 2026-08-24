@@ -302,25 +302,25 @@
     const RAW_PRODUCTS = parseStructArray(P["Products"], "Products");
     const HISTORICAL_CHAPTER_SKUS = new Set(["wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4"]);
     const LIFETIME_PRODUCT = {
+        ...(RAW_PRODUCTS.find(product => normalizeSkuForPlatformEarly(product?.sku) === "wonderlangfull" || product?.isBundle === true || product?.isBundle === "true") || {}),
         sku: "wonderlangfull",
         isBundle: true,
         isSubscription: false,
         text: "Lifetime access",
         description: "Own every chapter and language forever, including cloud saves.",
-        fallbackPrice: "$60.00",
-        ...(RAW_PRODUCTS.find(product => normalizeSkuForPlatformEarly(product?.sku) === "wonderlangfull" || product?.isBundle === true || product?.isBundle === "true") || {})
+        fallbackPrice: "$60.00"
     };
     LIFETIME_PRODUCT.sku = "wonderlangfull";
     LIFETIME_PRODUCT.isBundle = true;
     LIFETIME_PRODUCT.isSubscription = false;
     const MONTHLY_PRODUCT = {
+        ...(RAW_PRODUCTS.find(product => normalizeSkuForPlatformEarly(product?.sku) === "wonderlangmonthly") || {}),
         sku: "wonderlangmonthly",
         isBundle: false,
         isSubscription: true,
         text: "WonderLang Monthly",
         description: "Every chapter, every language, and cloud saves. Cancel anytime.",
-        fallbackPrice: "$6.99",
-        ...(RAW_PRODUCTS.find(product => normalizeSkuForPlatformEarly(product?.sku) === "wonderlangmonthly") || {})
+        fallbackPrice: "$6.99"
     };
     MONTHLY_PRODUCT.sku = "wonderlangmonthly";
     MONTHLY_PRODUCT.isBundle = false;

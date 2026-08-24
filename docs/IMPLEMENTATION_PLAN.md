@@ -88,4 +88,4 @@ Stripe events:
 
 ## What still requires external access
 
-The code cannot create live Stripe catalog objects, Firebase/Google/Apple console configuration, Netlify secrets, modify the MailerLite-hosted website, or compile the unavailable Xcode project without those accounts/sources. Those are release tasks, not missing entitlement logic.
+The current non-secret console state and remaining gates are tracked in `docs/STAGING_PROVIDER_STATUS.md`. Private Firebase, Stripe and Apple credentials still require explicit approval before creation or storage. Play payments-profile tax forms, Firebase Storage billing, the MailerLite-hosted website, a real Xcode project, store sandbox accounts and physical-device testing require their respective account owner or device surface; they are release gates rather than substitutes for entitlement logic.
