@@ -153,6 +153,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
     const deletedUid = `deleted_${sha256(uid)}`;
     const deletedPrefixes: string[] = [];
     const deletedAuthUsers: string[] = [];
+    const erasedLegacySubjects: Array<{ emails: string[]; sheetAssignments: Array<{ sheetTab: string; rowNumber: number }> }> = [];
     const auth = {
       deleteUser: async (candidate: string) => { deletedAuthUsers.push(candidate); }
     } as unknown as Auth;
@@ -180,7 +181,9 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         }),
         database.collection("legacyKeys").doc("key-delete-me").set({
           assignedOrderId: "order-delete-me",
-          assignedEmail: "buyer@example.com"
+          assignedEmail: "buyer@example.com",
+          sheetTab: "English Steam",
+          rowNumber: 42
         }),
         database.collection("outbox").doc("fulfillment-delete-me").set({
           kind: "fulfill_legacy_order",
@@ -201,7 +204,12 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         database.collection("storeAccountTokens").doc(stableDocumentId("store-account", "store-token")).set({ uid })
       ]);
 
-      const result = await new AccountDeletionService(database, auth, adminStorage).purge(
+      const result = await new AccountDeletionService(database, auth, adminStorage, {
+        erase: async (subject) => {
+          erasedLegacySubjects.push(subject);
+          return { sheetEmailCellsCleared: 1, mailerLiteSubscribersForgotten: 1 };
+        }
+      }).purge(
         uid,
         new Date("2026-08-24T12:00:00.000Z")
       );
@@ -209,7 +217,9 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         deleted: true,
         pseudonymizedLegacyOrders: 1,
         scrubbedLegacyKeyAssignments: 1,
-        scrubbedOutboxRows: 2
+        scrubbedOutboxRows: 2,
+        sheetEmailCellsCleared: 1,
+        mailerLiteSubscribersForgotten: 1
       });
 
       const [order, key, fulfillment, conversion, deletion, grant, user, tombstone] = await Promise.all([
@@ -233,6 +243,10 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
       expect(user.exists).toBe(false);
       expect(tombstone.data()?.deletedUid).toBe(deletedUid);
       expect(deletedAuthUsers).toEqual([uid]);
+      expect(erasedLegacySubjects).toEqual([{
+        emails: ["buyer@example.com"],
+        sheetAssignments: [{ sheetTab: "English Steam", rowNumber: 42 }]
+      }]);
       expect(deletedPrefixes.sort()).toEqual([
         `cloud-save-uploads/${uid}/`,
         `cloud-saves/${uid}/`

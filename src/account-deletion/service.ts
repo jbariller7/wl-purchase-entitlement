@@ -6,9 +6,17 @@ import { HttpError } from "../http/auth.js";
 import { stableDocumentId, sha256 } from "../infrastructure/ids.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { recordAdminAudit, type AdminActor } from "../admin/audit.js";
+import type {
+  LegacyPersonalDataErasureResult,
+  LegacyPersonalDataSubject
+} from "../legacy/personal-data-erasure.js";
 
 export const ACCOUNT_DELETION_CONFIRMATION = "DELETE MY WONDERLANG ACCOUNT";
 export const ACCOUNT_DELETION_RECOVERY_DAYS = 30;
+
+export interface LegacyPersonalDataEraser {
+  erase(subject: LegacyPersonalDataSubject): Promise<LegacyPersonalDataErasureResult>;
+}
 
 interface DeletionPreview {
   id: string;
@@ -20,7 +28,12 @@ interface DeletionPreview {
 }
 
 export class AccountDeletionService {
-  constructor(private readonly db: Firestore, private readonly auth: Auth, private readonly storage?: Storage) {}
+  constructor(
+    private readonly db: Firestore,
+    private readonly auth: Auth,
+    private readonly storage?: Storage,
+    private readonly legacyPersonalDataEraser?: LegacyPersonalDataEraser
+  ) {}
 
   async preview(uid: string, now: Date): Promise<Record<string, unknown>> {
     const existing = await this.db.collection("accountDeletionRequests").doc(uid).get();
@@ -140,8 +153,35 @@ export class AccountDeletionService {
     return [...documents.values()];
   }
 
-  private async scrubLegacyPurchaseData(uid: string, deletedUid: string, now: Date): Promise<{ orders: number; keys: number }> {
-    const orders = await this.linkedLegacyOrders(uid);
+  private async linkedLegacyKeys(orders: QueryDocumentSnapshot[]): Promise<QueryDocumentSnapshot[]> {
+    const keyDocuments = new Map<string, QueryDocumentSnapshot>();
+    for (const order of orders) {
+      const snapshot = await this.db.collection("legacyKeys").where("assignedOrderId", "==", order.id).get();
+      for (const document of snapshot.docs) keyDocuments.set(document.ref.path, document);
+    }
+    return [...keyDocuments.values()];
+  }
+
+  private legacyPersonalDataSubject(orders: QueryDocumentSnapshot[], keys: QueryDocumentSnapshot[]): LegacyPersonalDataSubject {
+    const emails = orders
+      .map((order) => order.data().buyerEmail)
+      .filter((email): email is string => typeof email === "string" && email.length > 0);
+    const sheetAssignments = keys.map((key) => {
+      const data = key.data();
+      if (typeof data.sheetTab !== "string" || !Number.isSafeInteger(data.rowNumber) || data.rowNumber < 1) {
+        throw new Error(`Legacy key ${key.id} has no valid Google Sheet assignment for personal-data erasure.`);
+      }
+      return { sheetTab: data.sheetTab, rowNumber: data.rowNumber as number };
+    });
+    return { emails, sheetAssignments };
+  }
+
+  private async scrubLegacyPurchaseData(
+    orders: QueryDocumentSnapshot[],
+    keys: QueryDocumentSnapshot[],
+    deletedUid: string,
+    now: Date
+  ): Promise<{ orders: number; keys: number }> {
     for (let offset = 0; offset < orders.length; offset += 400) {
       const batch = this.db.batch();
       for (const order of orders.slice(offset, offset + 400)) {
@@ -155,12 +195,6 @@ export class AccountDeletionService {
       await batch.commit();
     }
 
-    const keyDocuments = new Map<string, QueryDocumentSnapshot>();
-    for (const order of orders) {
-      const snapshot = await this.db.collection("legacyKeys").where("assignedOrderId", "==", order.id).get();
-      for (const document of snapshot.docs) keyDocuments.set(document.ref.path, document);
-    }
-    const keys = [...keyDocuments.values()];
     for (let offset = 0; offset < keys.length; offset += 400) {
       const batch = this.db.batch();
       for (const key of keys.slice(offset, offset + 400)) {
@@ -234,6 +268,23 @@ export class AccountDeletionService {
       this.storage.bucket().deleteFiles({ prefix: `cloud-save-uploads/${uid}/`, force: true })
     ]);
     await this.db.recursiveDelete(this.db.collection("cloudSaves").doc(uid));
+    const legacyOrders = await this.linkedLegacyOrders(uid);
+    const legacyKeys = await this.linkedLegacyKeys(legacyOrders);
+    const legacySubject = this.legacyPersonalDataSubject(legacyOrders, legacyKeys);
+    let externalLegacyErasure: LegacyPersonalDataErasureResult = {
+      sheetEmailCellsCleared: 0,
+      mailerLiteSubscribersForgotten: 0
+    };
+    if (legacySubject.emails.length || legacySubject.sheetAssignments.length) {
+      if (!this.legacyPersonalDataEraser) {
+        throw new Error("Legacy external personal-data erasure is not configured.");
+      }
+      // External deletion is deliberately first. Both provider operations are
+      // idempotent, so a later Firestore failure can safely retry without
+      // losing the email/row coordinates needed to finish erasure.
+      externalLegacyErasure = await this.legacyPersonalDataEraser.erase(legacySubject);
+    }
+
     const deletedPrivateRows = await Promise.all([
       this.deleteQuery(this.db.collection("cloudSaveUploads").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("checkoutContexts").where("uid", "==", uid)),
@@ -242,7 +293,7 @@ export class AccountDeletionService {
       this.deleteQuery(this.db.collection("accountDeletionPreviews").where("uid", "==", uid))
     ]);
     const [legacyPurchaseRows, scrubbedOutboxRows] = await Promise.all([
-      this.scrubLegacyPurchaseData(uid, deletedUid, now),
+      this.scrubLegacyPurchaseData(legacyOrders, legacyKeys, deletedUid, now),
       this.scrubAccountOutbox(uid, now)
     ]);
     const pseudonymizedRows = await Promise.all([
@@ -269,7 +320,8 @@ export class AccountDeletionService {
       pseudonymizedLedgerRows: pseudonymizedRows.reduce((sum, value) => sum + value, 0),
       pseudonymizedLegacyOrders: legacyPurchaseRows.orders,
       scrubbedLegacyKeyAssignments: legacyPurchaseRows.keys,
-      scrubbedOutboxRows
+      scrubbedOutboxRows,
+      ...externalLegacyErasure
     };
   }
 }

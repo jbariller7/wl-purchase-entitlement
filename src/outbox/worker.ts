@@ -9,6 +9,7 @@ import { LegacyKeyFulfillmentService } from "../legacy/key-fulfillment.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { deploymentControls } from "../config/env.js";
 import { safeErrorMessage } from "../infrastructure/safe-error.js";
+import { LegacyPersonalDataErasureService } from "../legacy/personal-data-erasure.js";
 
 async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<string, unknown> | undefined> {
   switch (job.kind) {
@@ -46,7 +47,12 @@ async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<
       if (!deploymentControls().ACCOUNT_DELETION_PROCESSING_ENABLED) throw new Error("Account-deletion processing is disabled.");
       const uid = String(job.payload.uid ?? "");
       if (!uid) throw new Error("Account-deletion job has no Firebase UID.");
-      return new AccountDeletionService(store.firestore(), firebaseAuth(), firebaseStorage()).purge(uid, new Date());
+      return new AccountDeletionService(
+        store.firestore(),
+        firebaseAuth(),
+        firebaseStorage(),
+        new LegacyPersonalDataErasureService()
+      ).purge(uid, new Date());
     }
     case "email_receipt":
     case "allocate_legacy_key":

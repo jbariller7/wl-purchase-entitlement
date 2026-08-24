@@ -16,6 +16,8 @@ Firebase Auth answers **who is the player**. Stripe, Google Play and Apple answe
 
 Key allocation, MailerLite, ads and subscription cancellation are not performed inside the provider webhook. This prevents a temporary third-party outage from losing a paid order.
 
+Final account deletion clears the linked buyer-email cells from the legacy key Sheet and sends each linked MailerLite subscriber through its GDPR forget endpoint before removing the local coordinates. Both calls are idempotent and run only inside the separately gated deletion outbox worker.
+
 ## Entitlement precedence
 
 Premium Lifetime Pass > effective Mobile Monthly > platform-scoped Polyglot Permanent/legacy full ownership > legacy chapter ownership > free.
