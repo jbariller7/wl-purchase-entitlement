@@ -61,6 +61,7 @@ Last verified: 2026-08-25. This file records only non-secret identifiers and saf
 - A fresh signed-in browser check confirmed the intended live/draft split: `buy` remains Active, `buy-polyglot-permanent` remains Draft, and the latter has not been activated ahead of the matching app update.
 - The immutable historical `PR Code` campaign still references `wonderlangfull` because two codes were previously redeemed, but its current status is Paused and the only available action is `Resume promotion`; no additional redemptions are enabled.
 - `wonderlangch1` through `wonderlangch4` remain restorable; chapter offers remain hidden from new-sale UI.
+- The authoritative Android project matches the tested mirror for Billing, `MainActivity`, `WonderLangAccountManager`, manifest, plugin registration and build configuration. On 2026-08-25 only the updated `WonderLangAccountCloudSync.js` was synchronized; the source/target SHA-256 is `0AE61A73539E594E319CDCF8E59DF8065D07DABFD43BAA380F3986DF6C98FE65`. Both Android/editable storefront files and both account/cloud-save files pass JavaScript syntax checks, and `:app:compileDebugKotlin` completes successfully.
 
 ## Apple
 
