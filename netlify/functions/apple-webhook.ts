@@ -5,7 +5,7 @@ import { deploymentControls } from "../../src/config/env.js";
 
 const bodySchema = z.object({ signedPayload: z.string().min(20) });
 
-export const handler: LambdaHandler = async (event) => {
+export const lambdaHandler: LambdaHandler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
   if (!deploymentControls().APPLE_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Apple webhook processing is disabled" };
   const [storeModule, firebaseModule, idsModule, appleModule] = await Promise.all([
@@ -58,4 +58,4 @@ export const handler: LambdaHandler = async (event) => {
   }
 };
 
-export default withLambda(handler);
+export default withLambda(lambdaHandler);

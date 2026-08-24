@@ -20,7 +20,8 @@ describe("isolated integration configuration", () => {
     for (const functionName of functions) {
       const source = read(`netlify/functions/${functionName}.ts`);
       expect(source).toContain('from "@netlify/aws-lambda-compat"');
-      expect(source).toContain("export default withLambda(handler);");
+      expect(source).toContain("export default withLambda(lambdaHandler);");
+      expect(source).not.toMatch(/export\s+const\s+handler\b/);
     }
   });
 

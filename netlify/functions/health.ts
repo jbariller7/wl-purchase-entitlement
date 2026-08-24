@@ -6,7 +6,7 @@ function present(...names: string[]): boolean {
   return names.every((name) => Boolean(process.env[name]?.trim()));
 }
 
-export const handler: LambdaHandler = async (event) => {
+export const lambdaHandler: LambdaHandler = async (event) => {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "Method Not Allowed" };
   const controls = deploymentControls();
   const configuration = {
@@ -38,4 +38,4 @@ export const handler: LambdaHandler = async (event) => {
   };
 };
 
-export default withLambda(handler);
+export default withLambda(lambdaHandler);

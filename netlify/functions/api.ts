@@ -203,9 +203,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   return json(404, { error: "Not found" });
 }
 
-export const handler: LambdaHandler = async (event) => {
+export const lambdaHandler: LambdaHandler = async (event) => {
   try { return withCors(event, await dispatch(event)); }
   catch (error) { return withCors(event, errorResponse(error)); }
 };
 
-export default withLambda(handler);
+export default withLambda(lambdaHandler);

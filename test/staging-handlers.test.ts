@@ -20,12 +20,12 @@ vi.mock("../src/infrastructure/firebase.js", () => ({
   firebaseStorage: vi.fn(),
   firestore: vi.fn()
 }));
-import { handler as appleHandler } from "../netlify/functions/apple-webhook.js";
-import { handler as apiHandler } from "../netlify/functions/api.js";
-import { handler as googlePlayHandler } from "../netlify/functions/google-play-webhook.js";
-import { handler as healthHandler } from "../netlify/functions/health.js";
-import { handler as outboxHandler } from "../netlify/functions/outbox-worker.js";
-import { handler as stripeHandler } from "../netlify/functions/stripe-webhook.js";
+import { lambdaHandler as appleHandler } from "../netlify/functions/apple-webhook.js";
+import { lambdaHandler as apiHandler } from "../netlify/functions/api.js";
+import { lambdaHandler as googlePlayHandler } from "../netlify/functions/google-play-webhook.js";
+import { lambdaHandler as healthHandler } from "../netlify/functions/health.js";
+import { lambdaHandler as outboxHandler } from "../netlify/functions/outbox-worker.js";
+import { lambdaHandler as stripeHandler } from "../netlify/functions/stripe-webhook.js";
 import { resetEnvironmentForTests } from "../src/config/env.js";
 
 const original = { ...process.env };

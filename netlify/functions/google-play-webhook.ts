@@ -2,7 +2,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import type { LambdaHandler } from "@netlify/aws-lambda-compat";
 import { deploymentControls } from "../../src/config/env.js";
 
-export const handler: LambdaHandler = async (event) => {
+export const lambdaHandler: LambdaHandler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
   if (!deploymentControls().GOOGLE_PLAY_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Google Play webhook processing is disabled" };
   const [storeModule, firebaseModule, idsModule, rtdnModule] = await Promise.all([
@@ -50,4 +50,4 @@ export const handler: LambdaHandler = async (event) => {
   }
 };
 
-export default withLambda(handler);
+export default withLambda(lambdaHandler);
