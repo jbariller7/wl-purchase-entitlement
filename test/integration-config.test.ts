@@ -30,6 +30,20 @@ describe("isolated integration configuration", () => {
     expect(admin).not.toContain('confirmationPhrase: "CHANGE MONTHLY TO 7.99 USD"');
   });
 
+  it("uses validated per-tab key-inventory thresholds in alerts and the admin UI", () => {
+    const operations = read("src/admin/operations-service.ts");
+    const admin = read("integrations/web/admin-console/admin.js");
+    const example = read(".env.example");
+    expect(operations).toContain("inventoryStockPolicyFromEnvironment");
+    expect(operations).toContain("row.lowStock");
+    expect(operations).toContain("threshold ${row.lowStockThreshold}");
+    expect(admin).toContain("r.lowStock");
+    expect(admin).toContain("alert at ${Number(r.lowStockThreshold).toLocaleString()}");
+    expect(admin).not.toContain("r.available <= 10");
+    expect(example).toMatch(/^KEY_INVENTORY_DEFAULT_LOW_STOCK_THRESHOLD=10$/m);
+    expect(example).toMatch(/^KEY_INVENTORY_LOW_STOCK_THRESHOLDS=\{\}$/m);
+  });
+
   it("uses the Netlify-compatible Firebase Admin authentication chain", () => {
     const packageJson = JSON.parse(read("package.json"));
     const packageLock = JSON.parse(read("package-lock.json"));

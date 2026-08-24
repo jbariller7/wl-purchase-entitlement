@@ -82,7 +82,7 @@ Stripe events:
 
 - Dashboard failed `providerEvents`, terminal `outbox` jobs, remaining keys per tab, subscription states and cloud storage growth.
 - After the staging bucket is provisioned, enable `CLOUD_STORAGE_MONITORING_ENABLED` only in the test deploy and verify daily aggregate totals, growth threshold and stale-upload alerts. Configure `CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES` for the expected launch scale.
-- Alert before any key tab reaches its chosen minimum and on any outbox job reaching ten attempts.
+- Configure `KEY_INVENTORY_DEFAULT_LOW_STOCK_THRESHOLD` and optional per-tab `KEY_INVENTORY_LOW_STOCK_THRESHOLDS`; the dashboard displays and alerts at each tab's actual chosen minimum. Outbox jobs become terminal and alert after ten failed attempts.
 - Reconcile Stripe/Play/App Store active subscriptions daily against grants; webhook delivery is the fast path, not the sole source of truth.
 - Before reconciliation testing, generate a distinct 32-byte staging key, install only the versioned `PROVIDER_TOKEN_ENCRYPTION_KEYS` JSON in Netlify, and verify the operations-console token counts. During rotation, retain the old and new keys until every encrypted-token count has moved to the new key ID.
 - Export/back up Firestore before schema migrations. Never edit grants manually; use an audited admin-grant endpoint/tool with actor, reason and expiry.

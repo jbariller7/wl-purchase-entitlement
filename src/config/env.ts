@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseInventoryStockPolicy } from "./inventory-policy.js";
 
 const disabledByDefault = z.enum(["true", "false"]).default("false").transform((value) => value === "true");
 
@@ -49,6 +50,8 @@ const schema = controlsSchema.extend({
   GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
   PROVIDER_TOKEN_ENCRYPTION_KEYS: z.string().optional(),
   CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES: z.coerce.number().int().positive().optional().default(500 * 1024 * 1024),
+  KEY_INVENTORY_DEFAULT_LOW_STOCK_THRESHOLD: z.coerce.number().int().min(0).max(1_000_000).optional().default(10),
+  KEY_INVENTORY_LOW_STOCK_THRESHOLDS: z.string().optional().default("{}"),
   APPLE_BUNDLE_ID: z.string().optional(),
   APPLE_APP_ID: z.string().regex(/^\d+$/).optional(),
   APPLE_MONTHLY_PRODUCT_ID: z.string().optional().default("wonderlangmonthly"),
@@ -97,6 +100,10 @@ export function env(): Environment {
       cached = undefined;
       throw new Error("Production deployments require a Stripe sk_live_ key.");
     }
+    parseInventoryStockPolicy({
+      defaultThreshold: cached.KEY_INVENTORY_DEFAULT_LOW_STOCK_THRESHOLD,
+      thresholdsJson: cached.KEY_INVENTORY_LOW_STOCK_THRESHOLDS
+    });
   }
   return cached;
 }

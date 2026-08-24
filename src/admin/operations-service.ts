@@ -10,6 +10,7 @@ import { stripeClient } from "../providers/stripe/client.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { AccountDeletionService } from "../account-deletion/service.js";
 import { chapterMigrationTransactionId, isLegacyChapterProduct } from "../domain/legacy-chapter-migration.js";
+import { assertKnownInventoryTabs, inventoryStockPolicyFromEnvironment, inventoryThresholdFor } from "../config/inventory-policy.js";
 
 const ADMIN_GRANT_PRODUCTS: Product[] = [
   "mobile_polyglot_permanent",
@@ -49,15 +50,18 @@ export class AdminOperationsService {
     return (await query.count().get()).data().count;
   }
 
-  async inventorySummary(): Promise<Array<{ sheetTab: string; available: number; assigned: number }>> {
+  async inventorySummary(): Promise<Array<{ sheetTab: string; available: number; assigned: number; lowStockThreshold: number; lowStock: boolean }>> {
     const tabs = [...new Set(Object.values(SHEET_TAB_BY_PRODUCT))].sort();
+    const policy = inventoryStockPolicyFromEnvironment();
+    assertKnownInventoryTabs(policy, tabs);
     return Promise.all(tabs.map(async (sheetTab) => {
       const base = this.db.collection("legacyKeys").where("sheetTab", "==", sheetTab);
       const [available, assigned] = await Promise.all([
         this.count(base.where("state", "==", "available")),
         this.count(base.where("state", "==", "assigned"))
       ]);
-      return { sheetTab, available, assigned };
+      const lowStockThreshold = inventoryThresholdFor(sheetTab, policy);
+      return { sheetTab, available, assigned, lowStockThreshold, lowStock: available <= lowStockThreshold };
     }));
   }
 
@@ -81,7 +85,7 @@ export class AdminOperationsService {
     await Promise.all([...new Set(recentRows.map((row) => String(row.uid ?? "")).filter(Boolean))].map(async (uid) => {
       users.set(uid, await this.auth.getUser(uid).catch(() => undefined));
     }));
-    const lowStock = inventory.filter((row) => row.available <= 10);
+    const lowStock = inventory.filter((row) => row.lowStock);
     const cloud = cloudStorage.exists ? cloudStorage.data() : undefined;
     const cloudMonitor = cloudStorageMonitor.exists ? cloudStorageMonitor.data() : undefined;
     const failedOperations = failedOutbox + failedEvents + failedReconciliations + (cloudMonitor?.state === "failed" ? 1 : 0);
@@ -90,7 +94,7 @@ export class AdminOperationsService {
       ...(cloud?.staleUploadAlert ? [{ tone: "warning", title: `${Number(cloud.staleStagingObjects ?? 0)} stale cloud upload${Number(cloud.staleStagingObjects ?? 0) === 1 ? "" : "s"}`, detail: "Expired staging objects should be removed", action: "Open operations" }] : []),
       ...(cloud?.growthAlert ? [{ tone: "warning", title: "Cloud storage growth exceeded its daily threshold", detail: `${Number(cloud.dailyChangeBytes ?? 0).toLocaleString()} bytes since the previous snapshot`, action: "Open operations" }] : []),
       ...(cloudMonitor?.state === "failed" ? [{ tone: "danger", title: "Cloud storage inventory failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
-      ...lowStock.slice(0, 3).map((row) => ({ tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available`, action: "Review inventory" })),
+      ...lowStock.slice(0, 3).map((row) => ({ tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available · threshold ${row.lowStockThreshold}`, action: "Review inventory" })),
       ...(graceSubscriptions ? [{ tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];
     return {

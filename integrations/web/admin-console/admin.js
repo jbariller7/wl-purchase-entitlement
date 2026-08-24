@@ -49,7 +49,7 @@ const demoOperations = {
   cloudStorage: { capturedAt: new Date().toISOString(), revisionObjects: 384, revisionBytes: 17825792, stagingObjects: 4, stagingBytes: 602112, staleStagingObjects: 1, staleStagingBytes: 150528, totalObjects: 388, totalBytes: 18427904, dailyChangeBytes: 524288, growthAlert: false, staleUploadAlert: true },
   cloudStorageMonitor: { state: "succeeded", lastSucceededAt: new Date().toISOString(), lastError: null }
 };
-const demoInventory = { summary: [{ sheetTab: "Steam English", available: 42, assigned: 318 }, { sheetTab: "Steam Japanese", available: 8, assigned: 94 }, { sheetTab: "Itch English", available: 27, assigned: 71 }], recentFulfillments: [] };
+const demoInventory = { summary: [{ sheetTab: "Steam English", available: 42, assigned: 318, lowStockThreshold: 15, lowStock: false }, { sheetTab: "Steam Japanese", available: 8, assigned: 94, lowStockThreshold: 10, lowStock: true }, { sheetTab: "Itch English", available: 27, assigned: 71, lowStockThreshold: 20, lowStock: false }], recentFulfillments: [] };
 const demoAudit = { entries: [{ id: "audit_demo", actorEmail: "owner@wonderlang.net", action: "catalog.price.change", targetType: "catalog", targetId: "monthly", summary: "Changed monthly price for new checkouts", createdAt: new Date().toISOString() }] };
 const ZERO_DECIMAL_CURRENCIES = new Set(["CLP", "JPY", "KRW", "VND"]);
 
@@ -153,8 +153,8 @@ function renderOperations(data) {
 }
 
 function renderInventory(data) {
-  return `${pageIntro("KEY INVENTORY", "Know before stock runs out.", "Steam and Itch keys remain separate from mobile entitlements. Low stock is highlighted at ten keys or fewer.")}
-  <section class="inventory-grid">${(data.summary || []).map((r) => `<article class="inventory-card ${r.available <= 10 ? "low" : ""}"><p>${escapeHtml(r.sheetTab)}</p><strong>${Number(r.available).toLocaleString()}</strong><span>available</span><small>${Number(r.assigned).toLocaleString()} assigned</small></article>`).join("")}</section>
+  return `${pageIntro("KEY INVENTORY", "Know before stock runs out.", "Steam and Itch keys remain separate from mobile entitlements. Each sheet tab uses its configured low-stock threshold.")}
+  <section class="inventory-grid">${(data.summary || []).map((r) => `<article class="inventory-card ${r.lowStock ? "low" : ""}"><p>${escapeHtml(r.sheetTab)}</p><strong>${Number(r.available).toLocaleString()}</strong><span>available</span><small>${Number(r.assigned).toLocaleString()} assigned · alert at ${Number(r.lowStockThreshold).toLocaleString()}</small></article>`).join("")}</section>
   <section class="panel"><header><div><p class="section-kicker">RECENT FULFILLMENT</p><h3>Delivered key orders</h3></div></header>${(data.recentFulfillments || []).length ? table(["When", "Order", "Keys"], data.recentFulfillments.map((r) => [formatDate(r.createdAt), r.orderId, (r.keys || []).length])) : empty("No fulfillment records in this environment.")}</section>`;
 }
 
