@@ -6,6 +6,7 @@ import { env } from "../config/env.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
+import { HttpError } from "../http/auth.js";
 
 type RefundReason = "duplicate" | "fraudulent" | "requested_by_customer";
 
@@ -15,7 +16,7 @@ function phraseAmount(amount: number, currency: string): string {
 
 async function chargeForPaymentIntent(payment: Stripe.PaymentIntent): Promise<Stripe.Charge> {
   const charge = payment.latest_charge;
-  if (!charge) throw new Error("This PaymentIntent has no completed charge to refund.");
+  if (!charge) throw new HttpError(409, "This PaymentIntent has no completed charge to refund.");
   return typeof charge === "string" ? stripeClient().charges.retrieve(charge) : charge;
 }
 
@@ -48,13 +49,13 @@ export class AdminBillingService {
     now: Date;
   }): Promise<Record<string, unknown>> {
     if (!Number.isSafeInteger(input.unitAmount) || input.unitAmount < 50 || input.unitAmount > 500_000) {
-      throw new Error("Enter a valid price between 0.50 and 5,000.00.");
+      throw new HttpError(400, "Enter a valid price between 0.50 and 5,000.00.");
     }
     const currency = input.currency.trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) throw new Error("Currency must be a three-letter ISO code.");
+    if (!/^[A-Z]{3}$/.test(currency)) throw new HttpError(400, "Currency must be a three-letter ISO code.");
     const catalog = await this.catalog.get();
     const current = input.kind === "monthly" ? catalog.monthly : catalog.lifetime;
-    if (current.unitAmount === input.unitAmount && current.currency === currency) throw new Error("The proposed price is already active.");
+    if (current.unitAmount === input.unitAmount && current.currency === currency) throw new HttpError(409, "The proposed price is already active.");
     const id = randomUUID();
     const confirmationPhrase = `CHANGE ${input.kind.toUpperCase()} TO ${phraseAmount(input.unitAmount, currency)}`;
     const expiresAt = new Date(input.now.getTime() + 15 * 60 * 1000);
@@ -84,17 +85,17 @@ export class AdminBillingService {
   }
 
   async commitPriceChange(input: { actor: AdminActor; previewId: string; confirmationPhrase: string; now: Date }): Promise<Record<string, unknown>> {
-    if (!env().STRIPE_MUTATIONS_ENABLED) throw new Error("Stripe mutations are disabled for this deployment.");
+    if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(409, "Stripe mutations are disabled for this deployment.");
     const ref = this.db.collection("adminPricePreviews").doc(input.previewId);
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
-      if (!snapshot.exists) throw new Error("Price preview not found.");
+      if (!snapshot.exists) throw new HttpError(404, "Price preview not found.");
       const data = snapshot.data() as Record<string, unknown>;
-      if (data.actorUid !== input.actor.uid) throw new Error("This preview belongs to another administrator.");
+      if (data.actorUid !== input.actor.uid) throw new HttpError(403, "This preview belongs to another administrator.");
       if (data.state === "complete") return data;
-      if (data.state !== "preview") throw new Error("This price change is already processing.");
-      if (Date.parse(String(data.expiresAt)) <= input.now.getTime()) throw new Error("Price preview expired. Create a fresh preview.");
-      if (input.confirmationPhrase.trim() !== data.confirmationPhrase) throw new Error("The confirmation phrase does not match.");
+      if (data.state !== "preview") throw new HttpError(409, "This price change is already processing.");
+      if (Date.parse(String(data.expiresAt)) <= input.now.getTime()) throw new HttpError(410, "Price preview expired. Create a fresh preview.");
+      if (input.confirmationPhrase.trim() !== data.confirmationPhrase) throw new HttpError(400, "The confirmation phrase does not match.");
       transaction.update(ref, { state: "processing", processingAt: input.now.toISOString() });
       return data;
     });
@@ -129,16 +130,18 @@ export class AdminBillingService {
     note: string;
     now: Date;
   }): Promise<Record<string, unknown>> {
-    if (input.note.trim().length < 10) throw new Error("A clear refund note of at least ten characters is required.");
+    if (input.note.trim().length < 10) throw new HttpError(400, "A clear refund note of at least ten characters is required.");
     const customerId = await this.store.stripeCustomerId(input.uid);
-    if (!customerId) throw new Error("This account has no linked Stripe customer.");
-    const payment = await stripeClient().paymentIntents.retrieve(input.paymentIntentId, { expand: ["latest_charge"] });
+    if (!customerId) throw new HttpError(404, "This account has no linked Stripe customer.");
+    const payment = await stripeClient().paymentIntents.retrieve(input.paymentIntentId, { expand: ["latest_charge"] }).catch(() => {
+      throw new HttpError(404, "Stripe payment was not found in this environment.");
+    });
     const paymentCustomer = typeof payment.customer === "string" ? payment.customer : payment.customer?.id;
-    if (paymentCustomer !== customerId) throw new Error("The payment does not belong to this WonderLang account.");
+    if (paymentCustomer !== customerId) throw new HttpError(403, "The payment does not belong to this WonderLang account.");
     const charge = await chargeForPaymentIntent(payment);
     const refundable = Math.max(0, charge.amount - charge.amount_refunded);
     const amount = input.amount ?? refundable;
-    if (!Number.isSafeInteger(amount) || amount < 1 || amount > refundable) throw new Error(`Refund amount must be between 1 and ${refundable} minor currency units.`);
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > refundable) throw new HttpError(400, `Refund amount must be between 1 and ${refundable} minor currency units.`);
     const id = randomUUID();
     const confirmationPhrase = `REFUND ${phraseAmount(amount, payment.currency)}`;
     const expiresAt = new Date(input.now.getTime() + 15 * 60 * 1000);
@@ -177,17 +180,17 @@ export class AdminBillingService {
   }
 
   async commitRefund(input: { actor: AdminActor; previewId: string; confirmationPhrase: string; now: Date }): Promise<Record<string, unknown>> {
-    if (!env().STRIPE_MUTATIONS_ENABLED) throw new Error("Stripe mutations are disabled for this deployment.");
+    if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(409, "Stripe mutations are disabled for this deployment.");
     const ref = this.db.collection("adminRefundPreviews").doc(input.previewId);
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
-      if (!snapshot.exists) throw new Error("Refund preview not found.");
+      if (!snapshot.exists) throw new HttpError(404, "Refund preview not found.");
       const data = snapshot.data() as Record<string, unknown>;
-      if (data.actorUid !== input.actor.uid) throw new Error("This preview belongs to another administrator.");
+      if (data.actorUid !== input.actor.uid) throw new HttpError(403, "This preview belongs to another administrator.");
       if (data.state === "complete") return data;
-      if (data.state !== "preview") throw new Error("This refund is already processing.");
-      if (Date.parse(String(data.expiresAt)) <= input.now.getTime()) throw new Error("Refund preview expired. Create a fresh preview.");
-      if (input.confirmationPhrase.trim() !== data.confirmationPhrase) throw new Error("The confirmation phrase does not match.");
+      if (data.state !== "preview") throw new HttpError(409, "This refund is already processing.");
+      if (Date.parse(String(data.expiresAt)) <= input.now.getTime()) throw new HttpError(410, "Refund preview expired. Create a fresh preview.");
+      if (input.confirmationPhrase.trim() !== data.confirmationPhrase) throw new HttpError(400, "The confirmation phrase does not match.");
       transaction.update(ref, { state: "processing", processingAt: input.now.toISOString() });
       return data;
     });

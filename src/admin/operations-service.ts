@@ -231,12 +231,12 @@ export class AdminOperationsService {
     endsAt?: string;
     now: Date;
   }): Promise<Record<string, unknown>> {
-    if (!ADMIN_GRANT_PRODUCTS.includes(input.product)) throw new Error("This product cannot be granted manually.");
-    if (input.reason.trim().length < 10) throw new Error("A clear audit reason of at least ten characters is required.");
+    if (!ADMIN_GRANT_PRODUCTS.includes(input.product)) throw new HttpError(400, "This product cannot be granted manually.");
+    if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
     await this.auth.getUser(input.uid);
     const transactionId = `manual-${randomUUID()}`;
     const endsAt = input.endsAt ? new Date(input.endsAt) : undefined;
-    if (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt <= input.now)) throw new Error("Grant expiry must be a valid future date.");
+    if (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt <= input.now)) throw new HttpError(400, "Grant expiry must be a valid future date.");
     await this.store.upsertGrant({
       id: "",
       uid: input.uid,
@@ -256,11 +256,11 @@ export class AdminOperationsService {
   }
 
   async revokeAdminGrant(input: { actor: AdminActor; grantId: string; reason: string; now: Date }): Promise<Record<string, unknown>> {
-    if (input.reason.trim().length < 10) throw new Error("A clear audit reason of at least ten characters is required.");
+    if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
     const snapshot = await this.db.collection("grants").doc(input.grantId).get();
-    if (!snapshot.exists) throw new Error("Grant not found.");
+    if (!snapshot.exists) throw new HttpError(404, "Grant not found.");
     const grant = snapshot.data() as { provider: string; providerTransactionId: string; product: Product; uid: string };
-    if (grant.provider !== "admin") throw new Error("Only manual administrator grants can be revoked here. Use the provider refund/revoke workflow for paid access.");
+    if (grant.provider !== "admin") throw new HttpError(409, "Only manual administrator grants can be revoked here. Use the provider refund/revoke workflow for paid access.");
     await this.store.revokeByProviderTransaction({
       provider: "admin", providerTransactionId: grant.providerTransactionId, state: "revoked",
       sourceEvent: { id: `admin-revoke:${randomUUID()}`, created: Math.floor(input.now.getTime() / 1000) }, at: input.now
@@ -273,7 +273,7 @@ export class AdminOperationsService {
   }
 
   async updateUserAccess(input: { actor: AdminActor; uid: string; disabled: boolean; reason: string; now: Date }): Promise<Record<string, unknown>> {
-    if (input.reason.trim().length < 10) throw new Error("A clear audit reason of at least ten characters is required.");
+    if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
     const user = await this.auth.updateUser(input.uid, { disabled: input.disabled });
     await this.auth.revokeRefreshTokens(input.uid);
     await recordAdminAudit({
@@ -285,7 +285,7 @@ export class AdminOperationsService {
   }
 
   async revokeSessions(input: { actor: AdminActor; uid: string; reason: string; now: Date }): Promise<void> {
-    if (input.reason.trim().length < 10) throw new Error("A clear audit reason of at least ten characters is required.");
+    if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
     await this.auth.revokeRefreshTokens(input.uid);
     await recordAdminAudit({
       db: this.db, actor: input.actor, action: "user.sessions.revoke", targetType: "user", targetId: input.uid,
@@ -302,23 +302,23 @@ export class AdminOperationsService {
   }
 
   async retryOutbox(input: { actor: AdminActor; jobId: string; reason: string; now: Date }): Promise<void> {
-    if (input.reason.trim().length < 10) throw new Error("A clear audit reason is required.");
+    if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason is required.");
     const ref = this.db.collection("outbox").doc(input.jobId);
     await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
-      if (!snapshot.exists) throw new Error("Outbox job not found.");
-      if (snapshot.data()?.state !== "failed") throw new Error("Only terminal failed jobs can be manually retried.");
+      if (!snapshot.exists) throw new HttpError(404, "Outbox job not found.");
+      if (snapshot.data()?.state !== "failed") throw new HttpError(409, "Only terminal failed jobs can be manually retried.");
       transaction.update(ref, { state: "pending", attemptCount: 0, notBefore: input.now.toISOString(), lastError: null, manuallyRetriedAt: input.now.toISOString() });
     });
     await recordAdminAudit({ db: this.db, actor: input.actor, action: "outbox.retry", targetType: "outbox", targetId: input.jobId, summary: "Reset failed job for retry", metadata: { reason: input.reason.trim() }, now: input.now });
   }
 
   async releaseProviderEvent(input: { actor: AdminActor; eventId: string; reason: string; now: Date }): Promise<void> {
-    if (input.reason.trim().length < 10) throw new Error("A clear audit reason is required.");
+    if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason is required.");
     const ref = this.db.collection("providerEvents").doc(input.eventId);
     const snapshot = await ref.get();
-    if (!snapshot.exists) throw new Error("Provider event not found.");
-    if (snapshot.data()?.status !== "failed") throw new Error("Only failed provider events can be released.");
+    if (!snapshot.exists) throw new HttpError(404, "Provider event not found.");
+    if (snapshot.data()?.status !== "failed") throw new HttpError(409, "Only failed provider events can be released.");
     await ref.update({ status: "released", lastAttemptAt: null, releasedForRedeliveryAt: input.now.toISOString() });
     await recordAdminAudit({ db: this.db, actor: input.actor, action: "provider_event.release", targetType: "providerEvent", targetId: input.eventId, summary: "Released failed event for provider redelivery", metadata: { reason: input.reason.trim() }, now: input.now });
   }

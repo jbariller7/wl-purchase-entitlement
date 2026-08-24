@@ -5,6 +5,7 @@ import type { Product } from "../domain/model.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { sha256 } from "../infrastructure/ids.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
+import { HttpError } from "../http/auth.js";
 
 export type AdminImportKind =
   | "mobile_lifetime"
@@ -43,14 +44,14 @@ function pendingId(email: string): string { return sha256(normalizedEmail(email)
 
 function normalizeRow(row: AdminImportRow, now: Date): NormalizedImportRow {
   const email = normalizedEmail(row.email);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error(`Invalid email: ${row.email}`);
-  if (!row.externalId.trim() || row.externalId.length > 200) throw new Error(`External ID is missing or too long for ${email}.`);
-  if (row.note.trim().length < 5) throw new Error(`Import note is too short for ${email}.`);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, `Invalid email: ${row.email}`);
+  if (!row.externalId.trim() || row.externalId.length > 200) throw new HttpError(400, `External ID is missing or too long for ${email}.`);
+  if (row.note.trim().length < 5) throw new HttpError(400, `Import note is too short for ${email}.`);
   const startsAt = row.startsAt ? new Date(row.startsAt) : now;
-  if (!Number.isFinite(startsAt.getTime())) throw new Error(`Invalid startsAt for ${email}.`);
+  if (!Number.isFinite(startsAt.getTime())) throw new HttpError(400, `Invalid startsAt for ${email}.`);
   if (row.endsAt) {
     const endsAt = new Date(row.endsAt);
-    if (!Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) throw new Error(`Invalid endsAt for ${email}.`);
+    if (!Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) throw new HttpError(400, `Invalid endsAt for ${email}.`);
   }
   return {
     ...row,
@@ -78,11 +79,11 @@ export class AdminImportService {
   }
 
   async preview(input: { actor: AdminActor; rows: AdminImportRow[]; now: Date }): Promise<Record<string, unknown>> {
-    if (!input.rows.length || input.rows.length > 500) throw new Error("Import must contain between 1 and 500 records.");
+    if (!input.rows.length || input.rows.length > 500) throw new HttpError(400, "Import must contain between 1 and 500 records.");
     const rows = input.rows.map((row) => normalizeRow(row, input.now));
     const externalIds = new Set<string>();
     for (const row of rows) {
-      if (externalIds.has(row.externalId)) throw new Error(`Duplicate external ID in this file: ${row.externalId}`);
+      if (externalIds.has(row.externalId)) throw new HttpError(400, `Duplicate external ID in this file: ${row.externalId}`);
       externalIds.add(row.externalId);
     }
     const resolutions = await Promise.all(rows.map(async (row) => ({ row, uid: await userUidByEmail(this.auth, row.email) })));
@@ -173,13 +174,13 @@ export class AdminImportService {
     const ref = this.db.collection("adminImportPreviews").doc(input.previewId);
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
-      if (!snapshot.exists) throw new Error("Import preview not found.");
+      if (!snapshot.exists) throw new HttpError(404, "Import preview not found.");
       const data = snapshot.data() as { actorUid: string; state: string; expiresAt: string; confirmationPhrase: string; rows: NormalizedImportRow[]; result?: Record<string, unknown> };
-      if (data.actorUid !== input.actor.uid) throw new Error("This import preview belongs to another administrator.");
+      if (data.actorUid !== input.actor.uid) throw new HttpError(403, "This import preview belongs to another administrator.");
       if (data.state === "complete") return data;
-      if (data.state !== "preview" && data.state !== "failed") throw new Error("This import is already processing.");
-      if (Date.parse(data.expiresAt) <= input.now.getTime()) throw new Error("Import preview expired. Upload the file again.");
-      if (input.confirmationPhrase.trim() !== data.confirmationPhrase) throw new Error("The confirmation phrase does not match.");
+      if (data.state !== "preview" && data.state !== "failed") throw new HttpError(409, "This import is already processing.");
+      if (Date.parse(data.expiresAt) <= input.now.getTime()) throw new HttpError(410, "Import preview expired. Upload the file again.");
+      if (input.confirmationPhrase.trim() !== data.confirmationPhrase) throw new HttpError(400, "The confirmation phrase does not match.");
       transaction.update(ref, { state: "processing", processingAt: input.now.toISOString(), lastError: null });
       return data;
     });
