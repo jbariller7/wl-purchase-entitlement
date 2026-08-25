@@ -9,7 +9,7 @@ import "./admin.css";
 const appNode = document.querySelector("#app");
 const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
-const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, previews: {}, notice: null };
+const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, googlePlayDiagnostic: null, previews: {}, notice: null };
 
 const demoOverview = {
   metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, pendingSecondPlatformRequests: 1, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
@@ -259,15 +259,25 @@ function renderAudit(data) {
   <section class="panel"><header><div><p class="section-kicker">IMMUTABLE HISTORY</p><h3>Latest actions</h3></div></header>${table(["When", "Administrator", "Action", "Target", "Summary"], (data.entries || []).map((e) => [formatDate(e.createdAt), e.actorEmail, e.action, `${e.targetType}:${e.targetId}`, e.summary]))}</section>`;
 }
 
+function diagnosticDetails(check) {
+  if ((check.issues || []).length) return check.issues.join(" ");
+  const values = Object.entries(check.details || {}).filter(([, value]) => value !== null && value !== "" && (!Array.isArray(value) || value.length));
+  if (!values.length) return "No issues found";
+  return values.map(([key, value]) => `${key.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (letter) => letter.toUpperCase())}: ${Array.isArray(value) ? value.join(", ") : value}`).join(" · ");
+}
+
 function renderSettings(data) {
   const labels = { STRIPE_WEBHOOKS_ENABLED: "Stripe webhooks", GOOGLE_PLAY_WEBHOOKS_ENABLED: "Google Play webhooks", APPLE_WEBHOOKS_ENABLED: "Apple webhooks", OUTBOX_PROCESSING_ENABLED: "Outbox worker", AD_CONVERSIONS_ENABLED: "Ad conversions", LEGACY_FULFILLMENT_ENABLED: "Legacy fulfillment", SUBSCRIPTION_CANCELLATION_ENABLED: "Subscription cancellation", ACCOUNT_DELETION_PROCESSING_ENABLED: "Account deletion purge", STRIPE_MUTATIONS_ENABLED: "Stripe mutations", APP_CHECK_ENFORCEMENT_ENABLED: "Firebase App Check", SUBSCRIPTION_RECONCILIATION_ENABLED: "Subscription reconciliation", CLOUD_STORAGE_MONITORING_ENABLED: "Cloud storage monitoring", CLOUD_SAVE_CLEANUP_ENABLED: "Cloud-save revision cleanup", DEVICE_SIGN_IN_ENABLED: "PC/Mac device sign-in", DEVICE_SIGN_IN_CLEANUP_ENABLED: "Expired device-code cleanup", ADMIN_BOOTSTRAP_ENABLED: "Initial admin bootstrap" };
   const controls = data.controls || {};
   const diagnostic = state.stripeDiagnostic;
-  const diagnosticRows = (diagnostic?.checks || []).map((check) => [check.label, check.resourceId, check.state === "passed" ? "Passed" : "Failed", (check.issues || []).join(" ") || "No issues found"]);
+  const playDiagnostic = state.googlePlayDiagnostic;
+  const diagnosticRows = (diagnostic?.checks || []).map((check) => [check.label, check.resourceId, check.state === "passed" ? "Passed" : "Failed", diagnosticDetails(check)]);
+  const playDiagnosticRows = (playDiagnostic?.checks || []).map((check) => [check.label, check.resourceId, check.state === "passed" ? "Passed" : "Failed", diagnosticDetails(check)]);
   return `${pageIntro("SECURITY & SETUP", "Test mode is enforced by the server.", "The visible label is informational; secret-key mode and administrator claims are validated on every protected request.")}
   <section class="settings-grid"><article class="panel detail-card"><header><div><p class="section-kicker">ADMIN SESSION</p><h3>${escapeHtml(data.actor?.email || state.user?.email)}</h3></div></header><dl class="definition-grid"><div><dt>Firebase UID</dt><dd>${escapeHtml(data.actor?.uid || "Demo")}</dd></div><div><dt>Signed in through</dt><dd>${escapeHtml((data.providers || ["demo"]).join(", "))}</dd></div><div><dt>Authorization</dt><dd>Server-verified admin claim</dd></div><div><dt>Capabilities</dt><dd>${escapeHtml((data.capabilities || []).join(", "))}</dd></div></dl></article>
   <article class="panel"><header><div><p class="section-kicker">DEPLOYMENT GUARDS</p><h3>${escapeHtml(controls.APP_ENVIRONMENT || state.config.environment || "Unknown")} environment</h3></div></header><div class="guard-list">${Object.entries(labels).map(([key, label]) => `<div><span>${label}</span><b>${controls[key] ? "On" : "Off"}</b></div>`).join("")}</div></article></section>
   <section class="panel spaced"><header><div><p class="section-kicker">READ-ONLY PROVIDER CHECK</p><h3>Stripe catalog diagnostic</h3></div><button type="button" class="button secondary" data-run-stripe-diagnostic>${diagnostic ? "Run again" : "Run diagnostic"}</button></header><p class="panel-copy">Reads the configured test Prices, Products and historical-owner Coupon. It never creates a customer, Checkout Session, refund, subscription or webhook event and it never returns the API key.</p>${diagnostic ? `<div class="guard-list"><div><span>Credential</span><b>${escapeHtml(`${diagnostic.keyType} ${diagnostic.mode}`)}</b></div><div><span>Result</span><b>${diagnostic.passed ? "Passed" : "Needs attention"}</b></div><div><span>Checked</span><b>${escapeHtml(formatDate(diagnostic.checkedAt))}</b></div><div><span>Stripe canary switches</span><b>${diagnostic.canarySwitches?.checkoutTestingEnabled ? "On" : "Off"}</b></div></div>${table(["Check", "Resource", "State", "Details"], diagnosticRows)}` : empty("No provider call has been made from this page. Run the diagnostic after the restricted test key is installed.")}</section>
+  <section class="panel spaced"><header><div><p class="section-kicker">READ-ONLY PROVIDER CHECK</p><h3>Google Play catalog diagnostic</h3></div><button type="button" class="button secondary" data-run-google-play-diagnostic>${playDiagnostic ? "Run again" : "Run diagnostic"}</button></header><p class="panel-copy">Reads Mobile Monthly, its three-day trial, and both wonderlangfull purchase options. During the pre-update rollout it requires legacy buy to remain active at USD 25.99 and buy-polyglot-permanent to remain draft at USD 31.99. It never acknowledges a purchase or changes Play Console data.</p>${playDiagnostic ? `<div class="guard-list"><div><span>Package</span><b>${escapeHtml(playDiagnostic.packageName)}</b></div><div><span>Result</span><b>${playDiagnostic.passed ? "Passed" : "Needs attention"}</b></div><div><span>Expected rollout</span><b>${escapeHtml(playDiagnostic.rolloutPhase === "compatible_update_live" ? "Compatible update live" : "Legacy live · new option draft")}</b></div><div><span>Play webhook processing</span><b>${playDiagnostic.webhookProcessingEnabled ? "On" : "Off"}</b></div></div>${table(["Check", "Resource", "State", "Details"], playDiagnosticRows)}` : empty("No Google Play provider call has been made from this page.")}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">SSO READINESS</p><h3>Google and Apple</h3></div></header><ul class="policy-list"><li>Both providers use Firebase Authentication.</li><li>Signing in never grants admin access by itself.</li><li>Google and Apple identities merge only through verified account-linking rules.</li><li>The Netlify domain must be authorized in Firebase and Apple Services ID settings.</li></ul></section>`;
 }
 
@@ -379,6 +389,16 @@ function demoApi(path, options) {
       ["premium-price", "Premium Lifetime checkout Price", "price_test_premium"],
       ["historical-owner-coupon", "Historical desktop-owner 50% Coupon", "wonderlang_desktop_owner_lifetime_50"]
     ].map(([id, label, resourceId]) => ({ id, label, resourceId, state: "passed", issues: [], details: { livemode: false } }))
+  };
+  if (method === "GET" && path.includes("diagnostics/google-play-catalog")) return {
+    checkedAt: new Date().toISOString(), passed: true, readOnly: true, packageName: "com.wonderlang.app",
+    rolloutPhase: "legacy_live_new_draft", webhookProcessingEnabled: false,
+    checks: [
+      { id: "monthly-base-plan", label: "Mobile Monthly base plan", resourceId: "wonderlangmonthly/monthly", state: "passed", issues: [], details: { state: "ACTIVE", usPrice: "USD 6.99" } },
+      { id: "monthly-three-day-trial", label: "Mobile Monthly three-day trial", resourceId: "three-day-trial", state: "passed", issues: [], details: { state: "ACTIVE", duration: "P3D" } },
+      { id: "legacy-buy-option", label: "Legacy wonderlangfull purchase option", resourceId: "buy", state: "passed", issues: [], details: { state: "ACTIVE", usPrice: "USD 25.99" } },
+      { id: "polyglot-purchase-option", label: "Polyglot Permanent purchase option", resourceId: "buy-polyglot-permanent", state: "passed", issues: [], details: { state: "DRAFT", usPrice: "USD 31.99" } }
+    ]
   };
   if (path.endsWith("/catalog")) return demoCatalog;
   if (path.includes("operations")) return demoOperations;
@@ -615,6 +635,18 @@ function bindView() {
     try {
       state.stripeDiagnostic = await api("/admin-api/v1/diagnostics/stripe-catalog");
       state.notice = { message: state.stripeDiagnostic.passed ? "Stripe catalog diagnostic passed." : "Stripe catalog diagnostic found issues.", error: !state.stripeDiagnostic.passed };
+      await loadView("settings");
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message, true);
+    }
+  });
+  document.querySelector("[data-run-google-play-diagnostic]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      state.googlePlayDiagnostic = await api("/admin-api/v1/diagnostics/google-play-catalog");
+      state.notice = { message: state.googlePlayDiagnostic.passed ? "Google Play catalog diagnostic passed." : "Google Play catalog diagnostic found issues.", error: !state.googlePlayDiagnostic.passed };
       await loadView("settings");
     } catch (error) {
       button.disabled = false;

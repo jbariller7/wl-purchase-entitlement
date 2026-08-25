@@ -35,7 +35,11 @@ const googlePlaySchema = z.object({
   GOOGLE_PRIVATE_KEY: z.string().min(1),
   GOOGLE_PLAY_PACKAGE_NAME: z.string().min(1).default("com.wonderlang.app"),
   GOOGLE_PLAY_MONTHLY_PRODUCT_ID: z.string().min(1).default("wonderlangmonthly"),
+  GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID: z.string().min(1).default("monthly"),
   GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: z.string().min(1).default("wonderlangfull"),
+  GOOGLE_PLAY_LEGACY_PURCHASE_OPTION_ID: z.string().min(1).default("buy"),
+  GOOGLE_PLAY_POLYGLOT_PURCHASE_OPTION_ID: z.string().min(1).default("buy-polyglot-permanent"),
+  GOOGLE_PLAY_POLYGLOT_ROLLOUT_PHASE: z.enum(["legacy_live_new_draft", "compatible_update_live"]).default("legacy_live_new_draft"),
   GOOGLE_PLAY_RTDN_AUDIENCE: z.string().url(),
   GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: z.string().email()
 });
@@ -116,7 +120,11 @@ const schema = controlsSchema.extend({
   GOOGLE_PRIVATE_KEY: googlePlaySchema.shape.GOOGLE_PRIVATE_KEY.optional(),
   GOOGLE_PLAY_PACKAGE_NAME: googlePlaySchema.shape.GOOGLE_PLAY_PACKAGE_NAME.optional().default("com.wonderlang.app"),
   GOOGLE_PLAY_MONTHLY_PRODUCT_ID: googlePlaySchema.shape.GOOGLE_PLAY_MONTHLY_PRODUCT_ID.optional().default("wonderlangmonthly"),
+  GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID: googlePlaySchema.shape.GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID.optional().default("monthly"),
   GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: googlePlaySchema.shape.GOOGLE_PLAY_POLYGLOT_PRODUCT_ID.optional().default("wonderlangfull"),
+  GOOGLE_PLAY_LEGACY_PURCHASE_OPTION_ID: googlePlaySchema.shape.GOOGLE_PLAY_LEGACY_PURCHASE_OPTION_ID.optional().default("buy"),
+  GOOGLE_PLAY_POLYGLOT_PURCHASE_OPTION_ID: googlePlaySchema.shape.GOOGLE_PLAY_POLYGLOT_PURCHASE_OPTION_ID.optional().default("buy-polyglot-permanent"),
+  GOOGLE_PLAY_POLYGLOT_ROLLOUT_PHASE: googlePlaySchema.shape.GOOGLE_PLAY_POLYGLOT_ROLLOUT_PHASE.optional().default("legacy_live_new_draft"),
   GOOGLE_PLAY_RTDN_AUDIENCE: googlePlaySchema.shape.GOOGLE_PLAY_RTDN_AUDIENCE.optional(),
   GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: googlePlaySchema.shape.GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL.optional(),
   PROVIDER_TOKEN_ENCRYPTION_KEYS: z.string().optional(),

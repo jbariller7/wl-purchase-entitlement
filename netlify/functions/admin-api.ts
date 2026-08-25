@@ -6,6 +6,7 @@ import { AdminBillingService } from "../../src/admin/billing-service.js";
 import { AdminCloudSaveService } from "../../src/admin/cloud-save-service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { AdminOperationsService } from "../../src/admin/operations-service.js";
+import { AdminProviderDiagnosticService } from "../../src/admin/provider-diagnostic-service.js";
 import type { AdminActor } from "../../src/admin/audit.js";
 import { deploymentControls } from "../../src/config/env.js";
 import { requireAppCheck } from "../../src/http/app-check.js";
@@ -112,6 +113,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   await consumeRateLimit({ db, namespace: "admin", subject: token.uid, policy: adminRateLimitPolicy(event.httpMethod, path), now });
   const operations = new AdminOperationsService(db, firebaseAuth());
   const billing = new AdminBillingService(db);
+  const diagnostics = new AdminProviderDiagnosticService(db);
   const imports = new AdminImportService(db, firebaseAuth());
   const cloudSaves = new AdminCloudSaveService(db, firebaseStorage());
 
@@ -184,7 +186,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   }
   if (event.httpMethod === "GET" && path === "/v1/catalog") return json(200, await billing.catalogStatus());
   if (event.httpMethod === "GET" && path === "/v1/diagnostics/stripe-catalog") {
-    return json(200, await billing.stripeCatalogDiagnostic(now));
+    return json(200, await diagnostics.stripeCatalog(now));
+  }
+  if (event.httpMethod === "GET" && path === "/v1/diagnostics/google-play-catalog") {
+    return json(200, await diagnostics.googlePlayCatalog(now));
   }
   if (event.httpMethod === "POST" && path === "/v1/catalog/price-preview") {
     return json(200, await billing.previewPriceChange({ actor, ...body(pricePreviewSchema, event), now }));
