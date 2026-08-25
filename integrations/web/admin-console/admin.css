@@ -88,6 +88,13 @@ button { touch-action: manipulation; }
 .alert-icon { width: 9px; height: 9px; border-radius: 50%; background: #8b9a92; box-shadow: 0 0 0 5px #8b9a9217; }
 .alert-icon.danger { background: var(--red); box-shadow: 0 0 0 5px #c94b4b17; }
 .alert-icon.warning { background: var(--orange); box-shadow: 0 0 0 5px #ee8b4a1a; }
+.alert { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 18px; padding: 18px 22px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); }
+.alert > div:first-child { display: grid; gap: 4px; }
+.alert > div:first-child span { color: var(--muted); font-size: 13px; }
+.alert.warning { border-color: #e4b987; background: #fff6ea; }
+.alert.success { border-color: #8bc3a2; background: #eef9f2; }
+.alert.neutral { border-color: #9fb7ac; background: #f4f8f5; }
+.alert .card-actions { padding: 0; }
 .quick-grid { display: grid; grid-template-columns: 1fr 1fr; padding: 12px; }
 .quick-action { display: grid; min-height: 126px; padding: 14px; border: 0; border-radius: 11px; background: transparent; color: var(--ink); cursor: pointer; text-align: left; }
 .quick-action:hover { background: #f2f6ee; }
@@ -106,7 +113,8 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
 .page-intro > div > p:last-child { max-width: 720px; margin: 13px 0 0; color: var(--muted); line-height: 1.55; }
 .search-bar { display: flex; gap: 10px; margin-bottom: 22px; padding: 12px; border: 1px solid var(--line); border-radius: 14px; background: #fff; box-shadow: var(--shadow); }
 .search-bar input { flex: 1; min-width: 0; border: 0; outline: none; padding: 0 10px; }
-.customer-grid, .split-grid, .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.customer-grid, .split-grid, .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
+.customer-grid > *, .split-grid > *, .settings-grid > * { min-width: 0; }
 .definition-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; padding: 23px 24px; margin: 0; }
 .definition-grid div { min-width: 0; }
 .definition-grid dt { margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
@@ -204,11 +212,12 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
   .hero-actions .button { flex: 1; }
   .metric-grid { grid-template-columns: 1fr 1fr; }
   .page-intro { align-items: stretch; flex-direction: column; }
-  .customer-grid, .split-grid, .settings-grid, .price-grid { grid-template-columns: 1fr; }
+  .customer-grid, .split-grid, .settings-grid, .price-grid { grid-template-columns: minmax(0, 1fr); }
   .inventory-grid { grid-template-columns: 1fr 1fr; }
   .preview-summary { grid-template-columns: 1fr 1fr; }
   .alert-row { grid-template-columns: 14px minmax(0, 1fr); }
   .alert-row b { display: none; }
+  .alert { align-items: stretch; flex-direction: column; }
 }
 @media (max-width: 480px) {
   .environment { display: none; }

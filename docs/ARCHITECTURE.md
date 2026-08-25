@@ -39,6 +39,7 @@ An active monthly grant ends at the provider period end unless a newer provider 
 - `subscriptionReconciliationRuns`: aggregate run history without purchase tokens or customer identities.
 - `grants/{hash}`: normalized provider truth.
 - `entitlements/{uid}`: cached projection; APIs also project from current grants/time.
+- `secondPlatformRequests/{uid}`: one revisioned Premium request per account. Customers receive a privacy-reduced view; administrators lease decisions, create a deterministic platform grant, and commit an immutable audit record. Repeated successful approval cannot create another grant.
 - `legacyOrders`, `legacyDiscountClaims`: verified historical purchases and one-use reservation/redemption.
 - `legacyKeys`, `legacyFulfillments`: exclusive key inventory and durable fulfillment result.
 - `checkoutContexts`, `subscriptionContexts`: browser attribution captured before Stripe redirect.

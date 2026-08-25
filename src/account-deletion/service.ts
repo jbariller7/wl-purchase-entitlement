@@ -324,6 +324,7 @@ export class AccountDeletionService {
     batch.delete(this.db.collection("users").doc(uid));
     batch.delete(this.db.collection("entitlements").doc(uid));
     batch.delete(this.db.collection("legacyDiscountClaims").doc(uid));
+    batch.delete(this.db.collection("secondPlatformRequests").doc(uid));
     if (storeAccountToken) batch.delete(this.db.collection("storeAccountTokens").doc(stableDocumentId("store-account", storeAccountToken)));
     const tombstoneRef = this.db.collection("accountDeletionTombstones").doc(sha256(uid));
     batch.set(tombstoneRef, { deletedUid, completedAt: now.toISOString(), retainedLedgerRows: pseudonymizedRows.reduce((sum, value) => sum + value, 0) });

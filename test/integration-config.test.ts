@@ -40,6 +40,13 @@ describe("isolated integration configuration", () => {
     expect(admin).not.toContain("Configured in Netlify");
     expect(admin).toContain("Eligible on request");
     expect(admin).toContain("Permanent mobile platforms");
+    expect(admin).toContain("PREMIUM BENEFIT REQUESTS");
+    expect(admin).toContain("data-second-platform-open");
+    expect(admin).toContain("data-second-platform-decision");
+    expect(admin).toContain("secondPlatformRequests: []");
+    expect(admin).toContain("second_platform_request.approve");
+    expect(admin).toContain("second_platform_request.decline");
+    expect(admin).toContain("Approval creates one audited, idempotent grant; no payment is taken.");
     expect(operations).toContain('entitlements.where("subscriptionState", "==", "active")');
     expect(operations).not.toContain('entitlements.where("accessKind", "==", "subscription").where("subscriptionState", "==", "active")');
     expect(admin).toContain('view: "operations"');
@@ -196,7 +203,35 @@ describe("isolated integration configuration", () => {
     expect(account).toContain("https://apps.apple.com/account/subscriptions");
     expect(account).toContain("must cancel my Google Play subscription separately");
     expect(account).toContain("must cancel my Apple subscription separately");
+    expect(account).toContain('data-action="request-second-platform"');
+    expect(account).toContain('data-action="cancel-second-platform"');
+    expect(account).toContain("/api/v1/me/second-platform-request");
+    expect(account).toContain("No purchase is required.");
+    expect(account).toContain('demoProfile === "premium"');
     expect(read("src/providers/stripe/checkout-service.ts")).toContain("effective.permanentMobilePlatforms.includes(request.mobilePlatform)");
+  });
+
+  it("keeps Premium second-platform decisions server-authoritative, private, and auditable", () => {
+    const service = read("src/premium/second-platform-request-service.ts");
+    const customerApi = read("netlify/functions/api.ts");
+    const adminApi = read("netlify/functions/admin-api.ts");
+    const operations = read("src/admin/operations-service.ts");
+    const deletion = read("src/account-deletion/service.ts");
+    expect(service).toContain('collection("secondPlatformRequests")');
+    expect(service).toContain('providerTransactionId: transactionId');
+    expect(service).toContain('`premium-second-platform:${input.uid}:${claim.record.requestedPlatform}`');
+    expect(service).toContain('stableDocumentId("admin-audit"');
+    expect(service).toContain('action: "second_platform_request.approve"');
+    expect(service).toContain('action: "second_platform_request.decline"');
+    expect(service).toContain('if (current.state === "approved") return current;');
+    const publicProjection = service.slice(service.indexOf("export function publicSecondPlatformRequest"), service.indexOf("function assertEligible"));
+    for (const privateField of ["uid:", "email:", "approvalToken:", "approvalActor", "decisionReason:", "grantId:"]) expect(publicProjection).not.toContain(privateField);
+    expect(customerApi).toContain('secondMobilePlatformRequest: secondPlatformRequest');
+    expect(adminApi).toContain('capabilities: ["customers", "grants", "prices", "refunds", "imports", "second_platform_requests"');
+    expect(operations).toContain("openSecondPlatformRequests");
+    expect(operations).toContain("approveSecondPlatformRequest");
+    expect(operations).toContain("declineSecondPlatformRequest");
+    expect(deletion).toContain('batch.delete(this.db.collection("secondPlatformRequests").doc(uid))');
   });
 
   it("keeps the PC/Mac custom-token exchange out of Git-hosted credentials", () => {

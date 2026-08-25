@@ -26,6 +26,8 @@ describe("customer interface route contract", () => {
       ["/api/v1/checkout", 'path === "/v1/checkout"'],
       ["/api/v1/billing-portal", 'path === "/v1/billing-portal"'],
       ["/api/v1/legacy/claim", 'path === "/v1/legacy/claim"'],
+      ["/api/v1/me/second-platform-request", 'path === "/v1/me/second-platform-request"'],
+      ["/api/v1/me/second-platform-request/cancel", 'path === "/v1/me/second-platform-request/cancel"'],
       ["/api/v1/me/revoke-sessions", 'path === "/v1/me/revoke-sessions"'],
       ["/api/v1/me/deletion-preview", 'path === "/v1/me/deletion-preview"'],
       ["/api/v1/me/deletion-commit", 'path === "/v1/me/deletion-commit"']
@@ -61,6 +63,8 @@ describe("administrator interface route contract", () => {
       '[data-action="sign-out"]',
       '[data-action="download-template"]',
       "[data-customer-action]",
+      "[data-second-platform-open]",
+      "[data-second-platform-decision]",
       "[data-refund]",
       "[data-revoke-grant]",
       "[data-retry-job]",
@@ -85,6 +89,7 @@ describe("administrator interface route contract", () => {
       ["/admin-api/v1/operations", 'path === "/v1/operations"'],
       ["/admin-api/v1/inventory", 'path === "/v1/inventory"'],
       ["/admin-api/v1/audit", 'path === "/v1/audit"'],
+      ["/admin-api/v1/second-platform-requests", 'path === "/v1/second-platform-requests"'],
       ["/admin-api/v1/session", 'path === "/v1/session"']
     ] as const;
     for (const [clientRoute, serverRoute] of exactRoutes) {
@@ -96,6 +101,7 @@ describe("administrator interface route contract", () => {
       "accessMatch",
       "sessionsMatch",
       "cancelDeletionMatch",
+      "secondPlatformDecisionMatch",
       "revokeGrantMatch",
       "retryMatch",
       "cleanupRetryMatch",

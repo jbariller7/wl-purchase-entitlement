@@ -17,7 +17,9 @@ import {
 } from "firebase/auth";
 import "./wonderlang-account.css";
 
-const previewParam = new URLSearchParams(location.search).get("demo");
+const pageParams = new URLSearchParams(location.search);
+const previewParam = pageParams.get("demo");
+const demoProfile = pageParams.get("profile");
 const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"].includes(location.hostname)
   && previewParam === "1";
 const localEmailLinkDemo = ["localhost", "127.0.0.1"].includes(location.hostname)
@@ -77,6 +79,14 @@ const html = `
         <div><span>Future content</span><strong data-field="future-content">—</strong></div>
         <div><span>Second mobile platform</span><strong data-field="second-platform">—</strong></div>
       </div>
+      <section class="wl-second-platform-request" data-section="second-platform-request" hidden>
+        <div><p class="wl-eyebrow">PREMIUM INCLUDED BENEFIT</p><h3>Request your other mobile platform</h3></div>
+        <p data-field="second-platform-request-status">Premium Lifetime includes one reviewed request for the other mobile platform.</p>
+        <div class="wl-second-platform-actions">
+          <button type="button" data-action="request-second-platform">Request access</button>
+          <button type="button" data-action="cancel-second-platform" class="wl-secondary" hidden>Cancel request</button>
+        </div>
+      </section>
       <div class="wl-offers">
         <article>
           <p class="wl-eyebrow">FLEXIBLE</p><h3>Mobile Monthly</h3>
@@ -150,28 +160,30 @@ const demoConfig = {
 };
 
 function createDemoAccount() {
+  const premium = demoProfile === "premium";
   return {
     email: "demo-player@example.com",
     linkedLoginProviders: ["google.com", "apple.com"],
     entitlements: {
-      accessKind: "subscription",
-      subscriptionState: "active",
+      accessKind: premium ? "premium_lifetime" : "subscription",
+      subscriptionState: premium ? "inactive" : "active",
       cloudSave: true,
-      mobilePlatforms: ["android", "ios"],
-      permanentMobilePlatforms: [],
-      pcMacAccess: false,
-      futureContent: false,
-      premiumLifetime: false,
-      secondMobilePlatformEligible: false,
+      mobilePlatforms: premium ? ["android"] : ["android", "ios"],
+      permanentMobilePlatforms: premium ? ["android"] : [],
+      pcMacAccess: premium,
+      futureContent: premium,
+      premiumLifetime: premium,
+      secondMobilePlatformEligible: premium,
       chapters: []
     },
-    subscription: {
+    subscription: premium ? null : {
       provider: "stripe",
       phase: "trial",
       trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
       renewsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     },
-    stripeBillingAvailable: true,
+    stripeBillingAvailable: !premium,
+    secondMobilePlatformRequest: null,
     cloudSave: {
       slotCount: 2,
       lastUpdatedAt: new Date().toISOString()
@@ -230,6 +242,8 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="restore"]').addEventListener("click", () => this.restorePurchases());
     this.querySelector('[data-action="revoke-sessions"]').addEventListener("click", () => this.revokeSessions());
     this.querySelector('[data-action="delete-account"]').addEventListener("click", () => this.deleteAccount());
+    this.querySelector('[data-action="request-second-platform"]').addEventListener("click", () => this.requestSecondPlatform());
+    this.querySelector('[data-action="cancel-second-platform"]').addEventListener("click", () => this.cancelSecondPlatformRequest());
     this.querySelector('[data-action="approve-device"]').addEventListener("click", () => this.approveDevice());
     this.querySelector('[data-action="cancel-device"]').addEventListener("click", () => this.cancelDeviceApproval());
     this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(new GoogleAuthProvider()));
@@ -449,6 +463,41 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="second-platform"]').textContent = ent.secondMobilePlatformEligible
         ? permanentPlatforms.length > 1 ? "Granted" : "Eligible on request"
         : "Not included";
+      const requestSection = this.querySelector('[data-section="second-platform-request"]');
+      const requestStatus = this.querySelector('[data-field="second-platform-request-status"]');
+      const requestButton = this.querySelector('[data-action="request-second-platform"]');
+      const cancelRequestButton = this.querySelector('[data-action="cancel-second-platform"]');
+      const secondPlatformRequest = this.account.secondMobilePlatformRequest;
+      const targetPlatform = permanentPlatforms[0] === "android" ? "iOS" : permanentPlatforms[0] === "ios" ? "Android" : "the other mobile platform";
+      requestSection.hidden = !ent.secondMobilePlatformEligible;
+      if (ent.secondMobilePlatformEligible) {
+        requestButton.textContent = `Request ${targetPlatform} access`;
+        if (permanentPlatforms.length > 1) {
+          requestStatus.textContent = "Android and iOS permanent access are both granted on this WonderLang account.";
+          requestButton.hidden = true;
+          cancelRequestButton.hidden = true;
+        } else if (secondPlatformRequest?.state === "pending") {
+          requestStatus.textContent = `${targetPlatform} access was requested and is waiting for WonderLang support review. No purchase is required.`;
+          requestButton.hidden = true;
+          cancelRequestButton.hidden = false;
+        } else if (secondPlatformRequest?.state === "approving") {
+          requestStatus.textContent = `${targetPlatform} access is currently being approved. Refresh this page shortly.`;
+          requestButton.hidden = true;
+          cancelRequestButton.hidden = true;
+        } else if (secondPlatformRequest?.state === "approved") {
+          requestStatus.textContent = `${targetPlatform} access was approved. Refresh your purchases if it is not visible yet.`;
+          requestButton.hidden = true;
+          cancelRequestButton.hidden = true;
+        } else if (secondPlatformRequest?.state === "declined") {
+          requestStatus.textContent = `${targetPlatform} access was not approved. You may submit a fresh request or contact WonderLang support.`;
+          requestButton.hidden = false;
+          cancelRequestButton.hidden = true;
+        } else {
+          requestStatus.textContent = `Premium Lifetime includes ${targetPlatform} permanent access on request. WonderLang support reviews the request; no purchase is required.`;
+          requestButton.hidden = false;
+          cancelRequestButton.hidden = true;
+        }
+      }
       const subscribed = hasEffectiveSubscription(this.account);
       const polyglotPlatform = this.querySelector('[data-field="polyglot-platform"]');
       for (const option of polyglotPlatform.options) option.disabled = permanentPlatforms.includes(option.value);
@@ -579,6 +628,24 @@ class WonderLangAccount extends HTMLElement {
     catch (error) { this.fail(error); }
   }
 
+  async requestSecondPlatform() {
+    try {
+      const result = await this.request("/api/v1/me/second-platform-request", { method: "POST", body: {} });
+      this.account.secondMobilePlatformRequest = result;
+      await this.renderUser(this.user);
+      this.status(`Your ${result.requestedPlatform === "ios" ? "iOS" : "Android"} access request was submitted for review. No purchase is required.`);
+    } catch (error) { this.fail(error); }
+  }
+
+  async cancelSecondPlatformRequest() {
+    try {
+      const result = await this.request("/api/v1/me/second-platform-request/cancel", { method: "POST", body: {} });
+      this.account.secondMobilePlatformRequest = result;
+      await this.renderUser(this.user);
+      this.status("The second-platform request was canceled. Your existing access is unchanged.");
+    } catch (error) { this.fail(error); }
+  }
+
   async restorePurchases() {
     if (demoMode) {
       this.status("Safe demo: mobile purchase restoration requested. No store was contacted.");
@@ -683,6 +750,33 @@ class WonderLangAccount extends HTMLElement {
       return { deleteAfter: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() };
     }
     if (path === "/api/v1/me/revoke-sessions") return { revoked: true };
+    if (path === "/api/v1/me/second-platform-request/cancel") {
+      if (!this.demoAccount.secondMobilePlatformRequest || this.demoAccount.secondMobilePlatformRequest.state !== "pending") throw new Error("Only a pending second-platform request can be canceled.");
+      this.demoAccount.secondMobilePlatformRequest = {
+        ...this.demoAccount.secondMobilePlatformRequest,
+        state: "canceled",
+        updatedAt: new Date().toISOString(),
+        decisionAt: new Date().toISOString()
+      };
+      return this.demoAccount.secondMobilePlatformRequest;
+    }
+    if (path === "/api/v1/me/second-platform-request") {
+      if (!this.demoAccount.entitlements.premiumLifetime) throw new Error("Premium Lifetime is required to request the other mobile platform.");
+      const sourcePlatform = this.demoAccount.entitlements.permanentMobilePlatforms[0];
+      if (!sourcePlatform) throw new Error("The primary Premium mobile platform must be resolved first.");
+      const now = new Date().toISOString();
+      this.demoAccount.secondMobilePlatformRequest = {
+        state: "pending",
+        sourcePlatform,
+        requestedPlatform: sourcePlatform === "android" ? "ios" : "android",
+        revision: (this.demoAccount.secondMobilePlatformRequest?.revision || 0) + 1,
+        submittedAt: now,
+        updatedAt: now,
+        approvalLeaseUntil: null,
+        decisionAt: null
+      };
+      return this.demoAccount.secondMobilePlatformRequest;
+    }
     if (path.startsWith("/api/v1/device-sign-in/preview")) {
       const raw = this.deviceCode || "W7ND-L4NG";
       const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8).padEnd(8, "7");

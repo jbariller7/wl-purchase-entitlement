@@ -12,13 +12,18 @@ wonderlang-account { display: block; color: var(--wl-ink); font: 16px/1.5 system
 .wl-demo-banner a { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: #672b00; font-weight: 800; }
 .wl-provider-grid > *, .wl-offers > * { flex: 1; }
 .wl-offers { flex-wrap: wrap; margin: 20px 0; }
-.wl-offers article, .wl-entitlement, details { padding: 20px; border: 1px solid #eadfce; border-radius: 16px; background: #fff; }
+.wl-offers article, .wl-entitlement, .wl-second-platform-request, details { padding: 20px; border: 1px solid #eadfce; border-radius: 16px; background: #fff; }
 .wl-offers article { min-width: 240px; }
 .wl-entitlement { display: grid; gap: 3px; }
 .wl-account-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 16px 0; overflow: hidden; border: 1px solid #eadfce; border-radius: 16px; background: #eadfce; }
 .wl-account-facts > div { display: grid; gap: 4px; min-width: 0; padding: 16px; background: #fff; }
 .wl-account-facts span { color: #6f665b; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .wl-account-facts strong { overflow-wrap: anywhere; }
+.wl-second-platform-request { display: grid; gap: 10px; margin: 16px 0; border-color: #c2a76e; background: #fff9e9; }
+.wl-second-platform-request[hidden] { display: none; }
+.wl-second-platform-request h3 { margin: 0; font-size: 22px; }
+.wl-second-platform-request p { margin: 0; }
+.wl-second-platform-actions { display: flex; gap: 10px; }
 .wl-row { align-items: end; }
 .wl-row label { flex: 1; }
 wonderlang-account label span { display: block; margin-bottom: 5px; font-weight: 700; }
@@ -46,4 +51,4 @@ wonderlang-account details { margin-top: 18px; } wonderlang-account summary { cu
 .wl-modal-form { display: grid; gap: 18px; }
 .wl-modal-form label { display: grid; gap: 7px; color: #5f6670; font-size: 12px; font-weight: 800; }
 .wl-modal-form > div { display: flex; justify-content: flex-end; gap: 10px; }
-@media (max-width: 680px) { .wl-row, .wl-provider-grid, .wl-offers, .wl-device-actions { flex-direction: column; align-items: stretch; } .wl-account-facts { grid-template-columns: 1fr; } .wl-device-code strong { letter-spacing: .06em; } .wl-demo-banner { grid-template-columns: 1fr; } .wl-demo-banner span, .wl-demo-banner a { grid-column: 1; grid-row: auto; } }
+@media (max-width: 680px) { .wl-row, .wl-provider-grid, .wl-offers, .wl-device-actions, .wl-second-platform-actions { flex-direction: column; align-items: stretch; } .wl-account-facts { grid-template-columns: 1fr; } .wl-device-code strong { letter-spacing: .06em; } .wl-demo-banner { grid-template-columns: 1fr; } .wl-demo-banner span, .wl-demo-banner a { grid-column: 1; grid-row: auto; } }

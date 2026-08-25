@@ -117,7 +117,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     return json(200, {
       actor,
       providers: token.firebase?.sign_in_provider ? [token.firebase.sign_in_provider] : [],
-      capabilities: ["customers", "grants", "prices", "refunds", "imports", "operations", "inventory", "audit"],
+      capabilities: ["customers", "grants", "prices", "refunds", "imports", "second_platform_requests", "operations", "inventory", "audit"],
       controls: deploymentControls()
     });
   }
@@ -126,6 +126,17 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const query = event.queryStringParameters?.q;
     if (!query || query.length > 4096) throw new HttpError(400, "Enter an exact email, Firebase UID, Stripe ID, or provider transaction ID.");
     return json(200, await operations.findCustomer(query));
+  }
+  if (event.httpMethod === "GET" && path === "/v1/second-platform-requests") {
+    return json(200, await operations.openSecondPlatformRequests());
+  }
+  const secondPlatformDecisionMatch = path.match(/^\/v1\/second-platform-requests\/([A-Za-z0-9_-]{1,128})\/(approve|decline)$/);
+  if (event.httpMethod === "POST" && secondPlatformDecisionMatch?.[1] && secondPlatformDecisionMatch[2]) {
+    const decision = secondPlatformDecisionMatch[2];
+    const input = { actor, uid: secondPlatformDecisionMatch[1], ...body(reasonSchema, event), now };
+    return json(200, decision === "approve"
+      ? await operations.approveSecondPlatformRequest(input)
+      : await operations.declineSecondPlatformRequest(input));
   }
   const customerMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})$/);
   if (event.httpMethod === "GET" && customerMatch?.[1]) return json(200, await operations.customerDetail(customerMatch[1]));

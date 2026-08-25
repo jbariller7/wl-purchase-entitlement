@@ -8,12 +8,13 @@ import "./admin.css";
 const appNode = document.querySelector("#app");
 const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
-const state = { auth: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, previews: {}, notice: null };
+const state = { auth: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], previews: {}, notice: null };
 
 const demoOverview = {
-  metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
+  metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, pendingSecondPlatformRequests: 1, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
   alerts: [
     { view: "operations", tone: "danger", title: "2 delivery jobs need attention", detail: "Retries are paused in this test deployment", action: "Open operations" },
+    { view: "customers", tone: "neutral", title: "1 Premium second-platform request awaiting review", detail: "Approve or decline it with an audit reason", action: "Review request" },
     { view: "inventory", tone: "warning", title: "Japanese Steam inventory is low", detail: "8 keys available · threshold 10", action: "Review inventory" },
     { view: "customers", tone: "neutral", title: "6 subscriptions are in payment grace", detail: "Access remains available for up to seven days", action: "View customers" }
   ],
@@ -22,16 +23,29 @@ const demoOverview = {
     { time: new Date(Date.now() - 900000).toISOString(), customer: "theo@example.com", event: "premium_lifetime_pass", amount: null, state: "active" }
   ]
 };
+const demoSecondPlatformRequest = {
+  uid: "demo_8a2f43",
+  email: "amina@example.com",
+  state: "pending",
+  sourcePlatform: "android",
+  requestedPlatform: "ios",
+  revision: 1,
+  submittedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+  updatedAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+  approvalLeaseUntil: null,
+  decisionAt: null
+};
 const demoCustomer = {
   user: { uid: "demo_8a2f43", email: "amina@example.com", emailVerified: true, disabled: false, providers: ["google.com", "apple.com"], createdAt: "2026-02-14T10:00:00Z", lastSignInAt: new Date().toISOString() },
-  entitlements: { accessKind: "subscription", cloudSave: true, mobilePlatforms: ["android", "ios"], permanentMobilePlatforms: [], pcMacAccess: false, premiumLifetime: false, subscriptionState: "active", subscriptionEndsAt: "2026-09-23T00:00:00Z", sourceGrantIds: ["grant_demo"] },
-  effectiveProducts: ["mobile_full_monthly"],
+  entitlements: { accessKind: "premium_lifetime", cloudSave: true, mobilePlatforms: ["android", "ios"], permanentMobilePlatforms: ["android"], pcMacAccess: true, futureContent: true, premiumLifetime: true, secondMobilePlatformEligible: true, subscriptionState: "active", subscriptionEndsAt: "2026-09-23T00:00:00Z", sourceGrantIds: ["grant_demo", "grant_demo_premium"] },
+  effectiveProducts: ["mobile_full_monthly", "premium_lifetime_pass"],
   subscription: { provider: "stripe", phase: "active", providerStatus: "active", startsAt: "2026-08-01T00:00:00Z", renewsAt: "2026-09-23T00:00:00Z", endsAt: null, graceEndsAt: null, trialEndsAt: null, cancelAtPeriodEnd: false },
-  grants: [{ id: "grant_demo", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "sub_demo", providerSubscriptionId: "sub_demo", product: "mobile_full_monthly", state: "active", startsAt: "2026-08-01T00:00:00Z" }],
+  grants: [{ id: "grant_demo", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "sub_demo", providerSubscriptionId: "sub_demo", product: "mobile_full_monthly", state: "active", startsAt: "2026-08-01T00:00:00Z" }, { id: "grant_demo_premium", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "pi_demo_premium", product: "premium_lifetime_pass", state: "active", startsAt: "2026-08-20T00:00:00Z", metadata: { primaryMobilePlatform: "android" } }],
   providerIdentities: [{ provider: "stripe", product: "mobile_full_monthly", customerId: "cus_demo", transactionId: "sub_demo", subscriptionId: "sub_demo", state: "active" }],
   legacyDiscount: null, stripeCustomerId: "cus_demo", cloudSaves: [{ id: "save1", slot: "save1", byteLength: 48213, sha256: "0123456789abcdef", updatedAt: new Date().toISOString() }],
   payments: [{ id: "pi_demo", amount: 699, amountReceived: 699, amountRefunded: 0, refundableAmount: 699, currency: "USD", status: "succeeded", createdAt: new Date().toISOString(), refunds: [] }],
-  deletionRequest: null
+  deletionRequest: null,
+  secondMobilePlatformRequest: demoSecondPlatformRequest
 };
 const demoCatalog = {
   revision: 3,
@@ -80,7 +94,8 @@ function majorAmount(currency, unitAmount) {
 const views = { overview: "Overview", customers: "Customers", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
 const endpoints = {
   overview: "/admin-api/v1/overview", billing: "/admin-api/v1/catalog", operations: "/admin-api/v1/operations",
-  inventory: "/admin-api/v1/inventory", audit: "/admin-api/v1/audit", settings: "/admin-api/v1/session"
+  inventory: "/admin-api/v1/inventory", audit: "/admin-api/v1/audit", settings: "/admin-api/v1/session",
+  secondPlatformRequests: "/admin-api/v1/second-platform-requests"
 };
 
 function escapeHtml(value) { return String(value ?? "").replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[c]); }
@@ -124,11 +139,22 @@ function renderOverview(data) {
 
 function renderCustomers() {
   const c = state.customer;
+  const openRequestRows = (state.secondPlatformRequests || []).map((request) => [
+    request.email,
+    request.requestedPlatform === "ios" ? "iOS" : "Android",
+    formatDate(request.submittedAt),
+    request.state,
+    htmlCell(`<button class="text-button" data-second-platform-open="${escapeHtml(request.uid)}">Open customer</button>`)
+  ]);
+  const requestQueue = `<section class="panel"><header><div><p class="section-kicker">PREMIUM BENEFIT REQUESTS</p><h3>Other mobile platform</h3></div><span class="state-pill">${openRequestRows.length} open</span></header><p class="panel-copy">Premium Lifetime customers may request permanent access on their other mobile platform. Approval creates one audited, idempotent grant; no payment is taken.</p>${table(["Customer", "Requested", "Submitted", "State", "Action"], openRequestRows)}</section>`;
   const paymentRows = (c?.payments || []).map((p) => [formatDate(p.createdAt), p.id, formatMoney(p.amountReceived || p.amount, p.currency), formatMoney(p.amountRefunded || 0, p.currency), p.status, p.refundableAmount > 0 ? htmlCell(`<button class="text-button" data-refund="${escapeHtml(p.id)}" data-amount="${Number(p.refundableAmount)}" data-currency="${escapeHtml(p.currency)}">Refund</button>`) : "—"]);
   const providerRows = (c?.providerIdentities || []).map((p) => [p.provider, p.product, p.customerId || "—", p.transactionId, p.subscriptionId || "—", p.state]);
   const cloudRows = (c?.cloudSaves || []).map((s) => [s.slot || s.id, formatDate(s.updatedAt), s.byteLength ?? "—", String(s.sha256 || "").slice(0, 12) || "—"]);
   const sub = c?.subscription;
-  const detail = c ? `${c.deletionRequest?.state === "scheduled" ? `<section class="alert warning"><div><strong>Account deletion scheduled</strong><span>Profile and cloud saves will be purged after ${formatDate(c.deletionRequest.deleteAfter)} unless support cancels during recovery.</span></div><button class="button secondary" data-customer-action="cancel-deletion">Cancel deletion</button></section>` : ""}<section class="customer-grid"><article class="panel detail-card"><header><div><p class="section-kicker">ACCOUNT</p><h3>${escapeHtml(c.user.email || c.user.uid)}</h3></div><span class="state-pill">${c.user.disabled ? "Disabled" : "Enabled"}</span></header><dl class="definition-grid"><div><dt>Firebase UID</dt><dd>${escapeHtml(c.user.uid)}</dd></div><div><dt>Login providers</dt><dd>${escapeHtml((c.user.providers || []).join(", ") || "None")}</dd></div><div><dt>Email verified</dt><dd>${c.user.emailVerified ? "Yes" : "No"}</dd></div><div><dt>Last sign-in</dt><dd>${formatDate(c.user.lastSignInAt)}</dd></div></dl><div class="card-actions"><button class="button secondary" data-customer-action="sessions">Revoke sessions</button><button class="button danger" data-customer-action="access">${c.user.disabled ? "Enable account" : "Disable account"}</button></div></article>
+  const secondPlatformRequest = c?.secondMobilePlatformRequest;
+  const requestActionable = secondPlatformRequest?.state === "pending" || (secondPlatformRequest?.state === "approving" && Date.parse(secondPlatformRequest.approvalLeaseUntil || "") <= Date.now());
+  const requestPanel = secondPlatformRequest ? `<section class="alert ${secondPlatformRequest.state === "approved" ? "success" : secondPlatformRequest.state === "declined" || secondPlatformRequest.state === "canceled" ? "warning" : "neutral"}"><div><strong>Premium ${secondPlatformRequest.requestedPlatform === "ios" ? "iOS" : "Android"} request · ${escapeHtml(secondPlatformRequest.state)}</strong><span>Submitted ${formatDate(secondPlatformRequest.submittedAt)} · request revision ${Number(secondPlatformRequest.revision || 0)}. Approval grants permanent access without taking a payment.</span></div>${requestActionable ? `<div class="card-actions"><button class="button primary" data-second-platform-decision="approve" data-request-uid="${escapeHtml(c.user.uid)}">Approve</button><button class="button danger" data-second-platform-decision="decline" data-request-uid="${escapeHtml(c.user.uid)}">Decline</button></div>` : ""}</section>` : "";
+  const detail = c ? `${c.deletionRequest?.state === "scheduled" ? `<section class="alert warning"><div><strong>Account deletion scheduled</strong><span>Profile and cloud saves will be purged after ${formatDate(c.deletionRequest.deleteAfter)} unless support cancels during recovery.</span></div><button class="button secondary" data-customer-action="cancel-deletion">Cancel deletion</button></section>` : ""}${requestPanel}<section class="customer-grid"><article class="panel detail-card"><header><div><p class="section-kicker">ACCOUNT</p><h3>${escapeHtml(c.user.email || c.user.uid)}</h3></div><span class="state-pill">${c.user.disabled ? "Disabled" : "Enabled"}</span></header><dl class="definition-grid"><div><dt>Firebase UID</dt><dd>${escapeHtml(c.user.uid)}</dd></div><div><dt>Login providers</dt><dd>${escapeHtml((c.user.providers || []).join(", ") || "None")}</dd></div><div><dt>Email verified</dt><dd>${c.user.emailVerified ? "Yes" : "No"}</dd></div><div><dt>Last sign-in</dt><dd>${formatDate(c.user.lastSignInAt)}</dd></div></dl><div class="card-actions"><button class="button secondary" data-customer-action="sessions">Revoke sessions</button><button class="button danger" data-customer-action="access">${c.user.disabled ? "Enable account" : "Disable account"}</button></div></article>
     <article class="panel detail-card"><header><div><p class="section-kicker">EFFECTIVE ACCESS</p><h3>${escapeHtml(c.entitlements.accessKind || "None")}</h3></div></header><dl class="definition-grid"><div><dt>Products</dt><dd>${escapeHtml((c.effectiveProducts || []).join(", ") || "None")}</dd></div><div><dt>Current mobile platforms</dt><dd>${escapeHtml((c.entitlements.mobilePlatforms || []).join(", ") || "None")}</dd></div><div><dt>Permanent mobile platforms</dt><dd>${escapeHtml((c.entitlements.permanentMobilePlatforms || []).join(", ") || "None")}</dd></div><div><dt>PC / Mac</dt><dd>${c.entitlements.pcMacAccess ? "Included" : "Not included"}</dd></div><div><dt>Future content</dt><dd>${c.entitlements.futureContent ? "Included" : "Not included"}</dd></div><div><dt>Second mobile platform</dt><dd>${c.entitlements.secondMobilePlatformEligible ? ((c.entitlements.permanentMobilePlatforms || []).length > 1 ? "Granted" : "Eligible on request") : "Not included"}</dd></div><div><dt>Subscription</dt><dd>${escapeHtml(sub ? `${sub.phase} · ${sub.provider}` : "None")}</dd></div><div><dt>Renews / ends</dt><dd>${formatDate(sub?.renewsAt || sub?.endsAt || sub?.graceEndsAt)}</dd></div><div><dt>Cloud saves</dt><dd>${c.entitlements.cloudSave ? "Allowed" : "Retained, access inactive"}</dd></div></dl></article></section>
     <section class="split-grid"><article class="panel form-panel"><header><div><p class="section-kicker">MANUAL ACCESS</p><h3>Grant an entitlement</h3></div></header><form id="grant-form" class="stack-form"><label>Product<select name="product"><option value="mobile_polyglot_permanent">Polyglot Permanent Access</option><option value="premium_lifetime_pass">Premium Lifetime Pass</option><option value="legacy_mobile_full">Legacy mobile full</option><option value="legacy_chapter_1">Legacy chapter 1</option><option value="legacy_chapter_2">Legacy chapter 2</option><option value="legacy_chapter_3">Legacy chapter 3</option><option value="legacy_chapter_4">Legacy chapter 4</option></select></label><label>Mobile platform<select name="mobilePlatform"><option value="android">Android</option><option value="ios">iOS</option></select></label><label>Optional expiry<input type="datetime-local" name="endsAt"></label><label>Audit reason<textarea name="reason" minlength="10" required placeholder="Why is this grant authorized?"></textarea></label><button class="button primary">Grant access</button></form></article>
     <article class="panel"><header><div><p class="section-kicker">GRANTS</p><h3>Access ledger</h3></div></header>${table(["Product", "Source", "State", "Started", "Action"], (c.grants || []).map((g) => [g.product, g.provider, g.state, formatDate(g.startsAt), g.provider === "admin" && g.state === "active" && !g.metadata?.migration ? htmlCell(`<button class="text-button" data-revoke-grant="${escapeHtml(g.id)}">Revoke</button>`) : "—"]))}</article></section>
@@ -136,7 +162,7 @@ function renderCustomers() {
     <section class="panel spaced"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Received", "Refunded", "Status", "Action"], paymentRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVES</p><h3>Retained save inventory</h3></div></header>${table(["Slot", "Updated", "Bytes", "SHA-256"], cloudRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
   return `${pageIntro("CUSTOMER SUPPORT", "Find the whole customer story.", "Access, purchases, login providers, cloud saves and manual actions are tied to one Firebase UID.")}
-  <form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Email, UID, Stripe customer/payment, or store transaction" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
+  ${requestQueue}<form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Email, UID, Stripe customer/payment, or store transaction" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
 }
 
 function renderBilling(data) {
@@ -207,6 +233,43 @@ async function api(path, options = {}) {
 function demoApi(path, options) {
   const method = options.method || "GET";
   if (path.includes("overview")) return demoOverview;
+  if (method === "GET" && path === endpoints.secondPlatformRequests) {
+    return { requests: ["pending", "approving"].includes(demoSecondPlatformRequest.state) ? [demoSecondPlatformRequest] : [] };
+  }
+  const secondPlatformDecision = path.match(/^\/admin-api\/v1\/second-platform-requests\/([^/]+)\/(approve|decline)$/);
+  if (method === "POST" && secondPlatformDecision) {
+    const uid = decodeURIComponent(secondPlatformDecision[1]);
+    const decision = secondPlatformDecision[2];
+    if (uid !== demoSecondPlatformRequest.uid) throw new Error("Demo Premium request no longer exists.");
+    if (!["pending", "approving"].includes(demoSecondPlatformRequest.state)) throw new Error("This demo Premium request has already been decided.");
+    const now = new Date().toISOString();
+    demoSecondPlatformRequest.state = decision === "approve" ? "approved" : "declined";
+    demoSecondPlatformRequest.updatedAt = now;
+    demoSecondPlatformRequest.decisionAt = now;
+    demoSecondPlatformRequest.approvalLeaseUntil = null;
+    if (decision === "approve") {
+      const platform = demoSecondPlatformRequest.requestedPlatform;
+      if (!demoCustomer.entitlements.permanentMobilePlatforms.includes(platform)) demoCustomer.entitlements.permanentMobilePlatforms.push(platform);
+      if (!demoCustomer.entitlements.mobilePlatforms.includes(platform)) demoCustomer.entitlements.mobilePlatforms.push(platform);
+      if (!demoCustomer.effectiveProducts.includes("mobile_polyglot_permanent")) demoCustomer.effectiveProducts.push("mobile_polyglot_permanent");
+      const grantId = `grant_demo_premium_second_${platform}`;
+      if (!demoCustomer.grants.some((grant) => grant.id === grantId)) {
+        demoCustomer.grants.unshift({
+          id: grantId,
+          provider: "admin",
+          providerTransactionId: `premium-second-platform:${uid}:${platform}`,
+          product: "mobile_polyglot_permanent",
+          state: "active",
+          startsAt: now,
+          metadata: { mobilePlatform: platform, premiumSecondPlatformRequest: true }
+        });
+      }
+      addDemoAudit("second_platform_request.approve", "secondPlatformRequest", uid, `Approved fictional ${platform} permanent access in the safe demo`);
+    } else {
+      addDemoAudit("second_platform_request.decline", "secondPlatformRequest", uid, "Declined the fictional Premium request in the safe demo");
+    }
+    return demoCustomer;
+  }
   if (method === "POST" && /\/customers\/[^/]+\/grants$/.test(path)) {
     const product = String(options.body?.product || "mobile_polyglot_permanent");
     const id = `grant_demo_${crypto.randomUUID()}`;
@@ -361,6 +424,10 @@ async function loadView(view) {
   try {
     let data;
     if (view === "overview") data = await api(endpoints.overview);
+    else if (view === "customers") {
+      const result = await api(endpoints.secondPlatformRequests);
+      state.secondPlatformRequests = result.requests || [];
+    }
     else if (["billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
     const content = view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports() : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
     appNode.innerHTML = shell(content); bindShell(); bindView();
@@ -427,6 +494,26 @@ async function mutate(path, body, success) {
 }
 
 function bindView() {
+  document.querySelectorAll("[data-second-platform-open]").forEach((button) => button.addEventListener("click", async () => {
+    try {
+      state.customer = await api(`/admin-api/v1/customers/${encodeURIComponent(button.dataset.secondPlatformOpen)}`);
+      await loadView("customers");
+    } catch (error) {
+      toast(error.message, true);
+    }
+  }));
+  document.querySelectorAll("[data-second-platform-decision]").forEach((button) => button.addEventListener("click", async () => {
+    const decision = button.dataset.secondPlatformDecision;
+    const requested = state.customer?.secondMobilePlatformRequest?.requestedPlatform === "ios" ? "iOS" : "Android";
+    const auditReason = await reason(`${decision === "approve" ? "Why are you granting" : "Why are you declining"} this Premium customer's ${requested} request?`);
+    if (!auditReason) return;
+    const uid = button.dataset.requestUid;
+    const success = decision === "approve" ? `${requested} permanent access granted.` : `${requested} request declined.`;
+    if (await mutate(`/admin-api/v1/second-platform-requests/${encodeURIComponent(uid)}/${decision}`, { reason: auditReason }, success)) {
+      state.customer = await api(`/admin-api/v1/customers/${encodeURIComponent(uid)}`);
+      await loadView("customers");
+    }
+  }));
   document.querySelector("#customer-search")?.addEventListener("submit", async (event) => { event.preventDefault(); const q = new FormData(event.currentTarget).get("q"); try { state.customer = await api(`/admin-api/v1/customers/search?q=${encodeURIComponent(q)}`); await loadView("customers"); } catch (error) { toast(error.message, true); } });
   document.querySelector("#grant-form")?.addEventListener("submit", async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); const body = { product: f.get("product"), reason: f.get("reason"), mobilePlatform: f.get("mobilePlatform"), ...(f.get("endsAt") ? { endsAt: new Date(f.get("endsAt")).toISOString() } : {}) }; if (await mutate(`/admin-api/v1/customers/${state.customer.user.uid}/grants`, body, "Access granted.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } });
   document.querySelectorAll("[data-revoke-grant]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why are you revoking this manual grant?"); if (r && await mutate(`/admin-api/v1/grants/${b.dataset.revokeGrant}/revoke`, { reason: r }, "Grant revoked.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }));

@@ -22,6 +22,7 @@ import { sha256 } from "../../src/infrastructure/ids.js";
 import { claimAppleTransaction } from "../../src/providers/apple/service.js";
 import { ACCOUNT_DELETION_CONFIRMATION, AccountDeletionService } from "../../src/account-deletion/service.js";
 import { deleteDeviceSignInSessionsForUid, DeviceSignInService } from "../../src/device-sign-in/service.js";
+import { SecondPlatformRequestService } from "../../src/premium/second-platform-request-service.js";
 
 export const config: Config = {
   rateLimit: { windowSize: 60, windowLimit: 240, aggregateBy: ["domain", "ip"] }
@@ -96,6 +97,7 @@ function userRateLimitPolicy(method: string, path: string): RateLimitPolicy {
   if (path === "/v1/legacy/claim") return { action: "legacy-claim", limit: 10, windowSeconds: 60 * 60 };
   if (path === "/v1/google-play/claim" || path === "/v1/apple/claim") return { action: "store-claim", limit: 30, windowSeconds: 10 * 60 };
   if (path === "/v1/me/revoke-sessions" || path.startsWith("/v1/me/deletion-")) return { action: "account-security", limit: 10, windowSeconds: 10 * 60 };
+  if (path.startsWith("/v1/me/second-platform-request")) return { action: "second-platform-request", limit: 6, windowSeconds: 60 * 60 };
   if (path.includes("/cloud-saves")) {
     return method === "GET"
       ? { action: "cloud-read", limit: 120, windowSeconds: 60 }
@@ -194,6 +196,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   );
   const db = firestore();
   const store = new EntitlementStore(db);
+  const secondPlatformRequests = new SecondPlatformRequestService(db);
   const now = new Date();
   await consumeRateLimit({
     db,
@@ -227,13 +230,14 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     if (user.email && user.email_verified) {
       await new AdminImportService(db, firebaseAuth()).claimPendingForVerifiedUser({ uid: user.uid, email: user.email, now });
     }
-    const [entitlements, discount, grants, authUser, cloudSlots, stripeCustomerId] = await Promise.all([
+    const [entitlements, discount, grants, authUser, cloudSlots, stripeCustomerId, secondPlatformRequest] = await Promise.all([
       store.effectiveEntitlements(user.uid, now),
       store.legacyDiscountClaim(user.uid),
       store.grantsForUid(user.uid),
       firebaseAuth().getUser(user.uid),
       db.collection("cloudSaves").doc(user.uid).collection("slots").get(),
-      store.stripeCustomerId(user.uid)
+      store.stripeCustomerId(user.uid),
+      secondPlatformRequests.get(user.uid)
     ]);
     const cloudUpdates = cloudSlots.docs
       .map((doc) => doc.data()?.updatedAt as string | undefined)
@@ -246,6 +250,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       entitlements,
       subscription: summarizeSubscription(grants),
       stripeBillingAvailable: Boolean(stripeCustomerId),
+      secondMobilePlatformRequest: secondPlatformRequest,
       cloudSave: {
         enabled: entitlements.cloudSave,
         retainedWhenAccessEnds: true,
@@ -257,6 +262,16 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
         redeemedAt: discount?.redeemedAt ?? null
       }
     });
+  }
+
+  if (event.httpMethod === "POST" && path === "/v1/me/second-platform-request") {
+    if (!user.email || !user.email_verified) throw new HttpError(403, "Verify your WonderLang account email before requesting another mobile platform.");
+    const entitlements = await store.effectiveEntitlements(user.uid, now);
+    return json(201, await secondPlatformRequests.submit({ uid: user.uid, email: user.email, entitlements, now }));
+  }
+
+  if (event.httpMethod === "POST" && path === "/v1/me/second-platform-request/cancel") {
+    return json(200, await secondPlatformRequests.cancel({ uid: user.uid, now }));
   }
 
   if (event.httpMethod === "POST" && path === "/v1/me/revoke-sessions") {

@@ -12,6 +12,7 @@ import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { AccountDeletionService } from "../account-deletion/service.js";
 import { chapterMigrationTransactionId, isLegacyChapterProduct } from "../domain/legacy-chapter-migration.js";
 import { assertKnownInventoryTabs, inventoryStockPolicyFromEnvironment, inventoryThresholdFor } from "../config/inventory-policy.js";
+import { SecondPlatformRequestService } from "../premium/second-platform-request-service.js";
 
 const ADMIN_GRANT_PRODUCTS: Product[] = [
   "mobile_polyglot_permanent",
@@ -48,9 +49,11 @@ function dataRows(snapshot: FirebaseFirestore.QuerySnapshot): Array<Record<strin
 
 export class AdminOperationsService {
   private readonly store: EntitlementStore;
+  private readonly secondPlatformRequests: SecondPlatformRequestService;
 
   constructor(private readonly db: Firestore, private readonly auth: Auth) {
     this.store = new EntitlementStore(db);
+    this.secondPlatformRequests = new SecondPlatformRequestService(db);
   }
 
   private async count(query: Query): Promise<number> {
@@ -74,7 +77,7 @@ export class AdminOperationsService {
 
   async overview(): Promise<Record<string, unknown>> {
     const entitlements = this.db.collection("entitlements");
-    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, failedCloudSaveCleanup, inventory, recent, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor] = await Promise.all([
+    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, failedCloudSaveCleanup, openSecondPlatformRequests, inventory, recent, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor] = await Promise.all([
       this.count(entitlements.where("subscriptionState", "==", "active")),
       this.count(entitlements.where("accessKind", "==", "permanent")),
       this.count(entitlements.where("accessKind", "==", "premium_lifetime")),
@@ -83,6 +86,10 @@ export class AdminOperationsService {
       this.count(this.db.collection("providerEvents").where("status", "==", "failed")),
       this.count(this.db.collection("providerSubscriptions").where("lastReconciliationState", "==", "failed")),
       this.count(this.db.collection("cloudSaveCleanupJobs").where("state", "==", "failed")),
+      Promise.all([
+        this.count(this.db.collection("secondPlatformRequests").where("state", "==", "pending")),
+        this.count(this.db.collection("secondPlatformRequests").where("state", "==", "approving"))
+      ]).then(([pending, approving]) => pending + approving),
       this.inventorySummary(),
       this.db.collection("grants").orderBy("startsAt", "desc").limit(12).get(),
       this.db.collection("operationalMetrics").doc("cloudStorage").get(),
@@ -106,6 +113,7 @@ export class AdminOperationsService {
       ...(cloud?.growthAlert ? [{ view: "operations", tone: "warning", title: "Cloud storage growth exceeded its daily threshold", detail: `${Number(cloud.dailyChangeBytes ?? 0).toLocaleString()} bytes since the previous snapshot`, action: "Open operations" }] : []),
       ...(cloudMonitor?.state === "failed" ? [{ view: "operations", tone: "danger", title: "Cloud storage inventory failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
       ...(cleanupMonitor?.state === "failed" ? [{ view: "operations", tone: "danger", title: "Cloud-save cleanup worker failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
+      ...(openSecondPlatformRequests ? [{ view: "customers", tone: "neutral", title: `${openSecondPlatformRequests} Premium second-platform request${openSecondPlatformRequests === 1 ? "" : "s"} awaiting review`, detail: "Approve or decline each request with an audit reason", action: "Review requests" }] : []),
       ...lowStock.slice(0, 3).map((row) => ({ view: "inventory", tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available · threshold ${row.lowStockThreshold}`, action: "Review inventory" })),
       ...(graceSubscriptions ? [{ view: "customers", tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];
@@ -116,6 +124,7 @@ export class AdminOperationsService {
         premiumCustomers,
         lifetimeCustomers: permanentCustomers + premiumCustomers,
         graceSubscriptions,
+        pendingSecondPlatformRequests: openSecondPlatformRequests,
         failedOperations,
         failedReconciliations,
         failedCloudSaveCleanup,
@@ -207,14 +216,15 @@ export class AdminOperationsService {
   }
 
   async customerDetail(uid: string): Promise<Record<string, unknown>> {
-    const [user, entitlements, grants, discount, userDoc, cloudSlots, deletionRequest] = await Promise.all([
+    const [user, entitlements, grants, discount, userDoc, cloudSlots, deletionRequest, secondMobilePlatformRequest] = await Promise.all([
       this.auth.getUser(uid),
       this.store.effectiveEntitlements(uid, new Date()),
       this.store.grantsForUid(uid),
       this.store.legacyDiscountClaim(uid),
       this.db.collection("users").doc(uid).get(),
       this.db.collection("cloudSaves").doc(uid).collection("slots").get(),
-      this.db.collection("accountDeletionRequests").doc(uid).get()
+      this.db.collection("accountDeletionRequests").doc(uid).get(),
+      this.secondPlatformRequests.get(uid)
     ]);
     const stripeCustomerId = userDoc.data()?.stripeCustomerId as string | undefined;
     const paymentIntents = stripeCustomerId
@@ -256,8 +266,25 @@ export class AdminOperationsService {
         };
       }) ?? [],
       cloudSaves: dataRows(cloudSlots),
-      deletionRequest: deletionRequest.exists ? deletionRequest.data() : null
+      deletionRequest: deletionRequest.exists ? deletionRequest.data() : null,
+      secondMobilePlatformRequest
     };
+  }
+
+  async openSecondPlatformRequests(): Promise<Record<string, unknown>> {
+    return { requests: await this.secondPlatformRequests.listOpen(100) };
+  }
+
+  async approveSecondPlatformRequest(input: { actor: AdminActor; uid: string; reason: string; now: Date }): Promise<Record<string, unknown>> {
+    await this.auth.getUser(input.uid);
+    await this.secondPlatformRequests.approve(input);
+    return this.customerDetail(input.uid);
+  }
+
+  async declineSecondPlatformRequest(input: { actor: AdminActor; uid: string; reason: string; now: Date }): Promise<Record<string, unknown>> {
+    await this.auth.getUser(input.uid);
+    await this.secondPlatformRequests.decline(input);
+    return this.customerDetail(input.uid);
   }
 
   async cancelAccountDeletion(input: { actor: AdminActor; uid: string; reason: string; now: Date }): Promise<Record<string, unknown>> {
