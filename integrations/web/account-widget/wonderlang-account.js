@@ -15,6 +15,7 @@ import {
   signInWithRedirect,
   signOut
 } from "firebase/auth";
+import { friendlyAccountError } from "./auth-errors.js";
 import "./wonderlang-account.css";
 
 const pageParams = new URLSearchParams(location.search);
@@ -816,7 +817,7 @@ class WonderLangAccount extends HTMLElement {
   }
 
   status(message) { this.querySelector(".wl-status").textContent = message; }
-  fail(error) { console.error(error); this.status(error?.message || "Something went wrong. Please try again."); }
+  fail(error) { console.error(error); this.status(friendlyAccountError(error)); }
 }
 
 customElements.define("wonderlang-account", WonderLangAccount);
