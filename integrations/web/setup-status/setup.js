@@ -38,20 +38,29 @@ function escapeHtml(value) {
 function render(data) {
   const configured = Object.values(data.configuration).filter(Boolean).length;
   const total = Object.keys(data.configuration).length;
-  const accountReady = data.readiness?.accountTesting ?? ["ready_for_account_testing", "ready_for_checkout_testing"].includes(data.status);
+  const accountReady = data.readiness?.accountTesting ?? ["ready_for_account_testing", "ready_for_stripe_canary", "ready_for_checkout_testing"].includes(data.status);
+  const stripeConfigured = data.readiness?.stripeConfigured ?? Boolean(data.configuration?.stripeTest);
   const checkoutReady = data.readiness?.checkoutTesting ?? data.status === "ready_for_checkout_testing";
   const headline = checkoutReady
-    ? "Ready for account and checkout testing."
-    : accountReady
+    ? "The controlled Stripe checkout canary is enabled."
+    : stripeConfigured
+      ? "Account and Stripe configuration are ready. Checkout remains safely off."
+      : accountReady
       ? "Account testing ready. Checkout waiting for Stripe."
       : "Safe, waiting for Firebase test credentials.";
   const nextGate = checkoutReady
     ? "Exercise login, administration and Stripe test purchases"
-    : accountReady
+    : stripeConfigured
+      ? "Enable and run one controlled Stripe canary"
+      : accountReady
       ? "Create the first administrator, then connect Stripe test mode"
       : "Finish isolated Firebase account configuration";
-  const nextSteps = accountReady
-    ? `<li>Complete one real Google login with <code>wonderlang.thegame@gmail.com</code>.</li><li>Grant that verified account through the audited one-time administrator bootstrap, then disable bootstrap immediately.</li><li>Add a least-privilege Stripe <code>rk_test_</code> key and test webhook credentials; checkout remains disabled until then.</li><li>Enable and test one isolated provider workflow at a time; keep production processing off.</li>`
+  const nextSteps = checkoutReady
+    ? `<li>Use only Stripe test-mode payment data.</li><li>Complete one Premium Checkout and verify exactly one signed webhook event reaches the entitlement ledger.</li><li>Exercise Portal, refund and dispute handling, then turn both Stripe switches off again.</li><li>Keep fulfillment, advertising and every unrelated provider switch off throughout the canary.</li>`
+    : stripeConfigured
+      ? `<li>Grant one verified account through the audited administrator bootstrap, then disable bootstrap immediately.</li><li>Confirm the restricted Stripe catalog with a read-only diagnostic.</li><li>Enable only <code>STRIPE_MUTATIONS_ENABLED</code> and <code>STRIPE_WEBHOOKS_ENABLED</code> for the controlled test-mode canary.</li><li>Do not treat configuration readiness as evidence that a payment has been processed.</li>`
+      : accountReady
+        ? `<li>Complete one real Google login.</li><li>Grant that verified account through the audited one-time administrator bootstrap, then disable bootstrap immediately.</li><li>Add a least-privilege Stripe <code>rk_test_</code> key and test webhook credentials; checkout remains disabled until then.</li><li>Enable and test one isolated provider workflow at a time; keep production processing off.</li>`
     : `<li>Install the Firebase web and Admin configuration for <code>wonderlang-accounts</code>.</li><li>Verify Google and passwordless-email login without enabling payments.</li><li>Grant the verified owner through the audited administrator bootstrap.</li><li>Connect Stripe test mode only after account testing passes.</li>`;
   root.innerHTML = `<main class="setup-shell">
     <header class="setup-header"><a class="brand" href="/"><span>W</span><strong>WonderLang</strong></a><nav><a href="/account/">Account</a><a href="/admin/">Operations</a></nav></header>
@@ -69,7 +78,7 @@ async function load() {
   if (demo) {
     render({
       status: "configuration_required", environment: "test", safeMode: true, deploy: "local-preview",
-      readiness: { accountTesting: false, checkoutTesting: false },
+      readiness: { accountTesting: false, stripeConfigured: false, checkoutTesting: false },
       configuration: { firebaseAdmin: false, firebaseWeb: false, stripeTest: false, legacyFulfillment: false, adDelivery: false, googlePlay: false, appleStore: false, providerTokenEncryption: false },
       controls: Object.fromEntries(Object.keys(controlLabels).map((key) => [key, false]))
     });

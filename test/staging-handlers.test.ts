@@ -171,7 +171,7 @@ describe("staging function boundaries", () => {
     expect(response).toMatchObject({ statusCode: 200 });
     const body = JSON.parse(String(response?.body));
     expect(body).toMatchObject({ status: "configuration_required", environment: "test", safeMode: true });
-    expect(body.readiness).toEqual({ accountTesting: false, checkoutTesting: false });
+    expect(body.readiness).toEqual({ accountTesting: false, stripeConfigured: false, checkoutTesting: false });
     expect(body.configuration).toMatchObject({ firebaseAdmin: false, stripeTest: false });
     expect(JSON.stringify(body)).not.toMatch(/PRIVATE_KEY|SECRET_KEY|ACCESS_TOKEN/);
   });
@@ -291,12 +291,12 @@ describe("staging function boundaries", () => {
     const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
     expect(JSON.parse(String(health?.body))).toMatchObject({
       status: "ready_for_account_testing",
-      readiness: { accountTesting: true, checkoutTesting: false },
+      readiness: { accountTesting: true, stripeConfigured: false, checkoutTesting: false },
       configuration: { firebaseAdmin: true, firebaseWeb: true, stripeTest: false }
     });
   });
 
-  it("reports checkout testing separately when the isolated Stripe catalog is complete", async () => {
+  it("reports Stripe configuration without falsely claiming checkout testing while processing is off", async () => {
     Object.assign(process.env, {
       FIREBASE_WEB_API_KEY: "public-firebase-web-test-key",
       FIREBASE_AUTH_DOMAIN: "test-project.firebaseapp.com",
@@ -317,9 +317,42 @@ describe("staging function boundaries", () => {
     });
     const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
     expect(JSON.parse(String(health?.body))).toMatchObject({
-      status: "ready_for_checkout_testing",
-      readiness: { accountTesting: true, checkoutTesting: true },
+      status: "ready_for_stripe_canary",
+      readiness: { accountTesting: true, stripeConfigured: true, checkoutTesting: false },
+      safeMode: true,
+      controls: { STRIPE_MUTATIONS_ENABLED: false, STRIPE_WEBHOOKS_ENABLED: false },
       configuration: { firebaseAdmin: true, firebaseWeb: true, stripeTest: true }
+    });
+  });
+
+  it("reports checkout testing only while both isolated Stripe canary switches are enabled", async () => {
+    Object.assign(process.env, {
+      FIREBASE_WEB_API_KEY: "public-firebase-web-test-key",
+      FIREBASE_AUTH_DOMAIN: "test-project.firebaseapp.com",
+      FIREBASE_PROJECT_ID: "test-project",
+      FIREBASE_CLIENT_EMAIL: "firebase-admin@test-project.iam.gserviceaccount.com",
+      FIREBASE_PRIVATE_KEY: "test-private-key",
+      FIREBASE_STORAGE_BUCKET: "test-project.firebasestorage.app",
+      STRIPE_SECRET_KEY: "rk_test_example",
+      STRIPE_WEBHOOK_SECRET: "whsec_test",
+      STRIPE_PRICE_MOBILE_MONTHLY: "price_monthly",
+      STRIPE_PRICE_POLYGLOT_PERMANENT: "price_polyglot",
+      STRIPE_PRICE_PREMIUM_LIFETIME: "price_premium",
+      STRIPE_COUPON_LEGACY_DESKTOP_50: "coupon_legacy",
+      STRIPE_SUCCESS_URL: "https://test.example.com/account/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+      STRIPE_CANCEL_URL: "https://test.example.com/account/?checkout=cancelled",
+      STRIPE_PORTAL_RETURN_URL: "https://test.example.com/account/",
+      PUBLIC_APP_ORIGIN: "https://test.example.com",
+      STRIPE_MUTATIONS_ENABLED: "true",
+      STRIPE_WEBHOOKS_ENABLED: "true"
+    });
+    const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
+    expect(JSON.parse(String(health?.body))).toMatchObject({
+      status: "ready_for_checkout_testing",
+      readiness: { accountTesting: true, stripeConfigured: true, checkoutTesting: true },
+      safeMode: false,
+      controls: { STRIPE_MUTATIONS_ENABLED: true, STRIPE_WEBHOOKS_ENABLED: true },
+      configuration: { stripeTest: true }
     });
   });
 
@@ -341,7 +374,7 @@ describe("staging function boundaries", () => {
     const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
     expect(JSON.parse(String(health?.body))).toMatchObject({
       status: "ready_for_account_testing",
-      readiness: { accountTesting: true, checkoutTesting: false },
+      readiness: { accountTesting: true, stripeConfigured: false, checkoutTesting: false },
       configuration: { stripeTest: false }
     });
   });

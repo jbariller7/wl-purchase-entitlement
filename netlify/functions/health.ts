@@ -36,7 +36,8 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     providerTokenEncryption: valid(providerTokenEncryptionEnv)
   };
   const accountTesting = configuration.firebaseAdmin && configuration.firebaseWeb;
-  const checkoutTesting = accountTesting && configuration.stripeTest;
+  const stripeConfigured = accountTesting && configuration.stripeTest;
+  const checkoutTesting = stripeConfigured && controls.STRIPE_MUTATIONS_ENABLED && controls.STRIPE_WEBHOOKS_ENABLED;
   return {
     statusCode: 200,
     headers: {
@@ -48,10 +49,12 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     body: JSON.stringify({
       status: checkoutTesting
         ? "ready_for_checkout_testing"
+        : stripeConfigured
+          ? "ready_for_stripe_canary"
         : accountTesting
           ? "ready_for_account_testing"
           : "configuration_required",
-      readiness: { accountTesting, checkoutTesting },
+      readiness: { accountTesting, stripeConfigured, checkoutTesting },
       environment: controls.APP_ENVIRONMENT,
       safeMode: !controls.STRIPE_WEBHOOKS_ENABLED && !controls.GOOGLE_PLAY_WEBHOOKS_ENABLED && !controls.APPLE_WEBHOOKS_ENABLED && !controls.OUTBOX_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED && !controls.LEGACY_FULFILLMENT_ENABLED && !controls.SUBSCRIPTION_CANCELLATION_ENABLED && !controls.ACCOUNT_DELETION_PROCESSING_ENABLED && !controls.STRIPE_MUTATIONS_ENABLED && !controls.SUBSCRIPTION_RECONCILIATION_ENABLED && !controls.CLOUD_STORAGE_MONITORING_ENABLED && !controls.CLOUD_SAVE_CLEANUP_ENABLED && !controls.DEVICE_SIGN_IN_ENABLED && !controls.DEVICE_SIGN_IN_CLEANUP_ENABLED && !controls.ADMIN_BOOTSTRAP_ENABLED,
       controls,
