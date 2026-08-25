@@ -84,6 +84,20 @@ const appleSchema = z.object({
   APPLE_ENVIRONMENT: z.enum(["Production", "Sandbox"]).default("Production")
 });
 
+const appleCatalogDiagnosticSchema = z.object({
+  APPLE_BUNDLE_ID: z.string().min(1),
+  APPLE_APP_ID: z.string().regex(/^\d+$/),
+  APPLE_ISSUER_ID: z.string().min(1),
+  APPLE_KEY_ID: z.string().min(1),
+  APPLE_PRIVATE_KEY: z.string().min(1),
+  APPLE_MONTHLY_PRODUCT_ID: z.string().min(1).default("wonderlangmonthly"),
+  APPLE_POLYGLOT_PRODUCT_ID: z.string().min(1).default("wonderlangfull"),
+  APPLE_SUBSCRIPTION_GROUP_ID: z.string().min(1).default("22331966"),
+  APPLE_HISTORICAL_PRODUCT_IDS: z.string().min(1).default('["wonderlangch1","wonderlangch2","wonderlangch3","wonderlangch4"]'),
+  APPLE_MONTHLY_USD_PRICE: z.string().regex(/^\d+\.\d{2}$/).default("6.99"),
+  APPLE_POLYGLOT_USD_PRICE: z.string().regex(/^\d+\.\d{2}$/).default("31.99")
+});
+
 const metaConversionSchema = z.object({
   META_PIXEL_ID: z.string().min(1),
   META_ACCESS_TOKEN: z.string().min(1),
@@ -159,6 +173,7 @@ export type GooglePlayEnvironment = z.infer<typeof googlePlaySchema>;
 export type ProviderTokenEncryptionEnvironment = z.infer<typeof providerTokenEncryptionSchema>;
 export type StripeEnvironment = z.infer<typeof stripeSchema>;
 export type AppleEnvironment = z.infer<typeof appleSchema>;
+export type AppleCatalogDiagnosticEnvironment = z.infer<typeof appleCatalogDiagnosticSchema>;
 export type MetaConversionEnvironment = z.infer<typeof metaConversionSchema>;
 export type TikTokConversionEnvironment = z.infer<typeof tiktokConversionSchema>;
 export type CloudStorageMonitoringEnvironment = z.infer<typeof cloudStorageMonitoringSchema>;
@@ -170,6 +185,7 @@ let cachedGooglePlay: GooglePlayEnvironment | undefined;
 let cachedProviderTokenEncryption: ProviderTokenEncryptionEnvironment | undefined;
 let cachedStripe: StripeEnvironment | undefined;
 let cachedApple: AppleEnvironment | undefined;
+let cachedAppleCatalogDiagnostic: AppleCatalogDiagnosticEnvironment | undefined;
 let cachedMetaConversion: MetaConversionEnvironment | undefined;
 let cachedTikTokConversion: TikTokConversionEnvironment | undefined;
 let cachedCloudStorageMonitoring: CloudStorageMonitoringEnvironment | undefined;
@@ -273,6 +289,18 @@ export function appleEnv(): AppleEnvironment {
   return cachedApple;
 }
 
+export function appleCatalogDiagnosticEnv(): AppleCatalogDiagnosticEnvironment {
+  if (!cachedAppleCatalogDiagnostic) {
+    const parsed = appleCatalogDiagnosticSchema.safeParse(process.env);
+    if (!parsed.success) {
+      const names = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+      throw new Error(`Missing or invalid Apple catalog diagnostic configuration: ${names}`);
+    }
+    cachedAppleCatalogDiagnostic = parsed.data;
+  }
+  return cachedAppleCatalogDiagnostic;
+}
+
 export function metaConversionEnv(): MetaConversionEnvironment {
   if (!cachedMetaConversion) {
     const parsed = metaConversionSchema.safeParse(process.env);
@@ -331,6 +359,7 @@ export function resetEnvironmentForTests(): void {
   cachedProviderTokenEncryption = undefined;
   cachedStripe = undefined;
   cachedApple = undefined;
+  cachedAppleCatalogDiagnostic = undefined;
   cachedMetaConversion = undefined;
   cachedTikTokConversion = undefined;
   cachedCloudStorageMonitoring = undefined;

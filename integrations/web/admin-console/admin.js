@@ -9,7 +9,7 @@ import "./admin.css";
 const appNode = document.querySelector("#app");
 const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
-const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, googlePlayDiagnostic: null, firebaseAuthDiagnostic: null, previews: {}, notice: null };
+const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, googlePlayDiagnostic: null, firebaseAuthDiagnostic: null, appleCatalogDiagnostic: null, previews: {}, notice: null };
 
 const demoOverview = {
   metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, pendingSecondPlatformRequests: 1, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
@@ -272,15 +272,18 @@ function renderSettings(data) {
   const diagnostic = state.stripeDiagnostic;
   const playDiagnostic = state.googlePlayDiagnostic;
   const authDiagnostic = state.firebaseAuthDiagnostic;
+  const appleDiagnostic = state.appleCatalogDiagnostic;
   const diagnosticRows = (diagnostic?.checks || []).map((check) => [check.label, check.resourceId, check.state === "passed" ? "Passed" : "Failed", diagnosticDetails(check)]);
   const playDiagnosticRows = (playDiagnostic?.checks || []).map((check) => [check.label, check.resourceId, check.state === "passed" ? "Passed" : "Failed", diagnosticDetails(check)]);
   const authDiagnosticRows = (authDiagnostic?.checks || []).map((check) => [check.label, check.resourceId, check.state === "passed" ? "Passed" : "Failed", diagnosticDetails(check)]);
+  const appleDiagnosticRows = (appleDiagnostic?.checks || []).map((check) => [check.label, check.resourceId, check.state === "passed" ? "Passed" : "Failed", diagnosticDetails(check)]);
   return `${pageIntro("SECURITY & SETUP", "Test mode is enforced by the server.", "The visible label is informational; secret-key mode and administrator claims are validated on every protected request.")}
   <section class="settings-grid"><article class="panel detail-card"><header><div><p class="section-kicker">ADMIN SESSION</p><h3>${escapeHtml(data.actor?.email || state.user?.email)}</h3></div></header><dl class="definition-grid"><div><dt>Firebase UID</dt><dd>${escapeHtml(data.actor?.uid || "Demo")}</dd></div><div><dt>Signed in through</dt><dd>${escapeHtml((data.providers || ["demo"]).join(", "))}</dd></div><div><dt>Authorization</dt><dd>Server-verified admin claim</dd></div><div><dt>Capabilities</dt><dd>${escapeHtml((data.capabilities || []).join(", "))}</dd></div></dl></article>
   <article class="panel"><header><div><p class="section-kicker">DEPLOYMENT GUARDS</p><h3>${escapeHtml(controls.APP_ENVIRONMENT || state.config.environment || "Unknown")} environment</h3></div></header><div class="guard-list">${Object.entries(labels).map(([key, label]) => `<div><span>${label}</span><b>${controls[key] ? "On" : "Off"}</b></div>`).join("")}</div></article></section>
   <section class="panel spaced"><header><div><p class="section-kicker">READ-ONLY PROVIDER CHECK</p><h3>Stripe catalog diagnostic</h3></div><button type="button" class="button secondary" data-run-stripe-diagnostic>${diagnostic ? "Run again" : "Run diagnostic"}</button></header><p class="panel-copy">Reads the configured test Prices, Products and historical-owner Coupon. It never creates a customer, Checkout Session, refund, subscription or webhook event and it never returns the API key.</p>${diagnostic ? `<div class="guard-list"><div><span>Credential</span><b>${escapeHtml(`${diagnostic.keyType} ${diagnostic.mode}`)}</b></div><div><span>Result</span><b>${diagnostic.passed ? "Passed" : "Needs attention"}</b></div><div><span>Checked</span><b>${escapeHtml(formatDate(diagnostic.checkedAt))}</b></div><div><span>Stripe canary switches</span><b>${diagnostic.canarySwitches?.checkoutTestingEnabled ? "On" : "Off"}</b></div></div>${table(["Check", "Resource", "State", "Details"], diagnosticRows)}` : empty("No provider call has been made from this page. Run the diagnostic after the restricted test key is installed.")}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">READ-ONLY PROVIDER CHECK</p><h3>Google Play catalog diagnostic</h3></div><button type="button" class="button secondary" data-run-google-play-diagnostic>${playDiagnostic ? "Run again" : "Run diagnostic"}</button></header><p class="panel-copy">Reads Mobile Monthly, its three-day trial, and both wonderlangfull purchase options. During the pre-update rollout it requires legacy buy to remain active at USD 25.99 and buy-polyglot-permanent to remain draft at USD 31.99. It never acknowledges a purchase or changes Play Console data.</p>${playDiagnostic ? `<div class="guard-list"><div><span>Package</span><b>${escapeHtml(playDiagnostic.packageName)}</b></div><div><span>Result</span><b>${playDiagnostic.passed ? "Passed" : "Needs attention"}</b></div><div><span>Expected rollout</span><b>${escapeHtml(playDiagnostic.rolloutPhase === "compatible_update_live" ? "Compatible update live" : "Legacy live · new option draft")}</b></div><div><span>Play webhook processing</span><b>${playDiagnostic.webhookProcessingEnabled ? "On" : "Off"}</b></div></div>${table(["Check", "Resource", "State", "Details"], playDiagnosticRows)}` : empty("No Google Play provider call has been made from this page.")}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">READ-ONLY PROVIDER CHECK</p><h3>Firebase Authentication diagnostic</h3></div><button type="button" class="button secondary" data-run-firebase-auth-diagnostic>${authDiagnostic ? "Run again" : "Run diagnostic"}</button></header><p class="panel-copy">Reads the WonderLang account project, authorized domains, passwordless-email policy, account privacy controls, Google provider and Apple provider. It discards all provider secrets and never changes Firebase Authentication.</p>${authDiagnostic ? `<div class="guard-list"><div><span>Project</span><b>${escapeHtml(authDiagnostic.projectId)}</b></div><div><span>Result</span><b>${authDiagnostic.passed ? "Passed" : "Needs attention"}</b></div><div><span>Mode</span><b>Read only</b></div></div>${table(["Check", "Resource", "State", "Details"], authDiagnosticRows)}` : empty("No Firebase Authentication provider call has been made from this page.")}</section>
+  <section class="panel spaced"><header><div><p class="section-kicker">READ-ONLY PROVIDER CHECK</p><h3>Apple catalog diagnostic</h3></div><button type="button" class="button secondary" data-run-apple-catalog-diagnostic>${appleDiagnostic ? "Run again" : "Run diagnostic"}</button></header><p class="panel-copy">Reads the App Store app, Mobile Monthly, its current three-day trial, Polyglot Permanent and all four restore-only chapter products. It uses two-minute read-only App Store Connect authorization, discards the token and private key, and never changes Apple products.</p>${appleDiagnostic ? `<div class="guard-list"><div><span>App</span><b>${escapeHtml(appleDiagnostic.appId)}</b></div><div><span>Bundle</span><b>${escapeHtml(appleDiagnostic.bundleId)}</b></div><div><span>Result</span><b>${appleDiagnostic.passed ? "Passed" : "Needs attention"}</b></div><div><span>Mode</span><b>Read only</b></div></div>${table(["Check", "Resource", "State", "Details"], appleDiagnosticRows)}` : empty("No App Store Connect provider call has been made from this page. A separate server API key is required.")}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">SSO READINESS</p><h3>Google and Apple</h3></div></header><ul class="policy-list"><li>Both providers use Firebase Authentication.</li><li>Signing in never grants admin access by itself.</li><li>Google and Apple identities merge only through verified account-linking rules.</li><li>The Netlify domain must be authorized in Firebase and Apple Services ID settings.</li></ul></section>`;
 }
 
@@ -411,6 +414,16 @@ function demoApi(path, options) {
       { id: "account-safety", label: "Account creation, linking and privacy policy", resourceId: "accountPolicy", state: "passed", issues: [], details: { separateProviderAccounts: true, userSignupEnabled: true, userDeletionEnabled: true, emailEnumerationProtection: true } },
       { id: "google-provider", label: "Google sign-in provider", resourceId: "google.com", state: "passed", issues: [], details: { enabled: true, oauthClientConfigured: true } },
       { id: "apple-provider", label: "Apple sign-in provider", resourceId: "apple.com", state: "failed", issues: ["Apple is not configured as a Firebase sign-in provider."], details: { enabled: false, serviceIdMatches: false, bundleIdPresent: false, codeFlowCredentialsComplete: false } }
+    ]
+  };
+  if (method === "GET" && path.includes("diagnostics/apple-catalog")) return {
+    checkedAt: new Date().toISOString(), passed: true, readOnly: true, appId: "6780447024", bundleId: "com.wonderlang.app",
+    checks: [
+      { id: "app", label: "WonderLang App Store app", resourceId: "6780447024", state: "passed", issues: [], details: { name: "WonderLang", bundleId: "com.wonderlang.app" } },
+      { id: "monthly", label: "Mobile Monthly subscription", resourceId: "wonderlangmonthly", state: "passed", issues: [], details: { subscriptionGroupId: "22331966", state: "READY_TO_SUBMIT", period: "ONE_MONTH", usPrice: "USD 6.99" } },
+      { id: "trial", label: "Mobile Monthly three-day trial", resourceId: "6804702003", state: "passed", issues: [], details: { active: true, duration: "THREE_DAYS", mode: "FREE_TRIAL", numberOfPeriods: 1 } },
+      { id: "polyglot", label: "Polyglot Permanent non-consumable", resourceId: "wonderlangfull", state: "passed", issues: [], details: { type: "NON_CONSUMABLE", state: "APPROVED", usPrice: "USD 31.99" } },
+      { id: "historical", label: "Historical chapter restore products", resourceId: "restore-only chapters", state: "passed", issues: [], details: { expectedProductIds: ["wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4"], presentProductIds: ["wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4"], newSalesRequired: false } }
     ]
   };
   if (path.endsWith("/catalog")) return demoCatalog;
@@ -672,6 +685,18 @@ function bindView() {
     try {
       state.firebaseAuthDiagnostic = await api("/admin-api/v1/diagnostics/firebase-authentication");
       state.notice = { message: state.firebaseAuthDiagnostic.passed ? "Firebase Authentication diagnostic passed." : "Firebase Authentication diagnostic found issues.", error: !state.firebaseAuthDiagnostic.passed };
+      await loadView("settings");
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message, true);
+    }
+  });
+  document.querySelector("[data-run-apple-catalog-diagnostic]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      state.appleCatalogDiagnostic = await api("/admin-api/v1/diagnostics/apple-catalog");
+      state.notice = { message: state.appleCatalogDiagnostic.passed ? "Apple catalog diagnostic passed." : "Apple catalog diagnostic found issues.", error: !state.appleCatalogDiagnostic.passed };
       await loadView("settings");
     } catch (error) {
       button.disabled = false;

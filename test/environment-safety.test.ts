@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { appleEnv, env, resetEnvironmentForTests, stripeEnv } from "../src/config/env.js";
+import { appleCatalogDiagnosticEnv, appleEnv, env, resetEnvironmentForTests, stripeEnv } from "../src/config/env.js";
 
 const original = { ...process.env };
 const required = {
@@ -90,6 +90,27 @@ describe("deployment safety", () => {
       APPLE_ENVIRONMENT: "Sandbox",
       APPLE_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
       APPLE_POLYGLOT_PRODUCT_ID: "wonderlangfull"
+    });
+  });
+
+  it("loads the read-only Apple catalog boundary without notification-verification roots", () => {
+    Object.assign(process.env, {
+      APPLE_BUNDLE_ID: "com.wonderlang.app",
+      APPLE_APP_ID: "6780447024",
+      APPLE_ISSUER_ID: "test-issuer",
+      APPLE_KEY_ID: "TESTKEY123",
+      APPLE_PRIVATE_KEY: "test-apple-private-key"
+    });
+    for (const name of ["STRIPE_SECRET_KEY", "FIREBASE_PROJECT_ID", "APPLE_ROOT_CA_G2_BASE64", "APPLE_ROOT_CA_G3_BASE64"]) {
+      delete process.env[name];
+    }
+    expect(appleCatalogDiagnosticEnv()).toMatchObject({
+      APPLE_BUNDLE_ID: "com.wonderlang.app",
+      APPLE_APP_ID: "6780447024",
+      APPLE_SUBSCRIPTION_GROUP_ID: "22331966",
+      APPLE_HISTORICAL_PRODUCT_IDS: '["wonderlangch1","wonderlangch2","wonderlangch3","wonderlangch4"]',
+      APPLE_MONTHLY_USD_PRICE: "6.99",
+      APPLE_POLYGLOT_USD_PRICE: "31.99"
     });
   });
 });

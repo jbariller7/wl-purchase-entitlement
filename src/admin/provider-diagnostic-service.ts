@@ -1,5 +1,6 @@
 import { CatalogService } from "../catalog/service.js";
-import { deploymentControls, firebaseAuthDiagnosticEnv, googlePlayEnv, stripeEnv } from "../config/env.js";
+import { appleCatalogDiagnosticEnv, deploymentControls, firebaseAuthDiagnosticEnv, googlePlayEnv, stripeEnv } from "../config/env.js";
+import { createAppStoreConnectCatalogReader, diagnoseAppleCatalog } from "../providers/apple/catalog-diagnostic.js";
 import { createFirebaseAuthenticationConfigurationReader, diagnoseFirebaseAuthentication } from "../providers/firebase-auth/configuration-diagnostic.js";
 import { createGooglePlayCatalogReader, diagnoseGooglePlayCatalog } from "../providers/google-play/catalog-diagnostic.js";
 import { diagnoseStripeCatalog } from "../providers/stripe/catalog-diagnostic.js";
@@ -36,6 +37,15 @@ export class AdminProviderDiagnosticService {
     const environment = firebaseAuthDiagnosticEnv();
     return diagnoseFirebaseAuthentication({
       reader: createFirebaseAuthenticationConfigurationReader(environment),
+      environment,
+      now
+    }) as unknown as Record<string, unknown>;
+  }
+
+  async appleCatalog(now: Date): Promise<Record<string, unknown>> {
+    const environment = appleCatalogDiagnosticEnv();
+    return diagnoseAppleCatalog({
+      reader: createAppStoreConnectCatalogReader(environment),
       environment,
       now
     }) as unknown as Record<string, unknown>;
