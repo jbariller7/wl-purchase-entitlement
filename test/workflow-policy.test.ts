@@ -150,6 +150,21 @@ describe("purchase import validation and idempotency keys", () => {
     }], now);
     expect(normalized?.mobilePlatform).toBe("ios");
   });
+
+  it("requires the original mobile platform for a historical chapter upgrade", () => {
+    expect(() => normalizeImportRows([{
+      ...row,
+      kind: "legacy_chapter_1",
+      startsAt: "2026-08-01T00:00:00.000Z"
+    }], now)).toThrow(/Choose Android or iOS/);
+
+    expect(normalizeImportRows([{
+      ...row,
+      kind: "legacy_chapter_1",
+      mobilePlatform: "android",
+      startsAt: "2026-08-01T00:00:00.000Z"
+    }], now)[0]).toMatchObject({ kind: "legacy_chapter_1", mobilePlatform: "android" });
+  });
 });
 
 describe("new checkout product contract", () => {

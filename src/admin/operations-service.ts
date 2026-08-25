@@ -16,13 +16,7 @@ import { SecondPlatformRequestService } from "../premium/second-platform-request
 
 const ADMIN_GRANT_PRODUCTS: Product[] = [
   "mobile_polyglot_permanent",
-  "premium_lifetime_pass",
-  "mobile_full_lifetime",
-  "legacy_mobile_full",
-  "legacy_chapter_1",
-  "legacy_chapter_2",
-  "legacy_chapter_3",
-  "legacy_chapter_4"
+  "premium_lifetime_pass"
 ];
 const CLEANUP_JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 

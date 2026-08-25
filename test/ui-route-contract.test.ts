@@ -182,4 +182,12 @@ describe("administrator interface route contract", () => {
     expect(admin).toContain("Managed in Google Play / App Store Connect");
     expect(api).toContain('kind: z.literal("premium")');
   });
+
+  it("offers only current products for new manual grants while keeping historical chapters import-only", () => {
+    expect(admin).toContain('<option value="mobile_polyglot_permanent">Polyglot Permanent Access</option>');
+    expect(admin).toContain('<option value="premium_lifetime_pass">Premium Lifetime Pass</option>');
+    expect(admin).not.toContain('<option value="legacy_chapter_1">');
+    expect(admin).not.toContain('<option value="legacy_mobile_full">');
+    expect(admin).toContain("Historical chapter purchases completed by");
+  });
 });

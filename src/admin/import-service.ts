@@ -6,7 +6,7 @@ import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { sha256 } from "../infrastructure/ids.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
-import { chapterMigrationGrant } from "../domain/legacy-chapter-migration.js";
+import { chapterMigrationGrant, isLegacyChapterProduct } from "../domain/legacy-chapter-migration.js";
 import { safeErrorMessage } from "../infrastructure/safe-error.js";
 
 export type AdminImportKind =
@@ -54,7 +54,8 @@ function normalizeRow(row: AdminImportRow, now: Date): NormalizedImportRow {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, `Invalid email: ${row.email}`);
   if (!row.externalId.trim() || row.externalId.length > 200) throw new HttpError(400, `External ID is missing or too long for ${email}.`);
   if (row.note.trim().length < 5) throw new HttpError(400, `Import note is too short for ${email}.`);
-  if ((row.kind === "mobile_polyglot_permanent" || row.kind === "premium_lifetime_pass") && !row.mobilePlatform) {
+  const product = productByKind[row.kind];
+  if ((row.kind === "mobile_polyglot_permanent" || row.kind === "premium_lifetime_pass" || (product && isLegacyChapterProduct(product))) && !row.mobilePlatform) {
     throw new HttpError(400, `Choose Android or iOS for ${email}.`);
   }
   const startsAt = row.startsAt ? new Date(row.startsAt) : now;

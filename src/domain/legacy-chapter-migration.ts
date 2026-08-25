@@ -19,6 +19,7 @@ export function isEligibleHistoricalChapterPurchase(startsAt: string, cutoff = L
 
 export function chapterMigrationGrant(original: LedgerGrant): LedgerGrant | undefined {
   if (!isLegacyChapterProduct(original.product) || !isEligibleHistoricalChapterPurchase(original.startsAt)) return undefined;
+  const originalPlatform = original.metadata?.mobilePlatform ?? original.metadata?.primaryMobilePlatform;
   return {
     id: "",
     uid: original.uid,
@@ -34,7 +35,8 @@ export function chapterMigrationGrant(original: LedgerGrant): LedgerGrant | unde
       migration: "historical_chapter_to_polyglot_permanent",
       originalProduct: original.product,
       originalTransactionId: original.providerTransactionId,
-      cutoff: LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF
+      cutoff: LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF,
+      ...(originalPlatform === "android" || originalPlatform === "ios" ? { mobilePlatform: originalPlatform } : {})
     }
   };
 }

@@ -166,6 +166,28 @@ describe("legacy desktop routing", () => {
     expect(isEligibleHistoricalChapterPurchase("2026-08-24T23:59:59.999Z")).toBe(true);
     expect(isEligibleHistoricalChapterPurchase("2026-08-25T00:00:00.000Z")).toBe(false);
     expect(LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF).toBe("2026-08-24T23:59:59.999Z");
+
+    const original = grant({
+      provider: "admin",
+      providerTransactionId: "import:ios-chapter-order",
+      product: "legacy_chapter_1",
+      startsAt: "2026-08-01T00:00:00.000Z",
+      metadata: { mobilePlatform: "ios" }
+    });
+    const migration = chapterMigrationGrant(original)!;
+    expect(migration.metadata).toMatchObject({
+      migration: "historical_chapter_to_polyglot_permanent",
+      originalProduct: "legacy_chapter_1",
+      originalTransactionId: "import:ios-chapter-order",
+      mobilePlatform: "ios"
+    });
+    expect(projectEntitlements("user-1", [original, migration], now)).toMatchObject({
+      accessKind: "permanent",
+      fullGame: true,
+      cloudSave: false,
+      mobilePlatforms: ["ios"],
+      permanentMobilePlatforms: ["ios"]
+    });
   });
 
   it("keeps the original chapter audit record from unlocking new post-cutoff purchases", () => {
