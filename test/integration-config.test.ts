@@ -139,6 +139,19 @@ describe("isolated integration configuration", () => {
     expect(netlify).toMatch(/\[functions\."device-sign-in-cleanup"\][\s\S]*schedule\s*=\s*"7 \* \* \* \*"/);
   });
 
+  it("allows Firebase Google Auth to load its helper script on account and admin pages", () => {
+    const netlify = read("netlify.toml");
+    const authPolicies = [...netlify.matchAll(/for = "\/(?:admin|account)\/\*"[\s\S]*?Content-Security-Policy = "([^"]+)"/g)]
+      .map((match) => match[1]);
+
+    expect(authPolicies).toHaveLength(2);
+    for (const policy of authPolicies) {
+      expect(policy).toMatch(/script-src 'self' https:\/\/apis\.google\.com(?:;|\s)/);
+      expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+      expect(policy).not.toMatch(/script-src[^;]*\*/);
+    }
+  });
+
   it("keeps scheduled reconciliation read-only at every billing provider", () => {
     const stripe = read("src/providers/stripe/event-processor.ts");
     const play = read("src/providers/google-play/service.ts");
