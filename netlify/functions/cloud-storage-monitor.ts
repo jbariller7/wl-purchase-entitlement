@@ -1,6 +1,6 @@
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { LambdaHandler } from "@netlify/aws-lambda-compat";
-import { deploymentControls, env } from "../../src/config/env.js";
+import { cloudStorageMonitoringEnv, deploymentControls } from "../../src/config/env.js";
 
 export const config = { schedule: "43 2 * * *" };
 
@@ -19,7 +19,7 @@ export const lambdaHandler: LambdaHandler = async () => {
   const result = await monitor.runCloudStorageMonitor({
     source: new monitor.FirebaseStorageInventorySource(firebaseStorage()),
     repository: new monitor.FirestoreCloudStorageMetricsRepository(firestore()),
-    dailyGrowthAlertBytes: env().CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES
+    dailyGrowthAlertBytes: cloudStorageMonitoringEnv().CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES
   });
   return {
     statusCode: 200,

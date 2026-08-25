@@ -7,7 +7,7 @@ import {
   type JWSRenewalInfoDecodedPayload,
   type ResponseBodyV2DecodedPayload
 } from "@apple/app-store-server-library";
-import { env } from "../../config/env.js";
+import { appleEnv } from "../../config/env.js";
 import { LEGACY_PLAY_PRODUCT_MAP } from "../../domain/catalog.js";
 import type { EffectiveEntitlements, LedgerGrant } from "../../domain/model.js";
 import { HttpError } from "../../http/auth.js";
@@ -19,10 +19,7 @@ let apiClient: AppStoreServerAPIClient | undefined;
 
 function appleApiClient(): AppStoreServerAPIClient {
   if (apiClient) return apiClient;
-  const configuration = env();
-  if (!configuration.APPLE_PRIVATE_KEY || !configuration.APPLE_KEY_ID || !configuration.APPLE_ISSUER_ID || !configuration.APPLE_BUNDLE_ID) {
-    throw new Error("Apple App Store Server API credentials are not configured.");
-  }
+  const configuration = appleEnv();
   const environment = configuration.APPLE_ENVIRONMENT === "Production" ? Environment.PRODUCTION : Environment.SANDBOX;
   apiClient = new AppStoreServerAPIClient(
     configuration.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n"),
@@ -36,13 +33,13 @@ function appleApiClient(): AppStoreServerAPIClient {
 
 function appleVerifier(): SignedDataVerifier {
   if (verifier) return verifier;
-  const bundleId = env().APPLE_BUNDLE_ID;
-  const g2 = env().APPLE_ROOT_CA_G2_BASE64;
-  const g3 = env().APPLE_ROOT_CA_G3_BASE64;
-  if (!bundleId || !g2 || !g3) throw new Error("Apple bundle ID and root CA certificates are not configured.");
-  const environment = env().APPLE_ENVIRONMENT === "Production" ? Environment.PRODUCTION : Environment.SANDBOX;
-  const appAppleId = environment === Environment.PRODUCTION && env().APPLE_APP_ID
-    ? Number(env().APPLE_APP_ID)
+  const configuration = appleEnv();
+  const bundleId = configuration.APPLE_BUNDLE_ID;
+  const g2 = configuration.APPLE_ROOT_CA_G2_BASE64;
+  const g3 = configuration.APPLE_ROOT_CA_G3_BASE64;
+  const environment = configuration.APPLE_ENVIRONMENT === "Production" ? Environment.PRODUCTION : Environment.SANDBOX;
+  const appAppleId = environment === Environment.PRODUCTION && configuration.APPLE_APP_ID
+    ? Number(configuration.APPLE_APP_ID)
     : undefined;
   if (environment === Environment.PRODUCTION && !appAppleId) throw new Error("APPLE_APP_ID is required in Production.");
   verifier = new SignedDataVerifier(
@@ -106,8 +103,8 @@ async function applyAppleTransaction(input: {
   const uid = await resolveUid(input);
   const now = new Date(input.eventCreated * 1000);
   let product: LedgerGrant["product"];
-  if (productId === env().APPLE_MONTHLY_PRODUCT_ID) product = "mobile_full_monthly";
-  else if (productId === env().APPLE_POLYGLOT_PRODUCT_ID) product = "mobile_polyglot_permanent";
+  if (productId === appleEnv().APPLE_MONTHLY_PRODUCT_ID) product = "mobile_full_monthly";
+  else if (productId === appleEnv().APPLE_POLYGLOT_PRODUCT_ID) product = "mobile_polyglot_permanent";
   else product = LEGACY_PLAY_PRODUCT_MAP[productId] ?? (() => { throw new HttpError(403, "Unknown Apple product ID."); })();
 
   if (product === "mobile_full_monthly") {
@@ -230,7 +227,7 @@ export async function reconcileAppleSubscription(input: {
     const transaction = await appleVerifier().verifyAndDecodeTransaction(candidate.signedTransactionInfo as string);
     if (
       transaction.originalTransactionId !== input.providerSubscriptionId ||
-      transaction.productId !== env().APPLE_MONTHLY_PRODUCT_ID
+      transaction.productId !== appleEnv().APPLE_MONTHLY_PRODUCT_ID
     ) continue;
     const renewal = candidate.signedRenewalInfo
       ? await appleVerifier().verifyAndDecodeRenewalInfo(candidate.signedRenewalInfo)

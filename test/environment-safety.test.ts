@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { env, resetEnvironmentForTests } from "../src/config/env.js";
+import { appleEnv, env, resetEnvironmentForTests, stripeEnv } from "../src/config/env.js";
 
 const original = { ...process.env };
 const required = {
@@ -50,6 +50,41 @@ describe("deployment safety", () => {
       DEVICE_SIGN_IN_ENABLED: false,
       DEVICE_SIGN_IN_CLEANUP_ENABLED: false,
       ADMIN_BOOTSTRAP_ENABLED: false
+    });
+  });
+
+  it("loads Stripe without requiring Firebase or Apple credentials", () => {
+    Object.assign(process.env, required, { APP_ENVIRONMENT: "test", STRIPE_SECRET_KEY: "sk_test_isolated" });
+    for (const name of ["FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY", "FIREBASE_STORAGE_BUCKET"]) {
+      delete process.env[name];
+    }
+    expect(stripeEnv()).toMatchObject({
+      APP_ENVIRONMENT: "test",
+      STRIPE_SECRET_KEY: "sk_test_isolated",
+      STRIPE_MUTATIONS_ENABLED: false
+    });
+  });
+
+  it("loads Apple without requiring Stripe or Firebase credentials", () => {
+    Object.assign(process.env, {
+      APPLE_BUNDLE_ID: "com.wonderlang.app",
+      APPLE_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
+      APPLE_POLYGLOT_PRODUCT_ID: "wonderlangfull",
+      APPLE_ISSUER_ID: "test-issuer",
+      APPLE_KEY_ID: "TESTKEY123",
+      APPLE_PRIVATE_KEY: "test-apple-private-key",
+      APPLE_ROOT_CA_G2_BASE64: "dGVzdC1nMg==",
+      APPLE_ROOT_CA_G3_BASE64: "dGVzdC1nMw==",
+      APPLE_ENVIRONMENT: "Sandbox"
+    });
+    for (const name of ["STRIPE_SECRET_KEY", "FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY"]) {
+      delete process.env[name];
+    }
+    expect(appleEnv()).toMatchObject({
+      APPLE_BUNDLE_ID: "com.wonderlang.app",
+      APPLE_ENVIRONMENT: "Sandbox",
+      APPLE_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
+      APPLE_POLYGLOT_PRODUCT_ID: "wonderlangfull"
     });
   });
 });

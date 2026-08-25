@@ -5,7 +5,7 @@ import { z } from "zod";
 import { CatalogService } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, cloudSaveSlotSchema, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
-import { deploymentControls, env, firebaseAdminEnv } from "../../src/config/env.js";
+import { deploymentControls, firebaseAdminEnv, stripeEnv } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { REGIONAL_PRICES } from "../../src/domain/regional-pricing.js";
 import { summarizeSubscription } from "../../src/domain/account-summary.js";
@@ -149,8 +149,8 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const publicFirebase = publicAccountFirebaseConfig();
     let accountApiReady = false;
     try { firebaseAdminEnv(); accountApiReady = true; } catch { accountApiReady = false; }
-    let runtime: ReturnType<typeof env> | undefined;
-    try { runtime = env(); } catch { runtime = undefined; }
+    let runtime: ReturnType<typeof stripeEnv> | undefined;
+    try { runtime = stripeEnv(); } catch { runtime = undefined; }
     const catalog = runtime ? await new CatalogService(firestore()).get() : {
       revision: 0,
       monthly: { unitAmount: MONTHLY_PRICE_USD_CENTS, currency: "USD", recurring: true },
@@ -162,7 +162,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       environment: publicFirebase.environment,
       accountApiReady,
       checkoutEnabled: Boolean(runtime?.STRIPE_MUTATIONS_ENABLED),
-      appCheckEnforced: Boolean(runtime?.APP_CHECK_ENFORCEMENT_ENABLED),
+      appCheckEnforced: deploymentControls().APP_CHECK_ENFORCEMENT_ENABLED,
       adminBootstrapEnabled: deploymentControls().ADMIN_BOOTSTRAP_ENABLED,
       firebase: {
         apiKey: publicFirebase.apiKey,

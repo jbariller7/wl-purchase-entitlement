@@ -1,6 +1,6 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type Stripe from "stripe";
-import { env } from "../config/env.js";
+import { stripeEnv } from "../config/env.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { REGIONAL_PRICES, stripeMinorAmount, type OfferPriceKind } from "../domain/regional-pricing.js";
 
@@ -58,9 +58,9 @@ export class CatalogService {
       lifetimePriceHistory?: string[];
     } : {};
     const [monthlyPrice, polyglotPrice, premiumPrice] = await Promise.all([
-      stored.monthly ? undefined : stripeClient().prices.retrieve(env().STRIPE_PRICE_MOBILE_MONTHLY),
-      stored.polyglot ? undefined : stripeClient().prices.retrieve(env().STRIPE_PRICE_POLYGLOT_PERMANENT),
-      stored.premium ? undefined : stripeClient().prices.retrieve(env().STRIPE_PRICE_PREMIUM_LIFETIME)
+      stored.monthly ? undefined : stripeClient().prices.retrieve(stripeEnv().STRIPE_PRICE_MOBILE_MONTHLY),
+      stored.polyglot ? undefined : stripeClient().prices.retrieve(stripeEnv().STRIPE_PRICE_POLYGLOT_PERMANENT),
+      stored.premium ? undefined : stripeClient().prices.retrieve(stripeEnv().STRIPE_PRICE_PREMIUM_LIFETIME)
     ]);
     const monthly = stored.monthly ?? asOffer(monthlyPrice as Stripe.Price, "monthly");
     const polyglot = stored.polyglot ?? asOffer(polyglotPrice as Stripe.Price, "polyglot");

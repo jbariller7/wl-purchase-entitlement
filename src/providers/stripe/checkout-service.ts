@@ -1,7 +1,7 @@
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { z } from "zod";
 import { CatalogService } from "../../catalog/service.js";
-import { env } from "../../config/env.js";
+import { stripeEnv } from "../../config/env.js";
 import { canUseLegacyLifetimeDiscount } from "../../domain/legacy-discount.js";
 import { planLifetimeTransition } from "../../domain/lifetime-transition.js";
 import { STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../domain/catalog.js";
@@ -78,7 +78,7 @@ export async function createCheckout(input: {
   userAgent?: string;
   now: Date;
 }): Promise<{ url: string; sessionId: string; warning?: string }> {
-  if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Checkout is disabled for this deployment.");
+  if (!stripeEnv().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Checkout is disabled for this deployment.");
   const { store, user, request, now } = input;
   const effective = await store.effectiveEntitlements(user.uid, now);
   assertCheckoutOwnershipAvailable(request, effective);
@@ -139,8 +139,8 @@ export async function createCheckout(input: {
           : catalog.premium.stripePriceId,
       quantity: 1
     }],
-    success_url: withSessionId(env().STRIPE_SUCCESS_URL),
-    cancel_url: env().STRIPE_CANCEL_URL,
+    success_url: withSessionId(stripeEnv().STRIPE_SUCCESS_URL),
+    cancel_url: stripeEnv().STRIPE_CANCEL_URL,
     expires_at: expiresAt,
     allow_promotion_codes: false,
     metadata,
@@ -151,7 +151,7 @@ export async function createCheckout(input: {
       }
     } : {}),
     ...(request.useLegacyDesktopDiscount
-      ? { discounts: [{ coupon: env().STRIPE_COUPON_LEGACY_DESKTOP_50 }] }
+      ? { discounts: [{ coupon: stripeEnv().STRIPE_COUPON_LEGACY_DESKTOP_50 }] }
       : {})
   }, { idempotencyKey: `checkout-${user.uid}-${request.product}-${request.mobilePlatform ?? "cross-mobile"}-${request.desktopDelivery ?? "no-desktop"}-${request.useLegacyDesktopDiscount ? "discount" : "standard"}-${Math.floor(now.getTime() / 300000)}` });
 
@@ -182,12 +182,12 @@ export async function createCheckout(input: {
 }
 
 export async function createBillingPortal(store: EntitlementStore, user: DecodedIdToken): Promise<string> {
-  if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Billing portal access is disabled for this deployment.");
+  if (!stripeEnv().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Billing portal access is disabled for this deployment.");
   const customerId = await store.stripeCustomerId(user.uid);
   if (!customerId) throw new HttpError(404, "No Stripe billing account is linked to this user.");
   const session = await stripeClient().billingPortal.sessions.create({
     customer: customerId,
-    return_url: env().STRIPE_PORTAL_RETURN_URL
+    return_url: stripeEnv().STRIPE_PORTAL_RETURN_URL
   });
   return session.url;
 }

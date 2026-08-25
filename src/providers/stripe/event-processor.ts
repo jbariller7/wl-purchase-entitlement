@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import { CatalogService } from "../../catalog/service.js";
-import { deploymentControls, env } from "../../config/env.js";
+import { deploymentControls, stripeEnv } from "../../config/env.js";
 import { checkoutAdDecision, stripeInvoiceAdDecision, type AdConversionName } from "../../domain/ad-policy.js";
 import type { LedgerGrant, LegacyOrder } from "../../domain/model.js";
 import { normalizeStripeSubscriptionState, stripeGraceEndsAt } from "../../domain/subscription.js";
@@ -151,7 +151,7 @@ async function enqueueAdConversion(input: {
     eventName: input.eventName,
     eventId: input.eventSourceId,
     eventTime: input.event.created,
-    eventSourceUrl: env().PUBLIC_APP_ORIGIN,
+    eventSourceUrl: stripeEnv().PUBLIC_APP_ORIGIN,
     ...(input.email ? { emailSha256: sha256(input.email.trim().toLowerCase()) } : {}),
     ...(uid ? { subjectUidHash: sha256(uid) } : {}),
     value: input.value,

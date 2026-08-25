@@ -44,6 +44,51 @@ const providerTokenEncryptionSchema = z.object({
   PROVIDER_TOKEN_ENCRYPTION_KEYS: z.string().min(1)
 });
 
+const stripeSchema = z.object({
+  APP_ENVIRONMENT: controlsSchema.shape.APP_ENVIRONMENT,
+  STRIPE_MUTATIONS_ENABLED: controlsSchema.shape.STRIPE_MUTATIONS_ENABLED,
+  STRIPE_SECRET_KEY: z.string().min(1),
+  STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  STRIPE_PRICE_MOBILE_MONTHLY: z.string().min(1),
+  STRIPE_PRICE_POLYGLOT_PERMANENT: z.string().min(1),
+  STRIPE_PRICE_PREMIUM_LIFETIME: z.string().min(1),
+  STRIPE_COUPON_LEGACY_DESKTOP_50: z.string().min(1),
+  STRIPE_SUCCESS_URL: z.string().url(),
+  STRIPE_CANCEL_URL: z.string().url(),
+  STRIPE_PORTAL_RETURN_URL: z.string().url(),
+  PUBLIC_APP_ORIGIN: z.string().url()
+});
+
+const appleSchema = z.object({
+  APPLE_BUNDLE_ID: z.string().min(1),
+  APPLE_APP_ID: z.string().regex(/^\d+$/).optional(),
+  APPLE_MONTHLY_PRODUCT_ID: z.string().min(1).default("wonderlangmonthly"),
+  APPLE_POLYGLOT_PRODUCT_ID: z.string().min(1).default("wonderlangfull"),
+  APPLE_ISSUER_ID: z.string().min(1),
+  APPLE_KEY_ID: z.string().min(1),
+  APPLE_PRIVATE_KEY: z.string().min(1),
+  APPLE_ROOT_CA_G2_BASE64: z.string().min(1),
+  APPLE_ROOT_CA_G3_BASE64: z.string().min(1),
+  APPLE_ENVIRONMENT: z.enum(["Production", "Sandbox"]).default("Production")
+});
+
+const metaConversionSchema = z.object({
+  META_PIXEL_ID: z.string().min(1),
+  META_ACCESS_TOKEN: z.string().min(1),
+  META_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default("v23.0"),
+  META_TEST_EVENT_CODE: z.string().min(1).optional()
+});
+
+const tiktokConversionSchema = z.object({
+  TIKTOK_PIXEL_ID: z.string().min(1),
+  TIKTOK_ACCESS_TOKEN: z.string().min(1),
+  TIKTOK_TEST_EVENT_CODE: z.string().min(1).optional()
+});
+
+const cloudStorageMonitoringSchema = z.object({
+  CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES: z.coerce.number().int().positive().default(500 * 1024 * 1024)
+});
+
 const schema = controlsSchema.extend({
   ...firebaseAdminSchema.shape,
   FIREBASE_WEB_API_KEY: z.string().min(1),
@@ -94,11 +139,33 @@ export type DeploymentControls = z.infer<typeof controlsSchema>;
 export type FirebaseAdminEnvironment = z.infer<typeof firebaseAdminSchema>;
 export type GooglePlayEnvironment = z.infer<typeof googlePlaySchema>;
 export type ProviderTokenEncryptionEnvironment = z.infer<typeof providerTokenEncryptionSchema>;
+export type StripeEnvironment = z.infer<typeof stripeSchema>;
+export type AppleEnvironment = z.infer<typeof appleSchema>;
+export type MetaConversionEnvironment = z.infer<typeof metaConversionSchema>;
+export type TikTokConversionEnvironment = z.infer<typeof tiktokConversionSchema>;
+export type CloudStorageMonitoringEnvironment = z.infer<typeof cloudStorageMonitoringSchema>;
 let cached: Environment | undefined;
 let cachedControls: DeploymentControls | undefined;
 let cachedFirebaseAdmin: FirebaseAdminEnvironment | undefined;
 let cachedGooglePlay: GooglePlayEnvironment | undefined;
 let cachedProviderTokenEncryption: ProviderTokenEncryptionEnvironment | undefined;
+let cachedStripe: StripeEnvironment | undefined;
+let cachedApple: AppleEnvironment | undefined;
+let cachedMetaConversion: MetaConversionEnvironment | undefined;
+let cachedTikTokConversion: TikTokConversionEnvironment | undefined;
+let cachedCloudStorageMonitoring: CloudStorageMonitoringEnvironment | undefined;
+
+function assertStripeMode(configuration: Pick<StripeEnvironment, "APP_ENVIRONMENT" | "STRIPE_SECRET_KEY">): void {
+  const stripeMode = configuration.STRIPE_SECRET_KEY.startsWith("sk_live_") ? "production"
+    : configuration.STRIPE_SECRET_KEY.startsWith("sk_test_") ? "test"
+      : "unknown";
+  if (configuration.APP_ENVIRONMENT === "test" && stripeMode !== "test") {
+    throw new Error("Test deployments require a Stripe sk_test_ key; live or unrecognized keys are refused.");
+  }
+  if (configuration.APP_ENVIRONMENT === "production" && stripeMode !== "production") {
+    throw new Error("Production deployments require a Stripe sk_live_ key.");
+  }
+}
 
 export function deploymentControls(): DeploymentControls {
   if (!cachedControls) {
@@ -147,6 +214,61 @@ export function providerTokenEncryptionEnv(): ProviderTokenEncryptionEnvironment
   return cachedProviderTokenEncryption;
 }
 
+export function stripeEnv(): StripeEnvironment {
+  if (!cachedStripe) {
+    const parsed = stripeSchema.safeParse(process.env);
+    if (!parsed.success) {
+      const names = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+      throw new Error(`Missing or invalid Stripe configuration: ${names}`);
+    }
+    assertStripeMode(parsed.data);
+    cachedStripe = parsed.data;
+  }
+  return cachedStripe;
+}
+
+export function appleEnv(): AppleEnvironment {
+  if (!cachedApple) {
+    const parsed = appleSchema.safeParse(process.env);
+    if (!parsed.success) {
+      const names = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+      throw new Error(`Missing or invalid Apple configuration: ${names}`);
+    }
+    if (parsed.data.APPLE_ENVIRONMENT === "Production" && !parsed.data.APPLE_APP_ID) {
+      throw new Error("APPLE_APP_ID is required in Production.");
+    }
+    cachedApple = parsed.data;
+  }
+  return cachedApple;
+}
+
+export function metaConversionEnv(): MetaConversionEnvironment {
+  if (!cachedMetaConversion) {
+    const parsed = metaConversionSchema.safeParse(process.env);
+    if (!parsed.success) throw new Error("Meta conversion credentials are not configured.");
+    cachedMetaConversion = parsed.data;
+  }
+  return cachedMetaConversion;
+}
+
+export function tiktokConversionEnv(): TikTokConversionEnvironment {
+  if (!cachedTikTokConversion) {
+    const parsed = tiktokConversionSchema.safeParse(process.env);
+    if (!parsed.success) throw new Error("TikTok conversion credentials are not configured.");
+    cachedTikTokConversion = parsed.data;
+  }
+  return cachedTikTokConversion;
+}
+
+export function cloudStorageMonitoringEnv(): CloudStorageMonitoringEnvironment {
+  if (!cachedCloudStorageMonitoring) {
+    const parsed = cloudStorageMonitoringSchema.safeParse(process.env);
+    if (!parsed.success) throw new Error("Cloud storage monitoring configuration is invalid.");
+    cachedCloudStorageMonitoring = parsed.data;
+  }
+  return cachedCloudStorageMonitoring;
+}
+
 export function env(): Environment {
   if (!cached) {
     const parsed = schema.safeParse(process.env);
@@ -155,16 +277,11 @@ export function env(): Environment {
       throw new Error(`Missing or invalid service configuration: ${names}`);
     }
     cached = parsed.data;
-    const stripeMode = cached.STRIPE_SECRET_KEY.startsWith("sk_live_") ? "production"
-      : cached.STRIPE_SECRET_KEY.startsWith("sk_test_") ? "test"
-        : "unknown";
-    if (cached.APP_ENVIRONMENT === "test" && stripeMode !== "test") {
+    try {
+      assertStripeMode(cached);
+    } catch (error) {
       cached = undefined;
-      throw new Error("Test deployments require a Stripe sk_test_ key; live or unrecognized keys are refused.");
-    }
-    if (cached.APP_ENVIRONMENT === "production" && stripeMode !== "production") {
-      cached = undefined;
-      throw new Error("Production deployments require a Stripe sk_live_ key.");
+      throw error;
     }
     parseInventoryStockPolicy({
       defaultThreshold: cached.KEY_INVENTORY_DEFAULT_LOW_STOCK_THRESHOLD,
@@ -180,4 +297,9 @@ export function resetEnvironmentForTests(): void {
   cachedFirebaseAdmin = undefined;
   cachedGooglePlay = undefined;
   cachedProviderTokenEncryption = undefined;
+  cachedStripe = undefined;
+  cachedApple = undefined;
+  cachedMetaConversion = undefined;
+  cachedTikTokConversion = undefined;
+  cachedCloudStorageMonitoring = undefined;
 }

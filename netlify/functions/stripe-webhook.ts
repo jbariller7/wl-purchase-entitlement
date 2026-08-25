@@ -1,6 +1,6 @@
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { LambdaHandler } from "@netlify/aws-lambda-compat";
-import { deploymentControls, env } from "../../src/config/env.js";
+import { deploymentControls, stripeEnv } from "../../src/config/env.js";
 import { safeErrorMessage } from "../../src/infrastructure/safe-error.js";
 
 export const lambdaHandler: LambdaHandler = async (request) => {
@@ -25,7 +25,7 @@ export const lambdaHandler: LambdaHandler = async (request) => {
     : request.body;
   let event;
   try {
-    event = stripeClient().webhooks.constructEvent(rawBody, signature, env().STRIPE_WEBHOOK_SECRET);
+    event = stripeClient().webhooks.constructEvent(rawBody, signature, stripeEnv().STRIPE_WEBHOOK_SECRET);
   } catch (error) {
     console.warn("Rejected Stripe webhook signature", safeErrorMessage(error));
     return { statusCode: 400, body: "Invalid signature" };

@@ -2,7 +2,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import type Stripe from "stripe";
 import { randomUUID } from "node:crypto";
 import { CatalogService, type CatalogOfferKind } from "../catalog/service.js";
-import { env } from "../config/env.js";
+import { deploymentControls } from "../config/env.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
@@ -93,7 +93,7 @@ export class AdminBillingService {
   }
 
   async commitPriceChange(input: { actor: AdminActor; previewId: string; confirmationPhrase: string; now: Date }): Promise<Record<string, unknown>> {
-    if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(409, "Stripe mutations are disabled for this deployment.");
+    if (!deploymentControls().STRIPE_MUTATIONS_ENABLED) throw new HttpError(409, "Stripe mutations are disabled for this deployment.");
     const ref = this.db.collection("adminPricePreviews").doc(input.previewId);
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
@@ -188,7 +188,7 @@ export class AdminBillingService {
   }
 
   async commitRefund(input: { actor: AdminActor; previewId: string; confirmationPhrase: string; now: Date }): Promise<Record<string, unknown>> {
-    if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(409, "Stripe mutations are disabled for this deployment.");
+    if (!deploymentControls().STRIPE_MUTATIONS_ENABLED) throw new HttpError(409, "Stripe mutations are disabled for this deployment.");
     const ref = this.db.collection("adminRefundPreviews").doc(input.previewId);
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);

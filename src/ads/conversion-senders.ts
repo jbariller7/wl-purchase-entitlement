@@ -1,4 +1,4 @@
-import { env } from "../config/env.js";
+import { metaConversionEnv, tiktokConversionEnv } from "../config/env.js";
 
 interface ConversionPayload {
   eventName: "Purchase" | "Subscribe" | "StartTrial";
@@ -22,9 +22,9 @@ function asConversion(payload: Record<string, unknown>): ConversionPayload {
 }
 
 export async function sendMetaConversion(raw: Record<string, unknown>): Promise<void> {
-  const pixel = env().META_PIXEL_ID;
-  const token = env().META_ACCESS_TOKEN;
-  if (!pixel || !token) throw new Error("Meta conversion credentials are not configured.");
+  const configuration = metaConversionEnv();
+  const pixel = configuration.META_PIXEL_ID;
+  const token = configuration.META_ACCESS_TOKEN;
   const event = asConversion(raw);
   const userData: Record<string, unknown> = {
     ...(event.emailSha256 ? { em: [event.emailSha256] } : {}),
@@ -33,12 +33,12 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
     ...(event.fbp ? { fbp: event.fbp } : {}),
     ...(event.fbc ? { fbc: event.fbc } : {})
   };
-  const response = await fetch(`https://graph.facebook.com/${env().META_GRAPH_API_VERSION}/${pixel}/events`, {
+  const response = await fetch(`https://graph.facebook.com/${configuration.META_GRAPH_API_VERSION}/${pixel}/events`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       access_token: token,
-      ...(env().META_TEST_EVENT_CODE ? { test_event_code: env().META_TEST_EVENT_CODE } : {}),
+      ...(configuration.META_TEST_EVENT_CODE ? { test_event_code: configuration.META_TEST_EVENT_CODE } : {}),
       data: [{
         event_name: event.eventName,
         event_time: event.eventTime,
@@ -60,9 +60,9 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
 }
 
 export async function sendTikTokConversion(raw: Record<string, unknown>): Promise<void> {
-  const pixel = env().TIKTOK_PIXEL_ID;
-  const token = env().TIKTOK_ACCESS_TOKEN;
-  if (!pixel || !token) throw new Error("TikTok conversion credentials are not configured.");
+  const configuration = tiktokConversionEnv();
+  const pixel = configuration.TIKTOK_PIXEL_ID;
+  const token = configuration.TIKTOK_ACCESS_TOKEN;
   const event = asConversion(raw);
   const response = await fetch("https://business-api.tiktok.com/open_api/v1.3/event/track/", {
     method: "POST",
@@ -74,7 +74,7 @@ export async function sendTikTokConversion(raw: Record<string, unknown>): Promis
     body: JSON.stringify({
       event_source: "web",
       event_source_id: pixel,
-      ...(env().TIKTOK_TEST_EVENT_CODE ? { test_event_code: env().TIKTOK_TEST_EVENT_CODE } : {}),
+      ...(configuration.TIKTOK_TEST_EVENT_CODE ? { test_event_code: configuration.TIKTOK_TEST_EVENT_CODE } : {}),
       data: [{
         event: event.eventName,
         event_time: event.eventTime,
