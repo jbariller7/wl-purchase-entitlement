@@ -191,7 +191,8 @@
   function errorDetails(payload, status) {
     const raw = String(payload?.error?.message || payload?.error || payload?.message || "");
     const code = raw.split(":")[0].trim().slice(0, 80);
-    const friendly = code.replace(/_/g, " ").toLowerCase();
+    const source = /^[A-Z0-9_]+$/.test(code) ? code.replace(/_/g, " ").toLowerCase() : raw;
+    const friendly = source.replace(/[\u0000-\u001f\u007f]/g, " ").trim().replace(/[.!?]+$/, "").slice(0, 240);
     return new BridgeError(
       friendly ? `WonderLang account request failed: ${friendly}.` : `WonderLang account request failed (${status}).`,
       status,

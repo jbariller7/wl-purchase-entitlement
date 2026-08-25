@@ -14,6 +14,7 @@
     "dev": "netlify dev",
     "import:legacy-keys": "tsx scripts/import-legacy-keys.ts",
     "admin:set-claim": "tsx scripts/set-admin-claim.ts",
+    "prepare:rmmz-desktop-test": "node scripts/prepare-rmmz-desktop-test-build.mjs",
     "test": "vitest run",
     "test:rules": "node scripts/run-firebase-rules-tests.mjs",
     "test:watch": "vitest",

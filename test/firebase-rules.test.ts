@@ -412,6 +412,11 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
           state: "pending",
           objectPaths: [`cloud-saves/${uid}/slots/save1/revisions/4acb303f-18d2-4b98-b665-058c332271df.json`]
         }),
+        database.collection("secondPlatformRequests").doc(uid).set({
+          uid,
+          requestedPlatform: "ios",
+          state: "pending"
+        }),
         database.collection("legacyOrders").doc("order-delete-me").set({
           buyerEmail: "buyer@example.com",
           firebaseUid: uid,
@@ -460,7 +465,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         mailerLiteSubscribersForgotten: 1
       });
 
-      const [order, key, fulfillment, conversion, deletion, grant, providerSubscription, providerSecret, cleanupJob, user, tombstone] = await Promise.all([
+      const [order, key, fulfillment, conversion, deletion, grant, providerSubscription, providerSecret, cleanupJob, secondPlatformRequest, user, tombstone] = await Promise.all([
         database.collection("legacyOrders").doc("order-delete-me").get(),
         database.collection("legacyKeys").doc("key-delete-me").get(),
         database.collection("outbox").doc("fulfillment-delete-me").get(),
@@ -470,6 +475,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         database.collection("providerSubscriptions").doc("subscription-delete-me").get(),
         database.collection("providerSecrets").doc("secret-delete-me").get(),
         database.collection("cloudSaveCleanupJobs").doc("cleanup-delete-me").get(),
+        database.collection("secondPlatformRequests").doc(uid).get(),
         database.collection("users").doc(uid).get(),
         database.collection("accountDeletionTombstones").doc(sha256(uid)).get()
       ]);
@@ -489,6 +495,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
       expect(providerSubscription.data()).not.toHaveProperty("lastReconciliationError");
       expect(providerSecret.exists).toBe(false);
       expect(cleanupJob.exists).toBe(false);
+      expect(secondPlatformRequest.exists).toBe(false);
       expect(user.exists).toBe(false);
       expect(tombstone.data()?.deletedUid).toBe(deletedUid);
       expect(deletedAuthUsers).toEqual([uid]);

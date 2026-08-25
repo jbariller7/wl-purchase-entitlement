@@ -27,6 +27,20 @@ Both use this test parameter:
 ApiBaseUrl = https://wl-purchase-entitlement.netlify.app
 ```
 
+The guarded preparation script also adds `WonderLangDesktopRuntimeProbe` as the
+first plugin only in the disposable desktop copy, so it can record even an
+early boot failure. The probe uses a distinct NW.js application name,
+refuses to run without the managed-build marker, records the real engine/plugin
+state, computed account-panel visibility/layout, and fail-closed sign-in behavior,
+then exits. It must
+never be copied into or enabled in the production game.
+
+On Windows, `WonderLang.exe` by itself is only the NW.js front executable. The
+preparation script verifies the complete installed RPG Maker MZ `nwjs-win`
+runtime (`nw.exe`, `nw.dll`, and `resources.pak`) and writes the disposable
+`Run-WonderLang-Entitlement-Test.cmd` launcher. The runtime is used read-only;
+it is not copied into Git or modified.
+
 The duplicate-build default is the isolated `https://wl-purchase-entitlement.netlify.app` test service. Production builds must override `ApiBaseUrl` deliberately during the release cutover; never point a test build back at `purchased-keys-automation`.
 
 The paywall duplicate should merge ownership as follows:

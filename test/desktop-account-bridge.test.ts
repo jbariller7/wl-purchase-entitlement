@@ -170,4 +170,20 @@ describe("WonderLang PC/Mac account bridge", () => {
     expect(files.has(sessionPath)).toBe(false);
     expect(result.tokens.at(-1)).toBe("");
   });
+
+  it("preserves a human server error without lowercasing it or doubling punctuation", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => response(503, {
+      error: { message: "PC/Mac device sign-in is disabled in this deployment." }
+    }));
+    const result = harness(fetchMock);
+
+    expect(result.context.WLAccountManager.openSignIn!()).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(result.events.find(event => event.detail.state === "error")?.detail.message).toBe(
+      "WonderLang account request failed: PC/Mac device sign-in is disabled in this deployment."
+    );
+    expect(result.context.WLAccountManager.isSignedInFromGame!()).toBe(false);
+  });
 });
