@@ -119,7 +119,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     return json(200, {
       actor,
       providers: token.firebase?.sign_in_provider ? [token.firebase.sign_in_provider] : [],
-      capabilities: ["customers", "grants", "prices", "refunds", "imports", "second_platform_requests", "cloud_save_download", "operations", "inventory", "audit"],
+      capabilities: ["customers", "grants", "prices", "refunds", "imports", "second_platform_requests", "cloud_save_download", "provider_diagnostics", "operations", "inventory", "audit"],
       controls: deploymentControls()
     });
   }
@@ -183,6 +183,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     return json(200, await operations.revokeAdminGrant({ actor, grantId: revokeGrantMatch[1], ...body(reasonSchema, event), now }));
   }
   if (event.httpMethod === "GET" && path === "/v1/catalog") return json(200, await billing.catalogStatus());
+  if (event.httpMethod === "GET" && path === "/v1/diagnostics/stripe-catalog") {
+    return json(200, await billing.stripeCatalogDiagnostic(now));
+  }
   if (event.httpMethod === "POST" && path === "/v1/catalog/price-preview") {
     return json(200, await billing.previewPriceChange({ actor, ...body(pricePreviewSchema, event), now }));
   }

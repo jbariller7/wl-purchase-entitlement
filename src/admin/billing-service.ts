@@ -2,7 +2,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import type Stripe from "stripe";
 import { randomUUID } from "node:crypto";
 import { CatalogService, type CatalogOfferKind } from "../catalog/service.js";
-import { deploymentControls } from "../config/env.js";
+import { deploymentControls, stripeEnv } from "../config/env.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { stripeClient } from "../providers/stripe/client.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
@@ -10,6 +10,7 @@ import { HttpError } from "../http/auth.js";
 import { LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF } from "../domain/catalog.js";
 import { stripeMajorAmount } from "../domain/regional-pricing.js";
 import { safeErrorMessage } from "../infrastructure/safe-error.js";
+import { diagnoseStripeCatalog } from "../providers/stripe/catalog-diagnostic.js";
 
 type RefundReason = "duplicate" | "fraudulent" | "requested_by_customer";
 
@@ -53,6 +54,17 @@ export class AdminBillingService {
         legacyChapterUpgradeCutoff: LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF
       }
     };
+  }
+
+  async stripeCatalogDiagnostic(now: Date): Promise<Record<string, unknown>> {
+    const catalog = await this.catalog.get();
+    return diagnoseStripeCatalog({
+      client: stripeClient(),
+      catalog,
+      environment: stripeEnv(),
+      controls: deploymentControls(),
+      now
+    }) as unknown as Record<string, unknown>;
   }
 
   async previewPriceChange(input: {

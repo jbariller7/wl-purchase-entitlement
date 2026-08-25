@@ -9,7 +9,7 @@ import "./admin.css";
 const appNode = document.querySelector("#app");
 const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
-const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], previews: {}, notice: null };
+const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, previews: {}, notice: null };
 
 const demoOverview = {
   metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, pendingSecondPlatformRequests: 1, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
@@ -262,9 +262,12 @@ function renderAudit(data) {
 function renderSettings(data) {
   const labels = { STRIPE_WEBHOOKS_ENABLED: "Stripe webhooks", GOOGLE_PLAY_WEBHOOKS_ENABLED: "Google Play webhooks", APPLE_WEBHOOKS_ENABLED: "Apple webhooks", OUTBOX_PROCESSING_ENABLED: "Outbox worker", AD_CONVERSIONS_ENABLED: "Ad conversions", LEGACY_FULFILLMENT_ENABLED: "Legacy fulfillment", SUBSCRIPTION_CANCELLATION_ENABLED: "Subscription cancellation", ACCOUNT_DELETION_PROCESSING_ENABLED: "Account deletion purge", STRIPE_MUTATIONS_ENABLED: "Stripe mutations", APP_CHECK_ENFORCEMENT_ENABLED: "Firebase App Check", SUBSCRIPTION_RECONCILIATION_ENABLED: "Subscription reconciliation", CLOUD_STORAGE_MONITORING_ENABLED: "Cloud storage monitoring", CLOUD_SAVE_CLEANUP_ENABLED: "Cloud-save revision cleanup", DEVICE_SIGN_IN_ENABLED: "PC/Mac device sign-in", DEVICE_SIGN_IN_CLEANUP_ENABLED: "Expired device-code cleanup", ADMIN_BOOTSTRAP_ENABLED: "Initial admin bootstrap" };
   const controls = data.controls || {};
+  const diagnostic = state.stripeDiagnostic;
+  const diagnosticRows = (diagnostic?.checks || []).map((check) => [check.label, check.resourceId, check.state === "passed" ? "Passed" : "Failed", (check.issues || []).join(" ") || "No issues found"]);
   return `${pageIntro("SECURITY & SETUP", "Test mode is enforced by the server.", "The visible label is informational; secret-key mode and administrator claims are validated on every protected request.")}
   <section class="settings-grid"><article class="panel detail-card"><header><div><p class="section-kicker">ADMIN SESSION</p><h3>${escapeHtml(data.actor?.email || state.user?.email)}</h3></div></header><dl class="definition-grid"><div><dt>Firebase UID</dt><dd>${escapeHtml(data.actor?.uid || "Demo")}</dd></div><div><dt>Signed in through</dt><dd>${escapeHtml((data.providers || ["demo"]).join(", "))}</dd></div><div><dt>Authorization</dt><dd>Server-verified admin claim</dd></div><div><dt>Capabilities</dt><dd>${escapeHtml((data.capabilities || []).join(", "))}</dd></div></dl></article>
   <article class="panel"><header><div><p class="section-kicker">DEPLOYMENT GUARDS</p><h3>${escapeHtml(controls.APP_ENVIRONMENT || state.config.environment || "Unknown")} environment</h3></div></header><div class="guard-list">${Object.entries(labels).map(([key, label]) => `<div><span>${label}</span><b>${controls[key] ? "On" : "Off"}</b></div>`).join("")}</div></article></section>
+  <section class="panel spaced"><header><div><p class="section-kicker">READ-ONLY PROVIDER CHECK</p><h3>Stripe catalog diagnostic</h3></div><button type="button" class="button secondary" data-run-stripe-diagnostic>${diagnostic ? "Run again" : "Run diagnostic"}</button></header><p class="panel-copy">Reads the configured test Prices, Products and historical-owner Coupon. It never creates a customer, Checkout Session, refund, subscription or webhook event and it never returns the API key.</p>${diagnostic ? `<div class="guard-list"><div><span>Credential</span><b>${escapeHtml(`${diagnostic.keyType} ${diagnostic.mode}`)}</b></div><div><span>Result</span><b>${diagnostic.passed ? "Passed" : "Needs attention"}</b></div><div><span>Checked</span><b>${escapeHtml(formatDate(diagnostic.checkedAt))}</b></div><div><span>Stripe canary switches</span><b>${diagnostic.canarySwitches?.checkoutTestingEnabled ? "On" : "Off"}</b></div></div>${table(["Check", "Resource", "State", "Details"], diagnosticRows)}` : empty("No provider call has been made from this page. Run the diagnostic after the restricted test key is installed.")}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">SSO READINESS</p><h3>Google and Apple</h3></div></header><ul class="policy-list"><li>Both providers use Firebase Authentication.</li><li>Signing in never grants admin access by itself.</li><li>Google and Apple identities merge only through verified account-linking rules.</li><li>The Netlify domain must be authorized in Firebase and Apple Services ID settings.</li></ul></section>`;
 }
 
@@ -367,6 +370,16 @@ function demoApi(path, options) {
     return { revoked: true };
   }
   if (method === "GET" && path.includes("customers")) return demoCustomer;
+  if (method === "GET" && path.includes("diagnostics/stripe-catalog")) return {
+    checkedAt: new Date().toISOString(), mode: "test", keyType: "restricted", passed: true, readOnly: true,
+    canarySwitches: { stripeMutations: false, stripeWebhooks: false, checkoutTestingEnabled: false },
+    checks: [
+      ["monthly-price", "Mobile Monthly Stripe history Price", "price_test_monthly"],
+      ["polyglot-price", "Polyglot Stripe history Price", "price_test_polyglot"],
+      ["premium-price", "Premium Lifetime checkout Price", "price_test_premium"],
+      ["historical-owner-coupon", "Historical desktop-owner 50% Coupon", "wonderlang_desktop_owner_lifetime_50"]
+    ].map(([id, label, resourceId]) => ({ id, label, resourceId, state: "passed", issues: [], details: { livemode: false } }))
+  };
   if (path.endsWith("/catalog")) return demoCatalog;
   if (path.includes("operations")) return demoOperations;
   if (path.includes("inventory")) return demoInventory;
@@ -596,6 +609,18 @@ function bindView() {
   document.querySelector("#import-form")?.addEventListener("submit", importFlow);
   document.querySelector("#import-file")?.addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) document.querySelector('[name="csv"]').value = await file.text(); });
   document.querySelector('[data-action="download-template"]')?.addEventListener("click", downloadTemplate);
+  document.querySelector("[data-run-stripe-diagnostic]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      state.stripeDiagnostic = await api("/admin-api/v1/diagnostics/stripe-catalog");
+      state.notice = { message: state.stripeDiagnostic.passed ? "Stripe catalog diagnostic passed." : "Stripe catalog diagnostic found issues.", error: !state.stripeDiagnostic.passed };
+      await loadView("settings");
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message, true);
+    }
+  });
   document.querySelectorAll("[data-retry-job]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this terminal job be retried?"); if (r && await mutate(`/admin-api/v1/outbox/${b.dataset.retryJob}/retry`, { reason: r }, "Job queued for retry.")) loadView("operations"); }));
   document.querySelectorAll("[data-retry-cleanup]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this failed cloud-save cleanup be retried?"); if (r && await mutate(`/admin-api/v1/cloud-save-cleanup/${b.dataset.retryCleanup}/retry`, { reason: r }, "Cloud-save cleanup queued for retry.")) loadView("operations"); }));
   document.querySelectorAll("[data-download-save]").forEach((button) => button.addEventListener("click", async () => {
