@@ -3,6 +3,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-lambda-compat";
 import { z } from "zod";
 import { AdminBillingService } from "../../src/admin/billing-service.js";
+import { AdminCloudSaveService } from "../../src/admin/cloud-save-service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { AdminOperationsService } from "../../src/admin/operations-service.js";
 import type { AdminActor } from "../../src/admin/audit.js";
@@ -12,7 +13,7 @@ import { HttpError, requireAdmin, requireUser } from "../../src/http/auth.js";
 import { apiAllowedOrigins, requestHeader, requireAllowedOrigin } from "../../src/http/origin.js";
 import { consumeRateLimit, type RateLimitPolicy } from "../../src/http/rate-limit.js";
 import { errorResponse, json, parseJsonBody } from "../../src/http/response.js";
-import { firebaseAppCheck, firebaseAuth, firestore } from "../../src/infrastructure/firebase.js";
+import { firebaseAppCheck, firebaseAuth, firebaseStorage, firestore } from "../../src/infrastructure/firebase.js";
 
 export const config: Config = {
   rateLimit: { windowSize: 60, windowLimit: 120, aggregateBy: ["domain", "ip"] }
@@ -112,12 +113,13 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const operations = new AdminOperationsService(db, firebaseAuth());
   const billing = new AdminBillingService(db);
   const imports = new AdminImportService(db, firebaseAuth());
+  const cloudSaves = new AdminCloudSaveService(db, firebaseStorage());
 
   if (event.httpMethod === "GET" && path === "/v1/session") {
     return json(200, {
       actor,
       providers: token.firebase?.sign_in_provider ? [token.firebase.sign_in_provider] : [],
-      capabilities: ["customers", "grants", "prices", "refunds", "imports", "second_platform_requests", "operations", "inventory", "audit"],
+      capabilities: ["customers", "grants", "prices", "refunds", "imports", "second_platform_requests", "cloud_save_download", "operations", "inventory", "audit"],
       controls: deploymentControls()
     });
   }
@@ -165,6 +167,16 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const cancelDeletionMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/cancel-deletion$/);
   if (event.httpMethod === "POST" && cancelDeletionMatch?.[1]) {
     return json(200, await operations.cancelAccountDeletion({ actor, uid: cancelDeletionMatch[1], ...body(reasonSchema, event), now }));
+  }
+  const cloudSaveDownloadMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/cloud-saves\/(save(?:0|[1-9]|1[0-9]|20))\/download$/);
+  if (event.httpMethod === "POST" && cloudSaveDownloadMatch?.[1] && cloudSaveDownloadMatch[2]) {
+    return json(200, await cloudSaves.createDownload({
+      actor,
+      uid: cloudSaveDownloadMatch[1],
+      slot: cloudSaveDownloadMatch[2],
+      ...body(reasonSchema, event),
+      now
+    }));
   }
   const revokeGrantMatch = path.match(/^\/v1\/grants\/([A-Za-z0-9_-]{1,128})\/revoke$/);
   if (event.httpMethod === "POST" && revokeGrantMatch?.[1]) {

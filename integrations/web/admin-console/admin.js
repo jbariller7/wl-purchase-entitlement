@@ -149,7 +149,10 @@ function renderCustomers() {
   const requestQueue = `<section class="panel"><header><div><p class="section-kicker">PREMIUM BENEFIT REQUESTS</p><h3>Other mobile platform</h3></div><span class="state-pill">${openRequestRows.length} open</span></header><p class="panel-copy">Premium Lifetime customers may request permanent access on their other mobile platform. Approval creates one audited, idempotent grant; no payment is taken.</p>${table(["Customer", "Requested", "Submitted", "State", "Action"], openRequestRows)}</section>`;
   const paymentRows = (c?.payments || []).map((p) => [formatDate(p.createdAt), p.id, formatMoney(p.amountReceived || p.amount, p.currency), formatMoney(p.amountRefunded || 0, p.currency), p.status, p.refundableAmount > 0 ? htmlCell(`<button class="text-button" data-refund="${escapeHtml(p.id)}" data-amount="${Number(p.refundableAmount)}" data-currency="${escapeHtml(p.currency)}">Refund</button>`) : "—"]);
   const providerRows = (c?.providerIdentities || []).map((p) => [p.provider, p.product, p.customerId || "—", p.transactionId, p.subscriptionId || "—", p.state]);
-  const cloudRows = (c?.cloudSaves || []).map((s) => [s.slot || s.id, formatDate(s.updatedAt), s.byteLength ?? "—", String(s.sha256 || "").slice(0, 12) || "—"]);
+  const cloudRows = (c?.cloudSaves || []).map((s) => {
+    const slot = s.slot || s.id;
+    return [slot, formatDate(s.updatedAt), s.byteLength ?? "—", String(s.sha256 || "").slice(0, 12) || "—", htmlCell(`<button class="text-button" data-download-save="${escapeHtml(slot)}">Download</button>`)];
+  });
   const sub = c?.subscription;
   const secondPlatformRequest = c?.secondMobilePlatformRequest;
   const requestActionable = secondPlatformRequest?.state === "pending" || (secondPlatformRequest?.state === "approving" && Date.parse(secondPlatformRequest.approvalLeaseUntil || "") <= Date.now());
@@ -160,7 +163,7 @@ function renderCustomers() {
     <article class="panel"><header><div><p class="section-kicker">GRANTS</p><h3>Access ledger</h3></div></header>${table(["Product", "Source", "State", "Started", "Action"], (c.grants || []).map((g) => [g.product, g.provider, g.state, formatDate(g.startsAt), g.provider === "admin" && g.state === "active" && !g.metadata?.migration ? htmlCell(`<button class="text-button" data-revoke-grant="${escapeHtml(g.id)}">Revoke</button>`) : "—"]))}</article></section>
     <section class="panel"><header><div><p class="section-kicker">PROVIDER IDENTITIES</p><h3>Verified purchase links</h3></div></header>${table(["Provider", "Product", "Customer", "Transaction", "Subscription", "State"], providerRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Received", "Refunded", "Status", "Action"], paymentRows)}</section>
-    <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVES</p><h3>Retained save inventory</h3></div></header>${table(["Slot", "Updated", "Bytes", "SHA-256"], cloudRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
+    <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVES</p><h3>Retained save inventory</h3></div></header><p class="panel-copy">Downloads require a support reason, produce a five-minute private link, and are recorded in Admin Audit.</p>${table(["Slot", "Updated", "Bytes", "SHA-256", "Action"], cloudRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
   return `${pageIntro("CUSTOMER SUPPORT", "Find the whole customer story.", "Access, purchases, login providers, cloud saves and manual actions are tied to one Firebase UID.")}
   ${requestQueue}<form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Email, UID, Stripe customer/payment, or store transaction" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
 }
@@ -395,6 +398,15 @@ function demoApi(path, options) {
     addDemoAudit("cloud_save_cleanup.retry", "cloudSaveCleanupJob", id, "Queued demo cleanup for retry");
     return { queued: true };
   }
+  if (method === "POST" && /\/customers\/[^/]+\/cloud-saves\/save(?:0|[1-9]|1[0-9]|20)\/download$/.test(path)) {
+    const slot = decodeURIComponent(path.split("/").at(-2) || "save1");
+    addDemoAudit("cloud_save.download", "user", demoCustomer.user.uid, `Downloaded fictional ${slot} in the safe demo`);
+    return {
+      downloadUrl: `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ demo: true, slot }))}`,
+      filename: `wonderlang-${slot}-demo.json`,
+      expiresAt: new Date(Date.now() + 300_000).toISOString()
+    };
+  }
   if (method === "POST" && /\/provider-events\/[^/]+\/release$/.test(path)) {
     const id = decodeURIComponent(path.split("/").at(-2) || "");
     const event = demoOperations.providerEvents.find((row) => row.id === id);
@@ -532,6 +544,26 @@ function bindView() {
   document.querySelector('[data-action="download-template"]')?.addEventListener("click", downloadTemplate);
   document.querySelectorAll("[data-retry-job]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this terminal job be retried?"); if (r && await mutate(`/admin-api/v1/outbox/${b.dataset.retryJob}/retry`, { reason: r }, "Job queued for retry.")) loadView("operations"); }));
   document.querySelectorAll("[data-retry-cleanup]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this failed cloud-save cleanup be retried?"); if (r && await mutate(`/admin-api/v1/cloud-save-cleanup/${b.dataset.retryCleanup}/retry`, { reason: r }, "Cloud-save cleanup queued for retry.")) loadView("operations"); }));
+  document.querySelectorAll("[data-download-save]").forEach((button) => button.addEventListener("click", async () => {
+    const supportReason = await reason(`Why do you need to download this customer's ${button.dataset.downloadSave}?`);
+    if (!supportReason) return;
+    button.disabled = true;
+    try {
+      const result = await request(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-saves/${encodeURIComponent(button.dataset.downloadSave)}/download`, { method: "POST", body: { reason: supportReason } });
+      const response = await fetch(result.downloadUrl);
+      if (!response.ok) throw new Error(`Cloud-save download failed (${response.status}).`);
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = result.filename || `wonderlang-${button.dataset.downloadSave}.json`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+      toast("Cloud save downloaded and recorded in Admin Audit.");
+    } catch (error) { toast(error.message, true); }
+    finally { button.disabled = false; }
+  }));
   document.querySelectorAll("[data-release-event]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this event be released for provider redelivery?"); if (r && await mutate(`/admin-api/v1/provider-events/${b.dataset.releaseEvent}/release`, { reason: r }, "Event released.")) loadView("operations"); }));
 }
 

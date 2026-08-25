@@ -87,6 +87,7 @@ describe("administrator interface route contract", () => {
       "[data-revoke-grant]",
       "[data-retry-job]",
       "[data-retry-cleanup]",
+      "[data-download-save]",
       "[data-release-event]",
       "[data-provider=\"google\"]",
       "[data-provider=\"apple\"]"
@@ -123,6 +124,7 @@ describe("administrator interface route contract", () => {
       "revokeGrantMatch",
       "retryMatch",
       "cleanupRetryMatch",
+      "cloudSaveDownloadMatch",
       "releaseMatch"
     ]) expect(api).toContain(dynamicRoute);
   });
