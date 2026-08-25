@@ -88,13 +88,15 @@ function publicAccountFirebaseConfig(): {
   authDomain: string;
   projectId: string;
   storageBucket?: string;
+  appCheckRecaptchaEnterpriseSiteKey?: string;
 } {
   const parsed = z.object({
     APP_ENVIRONMENT: z.enum(["test", "production"]).default("test"),
     FIREBASE_WEB_API_KEY: z.string().min(20).max(256),
     FIREBASE_AUTH_DOMAIN: z.string().min(4).max(253),
     FIREBASE_PROJECT_ID: z.string().regex(/^[a-z][a-z0-9-]{4,29}$/),
-    FIREBASE_STORAGE_BUCKET: z.string().min(4).max(253).optional()
+    FIREBASE_STORAGE_BUCKET: z.string().min(4).max(253).optional(),
+    FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY: z.string().min(20).max(256).optional()
   }).safeParse(process.env);
   if (!parsed.success) throw new HttpError(503, "Account login is not configured yet. Finish Firebase web setup at /setup/.");
   return {
@@ -102,7 +104,10 @@ function publicAccountFirebaseConfig(): {
     apiKey: parsed.data.FIREBASE_WEB_API_KEY,
     authDomain: parsed.data.FIREBASE_AUTH_DOMAIN,
     projectId: parsed.data.FIREBASE_PROJECT_ID,
-    ...(parsed.data.FIREBASE_STORAGE_BUCKET ? { storageBucket: parsed.data.FIREBASE_STORAGE_BUCKET } : {})
+    ...(parsed.data.FIREBASE_STORAGE_BUCKET ? { storageBucket: parsed.data.FIREBASE_STORAGE_BUCKET } : {}),
+    ...(parsed.data.FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY
+      ? { appCheckRecaptchaEnterpriseSiteKey: parsed.data.FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY }
+      : {})
   };
 }
 
@@ -163,6 +168,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       accountApiReady,
       checkoutEnabled: Boolean(runtime?.STRIPE_MUTATIONS_ENABLED),
       appCheckEnforced: deploymentControls().APP_CHECK_ENFORCEMENT_ENABLED,
+      appCheckConfigured: Boolean(publicFirebase.appCheckRecaptchaEnterpriseSiteKey),
       adminBootstrapEnabled: deploymentControls().ADMIN_BOOTSTRAP_ENABLED,
       firebase: {
         apiKey: publicFirebase.apiKey,
@@ -170,6 +176,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
         projectId: publicFirebase.projectId,
         ...(publicFirebase.storageBucket ? { storageBucket: publicFirebase.storageBucket } : {})
       },
+      ...(publicFirebase.appCheckRecaptchaEnterpriseSiteKey ? {
+        appCheck: { recaptchaEnterpriseSiteKey: publicFirebase.appCheckRecaptchaEnterpriseSiteKey }
+      } : {}),
       catalog: {
         revision: catalog.revision,
         monthly: catalog.monthly,

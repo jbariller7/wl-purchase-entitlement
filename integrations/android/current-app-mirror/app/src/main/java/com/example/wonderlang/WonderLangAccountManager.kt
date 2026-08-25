@@ -19,6 +19,8 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Co
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.auth.ActionCodeSettings
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
@@ -31,6 +33,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Account and entitlement bridge for the isolated WonderLang Android migration.
@@ -66,6 +69,10 @@ class WonderLangAccountManager(
             ENTITLEMENT_FIREBASE_APP_NAME
         )
     private val auth = FirebaseAuth.getInstance(entitlementFirebaseApp)
+    private val appCheck = FirebaseAppCheck.getInstance(entitlementFirebaseApp).apply {
+        installAppCheckProviderFactory(PlayIntegrityAppCheckProviderFactory.getInstance())
+        setTokenAutoRefreshEnabled(true)
+    }
     private val credentialManager = CredentialManager.create(activity)
     private val executor = Executors.newSingleThreadExecutor()
     private val preferences = activity.getSharedPreferences("wl_account_auth", android.content.Context.MODE_PRIVATE)
@@ -535,6 +542,9 @@ class WonderLangAccountManager(
         val token = Tasks.await(user.getIdToken(false)).token.orEmpty()
         if (token.isBlank()) throw IllegalStateException("Firebase sign-in needs to be refreshed.")
         cachedIdToken = token
+        val appCheckToken = runCatching {
+            Tasks.await(appCheck.getAppCheckToken(false), 4, TimeUnit.SECONDS).token.orEmpty()
+        }.getOrDefault("")
         val connection = URL(apiBase + path).openConnection() as HttpURLConnection
         return try {
             connection.requestMethod = method
@@ -542,6 +552,9 @@ class WonderLangAccountManager(
             connection.readTimeout = 20_000
             connection.instanceFollowRedirects = false
             connection.setRequestProperty("Authorization", "Bearer $token")
+            if (appCheckToken.isNotBlank()) {
+                connection.setRequestProperty("X-Firebase-AppCheck", appCheckToken)
+            }
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
             if (body != null) {

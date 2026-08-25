@@ -38,7 +38,7 @@ import { parseRtdn, processRtdn, verifyPubSubAuthorization } from "../src/provid
 const original = { ...process.env };
 const credentialKeys = [
   "FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY", "FIREBASE_STORAGE_BUCKET",
-  "FIREBASE_WEB_API_KEY", "FIREBASE_AUTH_DOMAIN", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
+  "FIREBASE_WEB_API_KEY", "FIREBASE_AUTH_DOMAIN", "FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
   "STRIPE_PRICE_MOBILE_MONTHLY", "STRIPE_PRICE_POLYGLOT_PERMANENT", "STRIPE_PRICE_PREMIUM_LIFETIME", "STRIPE_COUPON_LEGACY_DESKTOP_50",
   "STRIPE_SUCCESS_URL", "STRIPE_CANCEL_URL", "STRIPE_PORTAL_RETURN_URL", "PUBLIC_APP_ORIGIN",
   "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PRIVATE_KEY", "GOOGLE_SHEET_ID", "MAILERLITE_API_TOKEN"
@@ -229,7 +229,8 @@ describe("staging function boundaries", () => {
     Object.assign(process.env, {
       FIREBASE_WEB_API_KEY: "public-firebase-web-test-key",
       FIREBASE_AUTH_DOMAIN: "test-project.firebaseapp.com",
-      FIREBASE_PROJECT_ID: "test-project"
+      FIREBASE_PROJECT_ID: "test-project",
+      FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY: "public-recaptcha-enterprise-site-key"
     });
     const response = await apiHandler({
       ...event(),
@@ -245,6 +246,8 @@ describe("staging function boundaries", () => {
       accountApiReady: false,
       checkoutEnabled: false,
       appCheckEnforced: false,
+      appCheckConfigured: true,
+      appCheck: { recaptchaEnterpriseSiteKey: "public-recaptcha-enterprise-site-key" },
       firebase: {
         apiKey: "public-firebase-web-test-key",
         authDomain: "test-project.firebaseapp.com",

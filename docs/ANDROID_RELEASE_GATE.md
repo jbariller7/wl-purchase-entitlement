@@ -11,6 +11,7 @@ Use a real Google Play internal-track install with production-equivalent product
 - The Polyglot path selects `wonderlangfull` purchase option `buy-polyglot-permanent`, uses its live localized price and offer token, and fails closed instead of falling back to legacy option `buy`.
 - Subscription access is granted only after `/api/v1/google-play/claim` succeeds.
 - Account authentication uses the named `wonderlang-accounts` secondary Firebase app; the existing default Firebase app remains dedicated to WonderLang Analytics and Crashlytics.
+- The named account app installs the Play Integrity App Check provider and sends a best-effort `X-Firebase-AppCheck` token to the Netlify API. Server enforcement remains off until Firebase registration, metrics review and the full client matrix are complete.
 - The Firebase test Android app registers the local debug, WonderLang upload/release, and Google Play app-signing SHA-1 and SHA-256 certificates. Upload-signed and Play-signed Google login are ready for device testing; debug Google login remains blocked by the abandoned-project OAuth conflict.
 - Close/Hide and Restore use release-tap handling and remain usable during loading, pending, offline and billing failures.
 

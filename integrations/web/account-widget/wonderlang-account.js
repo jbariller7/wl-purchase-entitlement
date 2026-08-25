@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import { getToken as getAppCheckToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import {
   getAuth,
   getRedirectResult,
@@ -230,7 +231,14 @@ class WonderLangAccount extends HTMLElement {
     try {
       const config = await this.request("/api/v1/config", { authenticated: false });
       this.configureCatalog(config);
-      this.auth = getAuth(initializeApp(config.firebase));
+      const firebaseApp = initializeApp(config.firebase);
+      if (config.appCheck?.recaptchaEnterpriseSiteKey) {
+        this.appCheck = initializeAppCheck(firebaseApp, {
+          provider: new ReCaptchaEnterpriseProvider(config.appCheck.recaptchaEnterpriseSiteKey),
+          isTokenAutoRefreshEnabled: true
+        });
+      }
+      this.auth = getAuth(firebaseApp);
       await this.auth.authStateReady();
       onAuthStateChanged(this.auth, (user) => this.renderUser(user));
       try {
@@ -769,6 +777,14 @@ class WonderLangAccount extends HTMLElement {
     const send = async (forceRefresh = false) => {
       const headers = { "content-type": "application/json" };
       if (user) headers.authorization = `Bearer ${await user.getIdToken(forceRefresh)}`;
+      if (this.appCheck) {
+        try {
+          const appCheckToken = await getAppCheckToken(this.appCheck, forceRefresh);
+          if (appCheckToken.token) headers["x-firebase-appcheck"] = appCheckToken.token;
+        } catch {
+          // App Check remains fail-open until every shipping client has been registered and tested.
+        }
+      }
       const response = await fetch(`${this.apiBase}${path}`, {
         method: options.method || "GET", headers,
         ...(options.body ? { body: JSON.stringify(options.body) } : {})

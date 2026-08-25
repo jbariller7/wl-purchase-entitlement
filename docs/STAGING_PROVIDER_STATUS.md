@@ -100,6 +100,12 @@ Last verified: 2026-08-25. This file records only non-secret identifiers and saf
 - The authoritative Android project matches the tested mirror for Billing, `MainActivity`, `WonderLangAccountManager`, manifest, Firebase resource metadata, plugin registration and build configuration. The abandoned Firebase domain and project metadata were removed from the Android copy; its isolated named app, email-link domain, app ID, project ID, bucket, sender ID and Google web client ID now select `wonderlang-accounts`. The existing default `wonderlang-2209c` Firebase app remains dedicated to Analytics and Crashlytics. The Android client key was transferred from Netlify into ignored `local.properties` without printing or committing it. Both Android/editable storefront files and both account/cloud-save files pass JavaScript syntax checks, all seven maintained integration files match their deployed Android copies byte-for-byte, and a clean `:app:compileDebugKotlin --rerun-tasks` completes successfully.
 - A complete `:app:assembleDebug` now succeeds. The generated 115,556,169-byte APK has SHA-256 `EACB08356401003730A79B44C42D7F530B66DF626623CEBB62559E852B3FD5F3`; its packaged manifest contains package `com.wonderlang.app`, HTTPS `autoVerify`, host `wonderlang-accounts.firebaseapp.com` and `/__/auth/links`, while its packaged resources contain the correct account project and bucket and no abandoned-project identifier. D8 emitted one non-fatal stack-map warning from Google `asset-delivery-ktx:2.3.0`; packaging still completed successfully.
 
+## App Check staging
+
+- The current ordinary suite passes 220 tests; the dedicated rules suite still covers 13 isolated Firestore/Storage cases.
+- Web account and administrator clients optionally initialize reCAPTCHA Enterprise and attach `X-Firebase-AppCheck`. Android installs the Play Integrity provider on the named `wonderlang-accounts` Firebase app and attaches a best-effort token.
+- The web CSP contains Google's documented reCAPTCHA script, frame and connection sources. `APP_CHECK_ENFORCEMENT_ENABLED` remains `false` until the web and Android providers are registered, metrics are monitored, the actual iOS client is integrated, and production-equivalent device tests pass.
+
 ## Apple
 
 - Team ID: `8L2M38663F`

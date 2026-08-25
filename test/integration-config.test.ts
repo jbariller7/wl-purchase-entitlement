@@ -127,6 +127,7 @@ describe("isolated integration configuration", () => {
     expect(example).toMatch(/^LEGACY_FULFILLMENT_ENABLED=false$/m);
     expect(example).toMatch(/^ACCOUNT_DELETION_PROCESSING_ENABLED=false$/m);
     expect(example).toMatch(/^APP_CHECK_ENFORCEMENT_ENABLED=false$/m);
+    expect(example).toMatch(/^FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY=$/m);
     expect(example).toMatch(/^SUBSCRIPTION_RECONCILIATION_ENABLED=false$/m);
     expect(example).toMatch(/^PROVIDER_TOKEN_ENCRYPTION_KEYS=$/m);
     expect(example).toMatch(/^CLOUD_STORAGE_MONITORING_ENABLED=false$/m);
@@ -139,6 +140,24 @@ describe("isolated integration configuration", () => {
     expect(netlify).toMatch(/\[functions\."device-sign-in-cleanup"\][\s\S]*schedule\s*=\s*"7 \* \* \* \*"/);
   });
 
+  it("prepares App Check tokens without enforcing them before all clients are tested", () => {
+    const account = read("integrations/web/account-widget/wonderlang-account.js");
+    const admin = read("integrations/web/admin-console/admin.js");
+    const android = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
+    const androidGradle = read("integrations/android/current-app-mirror/app/build.gradle.kts");
+    const api = read("netlify/functions/api.ts");
+    for (const webClient of [account, admin]) {
+      expect(webClient).toContain("ReCaptchaEnterpriseProvider");
+      expect(webClient).toContain("x-firebase-appcheck");
+      expect(webClient).toContain("App Check remains fail-open");
+    }
+    expect(api).toContain("FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY");
+    expect(api).toContain("recaptchaEnterpriseSiteKey");
+    expect(androidGradle).toContain('firebase-appcheck-playintegrity');
+    expect(android).toContain("PlayIntegrityAppCheckProviderFactory");
+    expect(android).toContain('setRequestProperty("X-Firebase-AppCheck", appCheckToken)');
+  });
+
   it("allows Firebase Google Auth to load its helper script on account and admin pages", () => {
     const netlify = read("netlify.toml");
     const authPolicies = [...netlify.matchAll(/for = "\/(?:admin|account)\/\*"[\s\S]*?Content-Security-Policy = "([^"]+)"/g)]
@@ -147,6 +166,9 @@ describe("isolated integration configuration", () => {
     expect(authPolicies).toHaveLength(2);
     for (const policy of authPolicies) {
       expect(policy).toMatch(/script-src 'self' https:\/\/apis\.google\.com(?:;|\s)/);
+      expect(policy).toContain("https://www.google.com/recaptcha/");
+      expect(policy).toContain("https://www.gstatic.com/recaptcha/");
+      expect(policy).toContain("https://recaptcha.google.com/recaptcha/");
       expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/);
       expect(policy).not.toMatch(/script-src[^;]*\*/);
     }

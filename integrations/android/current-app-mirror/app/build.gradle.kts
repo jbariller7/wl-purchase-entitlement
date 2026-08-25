@@ -160,6 +160,7 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-crashlytics")
     implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
 
     // Passwordless cross-platform account sign-in. Google uses Android Credential
     // Manager; Apple uses Firebase's OAuth Custom Tab; email uses Firebase Hosting links.

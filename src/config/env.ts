@@ -93,6 +93,7 @@ const schema = controlsSchema.extend({
   ...firebaseAdminSchema.shape,
   FIREBASE_WEB_API_KEY: z.string().min(1),
   FIREBASE_AUTH_DOMAIN: z.string().min(1),
+  FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY: z.string().optional(),
   ADMIN_BOOTSTRAP_EMAIL: z.string().email().optional(),
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),

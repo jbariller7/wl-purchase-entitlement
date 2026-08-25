@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import { getToken as getAppCheckToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import {
   getAuth, getRedirectResult, GoogleAuthProvider, OAuthProvider, onAuthStateChanged,
   signInWithPopup, signInWithRedirect, signOut
@@ -8,7 +9,7 @@ import "./admin.css";
 const appNode = document.querySelector("#app");
 const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
-const state = { auth: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], previews: {}, notice: null };
+const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], previews: {}, notice: null };
 
 const demoOverview = {
   metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, pendingSecondPlatformRequests: 1, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
@@ -228,7 +229,16 @@ function toast(message, error = false) { const node = document.querySelector("#t
 async function api(path, options = {}) {
   if (demo) return demoApi(path, options);
   const token = await state.auth.currentUser.getIdToken(true);
-  const response = await fetch(path, { method: options.method || "GET", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, ...(options.body ? { body: JSON.stringify(options.body) } : {}) });
+  const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
+  if (state.appCheck) {
+    try {
+      const appCheckToken = await getAppCheckToken(state.appCheck, false);
+      if (appCheckToken.token) headers["x-firebase-appcheck"] = appCheckToken.token;
+    } catch {
+      // App Check remains fail-open until every shipping client has been registered and tested.
+    }
+  }
+  const response = await fetch(path, { method: options.method || "GET", headers, ...(options.body ? { body: JSON.stringify(options.body) } : {}) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Request failed (${response.status}).`);
   return body;
@@ -618,6 +628,6 @@ function signInScreen(message = "Sign in with an approved WonderLang administrat
 async function providerSignIn(provider) { try { await signInWithPopup(state.auth, provider); } catch (error) { if (["auth/popup-blocked", "auth/cancelled-popup-request", "auth/operation-not-supported-in-this-environment"].includes(error?.code)) return signInWithRedirect(state.auth, provider); signInScreen(error?.message || "Sign-in failed."); } }
 async function start() {
   if (demo) return loadView("overview"); signInScreen("Loading secure sign-in…");
-  try { const response = await fetch("/api/v1/config"); if (!response.ok) throw new Error("The account service is not configured yet."); state.config = await response.json(); state.auth = getAuth(initializeApp(state.config.firebase)); await getRedirectResult(state.auth).catch(() => undefined); onAuthStateChanged(state.auth, async (user) => { if (!user) return signInScreen(); state.user = user; try { await api("/admin-api/v1/session"); loadView("overview"); } catch (error) { await signOut(state.auth).catch(() => undefined); signInScreen(error?.message || "This account is not an administrator."); } }); } catch (error) { signInScreen(error?.message || "The operations service is unavailable."); }
+  try { const response = await fetch("/api/v1/config"); if (!response.ok) throw new Error("The account service is not configured yet."); state.config = await response.json(); const firebaseApp = initializeApp(state.config.firebase); if (state.config.appCheck?.recaptchaEnterpriseSiteKey) state.appCheck = initializeAppCheck(firebaseApp, { provider: new ReCaptchaEnterpriseProvider(state.config.appCheck.recaptchaEnterpriseSiteKey), isTokenAutoRefreshEnabled: true }); state.auth = getAuth(firebaseApp); await getRedirectResult(state.auth).catch(() => undefined); onAuthStateChanged(state.auth, async (user) => { if (!user) return signInScreen(); state.user = user; try { await api("/admin-api/v1/session"); loadView("overview"); } catch (error) { await signOut(state.auth).catch(() => undefined); signInScreen(error?.message || "This account is not an administrator."); } }); } catch (error) { signInScreen(error?.message || "The operations service is unavailable."); }
 }
 start();
