@@ -175,6 +175,16 @@ describe("isolated integration configuration", () => {
     expect(play).not.toContain("private_key: normalizeGoogleServiceAccountPrivateKey(env().FIREBASE_PRIVATE_KEY)");
   });
 
+  it("never gives Netlify a response body with a body-forbidden 204 status", () => {
+    for (const file of [
+      "netlify/functions/api.ts",
+      "netlify/functions/admin-api.ts",
+      "netlify/functions/google-play-webhook.ts"
+    ]) {
+      expect(read(file)).not.toMatch(/statusCode:\s*204\s*,\s*body:/);
+    }
+  });
+
   it("requests the verified Apple identity fields used for secure account linking", () => {
     const widget = read("integrations/web/account-widget/wonderlang-account.js");
     expect(widget).toContain('new OAuthProvider("apple.com")');

@@ -144,7 +144,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const path = routePath(event);
   const origin = requestHeader(event.headers, "origin");
   if (!(origin === "null" && isPublicDeviceSignInRoute(path))) requireAllowedOrigin(origin, apiAllowedOrigins(true));
-  if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
+  if (event.httpMethod === "OPTIONS") return { statusCode: 204 };
   if (event.httpMethod === "GET" && path === "/v1/config") {
     const publicFirebase = publicAccountFirebaseConfig();
     let accountApiReady = false;

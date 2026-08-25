@@ -98,7 +98,7 @@ function body<T>(schema: z.ZodType<T>, event: HandlerEvent): T {
 
 async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   requireAllowedOrigin(requestHeader(event.headers, "origin"), apiAllowedOrigins(false));
-  if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
+  if (event.httpMethod === "OPTIONS") return { statusCode: 204 };
   const token = requireAdmin(await requireUser(requestHeader(event.headers, "authorization")));
   await requireAppCheck(
     requestHeader(event.headers, "x-firebase-appcheck"),

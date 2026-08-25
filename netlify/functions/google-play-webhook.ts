@@ -17,7 +17,7 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     }
     try {
       const probe = parseRtdn(JSON.parse(event.body ?? "{}"));
-      if (probe.notification.testNotification) return { statusCode: 204, body: "" };
+      if (probe.notification.testNotification) return { statusCode: 204 };
     } catch (error) {
       console.warn("Rejected malformed Google Play RTDN", safeErrorMessage(error));
       return { statusCode: 400, body: "Malformed notification" };
@@ -56,11 +56,11 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     payloadSha256: sha256(JSON.stringify(parsed.raw)),
     now: new Date()
   });
-  if (decision === "duplicate") return { statusCode: 204, body: "" };
+  if (decision === "duplicate") return { statusCode: 204 };
   try {
     await processRtdn(store, parsed);
     await store.completeProviderEvent("google_play", parsed.messageId, new Date());
-    return { statusCode: 204, body: "" };
+    return { statusCode: 204 };
   } catch (error) {
     await store.failProviderEvent("google_play", parsed.messageId, error, new Date()).catch(() => undefined);
     console.error("Google Play RTDN processing failed", { messageId: parsed.messageId, error: safeErrorMessage(error) });

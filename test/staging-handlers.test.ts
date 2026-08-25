@@ -115,7 +115,7 @@ describe("staging function boundaries", () => {
       ...event(),
       headers: { authorization: "Bearer signed-google-probe" }
     }, {} as never);
-    expect(response).toMatchObject({ statusCode: 204, body: "" });
+    expect(response).toEqual({ statusCode: 204 });
     expect(verifyPubSubAuthorization).toHaveBeenCalledWith("Bearer signed-google-probe");
     expect(processRtdn).not.toHaveBeenCalled();
     expect(vi.mocked(firestore)).not.toHaveBeenCalled();
