@@ -549,7 +549,7 @@ function bindView() {
     if (!supportReason) return;
     button.disabled = true;
     try {
-      const result = await request(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-saves/${encodeURIComponent(button.dataset.downloadSave)}/download`, { method: "POST", body: { reason: supportReason } });
+      const result = await api(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-saves/${encodeURIComponent(button.dataset.downloadSave)}/download`, { method: "POST", body: { reason: supportReason } });
       const response = await fetch(result.downloadUrl);
       if (!response.ok) throw new Error(`Cloud-save download failed (${response.status}).`);
       const objectUrl = URL.createObjectURL(await response.blob());
