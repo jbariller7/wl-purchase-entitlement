@@ -13,7 +13,7 @@ Last verified: 2026-08-25. This file records only non-secret identifiers and saf
 
 ## Firebase
 
-- Firestore default database: Standard edition, `europe-west9`. The checked-in deny-all client rules compiled and were released on 2026-08-25; a live unauthenticated document-read probe is rejected with HTTP 403.
+- Firestore default database: Standard edition, `europe-west9`. The checked-in deny-all client rules compiled and were released on 2026-08-25; a live unauthenticated document-read probe is rejected with HTTP 403. Both checked-in composite indexes are deployed and Firebase reports them Enabled: `legacyKeys(sheetTab, state)` for inventory totals and `entitlements(accessKind, subscriptionState)` for entitlement-state operations.
 - Authentication providers enabled: Email/Password and Google.
 - Passwordless Email Link is enabled. Authorized web domains are `wl-purchase-entitlement.netlify.app`, `wonderlang.net`, `www.wonderlang.net`, and the Firebase defaults. Firebase is configured to create separate provider accounts rather than automatically merging accounts that merely present the same email; the customer UI performs only explicit account linking.
 - Customer authentication failures are mapped to actionable recovery text for network failure, unavailable or unauthorized providers, canceled popups, disabled accounts, invalid or expired email links, rate limits, blocked browser storage, and provider-link conflicts. Provider collisions explicitly instruct the player to recover the existing account and state that WonderLang never merges accounts automatically; unmapped raw Firebase errors are not rendered.
