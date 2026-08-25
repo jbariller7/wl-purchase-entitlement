@@ -774,18 +774,24 @@ class WonderLangAccount extends HTMLElement {
 
   async request(path, options = {}) {
     if (demoMode) return this.demoRequest(path, options);
-    const headers = { "content-type": "application/json" };
-    if (options.authenticated !== false) {
-      if (!this.auth?.currentUser) throw new Error("Sign in first.");
-      headers.authorization = `Bearer ${await this.auth.currentUser.getIdToken()}`;
-    }
-    const response = await fetch(`${this.apiBase}${path}`, {
-      method: options.method || "GET", headers,
-      ...(options.body ? { body: JSON.stringify(options.body) } : {})
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || `Request failed (${response.status}).`);
-    return result;
+    const authenticated = options.authenticated !== false;
+    const user = authenticated ? this.auth?.currentUser : null;
+    if (authenticated && !user) throw new Error("Sign in first.");
+
+    const send = async (forceRefresh = false) => {
+      const headers = { "content-type": "application/json" };
+      if (user) headers.authorization = `Bearer ${await user.getIdToken(forceRefresh)}`;
+      const response = await fetch(`${this.apiBase}${path}`, {
+        method: options.method || "GET", headers,
+        ...(options.body ? { body: JSON.stringify(options.body) } : {})
+      });
+      return { response, result: await response.json().catch(() => ({})) };
+    };
+
+    let attempt = await send();
+    if (authenticated && attempt.response.status === 401) attempt = await send(true);
+    if (!attempt.response.ok) throw new Error(attempt.result.error || `Request failed (${attempt.response.status}).`);
+    return attempt.result;
   }
 
   demoRequest(path) {

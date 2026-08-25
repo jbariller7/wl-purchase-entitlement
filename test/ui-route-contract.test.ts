@@ -70,6 +70,13 @@ describe("customer interface route contract", () => {
     expect(account).toContain("await getRedirectResult(this.auth);");
     expect(account).toContain("catch (error) { this.fail(error); }");
   });
+
+  it("refreshes a rejected Firebase session once without weakening server verification", () => {
+    expect(account).toContain("attempt.response.status === 401");
+    expect(account).toContain("await send(true)");
+    expect(account).toContain("user.getIdToken(forceRefresh)");
+    expect(account.match(/await send\(true\)/g)).toHaveLength(1);
+  });
 });
 
 describe("administrator interface route contract", () => {

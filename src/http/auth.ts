@@ -1,5 +1,6 @@
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { firebaseAuth } from "../infrastructure/firebase.js";
+import { safeErrorMessage } from "../infrastructure/safe-error.js";
 
 export class HttpError extends Error {
   constructor(
@@ -12,9 +13,22 @@ export class HttpError extends Error {
 export async function requireUser(authorization: string | undefined): Promise<DecodedIdToken> {
   const match = authorization?.match(/^Bearer\s+(.+)$/i);
   if (!match?.[1]) throw new HttpError(401, "A Firebase ID token is required.");
+  const auth = firebaseAuth();
   try {
-    return await firebaseAuth().verifyIdToken(match[1], true);
-  } catch {
+    return await auth.verifyIdToken(match[1], true);
+  } catch (error) {
+    let signatureValid = false;
+    try {
+      await auth.verifyIdToken(match[1], false);
+      signatureValid = true;
+    } catch {
+      // Keep the public response generic. This second check only classifies the
+      // failure for secret-free server diagnostics; it never authorizes access.
+    }
+    console.warn("Firebase ID token verification rejected", {
+      signatureValid,
+      error: safeErrorMessage(error, "Firebase token verification failed")
+    });
     throw new HttpError(401, "The Firebase ID token is invalid or revoked.");
   }
 }
