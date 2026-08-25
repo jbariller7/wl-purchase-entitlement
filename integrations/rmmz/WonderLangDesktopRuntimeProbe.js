@@ -145,7 +145,9 @@
       await waitFor(() => document.readyState === "complete");
       writeProgress("waiting-account-plugins");
       await waitFor(() => typeof window.WLAccountManager === "object" && typeof window.WLAccountEntitlements === "object");
-      const sceneReady = Boolean(window.SceneManager?._scene);
+      writeProgress("waiting-rpg-maker-scene");
+      await waitFor(() => Boolean(window.SceneManager?._scene));
+      const sceneReady = true;
       const names = Array.isArray(PluginManager._scripts) ? PluginManager._scripts : [];
       report.runtime = {
         title: document.title,

@@ -31,7 +31,8 @@ The guarded preparation script also adds `WonderLangDesktopRuntimeProbe` as the
 first plugin only in the disposable desktop copy, so it can record even an
 early boot failure. The probe uses a distinct NW.js application name,
 refuses to run without the managed-build marker, records the real engine/plugin
-state, computed account-panel visibility/layout, and fail-closed sign-in behavior,
+state only after RPG Maker reaches a scene, computed account-panel
+visibility/layout, and fail-closed sign-in behavior,
 then exits. It must
 never be copied into or enabled in the production game.
 
