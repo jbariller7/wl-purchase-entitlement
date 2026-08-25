@@ -25,6 +25,7 @@ Last verified: 2026-08-25. This file records only non-secret identifiers and saf
 ## Netlify staging deployment
 
 - Verified production UI/application build: `dd8cbac` (Netlify deploy `6a8cfa767423b90008ad1e23`). The published cloud-save retention/cleanup baseline is `580511e` (Netlify deploy `6a8ce2733483ab0008e01166`), the secure NW.js device-sign-in baseline is `4f62c63`, and the earlier honest-UI baseline was `cfd177b`.
+- Verified desktop test-build/probe safety build: `10165f6` (Netlify deploy `6a8d0aea7d9f7a0008e45961`). The deploy is ready, serves the updated bridge, remains in test safe mode, reports only 2 of 8 configuration groups ready, and has zero side-effect controls enabled.
 - `APP_ENVIRONMENT=test` in every deploy context.
 - Stripe, Google Play and Apple webhook processing; the async worker; ad conversions; legacy fulfillment; subscription cancellation; account-deletion processing; Stripe mutations; scheduled subscription reconciliation; aggregate cloud-storage monitoring; cloud-save revision cleanup; PC/Mac device sign-in; and expired device-code cleanup are all `false` in every deploy context.
 - Runtime readiness reports 2 of 8 connection groups ready: Firebase web configuration and the copied Sheets/MailerLite credentials. Firebase Admin, Stripe test secrets, ad-test delivery, Google Play server verification, App Store server verification and the Netlify-only provider-token encryption key ring remain intentionally unavailable.
