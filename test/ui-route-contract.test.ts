@@ -5,6 +5,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 
 describe("customer interface route contract", () => {
   const account = read("integrations/web/account-widget/wonderlang-account.js");
+  const accountStyles = read("integrations/web/account-widget/wonderlang-account.css");
   const api = read("netlify/functions/api.ts");
 
   it("binds every visible customer action and form", () => {
@@ -50,6 +51,12 @@ describe("customer interface route contract", () => {
       "billingButton.disabled",
       "No login, payment, entitlement, cloud save, or account-security action on this page reaches a live service."
     ]) expect(account + api).toContain(state);
+  });
+
+  it("keeps demo and authenticated sections hidden until the controller explicitly reveals them", () => {
+    expect(accountStyles).toContain("wonderlang-account [hidden] { display: none !important; }");
+    expect(account).toContain('previewParam === "1"');
+    expect(account).toContain("this.querySelector('[data-section=\"demo-banner\"]').hidden = false;");
   });
 });
 

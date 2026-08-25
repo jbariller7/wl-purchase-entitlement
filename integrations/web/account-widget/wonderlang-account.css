@@ -1,5 +1,6 @@
 :root { --wl-ink: #18212f; --wl-accent: #e98b2a; --wl-panel: #fffaf1; }
 wonderlang-account { display: block; color: var(--wl-ink); font: 16px/1.5 system-ui, sans-serif; }
+wonderlang-account [hidden] { display: none !important; }
 .wl-card { max-width: 920px; margin: 24px auto; padding: clamp(20px, 4vw, 42px); border: 1px solid #eadfce; border-radius: 24px; background: var(--wl-panel); box-shadow: 0 16px 50px #442b1415; }
 .wl-header, .wl-row, .wl-provider-grid, .wl-offers { display: flex; gap: 16px; }
 .wl-header { align-items: start; justify-content: space-between; }
