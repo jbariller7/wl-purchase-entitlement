@@ -109,6 +109,9 @@ describe("administrator interface route contract", () => {
     expect(admin).not.toContain("const result = await request(`/admin-api/v1/customers/");
     expect(admin).toContain('if (method === "GET" && path.includes("customers")) return demoCustomer;');
     expect(admin).not.toContain('if (path.includes("customers")) return demoCustomer;');
+    expect(admin).toContain("if (demo && result.demoPayload)");
+    expect(admin).toContain('new Blob([JSON.stringify(result.demoPayload)], { type: "application/json" })');
+    expect(admin).not.toContain("downloadUrl: `data:");
   });
 
   it("keeps each administrator operation paired with a protected server route", () => {

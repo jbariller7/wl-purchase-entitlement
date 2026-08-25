@@ -402,7 +402,7 @@ function demoApi(path, options) {
     const slot = decodeURIComponent(path.split("/").at(-2) || "save1");
     addDemoAudit("cloud_save.download", "user", demoCustomer.user.uid, `Downloaded fictional ${slot} in the safe demo`);
     return {
-      downloadUrl: `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({ demo: true, slot }))}`,
+      demoPayload: { demo: true, slot },
       filename: `wonderlang-${slot}-demo.json`,
       expiresAt: new Date(Date.now() + 300_000).toISOString()
     };
@@ -550,9 +550,16 @@ function bindView() {
     button.disabled = true;
     try {
       const result = await api(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-saves/${encodeURIComponent(button.dataset.downloadSave)}/download`, { method: "POST", body: { reason: supportReason } });
-      const response = await fetch(result.downloadUrl);
-      if (!response.ok) throw new Error(`Cloud-save download failed (${response.status}).`);
-      const objectUrl = URL.createObjectURL(await response.blob());
+      let saveBlob;
+      if (demo && result.demoPayload) {
+        saveBlob = new Blob([JSON.stringify(result.demoPayload)], { type: "application/json" });
+      } else {
+        if (!result.downloadUrl) throw new Error("The private cloud-save download URL is unavailable.");
+        const response = await fetch(result.downloadUrl);
+        if (!response.ok) throw new Error(`Cloud-save download failed (${response.status}).`);
+        saveBlob = await response.blob();
+      }
+      const objectUrl = URL.createObjectURL(saveBlob);
       const link = document.createElement("a");
       link.href = objectUrl;
       link.download = result.filename || `wonderlang-${button.dataset.downloadSave}.json`;
