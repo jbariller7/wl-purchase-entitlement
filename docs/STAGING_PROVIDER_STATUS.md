@@ -61,7 +61,7 @@ Last verified: 2026-08-25. This file records only non-secret identifiers and saf
 - Stripe offered 36 of the 37 requested currencies. KWD was unavailable in the price selector and was not substituted. JPY Monthly is stored as JPY 787 because Stripe treats JPY as zero-decimal.
 - Historical-owner coupon: `wonderlang_desktop_owner_lifetime_50`
 - Billing Portal is configured.
-- Restricted API key and webhook signing secret are not yet created; processing remains disabled.
+- Restricted API key and webhook signing secret are not yet created; processing remains disabled. The existing standard test secret must be rotated before provider testing and must not be installed in Netlify.
 - A fresh signed-in browser check confirmed that Mobile Monthly is active in Stripe's sandbox, retains the original USD 6.99/month Price for history, and exposes `price_1U80wvBFbQoDa6p0gyuJ7ibY` as the separate "approved regional prices" Price. No live-mode Stripe object was changed.
 
 ## Google Play
@@ -79,6 +79,7 @@ Last verified: 2026-08-25. This file records only non-secret identifiers and saf
 - The immutable historical `PR Code` campaign still references `wonderlangfull` because two codes were previously redeemed, but its current status is Paused and the only available action is `Resume promotion`; no additional redemptions are enabled.
 - `wonderlangch1` through `wonderlangch4` remain restorable; chapter offers remain hidden from new-sale UI.
 - The authoritative Android project matches the tested mirror for Billing, `MainActivity`, `WonderLangAccountManager`, manifest, Firebase resource metadata, plugin registration and build configuration. The abandoned Firebase domain and project metadata were removed from the Android copy; its isolated named app, email-link domain, app ID, project ID, bucket, sender ID and Google web client ID now select `wonderlang-accounts`. The existing default `wonderlang-2209c` Firebase app remains dedicated to Analytics and Crashlytics. The Android client key was transferred from Netlify into ignored `local.properties` without printing or committing it. Both Android/editable storefront files and both account/cloud-save files pass JavaScript syntax checks, all seven maintained integration files match their deployed Android copies byte-for-byte, and a clean `:app:compileDebugKotlin --rerun-tasks` completes successfully.
+- A complete `:app:assembleDebug` now succeeds. The generated 115,556,169-byte APK has SHA-256 `EACB08356401003730A79B44C42D7F530B66DF626623CEBB62559E852B3FD5F3`; its packaged manifest contains package `com.wonderlang.app`, HTTPS `autoVerify`, host `wonderlang-accounts.firebaseapp.com` and `/__/auth/links`, while its packaged resources contain the correct account project and bucket and no abandoned-project identifier. D8 emitted one non-fatal stack-map warning from Google `asset-delivery-ktx:2.3.0`; packaging still completed successfully.
 
 ## Apple
 
