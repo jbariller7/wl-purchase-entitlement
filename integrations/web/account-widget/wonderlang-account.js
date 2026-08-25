@@ -290,8 +290,10 @@ class WonderLangAccount extends HTMLElement {
     try {
       await signInWithPopup(this.auth, provider);
     } catch (error) {
-      if (error?.code === "auth/popup-blocked" || error?.code === "auth/operation-not-supported-in-this-environment") {
-        await signInWithRedirect(this.auth, provider);
+      if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/internal-error"].includes(error?.code)) {
+        this.status("The sign-in popup is unavailable. Continuing securely in this browser…");
+        try { await signInWithRedirect(this.auth, provider); }
+        catch (redirectError) { this.fail(redirectError); }
         return;
       }
       this.fail(error);
