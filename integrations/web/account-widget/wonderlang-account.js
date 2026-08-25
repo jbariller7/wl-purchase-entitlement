@@ -156,6 +156,7 @@ function appleProvider() {
 }
 
 const demoConfig = {
+  accountApiReady: true,
   checkoutEnabled: true,
   adminBootstrapEnabled: false,
   catalog: {

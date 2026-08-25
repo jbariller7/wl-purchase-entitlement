@@ -61,6 +61,7 @@ describe("customer interface route contract", () => {
   it("keeps demo and authenticated sections hidden until the controller explicitly reveals them", () => {
     expect(accountStyles).toContain("wonderlang-account [hidden] { display: none !important; }");
     expect(account).toContain('previewParam === "1"');
+    expect(account).toMatch(/const demoConfig = \{\s*accountApiReady: true,/);
     expect(account).toContain("this.querySelector('[data-section=\"demo-banner\"]').hidden = false;");
   });
 
