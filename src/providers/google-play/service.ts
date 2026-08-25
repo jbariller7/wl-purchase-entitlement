@@ -6,6 +6,7 @@ import { HttpError } from "../../http/auth.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import { sha256 } from "../../infrastructure/ids.js";
 import { assertProviderTokenEncryptionConfigured } from "../../infrastructure/provider-token-crypto.js";
+import { normalizeGoogleServiceAccountPrivateKey } from "../../infrastructure/private-key.js";
 import { chapterMigrationGrant } from "../../domain/legacy-chapter-migration.js";
 
 let publisher: androidpublisher_v3.Androidpublisher | undefined;
@@ -15,7 +16,7 @@ async function androidPublisher(): Promise<androidpublisher_v3.Androidpublisher>
   const auth = new google.auth.GoogleAuth({
     credentials: {
       client_email: env().FIREBASE_CLIENT_EMAIL,
-      private_key: env().FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
+      private_key: normalizeGoogleServiceAccountPrivateKey(env().FIREBASE_PRIVATE_KEY)
     },
     scopes: ["https://www.googleapis.com/auth/androidpublisher"]
   });

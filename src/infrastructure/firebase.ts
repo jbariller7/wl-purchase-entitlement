@@ -4,6 +4,7 @@ import { getAppCheck, type AppCheck } from "firebase-admin/app-check";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getStorage, type Storage } from "firebase-admin/storage";
 import { firebaseAdminEnv } from "../config/env.js";
+import { normalizeGoogleServiceAccountPrivateKey } from "./private-key.js";
 
 let app: App | undefined;
 
@@ -14,7 +15,7 @@ export function firebaseApp(): App {
     credential: cert({
       projectId: runtime.FIREBASE_PROJECT_ID,
       clientEmail: runtime.FIREBASE_CLIENT_EMAIL,
-      privateKey: runtime.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n")
+      privateKey: normalizeGoogleServiceAccountPrivateKey(runtime.FIREBASE_PRIVATE_KEY)
     }),
     storageBucket: runtime.FIREBASE_STORAGE_BUCKET
   });
