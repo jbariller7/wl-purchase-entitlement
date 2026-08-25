@@ -77,6 +77,7 @@ Last verified: 2026-08-25. This file records only non-secret identifiers and saf
 - Historical-owner coupon: `wonderlang_desktop_owner_lifetime_50`
 - Billing Portal is configured.
 - Restricted API key and webhook signing secret are not yet created; processing remains disabled. The existing standard test secret must be rotated before provider testing and must not be installed in Netlify.
+- The backend's actual Stripe calls require this least-privilege test-key profile: Customers `Write`; Checkout Sessions `Write`; Billing Portal Sessions `Write`; Prices `Write`; Products `Read`; Coupons `Read`; Subscriptions `Write`; Payment Intents `Read`; Charges `Read`; Refunds `Write`; every unrelated Stripe resource `None`. Webhook endpoint management is not a runtime-key permission; its signing secret is stored separately.
 - A fresh signed-in browser check confirmed that Mobile Monthly is active in Stripe's sandbox, retains the original USD 6.99/month Price for history, and exposes `price_1U80wvBFbQoDa6p0gyuJ7ibY` as the separate "approved regional prices" Price. No live-mode Stripe object was changed.
 
 ## Google Play
@@ -105,6 +106,7 @@ Last verified: 2026-08-25. This file records only non-secret identifiers and saf
 - The current ordinary suite passes 220 tests; the dedicated rules suite still covers 13 isolated Firestore/Storage cases.
 - Web account and administrator clients optionally initialize reCAPTCHA Enterprise and attach `X-Firebase-AppCheck`. Android installs the Play Integrity provider on the named `wonderlang-accounts` Firebase app and attaches a best-effort token.
 - The web CSP contains Google's documented reCAPTCHA script, frame and connection sources. `APP_CHECK_ENFORCEMENT_ENABLED` remains `false` until the web and Android providers are registered, metrics are monitored, the actual iOS client is integrated, and production-equivalent device tests pass.
+- Commit `914c85f` deployed as Netlify deploy `6a8de0e73450a500087439c7`. Live probes returned HTTP 200 for both account and administrator pages, found the App Check header plumbing in both production bundles, found every required reCAPTCHA CSP source, and confirmed `environment=test`, `accountApiReady=true`, `checkoutEnabled=false`, `appCheckConfigured=false`, and `appCheckEnforced=false` without printing public client identifiers.
 
 ## Apple
 
