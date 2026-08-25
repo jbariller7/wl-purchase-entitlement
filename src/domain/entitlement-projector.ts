@@ -45,6 +45,7 @@ export function projectEntitlements(
   const chapters = new Set<number>();
   const sourceGrantIds: string[] = [];
   const mobilePlatforms = new Set<MobilePlatform>();
+  const permanentMobilePlatforms = new Set<MobilePlatform>();
   let hasPremiumLifetime = false;
   let hasPermanent = false;
   let hasSubscription = false;
@@ -61,20 +62,30 @@ export function projectEntitlements(
     if (grant.product === "premium_lifetime_pass" || grant.product === "mobile_full_lifetime") {
       hasPremiumLifetime = true;
       const platform = platformFromGrant(grant);
-      if (platform) mobilePlatforms.add(platform);
+      if (platform) {
+        mobilePlatforms.add(platform);
+        permanentMobilePlatforms.add(platform);
+      }
       else {
         // Backward-compatible fallback for a pre-split lifetime grant whose
         // original checkout did not record a primary mobile platform.
         mobilePlatforms.add("android");
         mobilePlatforms.add("ios");
+        permanentMobilePlatforms.add("android");
+        permanentMobilePlatforms.add("ios");
       }
     } else if (grant.product === "mobile_polyglot_permanent" || grant.product === "legacy_mobile_full") {
       hasPermanent = true;
       const platform = platformFromGrant(grant);
-      if (platform) mobilePlatforms.add(platform);
+      if (platform) {
+        mobilePlatforms.add(platform);
+        permanentMobilePlatforms.add(platform);
+      }
       else if (grant.product === "legacy_mobile_full") {
         mobilePlatforms.add("android");
         mobilePlatforms.add("ios");
+        permanentMobilePlatforms.add("android");
+        permanentMobilePlatforms.add("ios");
       }
     } else if (grant.product === "mobile_full_monthly") {
       hasSubscription = true;
@@ -107,6 +118,7 @@ export function projectEntitlements(
     allLanguages,
     cloudSave,
     mobilePlatforms: [...mobilePlatforms].sort(),
+    permanentMobilePlatforms: [...permanentMobilePlatforms].sort(),
     pcMacAccess,
     futureContent,
     premiumLifetime: hasPremiumLifetime,

@@ -227,12 +227,13 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     if (user.email && user.email_verified) {
       await new AdminImportService(db, firebaseAuth()).claimPendingForVerifiedUser({ uid: user.uid, email: user.email, now });
     }
-    const [entitlements, discount, grants, authUser, cloudSlots] = await Promise.all([
+    const [entitlements, discount, grants, authUser, cloudSlots, stripeCustomerId] = await Promise.all([
       store.effectiveEntitlements(user.uid, now),
       store.legacyDiscountClaim(user.uid),
       store.grantsForUid(user.uid),
       firebaseAuth().getUser(user.uid),
-      db.collection("cloudSaves").doc(user.uid).collection("slots").get()
+      db.collection("cloudSaves").doc(user.uid).collection("slots").get(),
+      store.stripeCustomerId(user.uid)
     ]);
     const cloudUpdates = cloudSlots.docs
       .map((doc) => doc.data()?.updatedAt as string | undefined)
@@ -244,6 +245,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       linkedLoginProviders: authUser.providerData.map((provider) => provider.providerId).filter((provider) => provider !== "firebase"),
       entitlements,
       subscription: summarizeSubscription(grants),
+      stripeBillingAvailable: Boolean(stripeCustomerId),
       cloudSave: {
         enabled: entitlements.cloudSave,
         retainedWhenAccessEnds: true,

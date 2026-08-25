@@ -75,7 +75,7 @@ export class AdminOperationsService {
   async overview(): Promise<Record<string, unknown>> {
     const entitlements = this.db.collection("entitlements");
     const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, failedCloudSaveCleanup, inventory, recent, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor] = await Promise.all([
-      this.count(entitlements.where("accessKind", "==", "subscription").where("subscriptionState", "==", "active")),
+      this.count(entitlements.where("subscriptionState", "==", "active")),
       this.count(entitlements.where("accessKind", "==", "permanent")),
       this.count(entitlements.where("accessKind", "==", "premium_lifetime")),
       this.count(entitlements.where("subscriptionState", "==", "grace")),
@@ -100,14 +100,14 @@ export class AdminOperationsService {
     const cleanupMonitor = cloudSaveCleanupMonitor.exists ? cloudSaveCleanupMonitor.data() : undefined;
     const failedOperations = failedOutbox + failedEvents + failedReconciliations + failedCloudSaveCleanup + (cloudMonitor?.state === "failed" ? 1 : 0) + (cleanupMonitor?.state === "failed" ? 1 : 0);
     const alerts = [
-      ...(failedOperations ? [{ tone: "danger", title: `${failedOperations} operation${failedOperations === 1 ? "" : "s"} need attention`, detail: "Review failed webhooks, jobs, provider reconciliation, and cloud-save cleanup", action: "Open operations" }] : []),
-      ...(failedCloudSaveCleanup ? [{ tone: "danger", title: `${failedCloudSaveCleanup} cloud-save cleanup job${failedCloudSaveCleanup === 1 ? "" : "s"} failed`, detail: "Obsolete revisions remain retained until cleanup is retried", action: "Open operations" }] : []),
-      ...(cloud?.staleUploadAlert ? [{ tone: "warning", title: `${Number(cloud.staleStagingObjects ?? 0)} stale cloud upload${Number(cloud.staleStagingObjects ?? 0) === 1 ? "" : "s"}`, detail: "Expired staging objects should be removed", action: "Open operations" }] : []),
-      ...(cloud?.growthAlert ? [{ tone: "warning", title: "Cloud storage growth exceeded its daily threshold", detail: `${Number(cloud.dailyChangeBytes ?? 0).toLocaleString()} bytes since the previous snapshot`, action: "Open operations" }] : []),
-      ...(cloudMonitor?.state === "failed" ? [{ tone: "danger", title: "Cloud storage inventory failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
-      ...(cleanupMonitor?.state === "failed" ? [{ tone: "danger", title: "Cloud-save cleanup worker failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
-      ...lowStock.slice(0, 3).map((row) => ({ tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available · threshold ${row.lowStockThreshold}`, action: "Review inventory" })),
-      ...(graceSubscriptions ? [{ tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
+      ...(failedOperations ? [{ view: "operations", tone: "danger", title: `${failedOperations} operation${failedOperations === 1 ? "" : "s"} need attention`, detail: "Review failed webhooks, jobs, provider reconciliation, and cloud-save cleanup", action: "Open operations" }] : []),
+      ...(failedCloudSaveCleanup ? [{ view: "operations", tone: "danger", title: `${failedCloudSaveCleanup} cloud-save cleanup job${failedCloudSaveCleanup === 1 ? "" : "s"} failed`, detail: "Obsolete revisions remain retained until cleanup is retried", action: "Open operations" }] : []),
+      ...(cloud?.staleUploadAlert ? [{ view: "operations", tone: "warning", title: `${Number(cloud.staleStagingObjects ?? 0)} stale cloud upload${Number(cloud.staleStagingObjects ?? 0) === 1 ? "" : "s"}`, detail: "Expired staging objects should be removed", action: "Open operations" }] : []),
+      ...(cloud?.growthAlert ? [{ view: "operations", tone: "warning", title: "Cloud storage growth exceeded its daily threshold", detail: `${Number(cloud.dailyChangeBytes ?? 0).toLocaleString()} bytes since the previous snapshot`, action: "Open operations" }] : []),
+      ...(cloudMonitor?.state === "failed" ? [{ view: "operations", tone: "danger", title: "Cloud storage inventory failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
+      ...(cleanupMonitor?.state === "failed" ? [{ view: "operations", tone: "danger", title: "Cloud-save cleanup worker failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
+      ...lowStock.slice(0, 3).map((row) => ({ view: "inventory", tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available · threshold ${row.lowStockThreshold}`, action: "Review inventory" })),
+      ...(graceSubscriptions ? [{ view: "customers", tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];
     return {
       metrics: {

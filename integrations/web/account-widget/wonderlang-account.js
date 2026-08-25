@@ -95,7 +95,7 @@ const html = `
           <label><span>First mobile platform</span><select data-field="premium-platform"><option value="android">Android</option><option value="ios">iOS</option></select></label>
           <label><span>Included PC/Mac access</span><select data-field="premium-desktop"><option value="steam">Steam key</option><option value="direct">Direct download</option></select></label>
           <label class="wl-confirm" data-field="cancel-confirm" hidden>
-            <input type="checkbox"> Cancel my current Stripe subscription after the Premium payment succeeds.
+            <input type="checkbox"> <span data-field="cancel-confirm-copy">Cancel my current Stripe subscription after the Premium payment succeeds.</span>
           </label>
           <button type="button" data-action="premium">Buy Premium Lifetime</button>
           <button type="button" data-action="discounted-premium" hidden>Use my 50% desktop-customer offer</button>
@@ -158,6 +158,7 @@ function createDemoAccount() {
       subscriptionState: "active",
       cloudSave: true,
       mobilePlatforms: ["android", "ios"],
+      permanentMobilePlatforms: [],
       pcMacAccess: false,
       futureContent: false,
       premiumLifetime: false,
@@ -165,16 +166,22 @@ function createDemoAccount() {
       chapters: []
     },
     subscription: {
-      phase: "trialing",
+      provider: "stripe",
+      phase: "trial",
       trialEndsAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
       renewsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     },
+    stripeBillingAvailable: true,
     cloudSave: {
       slotCount: 2,
       lastUpdatedAt: new Date().toISOString()
     },
     legacyLifetimeDiscount: { eligible: true }
   };
+}
+
+function hasEffectiveSubscription(account) {
+  return ["trial", "active", "grace", "cancelled"].includes(account?.subscription?.phase);
 }
 
 class WonderLangAccount extends HTMLElement {
@@ -431,20 +438,43 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="subscription"]').textContent = !sub ? "None" : `${sub.phase}${sub.trialEndsAt ? ` · trial ends ${date(sub.trialEndsAt)}` : sub.graceEndsAt ? ` · grace ends ${date(sub.graceEndsAt)}` : sub.renewsAt ? ` · renews ${date(sub.renewsAt)}` : sub.endsAt ? ` · ends ${date(sub.endsAt)}` : ""}`;
       const cloud = this.account.cloudSave;
       this.querySelector('[data-field="cloud-status"]').textContent = `${cloud.slotCount} saved slot${cloud.slotCount === 1 ? "" : "s"}${cloud.lastUpdatedAt ? ` · last sync ${date(cloud.lastUpdatedAt)}` : ""}`;
-      this.querySelector('[data-field="mobile-platforms"]').textContent = (ent.mobilePlatforms || []).map((platform) => platform === "ios" ? "iOS" : "Android").join(", ") || "None";
+      const permanentPlatforms = ent.permanentMobilePlatforms || [];
+      this.querySelector('[data-field="mobile-platforms"]').textContent = (ent.mobilePlatforms || []).map((platform) => {
+        const label = platform === "ios" ? "iOS" : "Android";
+        if (permanentPlatforms.includes(platform)) return `${label} · permanent`;
+        return ent.accessKind === "subscription" ? `${label} · subscription` : label;
+      }).join(" / ") || "None";
       this.querySelector('[data-field="desktop-access"]').textContent = ent.pcMacAccess ? "Included" : "Not included";
       this.querySelector('[data-field="future-content"]').textContent = ent.futureContent ? "Included" : "Not included";
       this.querySelector('[data-field="second-platform"]').textContent = ent.secondMobilePlatformEligible
-        ? (ent.mobilePlatforms || []).length > 1 ? "Granted" : "Eligible on request"
+        ? permanentPlatforms.length > 1 ? "Granted" : "Eligible on request"
         : "Not included";
-      const subscribed = ent.accessKind === "subscription";
+      const subscribed = hasEffectiveSubscription(this.account);
+      const polyglotPlatform = this.querySelector('[data-field="polyglot-platform"]');
+      for (const option of polyglotPlatform.options) option.disabled = permanentPlatforms.includes(option.value);
+      if (polyglotPlatform.selectedOptions[0]?.disabled) {
+        const available = [...polyglotPlatform.options].find((option) => !option.disabled);
+        if (available) polyglotPlatform.value = available.value;
+      }
+      const allMobilePlatformsPermanent = [...polyglotPlatform.options].every((option) => option.disabled);
+      const billingButton = this.querySelector('[data-action="portal"]');
+      billingButton.textContent = sub?.provider === "google_play" ? "Manage Google Play subscription"
+        : sub?.provider === "apple" ? "Manage Apple subscription"
+          : sub?.provider === "stripe" ? "Manage Stripe subscription" : "Manage Stripe billing";
+      this.querySelector('[data-field="cancel-confirm-copy"]').textContent = sub?.provider === "google_play"
+        ? "I understand that I must cancel my Google Play subscription separately after the Premium payment succeeds."
+        : sub?.provider === "apple"
+          ? "I understand that I must cancel my Apple subscription separately after the Premium payment succeeds."
+          : "Cancel my current Stripe subscription after the Premium payment succeeds.";
       this.querySelector('[data-field="cancel-confirm"]').hidden = !subscribed;
       this.querySelector('[data-action="monthly"]').disabled = !this.config.checkoutEnabled || subscribed || ent.premiumLifetime;
-      this.querySelector('[data-action="polyglot"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime;
+      this.querySelector('[data-action="polyglot"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime || allMobilePlatformsPermanent;
       this.querySelector('[data-action="premium"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime;
       this.querySelector('[data-action="discounted-premium"]').hidden = !this.account.legacyLifetimeDiscount.eligible || ent.premiumLifetime;
       this.querySelector('[data-action="discounted-premium"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime;
-      this.querySelector('[data-action="portal"]').disabled = !this.config.checkoutEnabled;
+      billingButton.disabled = sub?.provider === "google_play" || sub?.provider === "apple"
+        ? false
+        : !this.config.checkoutEnabled || !this.account.stripeBillingAvailable;
       await this.loadDeviceApproval();
     } catch (error) { this.fail(error); }
   }
@@ -498,7 +528,7 @@ class WonderLangAccount extends HTMLElement {
   }
 
   async checkout(product, useDiscount, mobilePlatform, desktopDelivery) {
-    const subscribed = this.account?.entitlements?.accessKind === "subscription";
+    const subscribed = hasEffectiveSubscription(this.account);
     const confirmation = this.querySelector('[data-field="cancel-confirm"] input');
     if (product === "premium_lifetime_pass" && subscribed && !confirmation.checked) {
       this.status("Confirm subscription cancellation before starting the Premium Lifetime checkout.");
@@ -534,6 +564,15 @@ class WonderLangAccount extends HTMLElement {
   async openPortal() {
     if (demoMode) {
       this.status("Safe demo: the Stripe customer portal would open here.");
+      return;
+    }
+    const provider = this.account?.subscription?.provider;
+    if (provider === "google_play") {
+      location.assign("https://play.google.com/store/account/subscriptions");
+      return;
+    }
+    if (provider === "apple") {
+      location.assign("https://apps.apple.com/account/subscriptions");
       return;
     }
     try { location.assign((await this.request("/api/v1/billing-portal", { method: "POST", body: {} })).url); }

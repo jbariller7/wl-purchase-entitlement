@@ -7,6 +7,7 @@ import { planLifetimeTransition } from "../../domain/lifetime-transition.js";
 import { STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../domain/catalog.js";
 import { HttpError } from "../../http/auth.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
+import type { EffectiveEntitlements } from "../../domain/model.js";
 import { stripeClient } from "./client.js";
 
 export const checkoutRequestSchema = z.object({
@@ -40,6 +41,18 @@ export const checkoutRequestSchema = z.object({
 
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
 
+export function assertCheckoutOwnershipAvailable(request: CheckoutRequest, effective: EffectiveEntitlements): void {
+  if (request.product === "premium_lifetime_pass" && effective.premiumLifetime) {
+    throw new HttpError(409, "This account already has the Premium Lifetime Pass.");
+  }
+  if (request.product === "mobile_polyglot_permanent" && effective.premiumLifetime) {
+    throw new HttpError(409, "Premium Lifetime already includes permanent mobile access and eligibility for the other mobile platform. Contact support to request it.");
+  }
+  if (request.product === "mobile_polyglot_permanent" && request.mobilePlatform && effective.permanentMobilePlatforms.includes(request.mobilePlatform)) {
+    throw new HttpError(409, `This account already has permanent ${request.mobilePlatform} access.`);
+  }
+}
+
 function withSessionId(url: string): string {
   const target = new URL(url);
   target.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
@@ -68,12 +81,7 @@ export async function createCheckout(input: {
   if (!env().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Checkout is disabled for this deployment.");
   const { store, user, request, now } = input;
   const effective = await store.effectiveEntitlements(user.uid, now);
-  if (request.product === "premium_lifetime_pass" && effective.premiumLifetime) {
-    throw new HttpError(409, "This account already has the Premium Lifetime Pass.");
-  }
-  if (request.product === "mobile_polyglot_permanent" && request.mobilePlatform && effective.mobilePlatforms.includes(request.mobilePlatform)) {
-    throw new HttpError(409, `This account already has permanent ${request.mobilePlatform} access.`);
-  }
+  assertCheckoutOwnershipAvailable(request, effective);
 
   const activeSubscription = await store.activeSubscription(user.uid);
   if (request.product === "mobile_full_monthly" && activeSubscription) {

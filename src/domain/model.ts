@@ -43,6 +43,7 @@ export interface EffectiveEntitlements {
   allLanguages: boolean;
   cloudSave: boolean;
   mobilePlatforms: Array<"android" | "ios">;
+  permanentMobilePlatforms: Array<"android" | "ios">;
   pcMacAccess: boolean;
   futureContent: boolean;
   premiumLifetime: boolean;

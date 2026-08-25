@@ -29,12 +29,31 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("Number(options.body?.amount)");
     expect(admin).toContain("A partial refund does not revoke access automatically.");
     expect(admin).toContain("function demoConfirmed(options, preview)");
+    expect(admin).toContain("function addDemoAudit(action, targetType, targetId, summary)");
+    expect(admin).toContain('job.state = "pending"');
+    expect(admin).toContain('payment.status = payment.refundableAmount ? "partially_refunded" : "refunded"');
+    expect(admin).toContain('grant.state = "revoked"');
     expect(admin).toContain("Confirmation phrase does not match.");
     expect(admin).toContain("function minorAmount(currency, majorAmount)");
     expect(admin).not.toContain('confirmationPhrase: "CHANGE MONTHLY TO 7.99 USD"');
     expect(admin).toContain("DEVICE_SIGN_IN_CLEANUP_ENABLED");
     expect(admin).not.toContain("Configured in Netlify");
     expect(admin).toContain("Eligible on request");
+    expect(admin).toContain("Permanent mobile platforms");
+    expect(operations).toContain('entitlements.where("subscriptionState", "==", "active")');
+    expect(operations).not.toContain('entitlements.where("accessKind", "==", "subscription").where("subscriptionState", "==", "active")');
+    expect(admin).toContain('view: "operations"');
+    expect(admin).toContain('view: "inventory"');
+    expect(admin).toContain('view: "customers"');
+    expect(admin).toContain("function htmlCell(value)");
+    expect(admin).toContain('const TRUSTED_HTML_CELL = Symbol("trusted-html-cell")');
+    expect(admin).toContain("Object.hasOwn(cell, TRUSTED_HTML_CELL)");
+    expect(admin).not.toContain('Object.hasOwn(cell, "html")');
+    expect(admin).not.toContain('String(cell).startsWith("<")');
+    expect(admin).toContain("No key inventory records in this environment.");
+    expect(admin).toContain("REGIONAL WEBSITE PRICES");
+    expect(admin).toContain("Google Play and App Store prices remain managed in their store consoles.");
+    expect(admin).toContain("Editing one currency preserves every other configured regional price");
   });
 
   it("uses validated per-tab key-inventory thresholds in alerts and the admin UI", () => {
@@ -166,6 +185,18 @@ describe("isolated integration configuration", () => {
     expect(account).toContain('this.request("/api/v1/device-sign-in/approve"');
     expect(account).toContain('data-field="future-content"');
     expect(account).toContain('data-field="second-platform"');
+    expect(account).toContain("ent.permanentMobilePlatforms || []");
+    expect(account).toContain("function hasEffectiveSubscription(account)");
+    expect(account).toContain('phase: "trial"');
+    expect(account).not.toContain('phase: "trialing"');
+    expect(account).toContain("const subscribed = hasEffectiveSubscription(this.account)");
+    expect(account).toContain("allMobilePlatformsPermanent");
+    expect(account).toContain("stripeBillingAvailable");
+    expect(account).toContain("https://play.google.com/store/account/subscriptions");
+    expect(account).toContain("https://apps.apple.com/account/subscriptions");
+    expect(account).toContain("must cancel my Google Play subscription separately");
+    expect(account).toContain("must cancel my Apple subscription separately");
+    expect(read("src/providers/stripe/checkout-service.ts")).toContain("effective.permanentMobilePlatforms.includes(request.mobilePlatform)");
   });
 
   it("keeps the PC/Mac custom-token exchange out of Git-hosted credentials", () => {

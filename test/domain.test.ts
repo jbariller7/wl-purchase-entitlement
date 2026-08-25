@@ -18,6 +18,7 @@ import {
 import { REGIONAL_PRICES, stripeMajorAmount, stripeMajorValue, stripeMinorAmount } from "../src/domain/regional-pricing.js";
 import { priceChangeConfirmationPhrase } from "../src/admin/billing-service.js";
 import { chapterMigrationGrant, chapterMigrationTransactionId, isEligibleHistoricalChapterPurchase } from "../src/domain/legacy-chapter-migration.js";
+import { assertCheckoutOwnershipAvailable } from "../src/providers/stripe/checkout-service.js";
 
 const now = new Date("2026-08-23T12:00:00.000Z");
 
@@ -44,6 +45,39 @@ describe("effective entitlement projection", () => {
       accessKind: "subscription",
       subscriptionState: "active"
     });
+    expect(value.mobilePlatforms).toEqual(["android", "ios"]);
+    expect(value.permanentMobilePlatforms).toEqual([]);
+  });
+
+  it("distinguishes temporary subscription platforms from permanent mobile ownership", () => {
+    const value = projectEntitlements("user-1", [
+      grant({}),
+      grant({
+        id: "permanent-android",
+        product: "mobile_polyglot_permanent",
+        providerTransactionId: "permanent-transaction",
+        metadata: { mobilePlatform: "android" }
+      })
+    ], now);
+    expect(value.mobilePlatforms).toEqual(["android", "ios"]);
+    expect(value.permanentMobilePlatforms).toEqual(["android"]);
+  });
+
+  it("lets a subscriber buy permanent access but blocks a platform already owned forever", () => {
+    const subscriptionOnly = projectEntitlements("user-1", [grant({})], now);
+    expect(() => assertCheckoutOwnershipAvailable({ product: "mobile_polyglot_permanent", mobilePlatform: "android", useLegacyDesktopDiscount: false, confirmCancelExistingSubscription: false }, subscriptionOnly)).not.toThrow();
+
+    const subscriptionAndPermanent = projectEntitlements("user-1", [
+      grant({}),
+      grant({ id: "permanent", product: "mobile_polyglot_permanent", providerTransactionId: "permanent", metadata: { mobilePlatform: "android" } })
+    ], now);
+    expect(() => assertCheckoutOwnershipAvailable({ product: "mobile_polyglot_permanent", mobilePlatform: "android", useLegacyDesktopDiscount: false, confirmCancelExistingSubscription: false }, subscriptionAndPermanent)).toThrow(/already has permanent android access/);
+    expect(() => assertCheckoutOwnershipAvailable({ product: "mobile_polyglot_permanent", mobilePlatform: "ios", useLegacyDesktopDiscount: false, confirmCancelExistingSubscription: false }, subscriptionAndPermanent)).not.toThrow();
+  });
+
+  it("never sells an extra Polyglot platform to Premium owners who can request it", () => {
+    const premium = projectEntitlements("user-1", [grant({ product: "premium_lifetime_pass", metadata: { mobilePlatform: "android" } })], now);
+    expect(() => assertCheckoutOwnershipAvailable({ product: "mobile_polyglot_permanent", mobilePlatform: "ios", useLegacyDesktopDiscount: false, confirmCancelExistingSubscription: false }, premium)).toThrow(/Contact support to request it/);
   });
 
   it("keeps subscription access during the seven-day payment grace period", () => {
@@ -96,6 +130,7 @@ describe("effective entitlement projection", () => {
       secondMobilePlatformEligible: true,
       accessKind: "premium_lifetime"
     });
+    expect(value.permanentMobilePlatforms).toEqual(["android", "ios"]);
   });
 
   it("fails closed when an active period has actually ended", () => {

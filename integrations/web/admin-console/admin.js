@@ -13,9 +13,9 @@ const state = { auth: null, user: demo ? { email: "owner@wonderlang.net" } : nul
 const demoOverview = {
   metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
   alerts: [
-    { tone: "danger", title: "2 delivery jobs need attention", detail: "Retries are paused in this test deployment", action: "Open operations" },
-    { tone: "warning", title: "Japanese Steam inventory is low", detail: "8 keys available · threshold 10", action: "Review inventory" },
-    { tone: "neutral", title: "6 subscriptions are in payment grace", detail: "Access remains available for up to seven days", action: "View customers" }
+    { view: "operations", tone: "danger", title: "2 delivery jobs need attention", detail: "Retries are paused in this test deployment", action: "Open operations" },
+    { view: "inventory", tone: "warning", title: "Japanese Steam inventory is low", detail: "8 keys available · threshold 10", action: "Review inventory" },
+    { view: "customers", tone: "neutral", title: "6 subscriptions are in payment grace", detail: "Access remains available for up to seven days", action: "View customers" }
   ],
   activity: [
     { time: new Date().toISOString(), customer: "amina@example.com", event: "mobile_full_monthly", amount: null, state: "active" },
@@ -24,7 +24,7 @@ const demoOverview = {
 };
 const demoCustomer = {
   user: { uid: "demo_8a2f43", email: "amina@example.com", emailVerified: true, disabled: false, providers: ["google.com", "apple.com"], createdAt: "2026-02-14T10:00:00Z", lastSignInAt: new Date().toISOString() },
-  entitlements: { accessKind: "subscription", cloudSave: true, mobilePlatforms: ["android", "ios"], pcMacAccess: false, premiumLifetime: false, subscriptionState: "active", subscriptionEndsAt: "2026-09-23T00:00:00Z", sourceGrantIds: ["grant_demo"] },
+  entitlements: { accessKind: "subscription", cloudSave: true, mobilePlatforms: ["android", "ios"], permanentMobilePlatforms: [], pcMacAccess: false, premiumLifetime: false, subscriptionState: "active", subscriptionEndsAt: "2026-09-23T00:00:00Z", sourceGrantIds: ["grant_demo"] },
   effectiveProducts: ["mobile_full_monthly"],
   subscription: { provider: "stripe", phase: "active", providerStatus: "active", startsAt: "2026-08-01T00:00:00Z", renewsAt: "2026-09-23T00:00:00Z", endsAt: null, graceEndsAt: null, trialEndsAt: null, cancelAtPeriodEnd: false },
   grants: [{ id: "grant_demo", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "sub_demo", providerSubscriptionId: "sub_demo", product: "mobile_full_monthly", state: "active", startsAt: "2026-08-01T00:00:00Z" }],
@@ -39,6 +39,11 @@ const demoCatalog = {
   polyglot: { stripePriceId: "price_test_polyglot", unitAmount: 3199, currency: "USD", recurring: false },
   premium: { stripePriceId: "price_test_premium", unitAmount: 5999, currency: "USD", recurring: false },
   monthlyPriceHistory: [], polyglotPriceHistory: [], premiumPriceHistory: [],
+  regionalPrices: {
+    monthly: { USD: "6.99", EUR: "6.49", GBP: "5.99", JPY: "787" },
+    polyglot: { USD: "31.99", EUR: "30.99", GBP: "26.80", JPY: "3600" },
+    premium: { USD: "59.99", EUR: "59.99", GBP: "50.25", JPY: "6750" }
+  },
   notes: { priceChangesAffect: "new_checkouts_only", existingSubscriptions: "keep_their_existing_stripe_price", oldPrices: "retained_for_existing_subscriptions_and_webhook_history" }
 };
 const demoOperations = {
@@ -87,7 +92,9 @@ function formatMoney(amount, currency = "USD") {
 }
 function formatDate(value) { if (!value) return "—"; const date = new Date(value); return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(value); }
 function formatBytes(value) { if (value === null || value === undefined || !Number.isFinite(Number(value))) return "Not sampled"; const bytes = Number(value); const sign = bytes < 0 ? "−" : ""; const absolute = Math.abs(bytes); const units = ["B", "KB", "MB", "GB", "TB"]; let index = 0; let scaled = absolute; while (scaled >= 1024 && index < units.length - 1) { scaled /= 1024; index += 1; } return `${sign}${scaled.toFixed(index === 0 ? 0 : scaled >= 10 ? 1 : 2)} ${units[index]}`; }
-function jsonCell(value) { return escapeHtml(typeof value === "string" ? value : JSON.stringify(value ?? "")); }
+const TRUSTED_HTML_CELL = Symbol("trusted-html-cell");
+function jsonCell(value) { return typeof value === "string" ? value : JSON.stringify(value ?? ""); }
+function htmlCell(value) { return { [TRUSTED_HTML_CELL]: String(value) }; }
 function navItem(id, number) { return `<button type="button" data-view="${id}" class="nav-item${state.view === id ? " selected" : ""}"><span>${number}</span>${views[id]}</button>`; }
 function pageIntro(kicker, title, copy, actions = "") { return `<section class="page-intro"><div><p class="section-kicker">${kicker}</p><h2>${title}</h2><p>${copy}</p></div><div class="hero-actions">${actions}</div></section>`; }
 function empty(message) { return `<div class="empty-state">${escapeHtml(message)}</div>`; }
@@ -110,21 +117,21 @@ function renderOverview(data) {
   const m = data.metrics || {};
   return `${pageIntro("TODAY AT A GLANCE", "Your business, in one view.", "Purchases, access, delivery health and anything that needs intervention.", '<button class="button secondary" data-view="customers">Find a customer</button><button class="button primary" data-view="imports">Import customers</button>')}
   <section class="metric-grid">${metric("Active monthly", m.activeSubscriptions, "Full mobile game + cloud", "accent")}${metric("Polyglot permanent", m.permanentCustomers, "One mobile platform", "dark")}${metric("Premium Lifetime", m.premiumCustomers, "PC/Mac, cloud and future content", "dark")}${metric("Payment grace", m.graceSubscriptions, "Seven-day access window", "warning")}${metric("Cloud storage", formatBytes(m.cloudStorageBytes), `${formatBytes(m.cloudStorageDailyChangeBytes)} since prior snapshot`, "dark")}${metric("Needs attention", m.failedOperations, "Manual review queue", "danger")}</section>
-  <section class="dashboard-grid"><article class="panel attention-panel"><header><div><p class="section-kicker">ATTENTION QUEUE</p><h3>What needs you</h3></div><button class="text-button" data-view="operations">See all</button></header><div class="alert-list">${(data.alerts || []).length ? data.alerts.map((a) => `<button class="alert-row" data-view="${a.tone === "warning" ? "inventory" : "operations"}"><span class="alert-icon ${escapeHtml(a.tone)}"></span><span><strong>${escapeHtml(a.title)}</strong><small>${escapeHtml(a.detail)}</small></span><b>${escapeHtml(a.action)} →</b></button>`).join("") : empty("Nothing needs attention.")}</div></article>
-  <article class="panel quick-panel"><header><div><p class="section-kicker">SAFE SHORTCUTS</p><h3>Quick actions</h3></div></header><div class="quick-grid">${[["Customer lookup", "Search access, purchases and saves", "customers"], ["Change a price", "New checkouts only", "billing"], ["Issue a refund", "Preview before money moves", "billing"], ["Import purchases", "Dry-run before applying", "imports"]].map(([t,d,v]) => `<button class="quick-action" data-view="${v}"><span>↗</span><strong>${t}</strong><small>${d}</small></button>`).join("")}</div></article></section>
-  <section class="panel activity-panel"><header><div><p class="section-kicker">LIVE LEDGER</p><h3>Recent entitlement activity</h3></div></header>${table(["When", "Customer", "Event", "Value", "Status"], (data.activity || []).map((r) => [formatDate(r.time), r.customer, r.event, r.amount ? formatMoney(r.amount, r.currency) : "—", `<span class="state-pill">${escapeHtml(r.state)}</span>`]))}</section>`;
+  <section class="dashboard-grid"><article class="panel attention-panel"><header><div><p class="section-kicker">ATTENTION QUEUE</p><h3>What needs you</h3></div><button class="text-button" data-view="operations">See all</button></header><div class="alert-list">${(data.alerts || []).length ? data.alerts.map((a) => { const view = ["operations", "inventory", "customers"].includes(a.view) ? a.view : "operations"; return `<button class="alert-row" data-view="${view}"><span class="alert-icon ${escapeHtml(a.tone)}"></span><span><strong>${escapeHtml(a.title)}</strong><small>${escapeHtml(a.detail)}</small></span><b>${escapeHtml(a.action)} →</b></button>`; }).join("") : empty("Nothing needs attention.")}</div></article>
+  <article class="panel quick-panel"><header><div><p class="section-kicker">SAFE SHORTCUTS</p><h3>Quick actions</h3></div></header><div class="quick-grid">${[["Customer lookup", "Search access, purchases and saves", "customers"], ["Change a price", "New checkouts only", "billing"], ["Issue a refund", "Find the customer, then preview the payment refund", "customers"], ["Import purchases", "Dry-run before applying", "imports"]].map(([t,d,v]) => `<button class="quick-action" data-view="${v}"><span>↗</span><strong>${t}</strong><small>${d}</small></button>`).join("")}</div></article></section>
+  <section class="panel activity-panel"><header><div><p class="section-kicker">LIVE LEDGER</p><h3>Recent entitlement activity</h3></div></header>${table(["When", "Customer", "Event", "Value", "Status"], (data.activity || []).map((r) => [formatDate(r.time), r.customer, r.event, r.amount ? formatMoney(r.amount, r.currency) : "—", htmlCell(`<span class="state-pill">${escapeHtml(r.state)}</span>`)]))}</section>`;
 }
 
 function renderCustomers() {
   const c = state.customer;
-  const paymentRows = (c?.payments || []).map((p) => [formatDate(p.createdAt), p.id, formatMoney(p.amountReceived || p.amount, p.currency), formatMoney(p.amountRefunded || 0, p.currency), p.status, p.refundableAmount > 0 ? `<button class="text-button" data-refund="${escapeHtml(p.id)}" data-amount="${Number(p.refundableAmount)}" data-currency="${escapeHtml(p.currency)}">Refund</button>` : "—"]);
+  const paymentRows = (c?.payments || []).map((p) => [formatDate(p.createdAt), p.id, formatMoney(p.amountReceived || p.amount, p.currency), formatMoney(p.amountRefunded || 0, p.currency), p.status, p.refundableAmount > 0 ? htmlCell(`<button class="text-button" data-refund="${escapeHtml(p.id)}" data-amount="${Number(p.refundableAmount)}" data-currency="${escapeHtml(p.currency)}">Refund</button>`) : "—"]);
   const providerRows = (c?.providerIdentities || []).map((p) => [p.provider, p.product, p.customerId || "—", p.transactionId, p.subscriptionId || "—", p.state]);
   const cloudRows = (c?.cloudSaves || []).map((s) => [s.slot || s.id, formatDate(s.updatedAt), s.byteLength ?? "—", String(s.sha256 || "").slice(0, 12) || "—"]);
   const sub = c?.subscription;
   const detail = c ? `${c.deletionRequest?.state === "scheduled" ? `<section class="alert warning"><div><strong>Account deletion scheduled</strong><span>Profile and cloud saves will be purged after ${formatDate(c.deletionRequest.deleteAfter)} unless support cancels during recovery.</span></div><button class="button secondary" data-customer-action="cancel-deletion">Cancel deletion</button></section>` : ""}<section class="customer-grid"><article class="panel detail-card"><header><div><p class="section-kicker">ACCOUNT</p><h3>${escapeHtml(c.user.email || c.user.uid)}</h3></div><span class="state-pill">${c.user.disabled ? "Disabled" : "Enabled"}</span></header><dl class="definition-grid"><div><dt>Firebase UID</dt><dd>${escapeHtml(c.user.uid)}</dd></div><div><dt>Login providers</dt><dd>${escapeHtml((c.user.providers || []).join(", ") || "None")}</dd></div><div><dt>Email verified</dt><dd>${c.user.emailVerified ? "Yes" : "No"}</dd></div><div><dt>Last sign-in</dt><dd>${formatDate(c.user.lastSignInAt)}</dd></div></dl><div class="card-actions"><button class="button secondary" data-customer-action="sessions">Revoke sessions</button><button class="button danger" data-customer-action="access">${c.user.disabled ? "Enable account" : "Disable account"}</button></div></article>
-    <article class="panel detail-card"><header><div><p class="section-kicker">EFFECTIVE ACCESS</p><h3>${escapeHtml(c.entitlements.accessKind || "None")}</h3></div></header><dl class="definition-grid"><div><dt>Products</dt><dd>${escapeHtml((c.effectiveProducts || []).join(", ") || "None")}</dd></div><div><dt>Mobile platforms</dt><dd>${escapeHtml((c.entitlements.mobilePlatforms || []).join(", ") || "None")}</dd></div><div><dt>PC / Mac</dt><dd>${c.entitlements.pcMacAccess ? "Included" : "Not included"}</dd></div><div><dt>Future content</dt><dd>${c.entitlements.futureContent ? "Included" : "Not included"}</dd></div><div><dt>Second mobile platform</dt><dd>${c.entitlements.secondMobilePlatformEligible ? ((c.entitlements.mobilePlatforms || []).length > 1 ? "Granted" : "Eligible on request") : "Not included"}</dd></div><div><dt>Subscription</dt><dd>${escapeHtml(sub ? `${sub.phase} · ${sub.provider}` : "None")}</dd></div><div><dt>Renews / ends</dt><dd>${formatDate(sub?.renewsAt || sub?.endsAt || sub?.graceEndsAt)}</dd></div><div><dt>Cloud saves</dt><dd>${c.entitlements.cloudSave ? "Allowed" : "Retained, access inactive"}</dd></div></dl></article></section>
+    <article class="panel detail-card"><header><div><p class="section-kicker">EFFECTIVE ACCESS</p><h3>${escapeHtml(c.entitlements.accessKind || "None")}</h3></div></header><dl class="definition-grid"><div><dt>Products</dt><dd>${escapeHtml((c.effectiveProducts || []).join(", ") || "None")}</dd></div><div><dt>Current mobile platforms</dt><dd>${escapeHtml((c.entitlements.mobilePlatforms || []).join(", ") || "None")}</dd></div><div><dt>Permanent mobile platforms</dt><dd>${escapeHtml((c.entitlements.permanentMobilePlatforms || []).join(", ") || "None")}</dd></div><div><dt>PC / Mac</dt><dd>${c.entitlements.pcMacAccess ? "Included" : "Not included"}</dd></div><div><dt>Future content</dt><dd>${c.entitlements.futureContent ? "Included" : "Not included"}</dd></div><div><dt>Second mobile platform</dt><dd>${c.entitlements.secondMobilePlatformEligible ? ((c.entitlements.permanentMobilePlatforms || []).length > 1 ? "Granted" : "Eligible on request") : "Not included"}</dd></div><div><dt>Subscription</dt><dd>${escapeHtml(sub ? `${sub.phase} · ${sub.provider}` : "None")}</dd></div><div><dt>Renews / ends</dt><dd>${formatDate(sub?.renewsAt || sub?.endsAt || sub?.graceEndsAt)}</dd></div><div><dt>Cloud saves</dt><dd>${c.entitlements.cloudSave ? "Allowed" : "Retained, access inactive"}</dd></div></dl></article></section>
     <section class="split-grid"><article class="panel form-panel"><header><div><p class="section-kicker">MANUAL ACCESS</p><h3>Grant an entitlement</h3></div></header><form id="grant-form" class="stack-form"><label>Product<select name="product"><option value="mobile_polyglot_permanent">Polyglot Permanent Access</option><option value="premium_lifetime_pass">Premium Lifetime Pass</option><option value="legacy_mobile_full">Legacy mobile full</option><option value="legacy_chapter_1">Legacy chapter 1</option><option value="legacy_chapter_2">Legacy chapter 2</option><option value="legacy_chapter_3">Legacy chapter 3</option><option value="legacy_chapter_4">Legacy chapter 4</option></select></label><label>Mobile platform<select name="mobilePlatform"><option value="android">Android</option><option value="ios">iOS</option></select></label><label>Optional expiry<input type="datetime-local" name="endsAt"></label><label>Audit reason<textarea name="reason" minlength="10" required placeholder="Why is this grant authorized?"></textarea></label><button class="button primary">Grant access</button></form></article>
-    <article class="panel"><header><div><p class="section-kicker">GRANTS</p><h3>Access ledger</h3></div></header>${table(["Product", "Source", "State", "Started", "Action"], (c.grants || []).map((g) => [g.product, g.provider, g.state, formatDate(g.startsAt), g.provider === "admin" && g.state === "active" && !g.metadata?.migration ? `<button class="text-button" data-revoke-grant="${escapeHtml(g.id)}">Revoke</button>` : "—"]))}</article></section>
+    <article class="panel"><header><div><p class="section-kicker">GRANTS</p><h3>Access ledger</h3></div></header>${table(["Product", "Source", "State", "Started", "Action"], (c.grants || []).map((g) => [g.product, g.provider, g.state, formatDate(g.startsAt), g.provider === "admin" && g.state === "active" && !g.metadata?.migration ? htmlCell(`<button class="text-button" data-revoke-grant="${escapeHtml(g.id)}">Revoke</button>`) : "—"]))}</article></section>
     <section class="panel"><header><div><p class="section-kicker">PROVIDER IDENTITIES</p><h3>Verified purchase links</h3></div></header>${table(["Provider", "Product", "Customer", "Transaction", "Subscription", "State"], providerRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Received", "Refunded", "Status", "Action"], paymentRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVES</p><h3>Retained save inventory</h3></div></header>${table(["Slot", "Updated", "Bytes", "SHA-256"], cloudRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
@@ -135,9 +142,13 @@ function renderCustomers() {
 function renderBilling(data) {
   const labels = { monthly: "MOBILE MONTHLY", polyglot: "POLYGLOT PERMANENT", premium: "PREMIUM LIFETIME" };
   const cards = ["monthly", "polyglot", "premium"].map((kind) => { const offer = data[kind]; return `<article class="price-card"><p>${labels[kind]}</p><strong>${formatMoney(offer.unitAmount, offer.currency)}</strong><span>${kind === "monthly" ? "per month" : "one time"}</span><small>${escapeHtml(offer.stripePriceId)}</small></article>`; }).join("");
+  const regional = data.regionalPrices || {};
+  const currencies = [...new Set(["USD", ...Object.keys(regional.monthly || {}), ...Object.keys(regional.polyglot || {}), ...Object.keys(regional.premium || {})])].sort((a, b) => a === "USD" ? -1 : b === "USD" ? 1 : a.localeCompare(b));
+  const regionalRows = currencies.map((currency) => [currency, regional.monthly?.[currency] ?? "—", regional.polyglot?.[currency] ?? "—", regional.premium?.[currency] ?? "—"]);
   return `${pageIntro("BILLING CONTROL", "Prices change safely.", "A price change creates a new immutable Stripe Price for future checkouts. Existing subscriptions keep their old price.")}
   <section class="price-grid">${cards}</section><section class="split-grid"><article class="panel form-panel"><header><div><p class="section-kicker">PRICE CHANGE</p><h3>Preview a new price</h3></div></header><form id="price-form" class="stack-form"><label>Offer<select name="kind"><option value="monthly">Mobile Monthly</option><option value="polyglot">Polyglot Permanent Access</option><option value="premium">Premium Lifetime Pass</option></select></label><div class="field-row"><label>Amount<input name="amount" inputmode="decimal" required placeholder="6.99"></label><label>Currency<input name="currency" value="USD" maxlength="3" required></label></div><button class="button primary">Preview change</button></form><div id="price-preview"></div></article>
-  <article class="panel policy-card"><header><div><p class="section-kicker">POLICY</p><h3>What changes—and what does not</h3></div></header><ul class="policy-list"><li>Only new checkouts use the new price.</li><li>Old Stripe Prices remain available for webhook history.</li><li>Existing subscribers are never silently migrated.</li><li>Historical chapter purchases completed by ${formatDate(data.notes?.legacyChapterUpgradeCutoff || "2026-08-24T23:59:59.999Z")} receive a separate, idempotent Polyglot Permanent grant for their original mobile platform.</li><li>A second typed confirmation is required.</li><li>Test deployments refuse every live Stripe key.</li></ul></article></section>`;
+  <article class="panel policy-card"><header><div><p class="section-kicker">POLICY</p><h3>What changes—and what does not</h3></div></header><ul class="policy-list"><li>This editor changes website Stripe prices; Google Play and App Store prices remain managed in their store consoles.</li><li>Only new checkouts use the new price.</li><li>Old Stripe Prices remain available for webhook history.</li><li>Existing subscribers are never silently migrated.</li><li>Historical chapter purchases completed by ${formatDate(data.notes?.legacyChapterUpgradeCutoff || "2026-08-24T23:59:59.999Z")} receive a separate, idempotent Polyglot Permanent grant for their original mobile platform.</li><li>A second typed confirmation is required.</li><li>Test deployments refuse every live Stripe key.</li></ul></article></section>
+  <section class="panel spaced"><header><div><p class="section-kicker">REGIONAL WEBSITE PRICES</p><h3>Every Stripe checkout currency</h3></div></header><p class="panel-copy">Amounts are shown in major currency units. Editing one currency preserves every other configured regional price in the replacement Stripe Price.</p>${table(["Currency", "Monthly", "Polyglot", "Premium"], regionalRows)}</section>`;
 }
 
 function renderImports() {
@@ -147,13 +158,13 @@ function renderImports() {
 }
 
 function renderOperations(data) {
-  const outbox = (data.outbox || []).map((j) => [formatDate(j.createdAt), j.kind, j.state, j.attemptCount ?? 0, jsonCell(j.lastError), j.state === "failed" ? `<button class="text-button" data-retry-job="${escapeHtml(j.id)}">Retry</button>` : "—"]);
-  const events = (data.providerEvents || []).map((e) => [formatDate(e.receivedAt), e.provider, e.eventType, e.status, jsonCell(e.lastError), e.status === "failed" ? `<button class="text-button" data-release-event="${escapeHtml(e.id)}">Release</button>` : "—"]);
+  const outbox = (data.outbox || []).map((j) => [formatDate(j.createdAt), j.kind, j.state, j.attemptCount ?? 0, jsonCell(j.lastError), j.state === "failed" ? htmlCell(`<button class="text-button" data-retry-job="${escapeHtml(j.id)}">Retry</button>`) : "—"]);
+  const events = (data.providerEvents || []).map((e) => [formatDate(e.receivedAt), e.provider, e.eventType, e.status, jsonCell(e.lastError), e.status === "failed" ? htmlCell(`<button class="text-button" data-release-event="${escapeHtml(e.id)}">Release</button>`) : "—"]);
   const reconciliation = (data.reconciliationRuns || []).map((r) => [formatDate(r.startedAt), r.state, r.attempted ?? 0, r.succeeded ?? 0, r.failed ?? 0, r.providerAccess || "read_only"]);
   const tokenKeys = (data.providerTokenVault?.keys || []).map((k) => [k.keyId, k.tokens]);
   const storage = data.cloudStorage;
   const cleanup = data.cloudSaveCleanup || { pending: 0, processing: 0, failed: 0 };
-  const cleanupFailures = (cleanup.failures || []).map((job) => [formatDate(job.lastAttemptAt || job.createdAt), job.id, job.attemptCount ?? 0, job.lastError, `<button class="text-button" data-retry-cleanup="${escapeHtml(job.id)}">Retry</button>`]);
+  const cleanupFailures = (cleanup.failures || []).map((job) => [formatDate(job.lastAttemptAt || job.createdAt), job.id, job.attemptCount ?? 0, job.lastError, htmlCell(`<button class="text-button" data-retry-cleanup="${escapeHtml(job.id)}">Retry</button>`)]);
   return `${pageIntro("DELIVERY CONTROL", "Every side effect is traceable.", "Webhook ingestion, asynchronous work, and read-only provider reconciliation are idempotent. Only terminal failures can be manually retried.")}
   <section class="panel"><header><div><p class="section-kicker">SUBSCRIPTION RECONCILIATION</p><h3>Missed-webhook safety</h3></div></header>${table(["Started", "State", "Checked", "Succeeded", "Failed", "Provider access"], reconciliation)}</section>
   <section class="panel spaced"><header><div><p class="section-kicker">PROVIDER TOKEN VAULT</p><h3>${Number(data.providerTokenVault?.encryptedTokens || 0).toLocaleString()} encrypted Play subscription tokens</h3></div></header><p class="panel-copy">Only key identifiers and token counts are visible here; purchase tokens and key material never leave the server vault.</p>${table(["Encryption key ID", "Tokens"], tokenKeys)}</section>
@@ -164,7 +175,7 @@ function renderOperations(data) {
 
 function renderInventory(data) {
   return `${pageIntro("KEY INVENTORY", "Know before stock runs out.", "Steam and Itch keys remain separate from mobile entitlements. Each sheet tab uses its configured low-stock threshold.")}
-  <section class="inventory-grid">${(data.summary || []).map((r) => `<article class="inventory-card ${r.lowStock ? "low" : ""}"><p>${escapeHtml(r.sheetTab)}</p><strong>${Number(r.available).toLocaleString()}</strong><span>available</span><small>${Number(r.assigned).toLocaleString()} assigned · alert at ${Number(r.lowStockThreshold).toLocaleString()}</small></article>`).join("")}</section>
+  <section class="inventory-grid">${(data.summary || []).length ? data.summary.map((r) => `<article class="inventory-card ${r.lowStock ? "low" : ""}"><p>${escapeHtml(r.sheetTab)}</p><strong>${Number(r.available).toLocaleString()}</strong><span>available</span><small>${Number(r.assigned).toLocaleString()} assigned · alert at ${Number(r.lowStockThreshold).toLocaleString()}</small></article>`).join("") : empty("No key inventory records in this environment.")}</section>
   <section class="panel"><header><div><p class="section-kicker">RECENT FULFILLMENT</p><h3>Delivered key orders</h3></div></header>${(data.recentFulfillments || []).length ? table(["When", "Order", "Keys"], data.recentFulfillments.map((r) => [formatDate(r.createdAt), r.orderId, (r.keys || []).length])) : empty("No fulfillment records in this environment.")}</section>`;
 }
 
@@ -182,7 +193,7 @@ function renderSettings(data) {
   <section class="panel spaced"><header><div><p class="section-kicker">SSO READINESS</p><h3>Google and Apple</h3></div></header><ul class="policy-list"><li>Both providers use Firebase Authentication.</li><li>Signing in never grants admin access by itself.</li><li>Google and Apple identities merge only through verified account-linking rules.</li><li>The Netlify domain must be authorized in Firebase and Apple Services ID settings.</li></ul></section>`;
 }
 
-function table(headers, rows) { if (!rows.length) return empty("No records in this environment."); return `<div class="table-wrap"><table><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${String(cell).startsWith("<") ? cell : escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }
+function table(headers, rows) { if (!rows.length) return empty("No records in this environment."); return `<div class="table-wrap"><table><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell && typeof cell === "object" && Object.hasOwn(cell, TRUSTED_HTML_CELL) ? cell[TRUSTED_HTML_CELL] : escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`; }
 function toast(message, error = false) { const node = document.querySelector("#toast"); if (!node) return; node.textContent = message; node.className = `toast show${error ? " error" : ""}`; setTimeout(() => node.classList.remove("show"), 4500); }
 
 async function api(path, options = {}) {
@@ -194,7 +205,47 @@ async function api(path, options = {}) {
   return body;
 }
 function demoApi(path, options) {
+  const method = options.method || "GET";
   if (path.includes("overview")) return demoOverview;
+  if (method === "POST" && /\/customers\/[^/]+\/grants$/.test(path)) {
+    const product = String(options.body?.product || "mobile_polyglot_permanent");
+    const id = `grant_demo_${crypto.randomUUID()}`;
+    demoCustomer.grants.unshift({
+      id,
+      provider: "admin",
+      providerTransactionId: `admin:${id}`,
+      product,
+      state: "active",
+      startsAt: new Date().toISOString(),
+      metadata: { mobilePlatform: options.body?.mobilePlatform || "android" }
+    });
+    if (!demoCustomer.effectiveProducts.includes(product)) demoCustomer.effectiveProducts.push(product);
+    addDemoAudit("grant.create", "grant", id, `Granted ${product} in the safe demo`);
+    return { id, state: "active" };
+  }
+  if (method === "POST" && /\/customers\/[^/]+\/access$/.test(path)) {
+    demoCustomer.user.disabled = Boolean(options.body?.disabled);
+    addDemoAudit("user.access.update", "user", demoCustomer.user.uid, demoCustomer.user.disabled ? "Disabled demo account" : "Enabled demo account");
+    return { disabled: demoCustomer.user.disabled };
+  }
+  if (method === "POST" && /\/customers\/[^/]+\/revoke-sessions$/.test(path)) {
+    addDemoAudit("user.sessions.revoke", "user", demoCustomer.user.uid, "Revoked demo sessions");
+    return { revoked: true };
+  }
+  if (method === "POST" && /\/customers\/[^/]+\/cancel-deletion$/.test(path)) {
+    demoCustomer.deletionRequest = null;
+    demoCustomer.user.disabled = false;
+    addDemoAudit("account.deletion.cancel", "user", demoCustomer.user.uid, "Canceled demo account deletion");
+    return { state: "canceled" };
+  }
+  if (method === "POST" && /\/grants\/[^/]+\/revoke$/.test(path)) {
+    const id = decodeURIComponent(path.split("/").at(-2) || "");
+    const grant = demoCustomer.grants.find((row) => row.id === id);
+    if (!grant || grant.provider !== "admin" || grant.state !== "active") throw new Error("Only an active demo administrator grant can be revoked.");
+    grant.state = "revoked";
+    addDemoAudit("grant.revoke", "grant", id, "Revoked demo administrator grant");
+    return { revoked: true };
+  }
   if (path.includes("customers")) return demoCustomer;
   if (path.endsWith("/catalog")) return demoCatalog;
   if (path.includes("operations")) return demoOperations;
@@ -207,17 +258,37 @@ function demoApi(path, options) {
     const unitAmount = Number(options.body?.unitAmount);
     return {
       previewId: crypto.randomUUID(),
+      kind,
+      unitAmount,
+      currency,
       confirmationPhrase: `CHANGE ${kind.toUpperCase()} TO ${majorAmount(currency, unitAmount)} ${currency}`,
       warning: "Existing subscribers keep their current price."
     };
   }
-  if (path.includes("price-commit")) return demoConfirmed(options, state.previews.price);
+  if (path.includes("price-commit")) {
+    const preview = demoConfirmed(options, state.previews.price);
+    const kind = preview.kind;
+    if (!demoCatalog[kind]) throw new Error("Unknown demo catalog offer.");
+    demoCatalog.regionalPrices[kind][preview.currency] = majorAmount(preview.currency, preview.unitAmount);
+    demoCatalog[kind] = {
+      ...demoCatalog[kind],
+      unitAmount: minorAmount("USD", demoCatalog.regionalPrices[kind].USD),
+      currency: "USD",
+      stripePriceId: `price_demo_${crypto.randomUUID()}`
+    };
+    demoCatalog.revision += 1;
+    addDemoAudit("catalog.price.change", "catalog", kind, `Changed demo ${kind} price for new checkouts`);
+    return demoCatalog[kind];
+  }
   if (path.includes("refunds/preview")) {
     const requestedAmount = Number(options.body?.amount);
     const refundableAmount = demoCustomer.payments[0].refundableAmount;
     const amount = Number.isSafeInteger(requestedAmount) && requestedAmount > 0 ? requestedAmount : refundableAmount;
     return {
       previewId: crypto.randomUUID(),
+      paymentIntentId: demoCustomer.payments[0].id,
+      amount,
+      currency: "USD",
       confirmationPhrase: `REFUND ${(amount / 100).toFixed(2)} USD`,
       warnings: [
         "A refund does not cancel an active subscription.",
@@ -225,16 +296,62 @@ function demoApi(path, options) {
       ]
     };
   }
-  if (path.includes("refunds/commit")) return demoConfirmed(options, state.previews.refund);
+  if (path.includes("refunds/commit")) {
+    const preview = demoConfirmed(options, state.previews.refund);
+    const payment = demoCustomer.payments.find((row) => row.id === preview.paymentIntentId);
+    if (!payment) throw new Error("Demo payment no longer exists.");
+    payment.amountRefunded += preview.amount;
+    payment.refundableAmount = Math.max(0, payment.amountReceived - payment.amountRefunded);
+    payment.status = payment.refundableAmount ? "partially_refunded" : "refunded";
+    addDemoAudit("stripe.refund.create", "paymentIntent", payment.id, `Refunded ${majorAmount(payment.currency, preview.amount)} ${payment.currency} in the safe demo`);
+    return { refundId: `re_demo_${crypto.randomUUID()}`, status: "succeeded", amount: preview.amount, currency: preview.currency };
+  }
   if (path.includes("imports/preview")) return { previewId: crypto.randomUUID(), confirmationPhrase: "IMPORT 1 RECORD", summary: { records: 1, existingAccounts: 0, pendingFirstSignIn: 1, entitlements: 1, discounts: 0 }, rows: options.body?.rows || [], warnings: ["Unknown emails wait for verified first sign-in."] };
-  if (path.includes("imports/commit")) return demoConfirmed(options, state.previews.import);
+  if (path.includes("imports/commit")) {
+    const preview = demoConfirmed(options, state.previews.import);
+    addDemoAudit("import.commit", "import", preview.previewId, "Applied one fictional import row in the safe demo");
+    return { imported: preview.summary?.records || 1 };
+  }
+  if (method === "POST" && /\/outbox\/[^/]+\/retry$/.test(path)) {
+    const id = decodeURIComponent(path.split("/").at(-2) || "");
+    const job = demoOperations.outbox.find((row) => row.id === id);
+    if (!job || job.state !== "failed") throw new Error("Only a failed demo job can be retried.");
+    job.state = "pending";
+    job.attemptCount = 0;
+    job.lastError = null;
+    addDemoAudit("outbox.retry", "outbox", id, "Queued demo job for retry");
+    return { queued: true };
+  }
+  if (method === "POST" && /\/cloud-save-cleanup\/[^/]+\/retry$/.test(path)) {
+    const id = decodeURIComponent(path.split("/").at(-2) || "");
+    const job = demoOperations.cloudSaveCleanup.failures.find((row) => row.id === id);
+    if (!job) throw new Error("Demo cleanup failure no longer exists.");
+    demoOperations.cloudSaveCleanup.failures = demoOperations.cloudSaveCleanup.failures.filter((row) => row.id !== id);
+    demoOperations.cloudSaveCleanup.failed = Math.max(0, demoOperations.cloudSaveCleanup.failed - 1);
+    demoOperations.cloudSaveCleanup.pending += 1;
+    addDemoAudit("cloud_save_cleanup.retry", "cloudSaveCleanupJob", id, "Queued demo cleanup for retry");
+    return { queued: true };
+  }
+  if (method === "POST" && /\/provider-events\/[^/]+\/release$/.test(path)) {
+    const id = decodeURIComponent(path.split("/").at(-2) || "");
+    const event = demoOperations.providerEvents.find((row) => row.id === id);
+    if (!event || event.status !== "failed") throw new Error("Only a failed demo event can be released.");
+    event.status = "released";
+    event.lastError = null;
+    addDemoAudit("provider_event.release", "providerEvent", id, "Released demo provider event");
+    return { released: true };
+  }
   return { ok: true };
 }
 
 function demoConfirmed(options, preview) {
   if (!preview || options.body?.previewId !== preview.previewId) throw new Error("Preview expired. Create a fresh preview.");
   if (options.body?.confirmationPhrase !== preview.confirmationPhrase) throw new Error("Confirmation phrase does not match.");
-  return { ok: true };
+  return preview;
+}
+
+function addDemoAudit(action, targetType, targetId, summary) {
+  demoAudit.entries.unshift({ id: `audit_demo_${crypto.randomUUID()}`, actorEmail: state.user.email, action, targetType, targetId, summary, createdAt: new Date().toISOString() });
 }
 
 async function loadView(view) {
