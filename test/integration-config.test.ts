@@ -334,8 +334,22 @@ describe("isolated integration configuration", () => {
     expect(manager).toContain("FirebaseAuth.getInstance(entitlementFirebaseApp)");
     expect(manager).toContain("R.string.wonderlang_entitlements_google_web_client_id");
     expect(manager).not.toContain("R.string.default_web_client_id");
-    expect(entitlementFirebase).toContain("wonderlang-accounts");
-    expect(entitlementFirebase).toContain("apps.googleusercontent.com");
+    expect(entitlementFirebase).toContain(
+      '<string name="wonderlang_entitlements_app_id" translatable="false">1:1034814537215:android:17850f5b3a3c8b950cbbca</string>',
+    );
+    expect(entitlementFirebase).toContain(
+      '<string name="wonderlang_entitlements_project_id" translatable="false">wonderlang-accounts</string>',
+    );
+    expect(entitlementFirebase).toContain(
+      '<string name="wonderlang_entitlements_storage_bucket" translatable="false">wonderlang-accounts.firebasestorage.app</string>',
+    );
+    expect(entitlementFirebase).toContain(
+      '<string name="wonderlang_entitlements_sender_id" translatable="false">1034814537215</string>',
+    );
+    expect(entitlementFirebase).toContain(
+      '<string name="wonderlang_entitlements_google_web_client_id" translatable="false">1034814537215-c3snotedo93dj91faf1e7bed3k4984r5.apps.googleusercontent.com</string>',
+    );
+    expect(entitlementFirebase).not.toContain("wonderlang-entitlements-9590f");
     expect(entitlementFirebase).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
     expect(gradle).toContain('environmentVariable("WONDERLANG_ENTITLEMENTS_FIREBASE_API_KEY")');
     expect(gradle).toContain("resValues = true");
