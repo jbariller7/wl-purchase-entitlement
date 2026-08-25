@@ -190,4 +190,11 @@ describe("administrator interface route contract", () => {
     expect(admin).not.toContain('<option value="legacy_mobile_full">');
     expect(admin).toContain("Historical chapter purchases completed by");
   });
+
+  it("keeps safe-demo effective access synchronized with grant creation, revocation, and Premium requests", () => {
+    expect(admin).toContain("function syncDemoCustomerEntitlements()");
+    expect(admin.match(/syncDemoCustomerEntitlements\(\);/g)).toHaveLength(3);
+    expect(admin).toContain("demoCustomer.effectiveProducts = [...new Set(active.map((grant) => grant.product))]");
+    expect(admin).toContain('accessKind: premiumLifetime ? "premium_lifetime" : permanent ? "permanent" : subscription ? "subscription" : "none"');
+  });
 });

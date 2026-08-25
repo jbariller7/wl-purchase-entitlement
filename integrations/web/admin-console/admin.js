@@ -48,6 +48,51 @@ const demoCustomer = {
   deletionRequest: null,
   secondMobilePlatformRequest: demoSecondPlatformRequest
 };
+
+function syncDemoCustomerEntitlements() {
+  const active = demoCustomer.grants.filter((grant) => grant.state === "active" || grant.state === "grace");
+  const permanentMobilePlatforms = new Set();
+  const mobilePlatforms = new Set();
+  let premiumLifetime = false;
+  let permanent = false;
+  let subscription = false;
+  let subscriptionInGrace = false;
+
+  for (const grant of active) {
+    const platform = grant.metadata?.mobilePlatform ?? grant.metadata?.primaryMobilePlatform ??
+      (grant.provider === "google_play" ? "android" : grant.provider === "apple" ? "ios" : null);
+    if (grant.product === "premium_lifetime_pass" || grant.product === "mobile_full_lifetime") {
+      premiumLifetime = true;
+      if (platform) permanentMobilePlatforms.add(platform);
+    } else if (grant.product === "mobile_polyglot_permanent" || grant.product === "legacy_mobile_full") {
+      permanent = true;
+      if (platform) permanentMobilePlatforms.add(platform);
+    } else if (grant.product === "mobile_full_monthly") {
+      subscription = true;
+      subscriptionInGrace ||= grant.state === "grace";
+    }
+  }
+
+  permanentMobilePlatforms.forEach((platform) => mobilePlatforms.add(platform));
+  if (subscription) {
+    mobilePlatforms.add("android");
+    mobilePlatforms.add("ios");
+  }
+  demoCustomer.effectiveProducts = [...new Set(active.map((grant) => grant.product))];
+  demoCustomer.entitlements = {
+    ...demoCustomer.entitlements,
+    accessKind: premiumLifetime ? "premium_lifetime" : permanent ? "permanent" : subscription ? "subscription" : "none",
+    cloudSave: premiumLifetime || subscription,
+    mobilePlatforms: [...mobilePlatforms].sort(),
+    permanentMobilePlatforms: [...permanentMobilePlatforms].sort(),
+    pcMacAccess: premiumLifetime,
+    futureContent: premiumLifetime,
+    premiumLifetime,
+    secondMobilePlatformEligible: premiumLifetime,
+    subscriptionState: subscription ? (subscriptionInGrace ? "grace" : "active") : "inactive",
+    sourceGrantIds: active.map((grant) => grant.id)
+  };
+}
 const demoCatalog = {
   revision: 3,
   monthly: { stripePriceId: "price_test_monthly", unitAmount: 699, currency: "USD", recurring: true },
@@ -262,9 +307,6 @@ function demoApi(path, options) {
     demoSecondPlatformRequest.approvalLeaseUntil = null;
     if (decision === "approve") {
       const platform = demoSecondPlatformRequest.requestedPlatform;
-      if (!demoCustomer.entitlements.permanentMobilePlatforms.includes(platform)) demoCustomer.entitlements.permanentMobilePlatforms.push(platform);
-      if (!demoCustomer.entitlements.mobilePlatforms.includes(platform)) demoCustomer.entitlements.mobilePlatforms.push(platform);
-      if (!demoCustomer.effectiveProducts.includes("mobile_polyglot_permanent")) demoCustomer.effectiveProducts.push("mobile_polyglot_permanent");
       const grantId = `grant_demo_premium_second_${platform}`;
       if (!demoCustomer.grants.some((grant) => grant.id === grantId)) {
         demoCustomer.grants.unshift({
@@ -277,6 +319,7 @@ function demoApi(path, options) {
           metadata: { mobilePlatform: platform, premiumSecondPlatformRequest: true }
         });
       }
+      syncDemoCustomerEntitlements();
       addDemoAudit("second_platform_request.approve", "secondPlatformRequest", uid, `Approved fictional ${platform} permanent access in the safe demo`);
     } else {
       addDemoAudit("second_platform_request.decline", "secondPlatformRequest", uid, "Declined the fictional Premium request in the safe demo");
@@ -295,7 +338,7 @@ function demoApi(path, options) {
       startsAt: new Date().toISOString(),
       metadata: { mobilePlatform: options.body?.mobilePlatform || "android" }
     });
-    if (!demoCustomer.effectiveProducts.includes(product)) demoCustomer.effectiveProducts.push(product);
+    syncDemoCustomerEntitlements();
     addDemoAudit("grant.create", "grant", id, `Granted ${product} in the safe demo`);
     return { id, state: "active" };
   }
@@ -319,6 +362,7 @@ function demoApi(path, options) {
     const grant = demoCustomer.grants.find((row) => row.id === id);
     if (!grant || grant.provider !== "admin" || grant.state !== "active") throw new Error("Only an active demo administrator grant can be revoked.");
     grant.state = "revoked";
+    syncDemoCustomerEntitlements();
     addDemoAudit("grant.revoke", "grant", id, "Revoked demo administrator grant");
     return { revoked: true };
   }
