@@ -167,6 +167,14 @@ describe("isolated integration configuration", () => {
     expect(worker).not.toMatch(/cancel|refund|acknowledge/i);
   });
 
+  it("keeps Android Publisher credentials separate from Firebase Admin", () => {
+    const play = read("src/providers/google-play/service.ts");
+    expect(play).toContain("GOOGLE_SERVICE_ACCOUNT_EMAIL");
+    expect(play).toContain("GOOGLE_PRIVATE_KEY");
+    expect(play).not.toContain("client_email: env().FIREBASE_CLIENT_EMAIL");
+    expect(play).not.toContain("private_key: normalizeGoogleServiceAccountPrivateKey(env().FIREBASE_PRIVATE_KEY)");
+  });
+
   it("requests the verified Apple identity fields used for secure account linking", () => {
     const widget = read("integrations/web/account-widget/wonderlang-account.js");
     expect(widget).toContain('new OAuthProvider("apple.com")');

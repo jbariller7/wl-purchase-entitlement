@@ -52,6 +52,8 @@ const schema = controlsSchema.extend({
   TIKTOK_PIXEL_ID: z.string().optional(),
   TIKTOK_ACCESS_TOKEN: z.string().optional(),
   TIKTOK_TEST_EVENT_CODE: z.string().optional(),
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
+  GOOGLE_PRIVATE_KEY: z.string().optional(),
   GOOGLE_PLAY_PACKAGE_NAME: z.string().optional().default("com.wonderlang.app"),
   GOOGLE_PLAY_MONTHLY_PRODUCT_ID: z.string().optional().default("wonderlangmonthly"),
   GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: z.string().optional().default("wonderlangfull"),

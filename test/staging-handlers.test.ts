@@ -164,10 +164,26 @@ describe("staging function boundaries", () => {
     expect(body).toMatchObject({
       safeMode: true,
       controls: { LEGACY_FULFILLMENT_ENABLED: false, OUTBOX_PROCESSING_ENABLED: false },
-      configuration: { legacyFulfillment: true }
+      configuration: { legacyFulfillment: true, googlePlay: false }
     });
     const worker = await outboxHandler(event(), {} as never);
     expect(JSON.parse(String(worker?.body))).toEqual({ processed: 0, failed: 0 });
+  });
+
+  it("requires Play-authorized credentials and RTDN configuration before reporting Google Play ready", async () => {
+    Object.assign(process.env, {
+      GOOGLE_SERVICE_ACCOUNT_EMAIL: "play-verifier@example.iam.gserviceaccount.com",
+      GOOGLE_PRIVATE_KEY: "test-play-private-key",
+      GOOGLE_PLAY_PACKAGE_NAME: "com.wonderlang.app",
+      GOOGLE_PLAY_RTDN_AUDIENCE: "https://test.example.com/webhooks/google-play",
+      GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: "rtdn-push@example.iam.gserviceaccount.com"
+    });
+    const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
+    expect(JSON.parse(String(health?.body))).toMatchObject({
+      safeMode: true,
+      controls: { GOOGLE_PLAY_WEBHOOKS_ENABLED: false },
+      configuration: { googlePlay: true, legacyFulfillment: false }
+    });
   });
 
   it("returns a clean configuration gate while account dependencies are absent", async () => {

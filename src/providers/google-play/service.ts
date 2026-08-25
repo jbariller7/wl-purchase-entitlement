@@ -13,10 +13,14 @@ let publisher: androidpublisher_v3.Androidpublisher | undefined;
 
 async function androidPublisher(): Promise<androidpublisher_v3.Androidpublisher> {
   if (publisher) return publisher;
+  const configuration = env();
+  if (!configuration.GOOGLE_SERVICE_ACCOUNT_EMAIL || !configuration.GOOGLE_PRIVATE_KEY) {
+    throw new Error("Google Play service account is not configured.");
+  }
   const auth = new google.auth.GoogleAuth({
     credentials: {
-      client_email: env().FIREBASE_CLIENT_EMAIL,
-      private_key: normalizeGoogleServiceAccountPrivateKey(env().FIREBASE_PRIVATE_KEY)
+      client_email: configuration.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      private_key: normalizeGoogleServiceAccountPrivateKey(configuration.GOOGLE_PRIVATE_KEY)
     },
     scopes: ["https://www.googleapis.com/auth/androidpublisher"]
   });
