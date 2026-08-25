@@ -30,6 +30,14 @@ const firebaseAdminSchema = z.object({
   FIREBASE_STORAGE_BUCKET: z.string().min(1)
 });
 
+const firebaseAuthDiagnosticSchema = firebaseAdminSchema.extend({
+  FIREBASE_AUTH_DOMAIN: z.string().min(1),
+  PUBLIC_APP_ORIGIN: z.string().url(),
+  FIREBASE_APPLE_SERVICE_ID: z.string().min(1).default("com.wonderlang.account"),
+  FIREBASE_APPLE_BUNDLE_ID: z.string().min(1).default("com.wonderlang.app"),
+  FIREBASE_REQUIRED_AUTHORIZED_DOMAINS: z.string().min(1).default('["wonderlang-accounts.firebaseapp.com","wl-purchase-entitlement.netlify.app","wonderlang.net","www.wonderlang.net"]')
+});
+
 const googlePlaySchema = z.object({
   GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email(),
   GOOGLE_PRIVATE_KEY: z.string().min(1),
@@ -146,6 +154,7 @@ const schema = controlsSchema.extend({
 export type Environment = z.infer<typeof schema>;
 export type DeploymentControls = z.infer<typeof controlsSchema>;
 export type FirebaseAdminEnvironment = z.infer<typeof firebaseAdminSchema>;
+export type FirebaseAuthDiagnosticEnvironment = z.infer<typeof firebaseAuthDiagnosticSchema>;
 export type GooglePlayEnvironment = z.infer<typeof googlePlaySchema>;
 export type ProviderTokenEncryptionEnvironment = z.infer<typeof providerTokenEncryptionSchema>;
 export type StripeEnvironment = z.infer<typeof stripeSchema>;
@@ -156,6 +165,7 @@ export type CloudStorageMonitoringEnvironment = z.infer<typeof cloudStorageMonit
 let cached: Environment | undefined;
 let cachedControls: DeploymentControls | undefined;
 let cachedFirebaseAdmin: FirebaseAdminEnvironment | undefined;
+let cachedFirebaseAuthDiagnostic: FirebaseAuthDiagnosticEnvironment | undefined;
 let cachedGooglePlay: GooglePlayEnvironment | undefined;
 let cachedProviderTokenEncryption: ProviderTokenEncryptionEnvironment | undefined;
 let cachedStripe: StripeEnvironment | undefined;
@@ -198,6 +208,18 @@ export function firebaseAdminEnv(): FirebaseAdminEnvironment {
     cachedFirebaseAdmin = parsed.data;
   }
   return cachedFirebaseAdmin;
+}
+
+export function firebaseAuthDiagnosticEnv(): FirebaseAuthDiagnosticEnvironment {
+  if (!cachedFirebaseAuthDiagnostic) {
+    const parsed = firebaseAuthDiagnosticSchema.safeParse(process.env);
+    if (!parsed.success) {
+      const names = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+      throw new Error(`Missing or invalid Firebase Authentication diagnostic configuration: ${names}`);
+    }
+    cachedFirebaseAuthDiagnostic = parsed.data;
+  }
+  return cachedFirebaseAuthDiagnostic;
 }
 
 export function googlePlayEnv(): GooglePlayEnvironment {
@@ -304,6 +326,7 @@ export function resetEnvironmentForTests(): void {
   cached = undefined;
   cachedControls = undefined;
   cachedFirebaseAdmin = undefined;
+  cachedFirebaseAuthDiagnostic = undefined;
   cachedGooglePlay = undefined;
   cachedProviderTokenEncryption = undefined;
   cachedStripe = undefined;

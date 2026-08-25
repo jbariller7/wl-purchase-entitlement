@@ -1,5 +1,6 @@
 import { CatalogService } from "../catalog/service.js";
-import { deploymentControls, googlePlayEnv, stripeEnv } from "../config/env.js";
+import { deploymentControls, firebaseAuthDiagnosticEnv, googlePlayEnv, stripeEnv } from "../config/env.js";
+import { createFirebaseAuthenticationConfigurationReader, diagnoseFirebaseAuthentication } from "../providers/firebase-auth/configuration-diagnostic.js";
 import { createGooglePlayCatalogReader, diagnoseGooglePlayCatalog } from "../providers/google-play/catalog-diagnostic.js";
 import { diagnoseStripeCatalog } from "../providers/stripe/catalog-diagnostic.js";
 import { stripeClient } from "../providers/stripe/client.js";
@@ -27,6 +28,15 @@ export class AdminProviderDiagnosticService {
       reader: createGooglePlayCatalogReader(environment),
       environment,
       controls: deploymentControls(),
+      now
+    }) as unknown as Record<string, unknown>;
+  }
+
+  async firebaseAuthentication(now: Date): Promise<Record<string, unknown>> {
+    const environment = firebaseAuthDiagnosticEnv();
+    return diagnoseFirebaseAuthentication({
+      reader: createFirebaseAuthenticationConfigurationReader(environment),
+      environment,
       now
     }) as unknown as Record<string, unknown>;
   }

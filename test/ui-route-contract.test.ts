@@ -113,6 +113,7 @@ describe("administrator interface route contract", () => {
       "[data-release-event]",
       "[data-run-stripe-diagnostic]",
       "[data-run-google-play-diagnostic]",
+      "[data-run-firebase-auth-diagnostic]",
       "[data-provider=\"google\"]",
       "[data-provider=\"apple\"]"
     ]) expect(admin).toContain(selector);
@@ -135,6 +136,7 @@ describe("administrator interface route contract", () => {
       ["/admin-api/v1/catalog", 'path === "/v1/catalog"'],
       ["/admin-api/v1/diagnostics/stripe-catalog", 'path === "/v1/diagnostics/stripe-catalog"'],
       ["/admin-api/v1/diagnostics/google-play-catalog", 'path === "/v1/diagnostics/google-play-catalog"'],
+      ["/admin-api/v1/diagnostics/firebase-authentication", 'path === "/v1/diagnostics/firebase-authentication"'],
       ["/admin-api/v1/catalog/price-preview", 'path === "/v1/catalog/price-preview"'],
       ["/admin-api/v1/catalog/price-commit", 'path === "/v1/catalog/price-commit"'],
       ["/admin-api/v1/refunds/preview", 'path === "/v1/refunds/preview"'],

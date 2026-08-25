@@ -191,6 +191,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (event.httpMethod === "GET" && path === "/v1/diagnostics/google-play-catalog") {
     return json(200, await diagnostics.googlePlayCatalog(now));
   }
+  if (event.httpMethod === "GET" && path === "/v1/diagnostics/firebase-authentication") {
+    return json(200, await diagnostics.firebaseAuthentication(now));
+  }
   if (event.httpMethod === "POST" && path === "/v1/catalog/price-preview") {
     return json(200, await billing.previewPriceChange({ actor, ...body(pricePreviewSchema, event), now }));
   }

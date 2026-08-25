@@ -1,6 +1,6 @@
 # Full-goal completion audit
 
-Last audited: 2026-08-25. A status of **implemented** means current source plus focused automated tests prove the behavior. It does not replace a provider, browser, store-sandbox, or physical-device acceptance test where one is required.
+Last audited: 2026-08-26. A status of **implemented** means current source plus focused automated tests prove the behavior. It does not replace a provider, browser, store-sandbox, or physical-device acceptance test where one is required.
 
 ## Implemented and locally verified
 
@@ -13,14 +13,14 @@ Last audited: 2026-08-25. A status of **implemented** means current source plus 
 | Monthly, platform-scoped Polyglot and website-only Premium commercial rules | Catalog/domain policy and crafted-checkout rejection tests. Historical chapter migration preserves the original Android/iOS platform. |
 | Versioned cross-platform cloud saves | Slots `save0`–`save20`, SHA-256/size checks, immutable revisions, current-plus-three retention, 409 conflict preservation, offline retry integration and cleanup queue tests. |
 | Real customer account interface | Deployed `/account/` routes and executable client-to-API contracts for every action; the safe demo and one real Google account have been exercised. |
-| Real administrator console | Deployed `/admin/` sections for customers, entitlements, requests, refunds, prices, imports, operations, inventory, saves, audit and settings; every operation family has executable route contracts and safe-demo state transitions. Settings includes protected, read-only Stripe and Google Play catalog diagnostics that never return credentials, acknowledge purchases or create/change provider objects. |
+| Real administrator console | Deployed `/admin/` sections for customers, entitlements, requests, refunds, prices, imports, operations, inventory, saves, audit and settings; every operation family has executable route contracts and safe-demo state transitions. Settings includes protected, read-only Stripe, Google Play and Firebase Authentication diagnostics that never return credentials, acknowledge purchases or create/change provider objects. |
 | Legacy key fulfillment, MailerLite and advertising integration | Transactional key allocation, deduplicated outbox, Google Sheets/MailerLite adapters and Meta/TikTok senders with privacy and duplicate-event tests. All live side effects remain disabled. |
 | Android integration | Maintained mirror plus synchronized authoritative Android files, named Firebase account app, Billing bridge, backend verification, App Links, App Check plumbing, restore logic and `buy-polyglot-permanent`; Kotlin and JavaScript builds/checks pass. |
 | PC/Mac and RPG Maker MZ integration | Device-code bridge, Firebase token exchange/refresh/revocation, local-first cloud-save plugin and guarded real-NW.js staging harness. |
 | iOS integration source | Reviewed StoreKit 2 adapter with `appAccountToken`, JWS claim and restore behavior. The real Xcode integration cannot be completed until the project is supplied. |
 | Security baseline | Test-key enforcement, disabled-by-default side effects, deny-by-default Firestore/Storage rules, origin/rate-limit/App Check verification, encrypted provider tokens, redacted outbox payloads and audited admin actions. |
 
-Current verification run: 230 ordinary unit/integration/contract tests passed, 13 isolated Firestore/Storage emulator tests passed, and the production TypeScript/widget build passed.
+Current verification run: 233 ordinary unit/integration/contract tests passed, 13 isolated Firestore/Storage emulator tests passed, and the production TypeScript/widget build passed.
 
 ## Configured externally but still gated
 
@@ -35,7 +35,7 @@ Current verification run: 230 ordinary unit/integration/contract tests passed, 1
 1. Create/download one usable replacement Sign in with Apple key, save it in Firebase Authentication, and run real Apple web login. The two unrecoverable keys were revoked after exact-ID verification on 2026-08-25.
 2. Create a separate App Store Connect Server API key, install its issuer/key/private-key credentials in Netlify, configure Notifications V2, and run Apple Sandbox purchase, renewal, grace, expiration, refund and restore tests.
 3. Run the protected read-only Stripe catalog diagnostic with a real administrator, then exercise Checkout, Portal, webhook replay, refund, dispute and subscriber-to-Premium cancellation ordering through the controlled canary before leaving either Stripe processing switch enabled.
-4. Grant one verified Firebase user the audited admin claim, immediately disable bootstrap again, and exercise the real protected administrator routes.
+4. Grant one verified Firebase user the audited admin claim, immediately disable bootstrap again, and exercise the real protected administrator routes, including the Firebase Authentication configuration diagnostic.
 5. Run the protected read-only Google Play catalog diagnostic with a real administrator, resolve the blocked Monthly base plan/trial it reports, then run a Play internal-track license-tester matrix for Monthly, Polyglot, pending/cancel/refund/grace/restore and backend acknowledgment.
 6. Run the complete physical-device Android tap/scroll/double-tap matrix and installed passwordless-email App Link test.
 7. Enable PC/Mac device-sign-in only in staging and perform the real game → browser approval → game token exchange, refresh and all-device revocation test.
