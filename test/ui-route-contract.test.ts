@@ -24,6 +24,7 @@ describe("customer interface route contract", () => {
       ["/api/v1/me", 'path === "/v1/me"'],
       ["/api/v1/device-sign-in/preview", 'path === "/v1/device-sign-in/preview"'],
       ["/api/v1/device-sign-in/approve", 'path === "/v1/device-sign-in/approve"'],
+      ["/api/v1/admin-bootstrap", 'path === "/v1/admin-bootstrap"'],
       ["/api/v1/checkout", 'path === "/v1/checkout"'],
       ["/api/v1/billing-portal", 'path === "/v1/billing-portal"'],
       ["/api/v1/legacy/claim", 'path === "/v1/legacy/claim"'],

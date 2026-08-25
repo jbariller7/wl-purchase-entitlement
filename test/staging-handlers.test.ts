@@ -70,7 +70,8 @@ beforeEach(() => {
     CLOUD_STORAGE_MONITORING_ENABLED: "false",
     CLOUD_SAVE_CLEANUP_ENABLED: "false",
     DEVICE_SIGN_IN_ENABLED: "false",
-    DEVICE_SIGN_IN_CLEANUP_ENABLED: "false"
+    DEVICE_SIGN_IN_CLEANUP_ENABLED: "false",
+    ADMIN_BOOTSTRAP_ENABLED: "false"
   });
   resetEnvironmentForTests();
 });

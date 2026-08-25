@@ -28,6 +28,7 @@ import {
   requireCurrentDeviceSessionGeneration
 } from "../../src/device-sign-in/service.js";
 import { SecondPlatformRequestService } from "../../src/premium/second-platform-request-service.js";
+import { AdminBootstrapService } from "../../src/admin/bootstrap-service.js";
 
 export const config: Config = {
   rateLimit: { windowSize: 60, windowLimit: 240, aggregateBy: ["domain", "ip"] }
@@ -51,6 +52,7 @@ const devicePollSchema = z.object({
   pollSecret: z.string().regex(/^[A-Za-z0-9_-]{43}$/)
 });
 const deviceApprovalSchema = z.object({ userCode: z.string().trim().min(8).max(9) });
+const adminBootstrapSchema = z.object({ confirmationPhrase: z.string().trim().min(1).max(320) });
 
 function routePath(event: HandlerEvent): string {
   return event.path
@@ -126,6 +128,7 @@ function userRateLimitPolicy(method: string, path: string): RateLimitPolicy {
   if (path === "/v1/legacy/claim") return { action: "legacy-claim", limit: 10, windowSeconds: 60 * 60 };
   if (path === "/v1/google-play/claim" || path === "/v1/apple/claim") return { action: "store-claim", limit: 30, windowSeconds: 10 * 60 };
   if (path === "/v1/me/revoke-sessions" || path.startsWith("/v1/me/deletion-")) return { action: "account-security", limit: 10, windowSeconds: 10 * 60 };
+  if (path === "/v1/admin-bootstrap") return { action: "admin-bootstrap", limit: 3, windowSeconds: 60 * 60 };
   if (path.startsWith("/v1/me/second-platform-request")) return { action: "second-platform-request", limit: 6, windowSeconds: 60 * 60 };
   if (path.includes("/cloud-saves")) {
     return method === "GET"
@@ -158,6 +161,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       accountApiReady: Boolean(runtime),
       checkoutEnabled: Boolean(runtime?.STRIPE_MUTATIONS_ENABLED),
       appCheckEnforced: Boolean(runtime?.APP_CHECK_ENFORCEMENT_ENABLED),
+      adminBootstrapEnabled: deploymentControls().ADMIN_BOOTSTRAP_ENABLED,
       firebase: {
         apiKey: publicFirebase.apiKey,
         authDomain: publicFirebase.authDomain,
@@ -240,6 +244,20 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     policy: userRateLimitPolicy(event.httpMethod, path),
     now
   });
+
+  if (event.httpMethod === "POST" && path === "/v1/admin-bootstrap") {
+    if (!deploymentControls().ADMIN_BOOTSTRAP_ENABLED) throw new HttpError(503, "Initial administrator bootstrap is disabled.");
+    const configuredEmail = z.string().email().safeParse(process.env.ADMIN_BOOTSTRAP_EMAIL);
+    if (!configuredEmail.success) throw new HttpError(503, "Initial administrator bootstrap is not configured.");
+    const parsed = adminBootstrapSchema.safeParse(parseJsonBody(event.body));
+    if (!parsed.success) throw new HttpError(400, "Enter the exact administrator confirmation phrase.");
+    return json(200, await new AdminBootstrapService(firebaseAuth(), db).grant({
+      actor: user,
+      configuredEmail: configuredEmail.data,
+      confirmationPhrase: parsed.data.confirmationPhrase,
+      now
+    }));
+  }
 
   if (path.startsWith("/v1/device-sign-in/")) {
     if (!deploymentControls().DEVICE_SIGN_IN_ENABLED) throw new HttpError(503, "PC/Mac device sign-in is disabled in this deployment.");

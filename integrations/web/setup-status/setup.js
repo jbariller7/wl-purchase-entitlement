@@ -27,7 +27,8 @@ const controlLabels = {
   CLOUD_STORAGE_MONITORING_ENABLED: "Cloud storage monitoring",
   CLOUD_SAVE_CLEANUP_ENABLED: "Cloud-save revision cleanup",
   DEVICE_SIGN_IN_ENABLED: "PC/Mac device sign-in",
-  DEVICE_SIGN_IN_CLEANUP_ENABLED: "Expired device-code cleanup"
+  DEVICE_SIGN_IN_CLEANUP_ENABLED: "Expired device-code cleanup",
+  ADMIN_BOOTSTRAP_ENABLED: "Initial admin bootstrap"
 };
 
 function escapeHtml(value) {

@@ -31,7 +31,7 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     body: JSON.stringify({
       status: readyForAccountTesting ? "ready_for_account_testing" : "configuration_required",
       environment: controls.APP_ENVIRONMENT,
-      safeMode: !controls.STRIPE_WEBHOOKS_ENABLED && !controls.GOOGLE_PLAY_WEBHOOKS_ENABLED && !controls.APPLE_WEBHOOKS_ENABLED && !controls.OUTBOX_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED && !controls.LEGACY_FULFILLMENT_ENABLED && !controls.SUBSCRIPTION_CANCELLATION_ENABLED && !controls.ACCOUNT_DELETION_PROCESSING_ENABLED && !controls.STRIPE_MUTATIONS_ENABLED && !controls.SUBSCRIPTION_RECONCILIATION_ENABLED && !controls.CLOUD_STORAGE_MONITORING_ENABLED && !controls.CLOUD_SAVE_CLEANUP_ENABLED && !controls.DEVICE_SIGN_IN_ENABLED && !controls.DEVICE_SIGN_IN_CLEANUP_ENABLED,
+      safeMode: !controls.STRIPE_WEBHOOKS_ENABLED && !controls.GOOGLE_PLAY_WEBHOOKS_ENABLED && !controls.APPLE_WEBHOOKS_ENABLED && !controls.OUTBOX_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED && !controls.LEGACY_FULFILLMENT_ENABLED && !controls.SUBSCRIPTION_CANCELLATION_ENABLED && !controls.ACCOUNT_DELETION_PROCESSING_ENABLED && !controls.STRIPE_MUTATIONS_ENABLED && !controls.SUBSCRIPTION_RECONCILIATION_ENABLED && !controls.CLOUD_STORAGE_MONITORING_ENABLED && !controls.CLOUD_SAVE_CLEANUP_ENABLED && !controls.DEVICE_SIGN_IN_ENABLED && !controls.DEVICE_SIGN_IN_CLEANUP_ENABLED && !controls.ADMIN_BOOTSTRAP_ENABLED,
       controls,
       configuration,
       deploy: process.env.COMMIT_REF?.slice(0, 12) ?? null

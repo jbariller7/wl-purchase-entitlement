@@ -19,7 +19,8 @@ const controlsSchema = z.object({
   CLOUD_STORAGE_MONITORING_ENABLED: disabledByDefault,
   CLOUD_SAVE_CLEANUP_ENABLED: disabledByDefault,
   DEVICE_SIGN_IN_ENABLED: disabledByDefault,
-  DEVICE_SIGN_IN_CLEANUP_ENABLED: disabledByDefault
+  DEVICE_SIGN_IN_CLEANUP_ENABLED: disabledByDefault,
+  ADMIN_BOOTSTRAP_ENABLED: disabledByDefault
 });
 
 const schema = controlsSchema.extend({
@@ -29,6 +30,7 @@ const schema = controlsSchema.extend({
   FIREBASE_STORAGE_BUCKET: z.string().min(1),
   FIREBASE_WEB_API_KEY: z.string().min(1),
   FIREBASE_AUTH_DOMAIN: z.string().min(1),
+  ADMIN_BOOTSTRAP_EMAIL: z.string().email().optional(),
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
   STRIPE_PRICE_MOBILE_MONTHLY: z.string().min(1),

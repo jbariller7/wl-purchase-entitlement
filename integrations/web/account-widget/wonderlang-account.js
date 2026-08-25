@@ -59,6 +59,11 @@ const html = `
     </div>
 
     <div class="wl-signed-in" hidden>
+      <section class="wl-second-platform-request wl-admin-bootstrap" data-section="admin-bootstrap" hidden>
+        <div><p class="wl-eyebrow">SECURE INITIAL SETUP</p><h3>Grant this verified owner administrator access</h3></div>
+        <p>This one-time operation is available only while the server bootstrap switch is enabled. It accepts only the configured verified Google account, records an audit entry, and signs this browser out after granting access.</p>
+        <button type="button" data-action="bootstrap-admin">Grant administrator access</button>
+      </section>
       <section class="wl-device-approval" data-section="device-approval" hidden>
         <div><p class="wl-eyebrow">PC / MAC SIGN-IN REQUEST</p><h3>Approve this WonderLang game?</h3></div>
         <div class="wl-device-code"><span>Code shown in the game</span><strong data-field="device-code">—</strong></div>
@@ -152,6 +157,7 @@ function appleProvider() {
 
 const demoConfig = {
   checkoutEnabled: true,
+  adminBootstrapEnabled: false,
   catalog: {
     monthly: { unitAmount: 699, currency: "USD" },
     polyglot: { unitAmount: 3199, currency: "USD" },
@@ -252,6 +258,7 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(new GoogleAuthProvider()));
     this.querySelector('[data-action="link-apple"]').addEventListener("click", () => this.linkProvider(appleProvider()));
     this.querySelector('[data-action="link-email"]').addEventListener("click", () => this.linkEmail());
+    this.querySelector('[data-action="bootstrap-admin"]').addEventListener("click", () => this.bootstrapAdmin());
     this.querySelector('[data-form="email"]').addEventListener("submit", (event) => this.emailLink(event));
     this.querySelector('[data-form="legacy"]').addEventListener("submit", (event) => this.claimLegacy(event));
   }
@@ -435,6 +442,9 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector(".wl-signed-out").hidden = Boolean(user);
     this.querySelector(".wl-signed-in").hidden = !user;
     this.querySelector('[data-action="sign-out"]').hidden = !user;
+    this.querySelector('[data-section="admin-bootstrap"]').hidden = !user
+      || !this.config.adminBootstrapEnabled
+      || pageParams.get("bootstrap_admin") !== "1";
     this.querySelector('[data-section="device-prompt"]').hidden = Boolean(user) || !this.deviceCode;
     this.querySelector('[data-section="device-approval"]').hidden = true;
     if (!user) {
@@ -701,6 +711,23 @@ class WonderLangAccount extends HTMLElement {
     } catch (error) { this.fail(error); }
   }
 
+  async bootstrapAdmin() {
+    if (!this.user?.email) return;
+    const confirmation = `SET ADMIN ${this.user.email.trim().toLowerCase()}`;
+    const phrase = await this.confirmPhrase(
+      "Grant initial administrator access?",
+      "This grants access to customer, entitlement, refund, import, key, save, and audit operations. The action is audited and this browser will be signed out immediately.",
+      confirmation
+    );
+    if (!phrase) return;
+    try {
+      const result = await this.request("/api/v1/admin-bootstrap", { method: "POST", body: { confirmationPhrase: phrase } });
+      if (!result.granted) throw new Error("Administrator access was not granted.");
+      await signOut(this.auth);
+      location.assign("/admin/?bootstrap=success");
+    } catch (error) { this.fail(error); }
+  }
+
   async deleteAccount() {
     try {
       const preview = await this.request("/api/v1/me/deletion-preview", { method: "POST", body: {} });
@@ -775,6 +802,7 @@ class WonderLangAccount extends HTMLElement {
       return { deleteAfter: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() };
     }
     if (path === "/api/v1/me/revoke-sessions") return { revoked: true };
+    if (path === "/api/v1/admin-bootstrap") return { granted: true, changed: true, signInAgain: true };
     if (path === "/api/v1/me/second-platform-request/cancel") {
       if (!this.demoAccount.secondMobilePlatformRequest || this.demoAccount.secondMobilePlatformRequest.state !== "pending") throw new Error("Only a pending second-platform request can be canceled.");
       this.demoAccount.secondMobilePlatformRequest = {
