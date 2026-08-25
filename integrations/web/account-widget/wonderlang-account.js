@@ -263,6 +263,10 @@ class WonderLangAccount extends HTMLElement {
     for (const action of ["monthly", "polyglot", "premium", "discounted-premium", "portal"]) {
       this.querySelector(`[data-action="${action}"]`).disabled = !config.checkoutEnabled;
     }
+    for (const action of ["restore", "revoke-sessions", "delete-account", "request-second-platform", "cancel-second-platform", "approve-device"]) {
+      this.querySelector(`[data-action="${action}"]`).disabled = !config.accountApiReady;
+    }
+    this.querySelector('[data-form="legacy"] button').disabled = !config.accountApiReady;
   }
 
   async signOutCurrent() {
@@ -435,6 +439,22 @@ class WonderLangAccount extends HTMLElement {
       return;
     }
     this.status(`Signed in as ${user.email || "your WonderLang account"}`);
+    if (!this.config.accountApiReady) {
+      const providers = (user.providerData || []).map((provider) => provider.providerId?.replace(".com", "")).filter(Boolean);
+      this.account = null;
+      this.querySelector('[data-field="access"]').textContent = "Server account setup pending";
+      this.querySelector('[data-field="cloud"]').textContent = "Cloud save is unavailable until the test backend is configured";
+      this.querySelector('[data-field="email"]').textContent = user.email || "No email available";
+      this.querySelector('[data-field="providers"]').textContent = providers.join(", ") || "Email link";
+      this.querySelector('[data-field="subscription"]').textContent = "Unavailable during server setup";
+      this.querySelector('[data-field="cloud-status"]').textContent = "Unavailable during server setup";
+      this.querySelector('[data-field="mobile-platforms"]').textContent = "Unavailable during server setup";
+      this.querySelector('[data-field="desktop-access"]').textContent = "Unavailable during server setup";
+      this.querySelector('[data-field="future-content"]').textContent = "Unavailable during server setup";
+      this.querySelector('[data-field="second-platform"]').textContent = "Unavailable during server setup";
+      this.status(`Signed in with Firebase as ${user.email || "your WonderLang account"}. Account data and entitlements will become available after the test backend is configured.`);
+      return;
+    }
     try {
       this.account = await this.request("/api/v1/me");
       const ent = this.account.entitlements;

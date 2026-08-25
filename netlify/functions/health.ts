@@ -11,7 +11,7 @@ export const lambdaHandler: LambdaHandler = async (event) => {
   const controls = deploymentControls();
   const configuration = {
     firebaseAdmin: present("FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY", "FIREBASE_STORAGE_BUCKET"),
-    firebaseWeb: present("FIREBASE_WEB_API_KEY", "FIREBASE_AUTH_DOMAIN"),
+    firebaseWeb: present("FIREBASE_WEB_API_KEY", "FIREBASE_AUTH_DOMAIN", "FIREBASE_PROJECT_ID"),
     stripeTest: present("STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_MOBILE_MONTHLY", "STRIPE_PRICE_POLYGLOT_PERMANENT", "STRIPE_PRICE_PREMIUM_LIFETIME", "STRIPE_COUPON_LEGACY_DESKTOP_50") && Boolean(process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_")),
     legacyFulfillment: present("GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PRIVATE_KEY", "GOOGLE_SHEET_ID", "MAILERLITE_API_TOKEN"),
     adDelivery: present("META_PIXEL_ID", "META_ACCESS_TOKEN", "TIKTOK_PIXEL_ID", "TIKTOK_ACCESS_TOKEN"),

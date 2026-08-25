@@ -179,8 +179,43 @@ describe("staging function boundaries", () => {
     expect(response).toMatchObject({ statusCode: 503 });
     expect(response?.headers).toMatchObject({ "access-control-allow-origin": "https://wonderlang.net" });
     expect(JSON.parse(String(response?.body))).toEqual({
-      error: "Account testing is not configured yet. Finish the Firebase and Stripe test setup at /setup/."
+      error: "Account login is not configured yet. Finish Firebase web setup at /setup/."
     });
+  });
+
+  it("allows Firebase web login configuration without enabling backend account or Stripe operations", async () => {
+    Object.assign(process.env, {
+      FIREBASE_WEB_API_KEY: "public-firebase-web-test-key",
+      FIREBASE_AUTH_DOMAIN: "test-project.firebaseapp.com",
+      FIREBASE_PROJECT_ID: "test-project"
+    });
+    const response = await apiHandler({
+      ...event(),
+      rawUrl: "https://test.example.com/api/v1/config",
+      path: "/api/v1/config",
+      httpMethod: "GET",
+      headers: { origin: "https://wonderlang.net" }
+    }, {} as never);
+    expect(response).toMatchObject({ statusCode: 200 });
+    const body = JSON.parse(String(response?.body));
+    expect(body).toMatchObject({
+      environment: "test",
+      accountApiReady: false,
+      checkoutEnabled: false,
+      appCheckEnforced: false,
+      firebase: {
+        apiKey: "public-firebase-web-test-key",
+        authDomain: "test-project.firebaseapp.com",
+        projectId: "test-project"
+      },
+      catalog: {
+        revision: 0,
+        monthly: { unitAmount: 699, currency: "USD", recurring: true },
+        polyglot: { unitAmount: 3199, currency: "USD", recurring: false },
+        premium: { unitAmount: 5999, currency: "USD", recurring: false }
+      }
+    });
+    expect(vi.mocked(firestore)).not.toHaveBeenCalled();
   });
 
   it("rejects an untrusted browser Origin before configuration or authentication work", async () => {

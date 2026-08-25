@@ -7,6 +7,7 @@ import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, cloudSaveSlotSchema, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
 import { deploymentControls, env } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
+import { REGIONAL_PRICES } from "../../src/domain/regional-pricing.js";
 import { summarizeSubscription } from "../../src/domain/account-summary.js";
 import { HttpError, requireUser } from "../../src/http/auth.js";
 import { requireAppCheck } from "../../src/http/app-check.js";
@@ -75,6 +76,30 @@ function publicDeviceFirebaseConfig(): { firebaseApiKey: string; firebaseProject
   };
 }
 
+function publicAccountFirebaseConfig(): {
+  environment: "test" | "production";
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket?: string;
+} {
+  const parsed = z.object({
+    APP_ENVIRONMENT: z.enum(["test", "production"]).default("test"),
+    FIREBASE_WEB_API_KEY: z.string().min(20).max(256),
+    FIREBASE_AUTH_DOMAIN: z.string().min(4).max(253),
+    FIREBASE_PROJECT_ID: z.string().regex(/^[a-z][a-z0-9-]{4,29}$/),
+    FIREBASE_STORAGE_BUCKET: z.string().min(4).max(253).optional()
+  }).safeParse(process.env);
+  if (!parsed.success) throw new HttpError(503, "Account login is not configured yet. Finish Firebase web setup at /setup/.");
+  return {
+    environment: parsed.data.APP_ENVIRONMENT,
+    apiKey: parsed.data.FIREBASE_WEB_API_KEY,
+    authDomain: parsed.data.FIREBASE_AUTH_DOMAIN,
+    projectId: parsed.data.FIREBASE_PROJECT_ID,
+    ...(parsed.data.FIREBASE_STORAGE_BUCKET ? { storageBucket: parsed.data.FIREBASE_STORAGE_BUCKET } : {})
+  };
+}
+
 function withCors(event: HandlerEvent, response: HandlerResponse): HandlerResponse {
   const origin = requestHeader(event.headers, "origin");
   const allowed = apiAllowedOrigins(true);
@@ -114,21 +139,26 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (!(origin === "null" && isPublicDeviceSignInRoute(path))) requireAllowedOrigin(origin, apiAllowedOrigins(true));
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
   if (event.httpMethod === "GET" && path === "/v1/config") {
-    let runtime: ReturnType<typeof env>;
-    try { runtime = env(); }
-    catch {
-      throw new HttpError(503, "Account testing is not configured yet. Finish the Firebase and Stripe test setup at /setup/.");
-    }
-    const catalog = await new CatalogService(firestore()).get();
+    const publicFirebase = publicAccountFirebaseConfig();
+    let runtime: ReturnType<typeof env> | undefined;
+    try { runtime = env(); } catch { runtime = undefined; }
+    const catalog = runtime ? await new CatalogService(firestore()).get() : {
+      revision: 0,
+      monthly: { unitAmount: MONTHLY_PRICE_USD_CENTS, currency: "USD", recurring: true },
+      polyglot: { unitAmount: POLYGLOT_PERMANENT_PRICE_USD_CENTS, currency: "USD", recurring: false },
+      premium: { unitAmount: PREMIUM_LIFETIME_PRICE_USD_CENTS, currency: "USD", recurring: false },
+      regionalPrices: REGIONAL_PRICES
+    };
     return json(200, {
-      environment: runtime.APP_ENVIRONMENT,
-      checkoutEnabled: runtime.STRIPE_MUTATIONS_ENABLED,
-      appCheckEnforced: runtime.APP_CHECK_ENFORCEMENT_ENABLED,
+      environment: publicFirebase.environment,
+      accountApiReady: Boolean(runtime),
+      checkoutEnabled: Boolean(runtime?.STRIPE_MUTATIONS_ENABLED),
+      appCheckEnforced: Boolean(runtime?.APP_CHECK_ENFORCEMENT_ENABLED),
       firebase: {
-        apiKey: runtime.FIREBASE_WEB_API_KEY,
-        authDomain: runtime.FIREBASE_AUTH_DOMAIN,
-        projectId: runtime.FIREBASE_PROJECT_ID,
-        storageBucket: runtime.FIREBASE_STORAGE_BUCKET
+        apiKey: publicFirebase.apiKey,
+        authDomain: publicFirebase.authDomain,
+        projectId: publicFirebase.projectId,
+        ...(publicFirebase.storageBucket ? { storageBucket: publicFirebase.storageBucket } : {})
       },
       catalog: {
         revision: catalog.revision,

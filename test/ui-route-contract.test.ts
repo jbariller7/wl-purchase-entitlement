@@ -45,6 +45,8 @@ describe("customer interface route contract", () => {
       'class="wl-signed-out" hidden',
       'class="wl-signed-in" hidden',
       "this.status(`Signed in as",
+      "Signed in with Firebase as",
+      "Account data and entitlements will become available after the test backend is configured.",
       "this.fail(error)",
       "Verify your WonderLang account email before approving a new device.",
       "button.disabled = true",
