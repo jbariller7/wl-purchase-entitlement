@@ -20,7 +20,7 @@ Last audited: 2026-08-25. A status of **implemented** means current source plus 
 | iOS integration source | Reviewed StoreKit 2 adapter with `appAccountToken`, JWS claim and restore behavior. The real Xcode integration cannot be completed until the project is supplied. |
 | Security baseline | Test-key enforcement, disabled-by-default side effects, deny-by-default Firestore/Storage rules, origin/rate-limit/App Check verification, encrypted provider tokens, redacted outbox payloads and audited admin actions. |
 
-Current verification run: 223 ordinary unit/integration/contract tests passed, 13 isolated Firestore/Storage emulator tests passed, and the production TypeScript/widget build passed.
+Current verification run: 224 ordinary unit/integration/contract tests passed, 13 isolated Firestore/Storage emulator tests passed, and the production TypeScript/widget build passed.
 
 ## Configured externally but still gated
 
@@ -28,13 +28,13 @@ Current verification run: 223 ordinary unit/integration/contract tests passed, 1
 - Firebase `wonderlang-accounts` is on Blaze and has Firestore/Storage security configuration. Google and email/password providers are enabled. Apple remains unsaved until a usable Sign in with Apple private key is installed.
 - Google Play has Monthly and the draft `buy-polyglot-permanent` option. The legacy `buy` option remains live at the old price until the compatible Android update ships.
 - Apple has Monthly, the three-day trial, Polyglot and historical restore products. Sign in with Apple domain/callback configuration is correct.
-- Stripe test products and the approved Premium USD 59.99 Price exist. A restricted test API key and webhook signing secret are still absent.
+- Stripe test products and the approved Premium USD 59.99 Price exist. A least-privilege restricted test API key and the 12-event webhook signing secret are installed as protected Netlify variables; both Stripe processing switches remain off pending the controlled canary.
 
 ## Evidence still required before production
 
 1. Revoke the two unusable Apple Sign in keys, create/download one usable replacement, save it in Firebase Authentication, and run real Apple web login.
 2. Create a separate App Store Connect Server API key, install its issuer/key/private-key credentials in Netlify, configure Notifications V2, and run Apple Sandbox purchase, renewal, grace, expiration, refund and restore tests.
-3. Create a restricted Stripe test key and webhook endpoint/secret, install them in Netlify, validate the catalog, and exercise Checkout, Portal, webhook replay, refund, dispute and subscriber-to-Premium cancellation ordering.
+3. Validate the restricted Stripe test catalog, then exercise Checkout, Portal, webhook replay, refund, dispute and subscriber-to-Premium cancellation ordering before changing either Stripe processing switch.
 4. Grant one verified Firebase user the audited admin claim, immediately disable bootstrap again, and exercise the real protected administrator routes.
 5. Run a Play internal-track license-tester matrix for Monthly, Polyglot, pending/cancel/refund/grace/restore and backend acknowledgment.
 6. Run the complete physical-device Android tap/scroll/double-tap matrix and installed passwordless-email App Link test.

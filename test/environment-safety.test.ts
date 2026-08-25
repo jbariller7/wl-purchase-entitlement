@@ -28,7 +28,12 @@ afterEach(() => {
 describe("deployment safety", () => {
   it("refuses a live Stripe key in test mode", () => {
     Object.assign(process.env, required, { APP_ENVIRONMENT: "test", STRIPE_SECRET_KEY: "sk_live_forbidden" });
-    expect(() => env()).toThrow(/require a Stripe sk_test_/);
+    expect(() => env()).toThrow(/require a Stripe sk_test_ or rk_test_/);
+  });
+
+  it("refuses a live restricted Stripe key in test mode", () => {
+    Object.assign(process.env, required, { APP_ENVIRONMENT: "test", STRIPE_SECRET_KEY: "rk_live_forbidden" });
+    expect(() => env()).toThrow(/require a Stripe sk_test_ or rk_test_/);
   });
 
   it("keeps every side-effect switch off by default", () => {
@@ -54,13 +59,13 @@ describe("deployment safety", () => {
   });
 
   it("loads Stripe without requiring Firebase or Apple credentials", () => {
-    Object.assign(process.env, required, { APP_ENVIRONMENT: "test", STRIPE_SECRET_KEY: "sk_test_isolated" });
+    Object.assign(process.env, required, { APP_ENVIRONMENT: "test", STRIPE_SECRET_KEY: "rk_test_isolated" });
     for (const name of ["FIREBASE_PROJECT_ID", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY", "FIREBASE_STORAGE_BUCKET"]) {
       delete process.env[name];
     }
     expect(stripeEnv()).toMatchObject({
       APP_ENVIRONMENT: "test",
-      STRIPE_SECRET_KEY: "sk_test_isolated",
+      STRIPE_SECRET_KEY: "rk_test_isolated",
       STRIPE_MUTATIONS_ENABLED: false
     });
   });

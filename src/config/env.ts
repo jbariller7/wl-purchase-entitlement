@@ -157,14 +157,14 @@ let cachedTikTokConversion: TikTokConversionEnvironment | undefined;
 let cachedCloudStorageMonitoring: CloudStorageMonitoringEnvironment | undefined;
 
 function assertStripeMode(configuration: Pick<StripeEnvironment, "APP_ENVIRONMENT" | "STRIPE_SECRET_KEY">): void {
-  const stripeMode = configuration.STRIPE_SECRET_KEY.startsWith("sk_live_") ? "production"
-    : configuration.STRIPE_SECRET_KEY.startsWith("sk_test_") ? "test"
+  const stripeMode = /^(?:sk|rk)_live_/.test(configuration.STRIPE_SECRET_KEY) ? "production"
+    : /^(?:sk|rk)_test_/.test(configuration.STRIPE_SECRET_KEY) ? "test"
       : "unknown";
   if (configuration.APP_ENVIRONMENT === "test" && stripeMode !== "test") {
-    throw new Error("Test deployments require a Stripe sk_test_ key; live or unrecognized keys are refused.");
+    throw new Error("Test deployments require a Stripe sk_test_ or rk_test_ key; live or unrecognized keys are refused.");
   }
   if (configuration.APP_ENVIRONMENT === "production" && stripeMode !== "production") {
-    throw new Error("Production deployments require a Stripe sk_live_ key.");
+    throw new Error("Production deployments require a Stripe sk_live_ or rk_live_ key.");
   }
 }
 
