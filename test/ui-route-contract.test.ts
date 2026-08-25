@@ -106,6 +106,8 @@ describe("administrator interface route contract", () => {
   it("routes audited cloud-save downloads through the authenticated admin API client", () => {
     expect(admin).toContain('const result = await api(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-saves/');
     expect(admin).not.toContain("const result = await request(`/admin-api/v1/customers/");
+    expect(admin).toContain('if (method === "GET" && path.includes("customers")) return demoCustomer;');
+    expect(admin).not.toContain('if (path.includes("customers")) return demoCustomer;');
   });
 
   it("keeps each administrator operation paired with a protected server route", () => {

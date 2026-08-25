@@ -312,7 +312,7 @@ function demoApi(path, options) {
     addDemoAudit("grant.revoke", "grant", id, "Revoked demo administrator grant");
     return { revoked: true };
   }
-  if (path.includes("customers")) return demoCustomer;
+  if (method === "GET" && path.includes("customers")) return demoCustomer;
   if (path.endsWith("/catalog")) return demoCatalog;
   if (path.includes("operations")) return demoOperations;
   if (path.includes("inventory")) return demoInventory;
