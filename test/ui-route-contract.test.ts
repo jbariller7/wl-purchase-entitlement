@@ -62,6 +62,13 @@ describe("customer interface route contract", () => {
     expect(account).toContain('previewParam === "1"');
     expect(account).toContain("this.querySelector('[data-section=\"demo-banner\"]').hidden = false;");
   });
+
+  it("restores usable sign-in controls before handling a failed redirect or email-link result", () => {
+    expect(account.indexOf("onAuthStateChanged(this.auth")).toBeGreaterThan(-1);
+    expect(account.indexOf("onAuthStateChanged(this.auth")).toBeLessThan(account.indexOf("await this.finishEmailLink()"));
+    expect(account).toContain("await getRedirectResult(this.auth);");
+    expect(account).toContain("catch (error) { this.fail(error); }");
+  });
 });
 
 describe("administrator interface route contract", () => {

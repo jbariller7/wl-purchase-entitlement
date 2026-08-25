@@ -225,9 +225,11 @@ class WonderLangAccount extends HTMLElement {
       this.configureCatalog(config);
       this.auth = getAuth(initializeApp(config.firebase));
       await this.auth.authStateReady();
-      await this.finishEmailLink();
-      await getRedirectResult(this.auth).catch((error) => { throw error; });
       onAuthStateChanged(this.auth, (user) => this.renderUser(user));
+      try {
+        await this.finishEmailLink();
+        await getRedirectResult(this.auth);
+      } catch (error) { this.fail(error); }
     } catch (error) { this.fail(error); }
   }
 
