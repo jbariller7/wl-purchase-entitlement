@@ -30,6 +30,20 @@ const firebaseAdminSchema = z.object({
   FIREBASE_STORAGE_BUCKET: z.string().min(1)
 });
 
+const googlePlaySchema = z.object({
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email(),
+  GOOGLE_PRIVATE_KEY: z.string().min(1),
+  GOOGLE_PLAY_PACKAGE_NAME: z.string().min(1).default("com.wonderlang.app"),
+  GOOGLE_PLAY_MONTHLY_PRODUCT_ID: z.string().min(1).default("wonderlangmonthly"),
+  GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: z.string().min(1).default("wonderlangfull"),
+  GOOGLE_PLAY_RTDN_AUDIENCE: z.string().url(),
+  GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: z.string().email()
+});
+
+const providerTokenEncryptionSchema = z.object({
+  PROVIDER_TOKEN_ENCRYPTION_KEYS: z.string().min(1)
+});
+
 const schema = controlsSchema.extend({
   ...firebaseAdminSchema.shape,
   FIREBASE_WEB_API_KEY: z.string().min(1),
@@ -52,13 +66,13 @@ const schema = controlsSchema.extend({
   TIKTOK_PIXEL_ID: z.string().optional(),
   TIKTOK_ACCESS_TOKEN: z.string().optional(),
   TIKTOK_TEST_EVENT_CODE: z.string().optional(),
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
-  GOOGLE_PRIVATE_KEY: z.string().optional(),
-  GOOGLE_PLAY_PACKAGE_NAME: z.string().optional().default("com.wonderlang.app"),
-  GOOGLE_PLAY_MONTHLY_PRODUCT_ID: z.string().optional().default("wonderlangmonthly"),
-  GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: z.string().optional().default("wonderlangfull"),
-  GOOGLE_PLAY_RTDN_AUDIENCE: z.string().optional(),
-  GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: googlePlaySchema.shape.GOOGLE_SERVICE_ACCOUNT_EMAIL.optional(),
+  GOOGLE_PRIVATE_KEY: googlePlaySchema.shape.GOOGLE_PRIVATE_KEY.optional(),
+  GOOGLE_PLAY_PACKAGE_NAME: googlePlaySchema.shape.GOOGLE_PLAY_PACKAGE_NAME.optional().default("com.wonderlang.app"),
+  GOOGLE_PLAY_MONTHLY_PRODUCT_ID: googlePlaySchema.shape.GOOGLE_PLAY_MONTHLY_PRODUCT_ID.optional().default("wonderlangmonthly"),
+  GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: googlePlaySchema.shape.GOOGLE_PLAY_POLYGLOT_PRODUCT_ID.optional().default("wonderlangfull"),
+  GOOGLE_PLAY_RTDN_AUDIENCE: googlePlaySchema.shape.GOOGLE_PLAY_RTDN_AUDIENCE.optional(),
+  GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: googlePlaySchema.shape.GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL.optional(),
   PROVIDER_TOKEN_ENCRYPTION_KEYS: z.string().optional(),
   CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES: z.coerce.number().int().positive().optional().default(500 * 1024 * 1024),
   KEY_INVENTORY_DEFAULT_LOW_STOCK_THRESHOLD: z.coerce.number().int().min(0).max(1_000_000).optional().default(10),
@@ -78,9 +92,13 @@ const schema = controlsSchema.extend({
 export type Environment = z.infer<typeof schema>;
 export type DeploymentControls = z.infer<typeof controlsSchema>;
 export type FirebaseAdminEnvironment = z.infer<typeof firebaseAdminSchema>;
+export type GooglePlayEnvironment = z.infer<typeof googlePlaySchema>;
+export type ProviderTokenEncryptionEnvironment = z.infer<typeof providerTokenEncryptionSchema>;
 let cached: Environment | undefined;
 let cachedControls: DeploymentControls | undefined;
 let cachedFirebaseAdmin: FirebaseAdminEnvironment | undefined;
+let cachedGooglePlay: GooglePlayEnvironment | undefined;
+let cachedProviderTokenEncryption: ProviderTokenEncryptionEnvironment | undefined;
 
 export function deploymentControls(): DeploymentControls {
   if (!cachedControls) {
@@ -104,6 +122,29 @@ export function firebaseAdminEnv(): FirebaseAdminEnvironment {
     cachedFirebaseAdmin = parsed.data;
   }
   return cachedFirebaseAdmin;
+}
+
+export function googlePlayEnv(): GooglePlayEnvironment {
+  if (!cachedGooglePlay) {
+    const parsed = googlePlaySchema.safeParse(process.env);
+    if (!parsed.success) {
+      const names = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+      throw new Error(`Missing or invalid Google Play configuration: ${names}`);
+    }
+    cachedGooglePlay = parsed.data;
+  }
+  return cachedGooglePlay;
+}
+
+export function providerTokenEncryptionEnv(): ProviderTokenEncryptionEnvironment {
+  if (!cachedProviderTokenEncryption) {
+    const parsed = providerTokenEncryptionSchema.safeParse(process.env);
+    if (!parsed.success) {
+      throw new Error("Provider token encryption is not configured.");
+    }
+    cachedProviderTokenEncryption = parsed.data;
+  }
+  return cachedProviderTokenEncryption;
 }
 
 export function env(): Environment {
@@ -137,4 +178,6 @@ export function resetEnvironmentForTests(): void {
   cached = undefined;
   cachedControls = undefined;
   cachedFirebaseAdmin = undefined;
+  cachedGooglePlay = undefined;
+  cachedProviderTokenEncryption = undefined;
 }

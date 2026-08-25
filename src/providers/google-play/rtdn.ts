@@ -1,6 +1,6 @@
 import { OAuth2Client } from "google-auth-library";
 import { z } from "zod";
-import { env } from "../../config/env.js";
+import { googlePlayEnv } from "../../config/env.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "./service.js";
 import { chapterMigrationTransactionId } from "../../domain/legacy-chapter-migration.js";
@@ -42,9 +42,9 @@ const notificationSchema = z.object({
 const oidc = new OAuth2Client();
 
 export async function verifyPubSubAuthorization(authorization: string | undefined): Promise<void> {
-  const audience = env().GOOGLE_PLAY_RTDN_AUDIENCE;
-  const expectedEmail = env().GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL;
-  if (!audience || !expectedEmail) throw new Error("Google Play RTDN audience/service account is not configured.");
+  const configuration = googlePlayEnv();
+  const audience = configuration.GOOGLE_PLAY_RTDN_AUDIENCE;
+  const expectedEmail = configuration.GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL;
   const match = authorization?.match(/^Bearer\s+(.+)$/i);
   if (!match?.[1]) throw new Error("Missing Pub/Sub OIDC bearer token.");
   const ticket = await oidc.verifyIdToken({ idToken: match[1], audience });
@@ -63,7 +63,7 @@ export function parseRtdn(body: unknown): {
   const push = pushSchema.parse(body);
   const decoded = JSON.parse(Buffer.from(push.message.data, "base64").toString("utf8"));
   const notification = notificationSchema.parse(decoded);
-  if (notification.packageName !== env().GOOGLE_PLAY_PACKAGE_NAME) throw new Error("RTDN package name mismatch.");
+  if (notification.packageName !== googlePlayEnv().GOOGLE_PLAY_PACKAGE_NAME) throw new Error("RTDN package name mismatch.");
   return {
     messageId: push.message.messageId,
     eventCreated: Math.floor(Number(notification.eventTimeMillis) / 1000),

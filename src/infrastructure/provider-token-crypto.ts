@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { env } from "../config/env.js";
+import { providerTokenEncryptionEnv } from "../config/env.js";
 
 const ALGORITHM = "aes-256-gcm" as const;
 const KEY_BYTES = 32;
@@ -19,8 +19,7 @@ export interface EncryptedProviderToken {
 }
 
 function keyRing(): { current: string; keys: Map<string, Buffer> } {
-  const raw = env().PROVIDER_TOKEN_ENCRYPTION_KEYS;
-  if (!raw) throw new Error("Provider token encryption is not configured.");
+  const raw = providerTokenEncryptionEnv().PROVIDER_TOKEN_ENCRYPTION_KEYS;
   let document: KeyRingDocument;
   try {
     document = JSON.parse(raw) as KeyRingDocument;

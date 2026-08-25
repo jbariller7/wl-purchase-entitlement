@@ -1,5 +1,5 @@
 import { google, type androidpublisher_v3 } from "googleapis";
-import { env } from "../../config/env.js";
+import { googlePlayEnv } from "../../config/env.js";
 import { LEGACY_PLAY_PRODUCT_MAP } from "../../domain/catalog.js";
 import type { EffectiveEntitlements, LedgerGrant } from "../../domain/model.js";
 import { HttpError } from "../../http/auth.js";
@@ -13,10 +13,7 @@ let publisher: androidpublisher_v3.Androidpublisher | undefined;
 
 async function androidPublisher(): Promise<androidpublisher_v3.Androidpublisher> {
   if (publisher) return publisher;
-  const configuration = env();
-  if (!configuration.GOOGLE_SERVICE_ACCOUNT_EMAIL || !configuration.GOOGLE_PRIVATE_KEY) {
-    throw new Error("Google Play service account is not configured.");
-  }
+  const configuration = googlePlayEnv();
   const auth = new google.auth.GoogleAuth({
     credentials: {
       client_email: configuration.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -80,12 +77,13 @@ export async function syncGooglePlaySubscription(input: {
 }): Promise<EffectiveEntitlements> {
   assertProviderTokenEncryptionConfigured();
   const api = await androidPublisher();
+  const configuration = googlePlayEnv();
   const response = await api.purchases.subscriptionsv2.get({
-    packageName: env().GOOGLE_PLAY_PACKAGE_NAME,
+    packageName: configuration.GOOGLE_PLAY_PACKAGE_NAME,
     token: input.purchaseToken
   });
   const purchase = response.data;
-  const monthlyLine = purchase.lineItems?.find((item) => item.productId === env().GOOGLE_PLAY_MONTHLY_PRODUCT_ID);
+  const monthlyLine = purchase.lineItems?.find((item) => item.productId === configuration.GOOGLE_PLAY_MONTHLY_PRODUCT_ID);
   if (!monthlyLine) throw new HttpError(403, "Google Play receipt is not the WonderLang monthly product.");
   const uid = await resolveUid({
     store: input.store,
@@ -129,8 +127,8 @@ export async function syncGooglePlaySubscription(input: {
   });
   if (input.acknowledge !== false && purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
     await api.purchases.subscriptions.acknowledge({
-      packageName: env().GOOGLE_PLAY_PACKAGE_NAME,
-      subscriptionId: env().GOOGLE_PLAY_MONTHLY_PRODUCT_ID,
+      packageName: configuration.GOOGLE_PLAY_PACKAGE_NAME,
+      subscriptionId: configuration.GOOGLE_PLAY_MONTHLY_PRODUCT_ID,
       token: input.purchaseToken,
       requestBody: {}
     });
@@ -186,8 +184,9 @@ export async function syncGooglePlayOneTimeProduct(input: {
   const product = LEGACY_PLAY_PRODUCT_MAP[input.productId];
   if (!product) throw new HttpError(403, "Unknown Google Play product ID.");
   const api = await androidPublisher();
+  const configuration = googlePlayEnv();
   const response = await api.purchases.productsv2.getproductpurchasev2({
-    packageName: env().GOOGLE_PLAY_PACKAGE_NAME,
+    packageName: configuration.GOOGLE_PLAY_PACKAGE_NAME,
     token: input.purchaseToken
   });
   const purchase = response.data;
@@ -220,7 +219,7 @@ export async function syncGooglePlayOneTimeProduct(input: {
   if (migration) await input.store.upsertGrant(migration, { id: `${input.eventId}:chapter-full-upgrade`, created: input.eventCreated });
   if (state === "active" && purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
     await api.purchases.products.acknowledge({
-      packageName: env().GOOGLE_PLAY_PACKAGE_NAME,
+      packageName: configuration.GOOGLE_PLAY_PACKAGE_NAME,
       productId: input.productId,
       token: input.purchaseToken,
       requestBody: {}

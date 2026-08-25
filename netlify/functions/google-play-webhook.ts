@@ -5,7 +5,25 @@ import { safeErrorMessage } from "../../src/infrastructure/safe-error.js";
 
 export const lambdaHandler: LambdaHandler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, body: "Method Not Allowed" };
-  if (!deploymentControls().GOOGLE_PLAY_WEBHOOKS_ENABLED) return { statusCode: 503, body: "Google Play webhook processing is disabled" };
+  if (!deploymentControls().GOOGLE_PLAY_WEBHOOKS_ENABLED) {
+    // Permit only Google's signed connectivity probe while processing is off.
+    // Real purchase/refund notifications continue to fail closed and retry.
+    if (!event.headers.authorization) return { statusCode: 503, body: "Google Play webhook processing is disabled" };
+    const { parseRtdn, verifyPubSubAuthorization } = await import("../../src/providers/google-play/rtdn.js");
+    try { await verifyPubSubAuthorization(event.headers.authorization); }
+    catch (error) {
+      console.warn("Rejected Google Play RTDN authorization", safeErrorMessage(error));
+      return { statusCode: 401, body: "Unauthorized" };
+    }
+    try {
+      const probe = parseRtdn(JSON.parse(event.body ?? "{}"));
+      if (probe.notification.testNotification) return { statusCode: 204, body: "" };
+    } catch (error) {
+      console.warn("Rejected malformed Google Play RTDN", safeErrorMessage(error));
+      return { statusCode: 400, body: "Malformed notification" };
+    }
+    return { statusCode: 503, body: "Google Play webhook processing is disabled" };
+  }
   const [storeModule, firebaseModule, idsModule, rtdnModule] = await Promise.all([
     import("../../src/infrastructure/entitlement-store.js"),
     import("../../src/infrastructure/firebase.js"),

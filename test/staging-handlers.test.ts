@@ -33,6 +33,7 @@ import { lambdaHandler as cloudSaveCleanupHandler } from "../netlify/functions/c
 import { lambdaHandler as deviceSignInCleanupHandler } from "../netlify/functions/device-sign-in-cleanup.js";
 import { resetEnvironmentForTests } from "../src/config/env.js";
 import { firestore } from "../src/infrastructure/firebase.js";
+import { parseRtdn, processRtdn, verifyPubSubAuthorization } from "../src/providers/google-play/rtdn.js";
 
 const original = { ...process.env };
 const credentialKeys = [
@@ -96,6 +97,28 @@ describe("staging function boundaries", () => {
     const response = await outboxHandler(event(), {} as never);
     expect(response).toMatchObject({ statusCode: 200 });
     expect(JSON.parse(String(response?.body))).toEqual({ processed: 0, failed: 0 });
+  });
+
+  it("accepts only a signed Google Play connectivity probe while webhook processing is disabled", async () => {
+    vi.mocked(verifyPubSubAuthorization).mockResolvedValueOnce(undefined);
+    vi.mocked(parseRtdn).mockReturnValueOnce({
+      messageId: "test-message",
+      eventCreated: 1_700_000_000,
+      notification: {
+        packageName: "com.wonderlang.app",
+        eventTimeMillis: "1700000000000",
+        testNotification: { version: "1.0" }
+      },
+      raw: { testNotification: { version: "1.0" } }
+    });
+    const response = await googlePlayHandler({
+      ...event(),
+      headers: { authorization: "Bearer signed-google-probe" }
+    }, {} as never);
+    expect(response).toMatchObject({ statusCode: 204, body: "" });
+    expect(verifyPubSubAuthorization).toHaveBeenCalledWith("Bearer signed-google-probe");
+    expect(processRtdn).not.toHaveBeenCalled();
+    expect(vi.mocked(firestore)).not.toHaveBeenCalled();
   });
 
   it("does not query billing providers while subscription reconciliation is disabled", async () => {
