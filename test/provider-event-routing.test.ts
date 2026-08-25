@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Status, type JWSRenewalInfoDecodedPayload, type JWSTransactionDecodedPayload } from "@apple/app-store-server-library";
+import {
+  Status,
+  type JWSRenewalInfoDecodedPayload,
+  type JWSTransactionDecodedPayload,
+  type ResponseBodyV2DecodedPayload
+} from "@apple/app-store-server-library";
 import { resetEnvironmentForTests } from "../src/config/env.js";
 import type { EntitlementStore } from "../src/infrastructure/entitlement-store.js";
+import type { EffectiveEntitlements, LedgerGrant } from "../src/domain/model.js";
 
 const serviceMocks = vi.hoisted(() => ({
   subscription: vi.fn(),
@@ -17,7 +23,7 @@ vi.mock("../src/providers/google-play/service.js", async () => {
   };
 });
 
-import { normalizeAppleSubscriptionState } from "../src/providers/apple/service.js";
+import { normalizeAppleSubscriptionState, processAppleNotification } from "../src/providers/apple/service.js";
 import { normalizeGooglePlaySubscriptionState } from "../src/providers/google-play/service.js";
 import { parseRtdn, processRtdn } from "../src/providers/google-play/rtdn.js";
 
@@ -46,7 +52,16 @@ beforeEach(() => {
     GOOGLE_PLAY_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
     GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: "wonderlangfull",
     GOOGLE_PLAY_RTDN_AUDIENCE: "https://wl-purchase-entitlement.netlify.app/webhooks/google-play",
-    GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: "rtdn-test@example.iam.gserviceaccount.com"
+    GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: "rtdn-test@example.iam.gserviceaccount.com",
+    APPLE_BUNDLE_ID: "com.wonderlang.app",
+    APPLE_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
+    APPLE_POLYGLOT_PRODUCT_ID: "wonderlangfull",
+    APPLE_ISSUER_ID: "test-issuer",
+    APPLE_KEY_ID: "TESTKEY123",
+    APPLE_PRIVATE_KEY: "test-private-key",
+    APPLE_ROOT_CA_G2_BASE64: "dGVzdA==",
+    APPLE_ROOT_CA_G3_BASE64: "dGVzdA==",
+    APPLE_ENVIRONMENT: "Sandbox"
   });
   resetEnvironmentForTests();
 });
@@ -94,6 +109,94 @@ describe("provider subscription state normalization", () => {
       now
     })).toEqual({ state: "revoked" });
     expect(normalizeAppleSubscriptionState({ status: Status.REVOKED, transaction, now })).toEqual({ state: "revoked" });
+  });
+});
+
+function appleStore(grants: LedgerGrant[]) {
+  return {
+    uidForStoreAccountToken: vi.fn().mockResolvedValue("apple-user"),
+    uidForProviderSubscription: vi.fn().mockResolvedValue(undefined),
+    upsertGrant: vi.fn(async (grant: LedgerGrant) => { grants.push(grant); }),
+    effectiveEntitlements: vi.fn().mockResolvedValue({ uid: "apple-user" } as EffectiveEntitlements)
+  } as unknown as EntitlementStore;
+}
+
+describe("Apple verified notification routing", () => {
+  it("creates an active Monthly grant from a verified subscription notification", async () => {
+    const grants: LedgerGrant[] = [];
+    const purchaseDate = Date.parse("2026-08-25T10:00:00.000Z");
+    const expiresDate = Date.parse("2026-09-25T10:00:00.000Z");
+
+    await processAppleNotification({
+      store: appleStore(grants),
+      verified: {
+        notification: {
+          notificationUUID: "apple-monthly-event",
+          signedDate: Date.parse("2026-08-25T10:05:00.000Z"),
+          data: { status: Status.ACTIVE }
+        } as ResponseBodyV2DecodedPayload,
+        transaction: {
+          productId: "wonderlangmonthly",
+          transactionId: "apple-latest-transaction",
+          originalTransactionId: "apple-original-transaction",
+          appAccountToken: "00000000-0000-4000-8000-000000000001",
+          purchaseDate,
+          originalPurchaseDate: purchaseDate,
+          expiresDate
+        }
+      }
+    });
+
+    expect(grants).toHaveLength(1);
+    expect(grants[0]).toMatchObject({
+      uid: "apple-user",
+      provider: "apple",
+      providerTransactionId: "apple-original-transaction",
+      providerSubscriptionId: "apple-original-transaction",
+      product: "mobile_full_monthly",
+      state: "active",
+      startsAt: new Date(purchaseDate).toISOString(),
+      currentPeriodEndsAt: new Date(expiresDate).toISOString(),
+      endsAt: new Date(expiresDate).toISOString()
+    });
+  });
+
+  it("records an old chapter purchase and the promised permanent Polyglot upgrade", async () => {
+    const grants: LedgerGrant[] = [];
+    const purchaseDate = Date.parse("2026-08-01T10:00:00.000Z");
+
+    await processAppleNotification({
+      store: appleStore(grants),
+      verified: {
+        notification: {
+          notificationUUID: "apple-chapter-event",
+          signedDate: Date.parse("2026-08-25T10:05:00.000Z")
+        } as ResponseBodyV2DecodedPayload,
+        transaction: {
+          productId: "wonderlangch1",
+          transactionId: "apple-chapter-transaction",
+          originalTransactionId: "apple-chapter-original",
+          appAccountToken: "00000000-0000-4000-8000-000000000002",
+          purchaseDate
+        }
+      }
+    });
+
+    expect(grants).toHaveLength(2);
+    expect(grants[0]).toMatchObject({
+      providerTransactionId: "apple-chapter-transaction",
+      product: "legacy_chapter_1",
+      state: "active"
+    });
+    expect(grants[1]).toMatchObject({
+      providerTransactionId: "chapter-full-upgrade:apple-chapter-transaction",
+      product: "mobile_polyglot_permanent",
+      state: "active",
+      metadata: {
+        migration: "historical_chapter_to_polyglot_permanent",
+        originalProduct: "legacy_chapter_1"
+      }
+    });
   });
 });
 
