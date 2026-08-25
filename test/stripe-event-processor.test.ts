@@ -148,6 +148,71 @@ describe("Stripe provider event processing", () => {
     expect(store.enqueue).not.toHaveBeenCalled();
   });
 
+  it("queues privacy-reduced ad conversions with stable provider deduplication keys", async () => {
+    Object.assign(process.env, {
+      AD_CONVERSIONS_ENABLED: "true",
+      STRIPE_MUTATIONS_ENABLED: "false",
+      STRIPE_SECRET_KEY: "sk_test_placeholder",
+      STRIPE_WEBHOOK_SECRET: "whsec_placeholder",
+      STRIPE_PRICE_MOBILE_MONTHLY: "price_monthly",
+      STRIPE_PRICE_POLYGLOT_PERMANENT: "price_polyglot",
+      STRIPE_PRICE_PREMIUM_LIFETIME: "price_premium",
+      STRIPE_COUPON_LEGACY_DESKTOP_50: "coupon_legacy",
+      STRIPE_SUCCESS_URL: "https://wl-purchase-entitlement.netlify.app/account/?checkout=success",
+      STRIPE_CANCEL_URL: "https://wl-purchase-entitlement.netlify.app/account/?checkout=cancel",
+      STRIPE_PORTAL_RETURN_URL: "https://wl-purchase-entitlement.netlify.app/account/",
+      PUBLIC_APP_ORIGIN: "https://wl-purchase-entitlement.netlify.app"
+    });
+    resetEnvironmentForTests();
+    const store = fakeStore();
+    store.checkoutContext.mockResolvedValue({
+      uid: "uid_ads",
+      ipAddress: "192.0.2.10",
+      userAgent: "WonderLang Test Browser",
+      fbp: "fb.1.test",
+      ttclid: "tiktok-click-test"
+    });
+    const session = {
+      id: "cs_ads",
+      mode: "payment",
+      payment_status: "paid",
+      payment_intent: "pi_ads",
+      customer_details: { email: "AdsPlayer@Example.com" },
+      amount_total: 5_999,
+      currency: "usd",
+      metadata: {
+        wl_product: "premium_lifetime_pass",
+        wl_uid: "uid_ads",
+        wl_mobile_platform: "ios",
+        wl_desktop_delivery: "direct"
+      }
+    } as unknown as Stripe.Checkout.Session;
+
+    await processStripeEvent(store as unknown as EntitlementStore, stripeEvent("checkout.session.completed", session, "evt_ads"));
+    const conversionCalls = store.enqueue.mock.calls.filter(([kind]) => kind === "meta_conversion" || kind === "tiktok_conversion");
+    expect(conversionCalls).toHaveLength(2);
+    expect(conversionCalls.map(([kind, key]) => [kind, key])).toEqual([
+      ["meta_conversion", "meta:cs_ads"],
+      ["tiktok_conversion", "tiktok:cs_ads"]
+    ]);
+    for (const [, , payload] of conversionCalls) {
+      expect(payload).toMatchObject({
+        eventName: "Purchase",
+        eventId: "cs_ads",
+        eventSourceUrl: "https://wl-purchase-entitlement.netlify.app",
+        value: 59.99,
+        currency: "USD",
+        product: "premium_lifetime_pass",
+        ipAddress: "192.0.2.10",
+        userAgent: "WonderLang Test Browser"
+      });
+      expect(payload.emailSha256).toMatch(/^[a-f0-9]{64}$/);
+      expect(payload.subjectUidHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(JSON.stringify(payload)).not.toContain("AdsPlayer@Example.com");
+      expect(JSON.stringify(payload)).not.toContain("uid_ads");
+    }
+  });
+
   it("fulfills a recognized historical website order without treating it as Premium", async () => {
     const store = fakeStore();
     const session = {
