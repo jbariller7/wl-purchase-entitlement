@@ -9,7 +9,7 @@ WonderLang desktop uses a device-authorization flow so the RPG Maker/NW.js build
 3. The server creates a ten-minute session and returns an eight-character user code, a separate 256-bit polling secret, and the `/account/` verification URL.
 4. The player opens the verification URL, signs in with Google, Apple, or passwordless email, verifies that the displayed code still matches the game, and explicitly approves it.
 5. The game polls `POST /api/v1/device-sign-in/poll` with both the code and polling secret.
-6. The server leases token issuance atomically, creates one Firebase custom token for the approved UID, consumes the session, and removes the UID from the consumed document.
+6. The server leases token issuance atomically, creates one Firebase custom token for the approved UID and the account's current device-session generation, consumes the session, and removes the UID from the consumed document.
 7. The desktop bridge exchanges the custom token directly with Firebase, validates the returned project audience/issuer, persists only the refresh token in NW.js per-user app data, refreshes expired ID tokens, and retries one API request after a 401 with a freshly issued ID token.
 
 ## Security invariants
@@ -21,7 +21,9 @@ WonderLang desktop uses a device-authorization flow so the RPG Maker/NW.js build
 - The approval page renders the untrusted device label with `textContent`, not HTML.
 - A code can belong to only one UID and can be consumed only once.
 - Issuance uses a short transaction lease so concurrent pollers cannot both receive a token.
-- Customer/admin session revocation, account disabling, and account deletion remove unclaimed approvals before revoking Firebase sessions.
+- Every approval is bound to a server-side `accountSecurity/{uid}.deviceSessionGeneration`. Customer/admin session revocation, account disabling, and account deletion delete unclaimed approvals, rotate that generation, and revoke Firebase refresh sessions.
+- Every authenticated backend request made with a PC/Mac device token must present the current generation. A custom token minted immediately before revocation but exchanged afterward is therefore rejected; deleting the short-lived code document is not treated as sufficient revocation.
+- Device approval also reads the generation and Firebase authentication cutoff in the same Firestore transaction. An approval racing revocation must retry against the new state and use a login newer than the cutoff.
 - Expired anonymous sessions are deleted by a separately controlled scheduled cleanup.
 - The public `Origin: null` exception applies only to config/start/poll, because packaged NW.js pages have an opaque file origin. Authenticated approval still uses the normal WonderLang origin policy.
 - UI events contain only the displayed code, approval URL, expiry and state. The polling secret and custom token never enter an event, URL, log or persistent file.
@@ -44,4 +46,4 @@ WonderLang desktop uses a device-authorization flow so the RPG Maker/NW.js build
 6. Verify token refresh, offline sign-out, account switching, and API rejection after revocation in the actual NW.js runtime.
 7. Keep the production RPG Maker plugin disabled until those tests pass.
 
-The backend, customer approval UI, desktop custom-token exchange, refresh-token rotation, local sign-out deletion and simulated in-game code UI are implemented. Unit tests cover the full mocked exchange/reload/sign-out lifecycle, and the responsive browser harness is verified without console errors. A real Firebase account flow in the actual NW.js runtime remains a release gate.
+The backend, customer approval UI, desktop custom-token exchange, refresh-token rotation, local sign-out deletion and simulated in-game code UI are implemented. Unit tests cover the full mocked exchange/reload/sign-out lifecycle and the pre-revocation-custom-token race; the emulator proves final account deletion removes the generation record. The responsive browser harness is verified without console errors. A real Firebase account flow in the actual NW.js runtime remains a release gate.

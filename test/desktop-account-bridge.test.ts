@@ -4,7 +4,7 @@ import { TextDecoder } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const source = readFileSync("integrations/rmmz/WonderLangDesktopAccountBridge.js", "utf8");
-const projectId = "wonderlang-entitlements-9590f";
+const projectId = "wonderlang-accounts";
 const apiKey = "test-public-firebase-api-key-123456";
 const refreshToken = "test-refresh-token-that-is-long-enough";
 

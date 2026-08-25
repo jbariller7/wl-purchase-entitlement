@@ -393,7 +393,7 @@ class WonderLangAccountManager(
                 .setUrl("https://wonderlang.net/account")
                 .setHandleCodeInApp(true)
                 .setAndroidPackageName(activity.packageName, false, null)
-                .setLinkDomain("wonderlang-entitlements-9590f.firebaseapp.com")
+                .setLinkDomain("wonderlang-accounts.firebaseapp.com")
                 .build()
             preferences.edit()
                 .putString("pending_email", email)

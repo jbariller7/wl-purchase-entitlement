@@ -55,7 +55,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="wonderlang-entitlements-9590f.firebaseapp.com"
+                    android:host="wonderlang-accounts.firebaseapp.com"
                     android:pathPrefix="/__/auth/links" />
             </intent-filter>
 

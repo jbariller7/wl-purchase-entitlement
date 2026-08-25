@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-const authDomain = "wonderlang-entitlements-9590f.firebaseapp.com";
+const authDomain = "wonderlang-accounts.firebaseapp.com";
 const packageName = "com.wonderlang.app";
 const expectedSha256Fingerprints = [
   "93:93:C8:45:B9:2B:B0:BA:17:9B:19:C2:FD:F7:C2:8F:25:B4:3C:EB:44:6D:28:6C:44:0C:4A:53:40:37:00:F0",
@@ -31,7 +31,7 @@ describe("Android passwordless-email App Links", () => {
   it("deploys only the public association file to the isolated Firebase Hosting site", () => {
     const config = JSON.parse(read("firebase.json"));
     expect(config.hosting).toMatchObject({
-      site: "wonderlang-entitlements-9590f",
+      site: "wonderlang-accounts",
       public: "firebase-hosting",
     });
     const assetLinksHeaders = config.hosting.headers.find(

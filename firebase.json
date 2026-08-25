@@ -7,7 +7,7 @@
     "rules": "storage.rules"
   },
   "hosting": {
-    "site": "wonderlang-entitlements-9590f",
+    "site": "wonderlang-accounts",
     "public": "firebase-hosting",
     "ignore": [
       "firebase.json",

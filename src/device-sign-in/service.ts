@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import type { Auth } from "firebase-admin/auth";
+import type { Auth, DecodedIdToken } from "firebase-admin/auth";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { HttpError } from "../http/auth.js";
 import { sha256 } from "../infrastructure/ids.js";
@@ -8,6 +8,7 @@ const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const SESSION_TTL_MS = 10 * 60 * 1000;
 const ISSUANCE_LEASE_MS = 30 * 1000;
 const CODE_PATTERN = /^[2-9A-HJ-NP-Z]{8}$/;
+const ACCOUNT_SECURITY_COLLECTION = "accountSecurity";
 
 export type DeviceSignInState = "pending" | "approved" | "issuing" | "consumed" | "expired";
 
@@ -19,6 +20,7 @@ export interface DeviceSignInSession {
   expiresAt: string;
   approvedUid?: string;
   approvedAt?: string;
+  deviceSessionGeneration?: number;
   issuanceId?: string;
   issuanceStartedAt?: string;
   consumedAt?: string;
@@ -26,7 +28,94 @@ export interface DeviceSignInSession {
 
 export type DeviceSignInLease =
   | { state: "pending"; retryAfterSeconds: number }
-  | { state: "issuing"; uid: string; issuanceId: string; retryAfterSeconds: 0 };
+  | { state: "issuing"; uid: string; issuanceId: string; deviceSessionGeneration: number; retryAfterSeconds: 0 };
+
+export interface DeviceSessionSecurityState {
+  deviceSessionGeneration: number;
+  sessionsRevokedAuthTime: number;
+}
+
+function safeGeneration(value: unknown): number {
+  if (value === undefined) return 0;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+  throw new Error("Stored device-session generation is invalid.");
+}
+
+function safeRevokedAuthTime(value: unknown): number {
+  if (value === undefined) return -1;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+  throw new Error("Stored session-revocation cutoff is invalid.");
+}
+
+export function readDeviceSessionSecurityState(data: Record<string, unknown> | undefined): DeviceSessionSecurityState {
+  return {
+    deviceSessionGeneration: safeGeneration(data?.deviceSessionGeneration),
+    sessionsRevokedAuthTime: safeRevokedAuthTime(data?.sessionsRevokedAuthTime)
+  };
+}
+
+export function requireAuthenticationAfterSessionRevocation(
+  state: DeviceSessionSecurityState,
+  authTimeSeconds: number
+): void {
+  if (!Number.isSafeInteger(authTimeSeconds) || authTimeSeconds < 0 || authTimeSeconds <= state.sessionsRevokedAuthTime) {
+    throw new HttpError(401, "This account session was revoked. Sign out and sign in again.");
+  }
+}
+
+export async function currentDeviceSessionGeneration(db: Firestore, uid: string): Promise<number> {
+  const snapshot = await db.collection(ACCOUNT_SECURITY_COLLECTION).doc(uid).get();
+  return readDeviceSessionSecurityState(snapshot.data()).deviceSessionGeneration;
+}
+
+export async function requireCurrentDeviceSessionGeneration(
+  db: Firestore,
+  token: DecodedIdToken
+): Promise<void> {
+  if (token.wlDeviceSignIn !== true) return;
+  const claimedGeneration = token.wlDeviceSessionGeneration;
+  if (typeof claimedGeneration !== "number" || !Number.isSafeInteger(claimedGeneration) || claimedGeneration < 0) {
+    throw new HttpError(401, "This PC/Mac session is no longer valid. Sign in again.");
+  }
+  const currentGeneration = await currentDeviceSessionGeneration(db, token.uid);
+  if (claimedGeneration !== currentGeneration) {
+    throw new HttpError(401, "This PC/Mac session was revoked. Sign in again.");
+  }
+}
+
+export async function rotateDeviceSessionGeneration(
+  db: Firestore,
+  uid: string,
+  now: Date
+): Promise<number> {
+  const ref = db.collection(ACCOUNT_SECURITY_COLLECTION).doc(uid);
+  return db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    const current = readDeviceSessionSecurityState(snapshot.data()).deviceSessionGeneration;
+    if (current >= Number.MAX_SAFE_INTEGER) throw new Error("Device-session generation is exhausted.");
+    const next = current + 1;
+    transaction.set(ref, {
+      deviceSessionGeneration: next,
+      sessionsRevokedAuthTime: Math.floor(now.getTime() / 1000),
+      sessionsRevokedAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    }, { merge: true });
+    return next;
+  });
+}
+
+export async function invalidateDeviceSignInsForUid(
+  db: Firestore,
+  uid: string,
+  now: Date
+): Promise<{ canceledDeviceSignIns: number; deviceSessionGeneration: number }> {
+  // Delete first, then rotate. An approval racing the delete either binds the
+  // old generation and becomes invalid at rotation, or observes the rotation
+  // and must present a Firebase authentication newer than the revocation.
+  const canceledDeviceSignIns = await deleteDeviceSignInSessionsForUid(db, uid);
+  const deviceSessionGeneration = await rotateDeviceSessionGeneration(db, uid, now);
+  return { canceledDeviceSignIns, deviceSessionGeneration };
+}
 
 export async function deleteDeviceSignInSessionsForUid(db: Firestore, uid: string): Promise<number> {
   let deleted = 0;
@@ -82,7 +171,12 @@ export function deviceSessionDocumentId(userCode: string): string {
   return sha256(`device-sign-in:${normalizeDeviceUserCode(userCode)}`);
 }
 
-export function approveDeviceSession(session: DeviceSignInSession, uid: string, now: Date): DeviceSignInSession {
+export function approveDeviceSession(
+  session: DeviceSignInSession,
+  uid: string,
+  deviceSessionGeneration: number,
+  now: Date
+): DeviceSignInSession {
   if (expired(session, now) || session.state === "expired") throw new HttpError(410, "This device code has expired. Start sign-in again in WonderLang.");
   if (session.state === "consumed") throw new HttpError(410, "This device code has already been used. Start sign-in again in WonderLang.");
   if (session.approvedUid && session.approvedUid !== uid) throw new HttpError(409, "This device code was already approved for another WonderLang account.");
@@ -91,7 +185,8 @@ export function approveDeviceSession(session: DeviceSignInSession, uid: string, 
     ...session,
     state: "approved",
     approvedUid: uid,
-    approvedAt: session.approvedAt ?? now.toISOString()
+    approvedAt: session.approvedAt ?? now.toISOString(),
+    deviceSessionGeneration
   };
 }
 
@@ -123,7 +218,13 @@ export function leaseDeviceSession(
   };
   return {
     session: next,
-    lease: { state: "issuing", uid: session.approvedUid, issuanceId, retryAfterSeconds: 0 }
+    lease: {
+      state: "issuing",
+      uid: session.approvedUid,
+      issuanceId,
+      deviceSessionGeneration: safeGeneration(session.deviceSessionGeneration),
+      retryAfterSeconds: 0
+    }
   };
 }
 
@@ -190,13 +291,24 @@ export class DeviceSignInService {
     return { userCode, deviceLabel: session.deviceLabel, expiresAt: session.expiresAt, state: session.state === "approved" ? "approved" : "pending" };
   }
 
-  async approve(input: { uid: string; userCode: string; now: Date }): Promise<{ approved: true; userCode: string; deviceLabel: string }> {
+  async approve(input: { uid: string; userCode: string; authTimeSeconds: number; now: Date }): Promise<{ approved: true; userCode: string; deviceLabel: string }> {
     const userCode = formatDeviceUserCode(input.userCode);
     const ref = this.db.collection("deviceSignInSessions").doc(deviceSessionDocumentId(userCode));
+    const securityRef = this.db.collection(ACCOUNT_SECURITY_COLLECTION).doc(input.uid);
     const result = await this.db.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(ref);
+      const [snapshot, securitySnapshot] = await Promise.all([
+        transaction.get(ref),
+        transaction.get(securityRef)
+      ]);
       if (!snapshot.exists) throw new HttpError(404, "This device code was not found. Check the code shown by WonderLang.");
-      const next = approveDeviceSession(snapshot.data() as DeviceSignInSession, input.uid, input.now);
+      const security = readDeviceSessionSecurityState(securitySnapshot.data());
+      requireAuthenticationAfterSessionRevocation(security, input.authTimeSeconds);
+      const next = approveDeviceSession(
+        snapshot.data() as DeviceSignInSession,
+        input.uid,
+        security.deviceSessionGeneration,
+        input.now
+      );
       transaction.set(ref, next);
       return next;
     });
@@ -219,7 +331,20 @@ export class DeviceSignInService {
     });
     if (lease.state === "pending") return lease;
     try {
-      const customToken = await this.auth.createCustomToken(lease.uid, { wlDeviceSignIn: true });
+      const currentGeneration = await currentDeviceSessionGeneration(this.db, lease.uid);
+      if (currentGeneration !== lease.deviceSessionGeneration) {
+        await this.db.runTransaction(async (transaction) => {
+          const snapshot = await transaction.get(ref);
+          if (!snapshot.exists) return;
+          const session = snapshot.data() as DeviceSignInSession;
+          if (session.state === "issuing" && session.issuanceId === lease.issuanceId) transaction.delete(ref);
+        });
+        throw new HttpError(410, "This device approval was revoked. Start sign-in again in WonderLang.");
+      }
+      const customToken = await this.auth.createCustomToken(lease.uid, {
+        wlDeviceSignIn: true,
+        wlDeviceSessionGeneration: lease.deviceSessionGeneration
+      });
       await this.db.runTransaction(async (transaction) => {
         const snapshot = await transaction.get(ref);
         if (!snapshot.exists) throw new HttpError(409, "Device sign-in session disappeared during issuance.");

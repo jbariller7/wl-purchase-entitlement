@@ -395,6 +395,10 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
           deleteAfter: "2026-01-01T00:00:00.000Z"
         }),
         database.collection("users").doc(uid).set({ storeAccountToken: "store-token" }),
+        database.collection("accountSecurity").doc(uid).set({
+          deviceSessionGeneration: 3,
+          sessionsRevokedAuthTime: 1_777_000_000
+        }),
         database.collection("entitlements").doc(uid).set({ uid }),
         database.collection("grants").doc("grant-delete-me").set({ uid, metadata: { email: "buyer@example.com" } }),
         database.collection("providerTransactions").doc("transaction-delete-me").set({ uid }),
@@ -465,7 +469,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         mailerLiteSubscribersForgotten: 1
       });
 
-      const [order, key, fulfillment, conversion, deletion, grant, providerSubscription, providerSecret, cleanupJob, secondPlatformRequest, user, tombstone] = await Promise.all([
+      const [order, key, fulfillment, conversion, deletion, grant, providerSubscription, providerSecret, cleanupJob, secondPlatformRequest, user, accountSecurity, tombstone] = await Promise.all([
         database.collection("legacyOrders").doc("order-delete-me").get(),
         database.collection("legacyKeys").doc("key-delete-me").get(),
         database.collection("outbox").doc("fulfillment-delete-me").get(),
@@ -477,6 +481,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         database.collection("cloudSaveCleanupJobs").doc("cleanup-delete-me").get(),
         database.collection("secondPlatformRequests").doc(uid).get(),
         database.collection("users").doc(uid).get(),
+        database.collection("accountSecurity").doc(uid).get(),
         database.collection("accountDeletionTombstones").doc(sha256(uid)).get()
       ]);
       expect(order.data()).toMatchObject({ firebaseUid: deletedUid, claimedByUid: deletedUid });
@@ -497,6 +502,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
       expect(cleanupJob.exists).toBe(false);
       expect(secondPlatformRequest.exists).toBe(false);
       expect(user.exists).toBe(false);
+      expect(accountSecurity.exists).toBe(false);
       expect(tombstone.data()?.deletedUid).toBe(deletedUid);
       expect(deletedAuthUsers).toEqual([uid]);
       expect(erasedLegacySubjects).toEqual([{

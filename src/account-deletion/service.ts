@@ -10,7 +10,7 @@ import type {
   LegacyPersonalDataErasureResult,
   LegacyPersonalDataSubject
 } from "../legacy/personal-data-erasure.js";
-import { deleteDeviceSignInSessionsForUid } from "../device-sign-in/service.js";
+import { invalidateDeviceSignInsForUid } from "../device-sign-in/service.js";
 
 export const ACCOUNT_DELETION_CONFIRMATION = "DELETE MY WONDERLANG ACCOUNT";
 export const ACCOUNT_DELETION_RECOVERY_DAYS = 30;
@@ -85,8 +85,8 @@ export class AccountDeletionService {
     });
     const result = preview.result as Record<string, unknown>;
     await this.auth.updateUser(input.uid, { disabled: true });
+    await invalidateDeviceSignInsForUid(this.db, input.uid, input.now);
     await this.auth.revokeRefreshTokens(input.uid);
-    await deleteDeviceSignInSessionsForUid(this.db, input.uid);
     const store = new EntitlementStore(this.db);
     await store.enqueue("delete_account_data", `account-deletion:${input.uid}`, { uid: input.uid }, input.now, deleteAfter);
     await this.db.collection("accountAudit").add({
@@ -110,8 +110,9 @@ export class AccountDeletionService {
       transaction.update(requestRef, { state: "canceled", canceledAt: input.now.toISOString(), canceledBy: input.actor.uid, cancellationReason: input.reason.trim() });
       if (outbox.exists && outbox.data()?.state === "pending") transaction.update(outboxRef, { state: "canceled", canceledAt: input.now.toISOString() });
     });
-    await this.auth.updateUser(input.uid, { disabled: false });
+    await invalidateDeviceSignInsForUid(this.db, input.uid, input.now);
     await this.auth.revokeRefreshTokens(input.uid);
+    await this.auth.updateUser(input.uid, { disabled: false });
     await recordAdminAudit({
       db: this.db,
       actor: input.actor,
@@ -325,6 +326,7 @@ export class AccountDeletionService {
     batch.delete(this.db.collection("entitlements").doc(uid));
     batch.delete(this.db.collection("legacyDiscountClaims").doc(uid));
     batch.delete(this.db.collection("secondPlatformRequests").doc(uid));
+    batch.delete(this.db.collection("accountSecurity").doc(uid));
     if (storeAccountToken) batch.delete(this.db.collection("storeAccountTokens").doc(stableDocumentId("store-account", storeAccountToken)));
     const tombstoneRef = this.db.collection("accountDeletionTombstones").doc(sha256(uid));
     batch.set(tombstoneRef, { deletedUid, completedAt: now.toISOString(), retainedLedgerRows: pseudonymizedRows.reduce((sum, value) => sum + value, 0) });

@@ -22,7 +22,11 @@ import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "../../
 import { sha256 } from "../../src/infrastructure/ids.js";
 import { claimAppleTransaction } from "../../src/providers/apple/service.js";
 import { ACCOUNT_DELETION_CONFIRMATION, AccountDeletionService } from "../../src/account-deletion/service.js";
-import { deleteDeviceSignInSessionsForUid, DeviceSignInService } from "../../src/device-sign-in/service.js";
+import {
+  DeviceSignInService,
+  invalidateDeviceSignInsForUid,
+  requireCurrentDeviceSessionGeneration
+} from "../../src/device-sign-in/service.js";
 import { SecondPlatformRequestService } from "../../src/premium/second-platform-request-service.js";
 
 export const config: Config = {
@@ -225,6 +229,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     deploymentControls().APP_CHECK_ENFORCEMENT_ENABLED
   );
   const db = firestore();
+  await requireCurrentDeviceSessionGeneration(db, user);
   const store = new EntitlementStore(db);
   const secondPlatformRequests = new SecondPlatformRequestService(db);
   const now = new Date();
@@ -251,7 +256,12 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       if (!user.auth_time || Math.floor(now.getTime() / 1000) - user.auth_time > 10 * 60) {
         throw new HttpError(401, "For security, sign out and sign in again before approving this device.");
       }
-      return json(200, await service.approve({ uid: user.uid, userCode, now }));
+      return json(200, await service.approve({
+        uid: user.uid,
+        userCode,
+        authTimeSeconds: user.auth_time,
+        now
+      }));
     }
     throw new HttpError(405, "Method Not Allowed");
   }
@@ -307,9 +317,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (event.httpMethod === "POST" && path === "/v1/me/revoke-sessions") {
     const parsed = revokeSessionsSchema.safeParse(parseJsonBody(event.body));
     if (!parsed.success) throw new HttpError(400, "Type SIGN OUT ALL DEVICES to confirm.");
-    const canceledDeviceSignIns = await deleteDeviceSignInSessionsForUid(db, user.uid);
+    const invalidated = await invalidateDeviceSignInsForUid(db, user.uid, now);
     await firebaseAuth().revokeRefreshTokens(user.uid);
-    return json(200, { revoked: true, canceledDeviceSignIns });
+    return json(200, { revoked: true, ...invalidated });
   }
 
   if (event.httpMethod === "POST" && path === "/v1/me/deletion-preview") {

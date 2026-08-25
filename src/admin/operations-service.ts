@@ -4,7 +4,7 @@ import type { Auth, UserRecord } from "firebase-admin/auth";
 import type { Product, Provider } from "../domain/model.js";
 import { summarizeSubscription } from "../domain/account-summary.js";
 import { HttpError } from "../http/auth.js";
-import { deleteDeviceSignInSessionsForUid } from "../device-sign-in/service.js";
+import { invalidateDeviceSignInsForUid } from "../device-sign-in/service.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { SHEET_TAB_BY_PRODUCT } from "../legacy/catalog.js";
 import { stripeClient } from "../providers/stripe/client.js";
@@ -361,24 +361,27 @@ export class AdminOperationsService {
 
   async updateUserAccess(input: { actor: AdminActor; uid: string; disabled: boolean; reason: string; now: Date }): Promise<Record<string, unknown>> {
     if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
-    const user = await this.auth.updateUser(input.uid, { disabled: input.disabled });
-    const canceledDeviceSignIns = await deleteDeviceSignInSessionsForUid(this.db, input.uid);
+    if (input.disabled) await this.auth.updateUser(input.uid, { disabled: true });
+    const invalidated = await invalidateDeviceSignInsForUid(this.db, input.uid, input.now);
     await this.auth.revokeRefreshTokens(input.uid);
+    const user = input.disabled
+      ? await this.auth.getUser(input.uid)
+      : await this.auth.updateUser(input.uid, { disabled: false });
     await recordAdminAudit({
       db: this.db, actor: input.actor, action: input.disabled ? "user.disable" : "user.enable", targetType: "user", targetId: input.uid,
       summary: input.disabled ? "Disabled sign-in and revoked sessions" : "Re-enabled sign-in",
-      metadata: { reason: input.reason.trim(), canceledDeviceSignIns }, now: input.now
+      metadata: { reason: input.reason.trim(), ...invalidated }, now: input.now
     });
     return { user: publicUser(user) };
   }
 
   async revokeSessions(input: { actor: AdminActor; uid: string; reason: string; now: Date }): Promise<void> {
     if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
-    const canceledDeviceSignIns = await deleteDeviceSignInSessionsForUid(this.db, input.uid);
+    const invalidated = await invalidateDeviceSignInsForUid(this.db, input.uid, input.now);
     await this.auth.revokeRefreshTokens(input.uid);
     await recordAdminAudit({
       db: this.db, actor: input.actor, action: "user.sessions.revoke", targetType: "user", targetId: input.uid,
-      summary: "Revoked all Firebase sessions and pending device approvals", metadata: { reason: input.reason.trim(), canceledDeviceSignIns }, now: input.now
+      summary: "Revoked all Firebase sessions and pending device approvals", metadata: { reason: input.reason.trim(), ...invalidated }, now: input.now
     });
   }
 
