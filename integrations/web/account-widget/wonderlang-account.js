@@ -16,6 +16,7 @@ import {
   signOut
 } from "firebase/auth";
 import { friendlyAccountError } from "./auth-errors.js";
+import { formatLoginProviders } from "./provider-labels.js";
 import "./wonderlang-account.css";
 
 const pageParams = new URLSearchParams(location.search);
@@ -453,12 +454,12 @@ class WonderLangAccount extends HTMLElement {
     }
     this.status(`Signed in as ${user.email || "your WonderLang account"}`);
     if (!this.config.accountApiReady) {
-      const providers = (user.providerData || []).map((provider) => provider.providerId?.replace(".com", "")).filter(Boolean);
+      const providers = (user.providerData || []).map((provider) => provider.providerId).filter(Boolean);
       this.account = null;
       this.querySelector('[data-field="access"]').textContent = "Server account setup pending";
       this.querySelector('[data-field="cloud"]').textContent = "Cloud save is unavailable until the test backend is configured";
       this.querySelector('[data-field="email"]').textContent = user.email || "No email available";
-      this.querySelector('[data-field="providers"]').textContent = providers.join(", ") || "Email link";
+      this.querySelector('[data-field="providers"]').textContent = formatLoginProviders(providers);
       this.querySelector('[data-field="subscription"]').textContent = "Unavailable during server setup";
       this.querySelector('[data-field="cloud-status"]').textContent = "Unavailable during server setup";
       this.querySelector('[data-field="mobile-platforms"]').textContent = "Unavailable during server setup";
@@ -479,7 +480,7 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="access"]').textContent = access;
       this.querySelector('[data-field="cloud"]').textContent = ent.cloudSave ? "Cloud save enabled" : "Cloud save requires Mobile Monthly or Premium Lifetime";
       this.querySelector('[data-field="email"]').textContent = this.account.email || "No email available";
-      this.querySelector('[data-field="providers"]').textContent = (this.account.linkedLoginProviders || []).map((provider) => provider.replace(".com", "")).join(", ") || "Email link";
+      this.querySelector('[data-field="providers"]').textContent = formatLoginProviders(this.account.linkedLoginProviders);
       const sub = this.account.subscription;
       const date = (value) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value)) : null;
       this.querySelector('[data-field="subscription"]').textContent = !sub ? "None" : `${sub.phase}${sub.trialEndsAt ? ` · trial ends ${date(sub.trialEndsAt)}` : sub.graceEndsAt ? ` · grace ends ${date(sub.graceEndsAt)}` : sub.renewsAt ? ` · renews ${date(sub.renewsAt)}` : sub.endsAt ? ` · ends ${date(sub.endsAt)}` : ""}`;
