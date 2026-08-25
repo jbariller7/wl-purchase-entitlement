@@ -47,7 +47,7 @@ async function resolveUid(input: {
   return resolved;
 }
 
-function playSubscriptionState(value: string | null | undefined): LedgerGrant["state"] {
+export function normalizeGooglePlaySubscriptionState(value: string | null | undefined): LedgerGrant["state"] {
   switch (value) {
     case "SUBSCRIPTION_STATE_ACTIVE": return "active";
     case "SUBSCRIPTION_STATE_IN_GRACE_PERIOD": return "grace";
@@ -95,7 +95,7 @@ export async function syncGooglePlaySubscription(input: {
   });
   const transactionId = tokenId(input.purchaseToken);
   const periodEnd = maxExpiry(purchase.lineItems);
-  let state = playSubscriptionState(purchase.subscriptionState);
+  let state = normalizeGooglePlaySubscriptionState(purchase.subscriptionState);
   if (state === "active" && purchase.subscriptionState === "SUBSCRIPTION_STATE_CANCELED" && periodEnd && Date.parse(periodEnd) <= Date.now()) {
     state = "expired";
   }

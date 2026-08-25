@@ -70,7 +70,7 @@ async function resolveUid(input: {
   return uid;
 }
 
-function subscriptionState(input: {
+export function normalizeAppleSubscriptionState(input: {
   status?: Status | number;
   transaction: JWSTransactionDecodedPayload;
   renewal?: JWSRenewalInfoDecodedPayload;
@@ -109,7 +109,7 @@ async function applyAppleTransaction(input: {
 
   if (product === "mobile_full_monthly") {
     if (!originalId) throw new Error("Apple subscription is missing originalTransactionId.");
-    const normalized = subscriptionState({
+    const normalized = normalizeAppleSubscriptionState({
       ...(input.status !== undefined ? { status: input.status } : {}),
       transaction: input.transaction,
       ...(input.renewal ? { renewal: input.renewal } : {}),
