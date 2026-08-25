@@ -27,6 +27,7 @@ const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app
   && previewParam === "1";
 const localEmailLinkDemo = ["localhost", "127.0.0.1"].includes(location.hostname)
   && previewParam === "email-link";
+const ACCOUNT_DELETION_RECOVERY_DAYS = 30;
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
@@ -804,12 +805,12 @@ class WonderLangAccount extends HTMLElement {
       return {
         previewId: "demo-deletion-preview",
         confirmationPhrase: "DELETE WONDERLANG ACCOUNT",
-        recoveryDays: 14,
+        recoveryDays: ACCOUNT_DELETION_RECOVERY_DAYS,
         consequences: ["Login sessions will be revoked.", "Cloud saves will be queued for deletion.", "Purchase records remain for accounting and restore fraud prevention."]
       };
     }
     if (path === "/api/v1/me/deletion-commit") {
-      return { deleteAfter: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString() };
+      return { deleteAfter: new Date(Date.now() + ACCOUNT_DELETION_RECOVERY_DAYS * 24 * 60 * 60 * 1000).toISOString() };
     }
     if (path === "/api/v1/me/revoke-sessions") return { revoked: true };
     if (path === "/api/v1/admin-bootstrap") return { granted: true, changed: true, signInAgain: true };

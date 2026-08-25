@@ -223,6 +223,9 @@ describe("isolated integration configuration", () => {
     expect(widget).toContain("if (demoMode) return this.demoRequest(path, options)");
     expect(widget).toContain("no real sign-in, purchase, save, or deletion can occur.");
     expect(widget).toContain("No payment page was opened.");
+    expect(widget).toContain("const ACCOUNT_DELETION_RECOVERY_DAYS = 30;");
+    expect(widget).toContain("recoveryDays: ACCOUNT_DELETION_RECOVERY_DAYS");
+    expect(widget).not.toContain("recoveryDays: 14");
     expect(widget).toContain('phraseInput.addEventListener("input", () => phraseInput.setCustomValidity(""))');
     expect(widget).toMatch(/await this\.renderUser\(this\.user\);\s*this\.status\("Desktop purchase verified\./);
     expect(page).toMatch(/wonderlang-account\.js\?v=/);
