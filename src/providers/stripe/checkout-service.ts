@@ -4,7 +4,6 @@ import { CatalogService } from "../../catalog/service.js";
 import { stripeEnv } from "../../config/env.js";
 import { canUseLegacyLifetimeDiscount } from "../../domain/legacy-discount.js";
 import { planLifetimeTransition } from "../../domain/lifetime-transition.js";
-import { STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../domain/catalog.js";
 import { HttpError } from "../../http/auth.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import type { EffectiveEntitlements } from "../../domain/model.js";
@@ -23,7 +22,14 @@ export const checkoutRequestSchema = z.object({
     ttp: z.string().max(255).optional()
   }).optional()
 }).superRefine((value, context) => {
-  if (value.product !== "mobile_full_monthly" && !value.mobilePlatform) {
+  if (value.product !== "premium_lifetime_pass") {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["product"],
+      message: "Mobile Monthly and Polyglot Permanent are sold only inside the Android and iOS apps. Stripe website checkout is available only for Premium Lifetime."
+    });
+  }
+  if (value.product === "premium_lifetime_pass" && !value.mobilePlatform) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["mobilePlatform"],
@@ -40,6 +46,12 @@ export const checkoutRequestSchema = z.object({
 });
 
 export type CheckoutRequest = z.infer<typeof checkoutRequestSchema>;
+
+export function assertWebsiteStripeCheckoutProduct(product: CheckoutRequest["product"]): void {
+  if (product !== "premium_lifetime_pass") {
+    throw new HttpError(400, "Mobile Monthly and Polyglot Permanent are sold only inside the Android and iOS apps. Stripe website checkout is available only for Premium Lifetime.");
+  }
+}
 
 export function assertCheckoutOwnershipAvailable(request: CheckoutRequest, effective: EffectiveEntitlements): void {
   if (request.product === "premium_lifetime_pass" && effective.premiumLifetime) {
@@ -78,19 +90,13 @@ export async function createCheckout(input: {
   userAgent?: string;
   now: Date;
 }): Promise<{ url: string; sessionId: string; warning?: string }> {
+  assertWebsiteStripeCheckoutProduct(input.request.product);
   if (!stripeEnv().STRIPE_MUTATIONS_ENABLED) throw new HttpError(503, "Checkout is disabled for this deployment.");
   const { store, user, request, now } = input;
   const effective = await store.effectiveEntitlements(user.uid, now);
   assertCheckoutOwnershipAvailable(request, effective);
 
   const activeSubscription = await store.activeSubscription(user.uid);
-  if (request.product === "mobile_full_monthly" && activeSubscription) {
-    throw new HttpError(409, "This account already has an active subscription.");
-  }
-  if (request.useLegacyDesktopDiscount && request.product !== "premium_lifetime_pass") {
-    throw new HttpError(400, "The historical-customer discount applies only to the Premium Lifetime Pass.");
-  }
-
   const transition = planLifetimeTransition({
     uid: user.uid,
     confirmedCancelExistingSubscription: request.confirmCancelExistingSubscription,
@@ -113,7 +119,6 @@ export async function createCheckout(input: {
   }
 
   const customerId = await stripeCustomerForUser(store, user, now);
-  const isMonthly = request.product === "mobile_full_monthly";
   const catalog = await new CatalogService(store.firestore()).get();
   const metadata: Record<string, string> = {
     wl_uid: user.uid,
@@ -130,13 +135,11 @@ export async function createCheckout(input: {
   };
   const expiresAt = Math.floor(now.getTime() / 1000) + 60 * 60;
   const session = await stripeClient().checkout.sessions.create({
-    mode: isMonthly ? "subscription" : "payment",
+    mode: "payment",
     customer: customerId,
     client_reference_id: user.uid,
     line_items: [{
-      price: request.product === "mobile_full_monthly" ? catalog.monthly.stripePriceId
-        : request.product === "mobile_polyglot_permanent" ? catalog.polyglot.stripePriceId
-          : catalog.premium.stripePriceId,
+      price: catalog.premium.stripePriceId,
       quantity: 1
     }],
     success_url: withSessionId(stripeEnv().STRIPE_SUCCESS_URL),
@@ -144,12 +147,6 @@ export async function createCheckout(input: {
     expires_at: expiresAt,
     allow_promotion_codes: false,
     metadata,
-    ...(isMonthly ? {
-      subscription_data: {
-        metadata,
-        trial_period_days: STRIPE_SUBSCRIPTION_TRIAL_DAYS
-      }
-    } : {}),
     ...(request.useLegacyDesktopDiscount
       ? { discounts: [{ coupon: stripeEnv().STRIPE_COUPON_LEGACY_DESKTOP_50 }] }
       : {})

@@ -7,6 +7,7 @@ describe("customer interface route contract", () => {
   const account = read("integrations/web/account-widget/wonderlang-account.js");
   const accountStyles = read("integrations/web/account-widget/wonderlang-account.css");
   const api = read("netlify/functions/api.ts");
+  const stripeEvents = read("src/providers/stripe/event-processor.ts");
 
   it("binds every visible customer action and form", () => {
     const controls = [...new Set([...account.matchAll(/data-action="([a-z-]+)"/g)].map((match) => match[1]))].sort();
@@ -77,6 +78,17 @@ describe("customer interface route contract", () => {
     expect(account).toContain("await send(true)");
     expect(account).toContain("user.getIdToken(forceRefresh)");
     expect(account.match(/await send\(true\)/g)).toHaveLength(1);
+  });
+
+  it("offers only Premium through website Stripe checkout while retaining native and historical support", () => {
+    expect(account).toContain("Available inside WonderLang for Android and iOS through that device's app store.");
+    expect(account).not.toContain('data-action="monthly"');
+    expect(account).not.toContain('data-action="polyglot"');
+    expect(account).not.toContain('checkout("mobile_full_monthly"');
+    expect(account).not.toContain('checkout("mobile_polyglot_permanent"');
+    expect(account).toContain('product: "premium_lifetime_pass"');
+    expect(stripeEvents).toContain('metadata.wl_product === "mobile_full_monthly"');
+    expect(stripeEvents).toContain('metadata.wl_product === "mobile_polyglot_permanent"');
   });
 });
 
@@ -160,5 +172,13 @@ describe("administrator interface route contract", () => {
       "SIMULATED DEMO — NOT LIVE DATA"
     ]) expect(admin).toContain(state);
     expect(api).toContain("requireAdmin(");
+  });
+
+  it("limits the working Stripe price editor to Premium and labels mobile prices as native", () => {
+    expect(admin).toContain('<input type="hidden" name="kind" value="premium">');
+    expect(admin).not.toContain('<option value="monthly">Mobile Monthly</option>');
+    expect(admin).not.toContain('<option value="polyglot">Polyglot Permanent Access</option>');
+    expect(admin).toContain("Managed in Google Play / App Store Connect");
+    expect(api).toContain('kind: z.literal("premium")');
   });
 });

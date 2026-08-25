@@ -10,22 +10,22 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - New chapter-by-chapter sales are retired. Historical chapter and "wonderlangfull" purchases remain restorable forever; a historical chapter owner receives Polyglot Permanent on the purchase platform while the original chapter transaction remains in the ledger.
 - Cloud save is enabled only for effective Mobile Monthly or Premium Lifetime access. Lapsed access never deletes stored saves.
 - Stripe payment failure gets seven days of access grace.
-- A no-payment-required Stripe trial checkout emits one deduplicated `StartTrial`; the first paid invoice emits `Subscribe`; subscription renewals never enqueue Meta or TikTok conversion events.
+- Historical Stripe trial events remain recognized for existing test/migrated subscribers. New Monthly trials are native Play/App Store purchases; their verified store events drive entitlement and conversion policy.
 - A verified historical website Steam/Itch buyer gets one private, single-use 50% Premium Lifetime checkout. The old purchase does not itself grant mobile access.
-- A Stripe subscriber buying Premium Lifetime must explicitly confirm cancellation. Premium is granted first; cancellation is then performed by a retrying job. Buying Polyglot Permanent never cancels a subscription. Apple/Google subscriptions remain store-managed and are never falsely reported as canceled by the website.
+- Premium Lifetime is the only product sold through website Stripe Checkout. A historical Stripe subscriber buying Premium must explicitly confirm cancellation; Premium is granted first and cancellation is then performed by a retrying job. Native Polyglot purchases never cancel a subscription. Apple/Google subscriptions remain store-managed and are never falsely reported as canceled by the website.
 
 ## What is implemented
 
 - Firebase Auth ID-token verification and account-bound Stripe customers.
 - Google, Apple and passwordless email-link website sign-in widget with explicit same-account provider linking; email linking refuses to switch or merge accounts.
 - Ten-minute PC/Mac device authorization with a separate high-entropy polling secret, explicit customer approval, one-time Firebase custom-token issuance, runtime-only Firebase client configuration, NW.js token exchange/refresh, revocation cleanup and a fail-closed scheduled expiry worker. The actual NW.js end-to-end test remains a release gate.
-- Responsive `/account/` customer interface for sign-in/linking, effective access, checkout, provider-specific subscription management, legacy claims, PC/Mac approval, Premium second-mobile-platform submission/cancellation, session revocation and account deletion.
-- Responsive `/admin/` operations console with customer lookup, a Premium second-mobile-platform review queue, audited approval/decline decisions, manual grants, two-step refunds and regional price changes, dry-run imports, delivery retries, key inventory, provider monitoring and audit history. Explicit `?demo=1` sessions are stateful but fictional and side-effect-free; the normal page never substitutes demo records for unavailable services.
+- Responsive `/account/` customer interface for sign-in/linking, effective access, Premium-only website checkout, native-store purchase guidance, provider-specific subscription management, legacy claims, PC/Mac approval, Premium second-mobile-platform submission/cancellation, session revocation and account deletion.
+- Responsive `/admin/` operations console with customer lookup, a Premium second-mobile-platform review queue, audited approval/decline decisions, manual grants, two-step refunds, Premium Stripe price changes, native-store regional price references, dry-run imports, delivery retries, key inventory, provider monitoring and audit history. Explicit `?demo=1` sessions are stateful but fictional and side-effect-free; the normal page never substitutes demo records for unavailable services.
 - Server-verified, email-verified Firebase `admin` custom claims; signing in with Google or Apple alone never grants operations access.
 - Fail-closed test deployment controls. Test mode rejects every non-`sk_test_` Stripe key and all side-effect switches default to off.
 - Append-only provider event inbox, replay protection, stale-claim recovery and out-of-order grant protection.
 - Effective entitlement projector with Stripe, Play, App Store and legacy ownership sources.
-- Stripe Checkout, Billing Portal, lifecycle webhooks, refunds/disputes, seven-day grace and conversion policy.
+- Premium-only Stripe Checkout, Billing Portal, historical subscription lifecycle webhooks, refunds/disputes, seven-day grace and conversion policy.
 - Google Play Developer API verification, backend acknowledgment, OIDC-authenticated RTDN and token replay prevention.
 - Apple official JWS verification for StoreKit 2 and App Store Server Notifications V2.
 - Scheduled Stripe, Google Play and Apple subscription reconciliation, with an exclusive lease, per-subscription retry backoff and an operations-console run history. Provider access is read-only; Google Play bearer tokens are AES-256-GCM encrypted with a rotatable Netlify-only key ring.

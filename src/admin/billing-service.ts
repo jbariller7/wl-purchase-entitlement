@@ -21,6 +21,12 @@ export function priceChangeConfirmationPhrase(kind: CatalogOfferKind, unitAmount
   return `CHANGE ${kind.toUpperCase()} TO ${phraseAmount(unitAmount, currency)}`;
 }
 
+export function assertWebsiteStripePriceKind(kind: CatalogOfferKind): asserts kind is "premium" {
+  if (kind !== "premium") {
+    throw new HttpError(400, "Mobile Monthly and Polyglot Permanent prices are managed in Google Play and App Store Connect. Only the website-only Premium Lifetime Stripe price can be changed here.");
+  }
+}
+
 async function chargeForPaymentIntent(payment: Stripe.PaymentIntent): Promise<Stripe.Charge> {
   const charge = payment.latest_charge;
   if (!charge) throw new HttpError(409, "This PaymentIntent has no completed charge to refund.");
@@ -56,6 +62,7 @@ export class AdminBillingService {
     currency: string;
     now: Date;
   }): Promise<Record<string, unknown>> {
+    assertWebsiteStripePriceKind(input.kind);
     if (!Number.isSafeInteger(input.unitAmount) || input.unitAmount < 1 || input.unitAmount > 100_000_000) {
       throw new HttpError(400, "Enter a valid positive Stripe price amount.");
     }
@@ -84,11 +91,11 @@ export class AdminBillingService {
       previewId: id,
       kind: input.kind,
       current,
-      proposed: { unitAmount: input.unitAmount, currency, recurring: input.kind === "monthly" },
+      proposed: { unitAmount: input.unitAmount, currency, recurring: false },
       confirmationPhrase,
       expiresAt: expiresAt.toISOString(),
       affectsExistingSubscriptions: false,
-      warning: "Stripe prices are immutable. Confirming creates a new Price for future checkouts; existing subscribers keep their current price."
+      warning: "Stripe prices are immutable. Confirming creates a new Premium Lifetime Price for future website checkouts; historical prices and subscriptions remain unchanged."
     };
   }
 
@@ -99,6 +106,7 @@ export class AdminBillingService {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) throw new HttpError(404, "Price preview not found.");
       const data = snapshot.data() as Record<string, unknown>;
+      assertWebsiteStripePriceKind(data.kind as CatalogOfferKind);
       if (data.actorUid !== input.actor.uid) throw new HttpError(403, "This preview belongs to another administrator.");
       if (data.state === "complete") return data;
       if (data.state !== "preview") throw new HttpError(409, "This price change is already processing.");

@@ -58,9 +58,9 @@ describe("isolated integration configuration", () => {
     expect(admin).not.toContain('Object.hasOwn(cell, "html")');
     expect(admin).not.toContain('String(cell).startsWith("<")');
     expect(admin).toContain("No key inventory records in this environment.");
-    expect(admin).toContain("REGIONAL WEBSITE PRICES");
-    expect(admin).toContain("Google Play and App Store prices remain managed in their store consoles.");
-    expect(admin).toContain("Editing one currency preserves every other configured regional price");
+    expect(admin).toContain("APPROVED REGIONAL PRICES");
+    expect(admin).toContain("Mobile Monthly and Polyglot Permanent prices remain managed in Google Play and App Store Connect.");
+    expect(admin).toContain("Premium values are for Stripe");
   });
 
   it("uses validated per-tab key-inventory thresholds in alerts and the admin UI", () => {
@@ -228,7 +228,9 @@ describe("isolated integration configuration", () => {
     expect(account).toContain('phase: "trial"');
     expect(account).not.toContain('phase: "trialing"');
     expect(account).toContain("const subscribed = hasEffectiveSubscription(this.account)");
-    expect(account).toContain("allMobilePlatformsPermanent");
+    expect(account).not.toContain('data-action="monthly"');
+    expect(account).not.toContain('data-action="polyglot"');
+    expect(account).toContain("Available inside WonderLang for Android and iOS through that device's app store.");
     expect(account).toContain("stripeBillingAvailable");
     expect(account).toContain("https://play.google.com/store/account/subscriptions");
     expect(account).toContain("https://apps.apple.com/account/subscriptions");

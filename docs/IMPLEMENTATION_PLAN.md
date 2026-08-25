@@ -15,7 +15,7 @@
 
 1. Create or select a Firebase project in an EU location. Enable Anonymous (for a later game-first-run flow), Google, Apple and Email Link providers. Add `wonderlang.net`, `www.wonderlang.net` and the Netlify domain as authorized domains.
 2. Configure Apple's Services ID/domain/return URL for Firebase web login. Configure the native iOS Sign in with Apple capability separately.
-3. Create Stripe test Prices for Mobile Monthly (USD 6.99/month with a three-day trial), Polyglot Permanent Access (USD 31.99 once) and Premium Lifetime Pass (USD 59.99 once), with the approved regional currency options, plus the 50% historical-owner Coupon. Do not create a public promotion code. Put only their IDs in Netlify secrets.
+3. Use Stripe website checkout only for Premium Lifetime Pass (USD 59.99 once), with the approved regional currency options, plus the 50% historical-owner Coupon. Retain the existing Stripe test Monthly and Polyglot objects only for historical webhook, subscriber, refund and migration tests; never expose them as new website checkout options. Put only required identifiers in Netlify secrets.
 4. Run `npm run validate:catalog` before production to reject an incorrect amount, currency, interval, disabled Price or non-50% Coupon.
 5. Enable Stripe Customer Portal cancellation/payment-method features and set its return URL to the account page.
 
@@ -47,12 +47,12 @@ Stripe events:
 ## 4. Website rollout
 
 1. Publish the account widget assets and embed the two tags documented under `integrations/web/account-widget`.
-2. Replace every “No subscription” claim on `wonderlang.net` before offering monthly access.
-3. Add clear recurring-price, cancellation and seven-day Stripe grace copy. Keep Polyglot Permanent (one mobile platform, no cloud save) visibly distinct from Premium Lifetime (mobile + PC/Mac + cloud + future content). Premium checkout must require both the first mobile platform and the included PC/Mac delivery choice (Steam key or direct download).
+2. Replace every “No subscription” claim on `wonderlang.net` before linking players to native Monthly access in the mobile apps.
+3. Display Mobile Monthly and Polyglot Permanent as native Android/iOS offers without website purchase controls. The server must reject crafted Stripe checkout requests for either native product. Premium checkout remains website-only and must require both the first mobile platform and the included PC/Mac delivery choice (Steam key or direct download).
 4. Test Google, Apple and email-link login in normal/private browser sessions and on iOS/Android browsers.
 5. Test the implemented PC/Mac approval UI, runtime configuration, custom-token exchange, persisted refresh, sign-out and backend cases in `PC_MAC_DEVICE_SIGN_IN.md`; do not enable the production desktop plugins until the real NW.js token exchange and revocation tests pass.
 6. Test a verified legacy receipt, a wrong-email receipt, a reused receipt, two concurrent discounted checkout attempts, expired checkout release and successful single redemption.
-7. Test subscriber-to-Premium: unchecked confirmation blocks; successful Premium payment grants first; exactly one selected desktop key/download is queued; Stripe subscription then becomes canceled; duplicate webhook delivery does not allocate or cancel twice. Buying Polyglot Permanent must never cancel the subscription automatically.
+7. Test subscriber-to-Premium: unchecked confirmation blocks; successful Premium payment grants first; exactly one selected desktop key/download is queued; a historical Stripe subscription then becomes canceled; a Play/App Store subscription produces clear external-cancellation instructions; duplicate webhook delivery does not allocate or cancel twice. A native Polyglot purchase must never cancel a subscription automatically.
 
 ## 5. Google Play rollout
 

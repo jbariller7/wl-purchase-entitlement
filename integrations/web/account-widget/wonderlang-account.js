@@ -97,13 +97,12 @@ const html = `
         <article>
           <p class="wl-eyebrow">FLEXIBLE</p><h3>Mobile Monthly</h3>
           <p><strong data-field="monthly-price">Loading price…</strong> · <span data-field="monthly-trial">3 days free</span> · Full mobile game · Cloud save</p>
-          <button type="button" data-action="monthly">Start monthly</button>
+          <p class="wl-store-purchase">Available inside WonderLang for Android and iOS through that device's app store.</p>
         </article>
         <article>
           <p class="wl-eyebrow">ONE MOBILE PLATFORM</p><h3>Polyglot Permanent Access</h3>
           <p><strong data-field="polyglot-price">Loading price…</strong> · Full game forever on Android or iOS · No cloud save</p>
-          <label><span>Mobile platform</span><select data-field="polyglot-platform"><option value="android">Android</option><option value="ios">iOS</option></select></label>
-          <button type="button" data-action="polyglot">Buy permanent access</button>
+          <p class="wl-store-purchase">Available inside WonderLang for Android and iOS through that device's app store.</p>
         </article>
         <article>
           <p class="wl-eyebrow">EVERYTHING, FOREVER</p><h3>Premium Lifetime Pass</h3>
@@ -244,10 +243,8 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="google"]').addEventListener("click", () => this.provider(new GoogleAuthProvider()));
     this.querySelector('[data-action="apple"]').addEventListener("click", () => this.provider(appleProvider()));
     this.querySelector('[data-action="sign-out"]').addEventListener("click", () => this.signOutCurrent());
-    this.querySelector('[data-action="monthly"]').addEventListener("click", () => this.checkout("mobile_full_monthly", false));
-    this.querySelector('[data-action="polyglot"]').addEventListener("click", () => this.checkout("mobile_polyglot_permanent", false, this.querySelector('[data-field="polyglot-platform"]').value));
-    this.querySelector('[data-action="premium"]').addEventListener("click", () => this.checkout("premium_lifetime_pass", false, this.querySelector('[data-field="premium-platform"]').value, this.querySelector('[data-field="premium-desktop"]').value));
-    this.querySelector('[data-action="discounted-premium"]').addEventListener("click", () => this.checkout("premium_lifetime_pass", true, this.querySelector('[data-field="premium-platform"]').value, this.querySelector('[data-field="premium-desktop"]').value));
+    this.querySelector('[data-action="premium"]').addEventListener("click", () => this.checkout(false, this.querySelector('[data-field="premium-platform"]').value, this.querySelector('[data-field="premium-desktop"]').value));
+    this.querySelector('[data-action="discounted-premium"]').addEventListener("click", () => this.checkout(true, this.querySelector('[data-field="premium-platform"]').value, this.querySelector('[data-field="premium-desktop"]').value));
     this.querySelector('[data-action="portal"]').addEventListener("click", () => this.openPortal());
     this.querySelector('[data-action="restore"]').addEventListener("click", () => this.restorePurchases());
     this.querySelector('[data-action="revoke-sessions"]').addEventListener("click", () => this.revokeSessions());
@@ -535,13 +532,6 @@ class WonderLangAccount extends HTMLElement {
         }
       }
       const subscribed = hasEffectiveSubscription(this.account);
-      const polyglotPlatform = this.querySelector('[data-field="polyglot-platform"]');
-      for (const option of polyglotPlatform.options) option.disabled = permanentPlatforms.includes(option.value);
-      if (polyglotPlatform.selectedOptions[0]?.disabled) {
-        const available = [...polyglotPlatform.options].find((option) => !option.disabled);
-        if (available) polyglotPlatform.value = available.value;
-      }
-      const allMobilePlatformsPermanent = [...polyglotPlatform.options].every((option) => option.disabled);
       const billingButton = this.querySelector('[data-action="portal"]');
       billingButton.textContent = sub?.provider === "google_play" ? "Manage Google Play subscription"
         : sub?.provider === "apple" ? "Manage Apple subscription"
@@ -552,8 +542,6 @@ class WonderLangAccount extends HTMLElement {
           ? "I understand that I must cancel my Apple subscription separately after the Premium payment succeeds."
           : "Cancel my current Stripe subscription after the Premium payment succeeds.";
       this.querySelector('[data-field="cancel-confirm"]').hidden = !subscribed;
-      this.querySelector('[data-action="monthly"]').disabled = !this.config.checkoutEnabled || subscribed || ent.premiumLifetime;
-      this.querySelector('[data-action="polyglot"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime || allMobilePlatformsPermanent;
       this.querySelector('[data-action="premium"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime;
       this.querySelector('[data-action="discounted-premium"]').hidden = !this.account.legacyLifetimeDiscount.eligible || ent.premiumLifetime;
       this.querySelector('[data-action="discounted-premium"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime;
@@ -612,18 +600,16 @@ class WonderLangAccount extends HTMLElement {
     history.replaceState({}, document.title, `${next.pathname}${next.search}${next.hash}`);
   }
 
-  async checkout(product, useDiscount, mobilePlatform, desktopDelivery) {
+  async checkout(useDiscount, mobilePlatform, desktopDelivery) {
     const subscribed = hasEffectiveSubscription(this.account);
     const confirmation = this.querySelector('[data-field="cancel-confirm"] input');
-    if (product === "premium_lifetime_pass" && subscribed && !confirmation.checked) {
+    if (subscribed && !confirmation.checked) {
       this.status("Confirm subscription cancellation before starting the Premium Lifetime checkout.");
       confirmation.focus();
       return;
     }
     if (demoMode) {
-      const offer = product === "mobile_full_monthly" ? "monthly subscription"
-        : product === "mobile_polyglot_permanent" ? `${mobilePlatform} Polyglot Permanent purchase`
-          : useDiscount ? "discounted Premium Lifetime purchase" : "Premium Lifetime purchase";
+      const offer = useDiscount ? "discounted Premium Lifetime purchase" : "Premium Lifetime purchase";
       this.status(`Safe demo: ${offer} checkout validated. No payment page was opened.`);
       return;
     }
@@ -631,7 +617,7 @@ class WonderLangAccount extends HTMLElement {
       const result = await this.request("/api/v1/checkout", {
         method: "POST",
         body: {
-          product,
+          product: "premium_lifetime_pass",
           ...(mobilePlatform ? { mobilePlatform } : {}),
           ...(desktopDelivery ? { desktopDelivery } : {}),
           useLegacyDesktopDiscount: useDiscount,

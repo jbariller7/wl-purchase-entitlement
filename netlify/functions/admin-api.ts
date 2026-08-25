@@ -32,7 +32,7 @@ const grantSchema = z.object({
   }
 });
 const pricePreviewSchema = z.object({
-  kind: z.enum(["monthly", "polyglot", "premium"]),
+  kind: z.literal("premium"),
   unitAmount: z.number().int().min(1).max(100_000_000),
   currency: z.string().trim().length(3)
 });

@@ -11,7 +11,8 @@ import {
 } from "../src/cloud-save/service.js";
 import { cloudSaveCleanupRetryAt, isSafeCloudRevisionObjectPath } from "../src/cloud-save/cleanup-service.js";
 import { providerEventDecision } from "../src/domain/provider-event.js";
-import { checkoutRequestSchema } from "../src/providers/stripe/checkout-service.js";
+import { assertWebsiteStripeCheckoutProduct, checkoutRequestSchema } from "../src/providers/stripe/checkout-service.js";
+import { assertWebsiteStripePriceKind } from "../src/admin/billing-service.js";
 import { safeErrorMessage } from "../src/infrastructure/safe-error.js";
 
 const now = new Date("2026-08-24T12:00:00.000Z");
@@ -158,9 +159,23 @@ describe("new checkout product contract", () => {
     expect(checkoutRequestSchema.safeParse({ product: "premium_lifetime_pass", mobilePlatform: "android", desktopDelivery: "direct" }).success).toBe(true);
   });
 
-  it("keeps Polyglot mobile-only and Monthly cross-mobile", () => {
-    expect(checkoutRequestSchema.safeParse({ product: "mobile_polyglot_permanent" }).success).toBe(false);
-    expect(checkoutRequestSchema.safeParse({ product: "mobile_polyglot_permanent", mobilePlatform: "android" }).success).toBe(true);
-    expect(checkoutRequestSchema.safeParse({ product: "mobile_full_monthly" }).success).toBe(true);
+  it("rejects native-only products even when a crafted client supplies otherwise valid fields", () => {
+    for (const request of [
+      { product: "mobile_polyglot_permanent", mobilePlatform: "android" },
+      { product: "mobile_full_monthly" }
+    ]) {
+      const result = checkoutRequestSchema.safeParse(request);
+      expect(result.success).toBe(false);
+      if (!result.success) expect(result.error.issues.map((issue) => issue.message).join(" ")).toMatch(/sold only inside the Android and iOS apps/i);
+    }
+    expect(() => assertWebsiteStripeCheckoutProduct("mobile_full_monthly")).toThrow(/sold only inside/i);
+    expect(() => assertWebsiteStripeCheckoutProduct("mobile_polyglot_permanent")).toThrow(/sold only inside/i);
+    expect(() => assertWebsiteStripeCheckoutProduct("premium_lifetime_pass")).not.toThrow();
+  });
+
+  it("allows Admin Stripe price mutations only for website-only Premium", () => {
+    expect(() => assertWebsiteStripePriceKind("monthly")).toThrow(/managed in Google Play and App Store Connect/i);
+    expect(() => assertWebsiteStripePriceKind("polyglot")).toThrow(/managed in Google Play and App Store Connect/i);
+    expect(() => assertWebsiteStripePriceKind("premium")).not.toThrow();
   });
 });
