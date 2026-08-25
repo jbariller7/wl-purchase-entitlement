@@ -23,11 +23,15 @@ const controlsSchema = z.object({
   ADMIN_BOOTSTRAP_ENABLED: disabledByDefault
 });
 
-const schema = controlsSchema.extend({
+const firebaseAdminSchema = z.object({
   FIREBASE_PROJECT_ID: z.string().min(1),
   FIREBASE_CLIENT_EMAIL: z.string().email(),
   FIREBASE_PRIVATE_KEY: z.string().min(1),
-  FIREBASE_STORAGE_BUCKET: z.string().min(1),
+  FIREBASE_STORAGE_BUCKET: z.string().min(1)
+});
+
+const schema = controlsSchema.extend({
+  ...firebaseAdminSchema.shape,
   FIREBASE_WEB_API_KEY: z.string().min(1),
   FIREBASE_AUTH_DOMAIN: z.string().min(1),
   ADMIN_BOOTSTRAP_EMAIL: z.string().email().optional(),
@@ -71,8 +75,10 @@ const schema = controlsSchema.extend({
 
 export type Environment = z.infer<typeof schema>;
 export type DeploymentControls = z.infer<typeof controlsSchema>;
+export type FirebaseAdminEnvironment = z.infer<typeof firebaseAdminSchema>;
 let cached: Environment | undefined;
 let cachedControls: DeploymentControls | undefined;
+let cachedFirebaseAdmin: FirebaseAdminEnvironment | undefined;
 
 export function deploymentControls(): DeploymentControls {
   if (!cachedControls) {
@@ -84,6 +90,18 @@ export function deploymentControls(): DeploymentControls {
     cachedControls = parsed.data;
   }
   return cachedControls;
+}
+
+export function firebaseAdminEnv(): FirebaseAdminEnvironment {
+  if (!cachedFirebaseAdmin) {
+    const parsed = firebaseAdminSchema.safeParse(process.env);
+    if (!parsed.success) {
+      const names = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+      throw new Error(`Missing or invalid Firebase Admin configuration: ${names}`);
+    }
+    cachedFirebaseAdmin = parsed.data;
+  }
+  return cachedFirebaseAdmin;
 }
 
 export function env(): Environment {
@@ -116,4 +134,5 @@ export function env(): Environment {
 export function resetEnvironmentForTests(): void {
   cached = undefined;
   cachedControls = undefined;
+  cachedFirebaseAdmin = undefined;
 }

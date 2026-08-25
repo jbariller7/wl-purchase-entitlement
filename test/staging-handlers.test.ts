@@ -219,6 +219,32 @@ describe("staging function boundaries", () => {
     expect(vi.mocked(firestore)).not.toHaveBeenCalled();
   });
 
+  it("enables the Firebase account API without requiring Stripe credentials", async () => {
+    Object.assign(process.env, {
+      FIREBASE_WEB_API_KEY: "public-firebase-web-test-key",
+      FIREBASE_AUTH_DOMAIN: "test-project.firebaseapp.com",
+      FIREBASE_PROJECT_ID: "test-project",
+      FIREBASE_CLIENT_EMAIL: "firebase-admin@test-project.iam.gserviceaccount.com",
+      FIREBASE_PRIVATE_KEY: "test-private-key",
+      FIREBASE_STORAGE_BUCKET: "test-project.firebasestorage.app"
+    });
+    const response = await apiHandler({
+      ...event(),
+      rawUrl: "https://test.example.com/api/v1/config",
+      path: "/api/v1/config",
+      httpMethod: "GET",
+      headers: { origin: "https://wonderlang.net" }
+    }, {} as never);
+    expect(response).toMatchObject({ statusCode: 200 });
+    expect(JSON.parse(String(response?.body))).toMatchObject({
+      environment: "test",
+      accountApiReady: true,
+      checkoutEnabled: false,
+      appCheckEnforced: false
+    });
+    expect(vi.mocked(firestore)).not.toHaveBeenCalled();
+  });
+
   it("rejects an untrusted browser Origin before configuration or authentication work", async () => {
     const response = await apiHandler({
       ...event(),

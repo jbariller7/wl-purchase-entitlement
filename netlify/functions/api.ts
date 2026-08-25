@@ -5,7 +5,7 @@ import { z } from "zod";
 import { CatalogService } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, cloudSaveSlotSchema, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
-import { deploymentControls, env } from "../../src/config/env.js";
+import { deploymentControls, env, firebaseAdminEnv } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { REGIONAL_PRICES } from "../../src/domain/regional-pricing.js";
 import { summarizeSubscription } from "../../src/domain/account-summary.js";
@@ -147,6 +147,8 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (event.httpMethod === "OPTIONS") return { statusCode: 204, body: "" };
   if (event.httpMethod === "GET" && path === "/v1/config") {
     const publicFirebase = publicAccountFirebaseConfig();
+    let accountApiReady = false;
+    try { firebaseAdminEnv(); accountApiReady = true; } catch { accountApiReady = false; }
     let runtime: ReturnType<typeof env> | undefined;
     try { runtime = env(); } catch { runtime = undefined; }
     const catalog = runtime ? await new CatalogService(firestore()).get() : {
@@ -158,7 +160,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     };
     return json(200, {
       environment: publicFirebase.environment,
-      accountApiReady: Boolean(runtime),
+      accountApiReady,
       checkoutEnabled: Boolean(runtime?.STRIPE_MUTATIONS_ENABLED),
       appCheckEnforced: Boolean(runtime?.APP_CHECK_ENFORCEMENT_ENABLED),
       adminBootstrapEnabled: deploymentControls().ADMIN_BOOTSTRAP_ENABLED,
