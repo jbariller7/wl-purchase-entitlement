@@ -84,6 +84,7 @@ describe("customer interface route contract", () => {
     expect(account).toContain("Available inside WonderLang for Android and iOS through that device's app store.");
     expect(account).not.toContain('data-action="monthly"');
     expect(account).not.toContain('data-action="polyglot"');
+    expect(account).not.toContain('["monthly", "polyglot", "premium"');
     expect(account).not.toContain('checkout("mobile_full_monthly"');
     expect(account).not.toContain('checkout("mobile_polyglot_permanent"');
     expect(account).toContain('product: "premium_lifetime_pass"');

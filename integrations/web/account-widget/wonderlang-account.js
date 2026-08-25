@@ -268,7 +268,7 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-field="monthly-trial"]').textContent = `${Number(config.catalog.trialDays || 3)} days free`;
     this.querySelector('[data-field="polyglot-price"]').textContent = price(config.catalog.polyglot);
     this.querySelector('[data-field="premium-price"]').textContent = price(config.catalog.premium);
-    for (const action of ["monthly", "polyglot", "premium", "discounted-premium", "portal"]) {
+    for (const action of ["premium", "discounted-premium", "portal"]) {
       this.querySelector(`[data-action="${action}"]`).disabled = !config.checkoutEnabled;
     }
     for (const action of ["restore", "revoke-sessions", "delete-account", "request-second-platform", "cancel-second-platform", "approve-device"]) {
