@@ -577,6 +577,6 @@ class WonderLangAccountManager(
     }
 
     private companion object {
-        const val ENTITLEMENT_FIREBASE_APP_NAME = "wonderlang-entitlements"
+        const val ENTITLEMENT_FIREBASE_APP_NAME = "wonderlang-accounts"
     }
 }
