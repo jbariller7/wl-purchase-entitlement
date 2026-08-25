@@ -19,7 +19,8 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     appleStore: present("APPLE_BUNDLE_ID", "APPLE_KEY_ID", "APPLE_ISSUER_ID", "APPLE_PRIVATE_KEY", "APPLE_ROOT_CA_G2_BASE64", "APPLE_ROOT_CA_G3_BASE64"),
     providerTokenEncryption: present("PROVIDER_TOKEN_ENCRYPTION_KEYS")
   };
-  const readyForAccountTesting = configuration.firebaseAdmin && configuration.firebaseWeb && configuration.stripeTest;
+  const accountTesting = configuration.firebaseAdmin && configuration.firebaseWeb;
+  const checkoutTesting = accountTesting && configuration.stripeTest;
   return {
     statusCode: 200,
     headers: {
@@ -29,7 +30,12 @@ export const lambdaHandler: LambdaHandler = async (event) => {
       "content-security-policy": "default-src 'none'; frame-ancestors 'none'"
     },
     body: JSON.stringify({
-      status: readyForAccountTesting ? "ready_for_account_testing" : "configuration_required",
+      status: checkoutTesting
+        ? "ready_for_checkout_testing"
+        : accountTesting
+          ? "ready_for_account_testing"
+          : "configuration_required",
+      readiness: { accountTesting, checkoutTesting },
       environment: controls.APP_ENVIRONMENT,
       safeMode: !controls.STRIPE_WEBHOOKS_ENABLED && !controls.GOOGLE_PLAY_WEBHOOKS_ENABLED && !controls.APPLE_WEBHOOKS_ENABLED && !controls.OUTBOX_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED && !controls.LEGACY_FULFILLMENT_ENABLED && !controls.SUBSCRIPTION_CANCELLATION_ENABLED && !controls.ACCOUNT_DELETION_PROCESSING_ENABLED && !controls.STRIPE_MUTATIONS_ENABLED && !controls.SUBSCRIPTION_RECONCILIATION_ENABLED && !controls.CLOUD_STORAGE_MONITORING_ENABLED && !controls.CLOUD_SAVE_CLEANUP_ENABLED && !controls.DEVICE_SIGN_IN_ENABLED && !controls.DEVICE_SIGN_IN_CLEANUP_ENABLED && !controls.ADMIN_BOOTSTRAP_ENABLED,
       controls,

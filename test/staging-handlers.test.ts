@@ -147,6 +147,7 @@ describe("staging function boundaries", () => {
     expect(response).toMatchObject({ statusCode: 200 });
     const body = JSON.parse(String(response?.body));
     expect(body).toMatchObject({ status: "configuration_required", environment: "test", safeMode: true });
+    expect(body.readiness).toEqual({ accountTesting: false, checkoutTesting: false });
     expect(body.configuration).toMatchObject({ firebaseAdmin: false, stripeTest: false });
     expect(JSON.stringify(body)).not.toMatch(/PRIVATE_KEY|SECRET_KEY|ACCESS_TOKEN/);
   });
@@ -243,6 +244,36 @@ describe("staging function boundaries", () => {
       appCheckEnforced: false
     });
     expect(vi.mocked(firestore)).not.toHaveBeenCalled();
+
+    const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
+    expect(JSON.parse(String(health?.body))).toMatchObject({
+      status: "ready_for_account_testing",
+      readiness: { accountTesting: true, checkoutTesting: false },
+      configuration: { firebaseAdmin: true, firebaseWeb: true, stripeTest: false }
+    });
+  });
+
+  it("reports checkout testing separately when the isolated Stripe catalog is complete", async () => {
+    Object.assign(process.env, {
+      FIREBASE_WEB_API_KEY: "public-firebase-web-test-key",
+      FIREBASE_AUTH_DOMAIN: "test-project.firebaseapp.com",
+      FIREBASE_PROJECT_ID: "test-project",
+      FIREBASE_CLIENT_EMAIL: "firebase-admin@test-project.iam.gserviceaccount.com",
+      FIREBASE_PRIVATE_KEY: "test-private-key",
+      FIREBASE_STORAGE_BUCKET: "test-project.firebasestorage.app",
+      STRIPE_SECRET_KEY: "sk_test_example",
+      STRIPE_WEBHOOK_SECRET: "whsec_test",
+      STRIPE_PRICE_MOBILE_MONTHLY: "price_monthly",
+      STRIPE_PRICE_POLYGLOT_PERMANENT: "price_polyglot",
+      STRIPE_PRICE_PREMIUM_LIFETIME: "price_premium",
+      STRIPE_COUPON_LEGACY_DESKTOP_50: "coupon_legacy"
+    });
+    const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
+    expect(JSON.parse(String(health?.body))).toMatchObject({
+      status: "ready_for_checkout_testing",
+      readiness: { accountTesting: true, checkoutTesting: true },
+      configuration: { firebaseAdmin: true, firebaseWeb: true, stripeTest: true }
+    });
   });
 
   it("rejects an untrusted browser Origin before configuration or authentication work", async () => {

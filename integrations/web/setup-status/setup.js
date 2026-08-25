@@ -4,7 +4,7 @@ const root = document.querySelector("#setup-app");
 const demo = ["localhost", "127.0.0.1"].includes(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
 const configLabels = {
   firebaseAdmin: ["Firebase server", "Service account for entitlements and admin APIs"],
-  firebaseWeb: ["Firebase web login", "Public configuration for Google and Apple sign-in"],
+  firebaseWeb: ["Firebase web login", "Browser configuration for enabled Firebase sign-in methods"],
   stripeTest: ["Stripe test mode", "Test secret, Prices, Coupon and webhook secret"],
   legacyFulfillment: ["Sheets & MailerLite", "Legacy key delivery credentials (kept disabled initially)"],
   adDelivery: ["Ad test delivery", "Meta and TikTok credentials (not needed for account tests)"],
@@ -38,14 +38,28 @@ function escapeHtml(value) {
 function render(data) {
   const configured = Object.values(data.configuration).filter(Boolean).length;
   const total = Object.keys(data.configuration).length;
-  const ready = data.status === "ready_for_account_testing";
+  const accountReady = data.readiness?.accountTesting ?? ["ready_for_account_testing", "ready_for_checkout_testing"].includes(data.status);
+  const checkoutReady = data.readiness?.checkoutTesting ?? data.status === "ready_for_checkout_testing";
+  const headline = checkoutReady
+    ? "Ready for account and checkout testing."
+    : accountReady
+      ? "Account testing ready. Checkout waiting for Stripe."
+      : "Safe, waiting for Firebase test credentials.";
+  const nextGate = checkoutReady
+    ? "Exercise login, administration and Stripe test purchases"
+    : accountReady
+      ? "Create the first administrator, then connect Stripe test mode"
+      : "Finish isolated Firebase account configuration";
+  const nextSteps = accountReady
+    ? `<li>Complete one real Google login with <code>wonderlang.thegame@gmail.com</code>.</li><li>Grant that verified account through the audited one-time administrator bootstrap, then disable bootstrap immediately.</li><li>Add Stripe <code>sk_test_</code> and test webhook credentials; checkout remains disabled until then.</li><li>Enable and test one isolated provider workflow at a time; keep production processing off.</li>`
+    : `<li>Install the Firebase web and Admin configuration for <code>wonderlang-accounts</code>.</li><li>Verify Google and passwordless-email login without enabling payments.</li><li>Grant the verified owner through the audited administrator bootstrap.</li><li>Connect Stripe test mode only after account testing passes.</li>`;
   root.innerHTML = `<main class="setup-shell">
     <header class="setup-header"><a class="brand" href="/"><span>W</span><strong>WonderLang</strong></a><nav><a href="/account/">Account</a><a href="/admin/">Operations</a></nav></header>
-    <section class="setup-hero"><div><p class="eyebrow">DEPLOYMENT STATUS</p><h1>${ready ? "Ready for account testing." : "Safe, waiting for test credentials."}</h1><p>This page contains readiness booleans only. It never returns or reads secret values in the browser.</p></div><div class="mode-card ${data.safeMode ? "safe" : "active"}"><span>${data.safeMode ? "SAFE MODE" : "TESTING ACTIVE"}</span><strong>${escapeHtml(data.environment)}</strong><small>${data.safeMode ? "All side effects are disabled" : "One or more test workflows are enabled"}</small></div></section>
+    <section class="setup-hero"><div><p class="eyebrow">DEPLOYMENT STATUS</p><h1>${headline}</h1><p>This page contains readiness booleans only. It never returns or reads secret values in the browser.</p></div><div class="mode-card ${data.safeMode ? "safe" : "active"}"><span>${data.safeMode ? "SAFE MODE" : "TESTING ACTIVE"}</span><strong>${escapeHtml(data.environment)}</strong><small>${data.safeMode ? "All side effects are disabled" : "One or more test workflows are enabled"}</small></div></section>
     <section class="progress-panel"><div><span>Configuration readiness</span><strong>${configured} / ${total}</strong></div><progress max="${total}" value="${configured}"></progress></section>
     <section class="content-grid"><article class="panel"><header><p class="eyebrow">CONNECTIONS</p><h2>Provider readiness</h2></header><div class="status-list">${Object.entries(configLabels).map(([key, [title, copy]]) => `<div><i class="${data.configuration[key] ? "ready" : "waiting"}"></i><span><strong>${title}</strong><small>${copy}</small></span><b>${data.configuration[key] ? "Ready" : "Required"}</b></div>`).join("")}</div></article>
     <article class="panel"><header><p class="eyebrow">KILL SWITCHES</p><h2>Side-effect controls</h2></header><div class="status-list controls">${Object.entries(controlLabels).map(([key, title]) => `<div><i class="${data.controls[key] ? "enabled" : "waiting"}"></i><span><strong>${title}</strong><small>${data.controls[key] ? "Enabled intentionally" : "Off"}</small></span><b>${data.controls[key] ? "On" : "Off"}</b></div>`).join("")}</div></article></section>
-    <section class="panel next"><header><p class="eyebrow">NEXT GATE</p><h2>${ready ? "Begin login and checkout tests" : "Configure isolated Firebase and Stripe test projects"}</h2></header><ol><li>Connect a separate Firebase test project and enable Google plus Apple.</li><li>Add Stripe <code>sk_test_</code> credentials and test catalog objects.</li><li>Grant the verified test owner an audited Firebase admin claim.</li><li>Enable one test workflow at a time; leave production integrations off.</li></ol><div class="actions"><button id="refresh" type="button">Refresh status</button><a href="/admin/">Open operations console</a></div></section>
+    <section class="panel next"><header><p class="eyebrow">NEXT GATE</p><h2>${nextGate}</h2></header><ol>${nextSteps}</ol><div class="actions"><button id="refresh" type="button">Refresh status</button><a href="/admin/">Open operations console</a></div></section>
     <footer>Deploy ${escapeHtml(data.deploy || "pending commit metadata")} · Auto-refreshes every 15 seconds</footer>
   </main>`;
   document.querySelector("#refresh")?.addEventListener("click", load);
@@ -55,6 +69,7 @@ async function load() {
   if (demo) {
     render({
       status: "configuration_required", environment: "test", safeMode: true, deploy: "local-preview",
+      readiness: { accountTesting: false, checkoutTesting: false },
       configuration: { firebaseAdmin: false, firebaseWeb: false, stripeTest: false, legacyFulfillment: false, adDelivery: false, googlePlay: false, appleStore: false, providerTokenEncryption: false },
       controls: Object.fromEntries(Object.keys(controlLabels).map((key) => [key, false]))
     });
