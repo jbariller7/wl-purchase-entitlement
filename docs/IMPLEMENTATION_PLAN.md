@@ -6,7 +6,7 @@
 2. Set `APP_ENVIRONMENT=test`. The service refuses a live or unrecognized Stripe secret key in this mode.
 3. Use a separate Firebase test project. Do not copy production Firebase Admin credentials because the Firestore collections are intentionally real, not mocked or namespaced.
 4. Use Stripe test products, Prices, Coupon and webhook secret. Never copy the production Stripe secret or webhook secret into this project.
-5. Initially keep `STRIPE_WEBHOOKS_ENABLED`, `GOOGLE_PLAY_WEBHOOKS_ENABLED`, `APPLE_WEBHOOKS_ENABLED`, `OUTBOX_PROCESSING_ENABLED`, `AD_CONVERSIONS_ENABLED`, `LEGACY_FULFILLMENT_ENABLED`, `SUBSCRIPTION_CANCELLATION_ENABLED`, `SUBSCRIPTION_RECONCILIATION_ENABLED`, `CLOUD_STORAGE_MONITORING_ENABLED` and `STRIPE_MUTATIONS_ENABLED` set to `false`.
+5. Initially keep `STRIPE_WEBHOOKS_ENABLED`, `GOOGLE_PLAY_WEBHOOKS_ENABLED`, `APPLE_WEBHOOKS_ENABLED`, `OUTBOX_PROCESSING_ENABLED`, `AD_CONVERSIONS_ENABLED`, `LEGACY_FULFILLMENT_ENABLED`, `SUBSCRIPTION_CANCELLATION_ENABLED`, `SUBSCRIPTION_RECONCILIATION_ENABLED`, `CLOUD_STORAGE_MONITORING_ENABLED`, `CLOUD_SAVE_CLEANUP_ENABLED`, `DEVICE_SIGN_IN_ENABLED`, `DEVICE_SIGN_IN_CLEANUP_ENABLED` and `STRIPE_MUTATIONS_ENABLED` set to `false`.
 6. Do not copy production Meta/TikTok tokens into staging. Test event codes are not a substitute for isolation when delivery is not under test.
 7. The Google Sheets and MailerLite credentials may be added later only for an intentional fulfillment canary, with the outbox and legacy-fulfillment switches still off until the exact test begins.
 8. After creating a verified Firebase test user, grant operations access with `npm run admin:set-claim -- --email you@example.com --confirm "SET ADMIN you@example.com"`. The script revokes existing sessions so the new claim cannot be missed by a cached token.
@@ -25,7 +25,8 @@
 2. Configure Firebase service-account, Stripe, key inventory, MailerLite and ad secrets in Netlify. Use environment UI/secrets, never checked-in files.
 3. Build and deploy the functions and static widget.
 4. Apply `storage.cors.json` to the Firebase Storage bucket. It includes both WonderLang website origins and the isolated Netlify test origin; remove the Netlify origin from the production bucket after staging is retired.
-5. Smoke-test `/api/v1/config`; all other API endpoints must reject missing/revoked Firebase tokens.
+5. Inspect any existing bucket lifecycle, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. The scoped rule deletes only `cloud-save-uploads/` objects after one day; applying a lifecycle file replaces the bucket's lifecycle configuration, so merge any pre-existing rules first.
+6. Smoke-test `/api/v1/config`; all other API endpoints must reject missing/revoked Firebase tokens.
 
 ## 3. Merge the current purchase automation safely
 
@@ -77,12 +78,13 @@ Stripe events:
 3. Test two devices editing the same base revision; the second finalize must receive 409 and preserve both copies for user choice.
 4. Test corrupt/truncated upload and download SHA-256 rejection.
 5. Lapse a subscription: local saves still work; cloud API denies access; stored objects remain. Renew and confirm they reappear.
-6. Approve the provider-payload retention period and configure its time-based lifecycle before public launch. The user-request account deletion and 30-day recovery workflow is implemented behind separately disabled processing switches. Current cloud-save code retains the current plus three prior manifest revisions; object garbage collection should be scheduled after the chosen retention period.
+6. Verify that only `save0` through `save20` are accepted. The service retains the current plus three prior revisions per slot, immediately deletes pruned revisions when possible, and durably retries failures through `cloudSaveCleanupJobs`. Keep `CLOUD_SAVE_CLEANUP_ENABLED=false` until the staging bucket and Admin queue counts are verified.
+7. Verify the one-day `cloud-save-uploads/` bucket lifecycle with an intentionally old staging object. This lifecycle is for abandoned/replayed signed-upload targets; it never applies to retained `cloud-saves/` revisions.
 
 ## 8. Operational gates
 
 - Dashboard failed `providerEvents`, terminal `outbox` jobs, remaining keys per tab, subscription states and cloud storage growth.
-- After the staging bucket is provisioned, enable `CLOUD_STORAGE_MONITORING_ENABLED` only in the test deploy and verify daily aggregate totals, growth threshold and stale-upload alerts. Configure `CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES` for the expected launch scale.
+- After the staging bucket is provisioned, enable `CLOUD_STORAGE_MONITORING_ENABLED` only in the test deploy and verify daily aggregate totals, growth threshold and stale-upload alerts. Then enable `CLOUD_SAVE_CLEANUP_ENABLED` in test and prove successful deletion, retry, terminal failure alerting, and zero exposure of UID-bearing paths. Configure `CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES` for the expected launch scale.
 - Configure `KEY_INVENTORY_DEFAULT_LOW_STOCK_THRESHOLD` and optional per-tab `KEY_INVENTORY_LOW_STOCK_THRESHOLDS`; the dashboard displays and alerts at each tab's actual chosen minimum. Outbox jobs become terminal and alert after ten failed attempts.
 - Reconcile Stripe/Play/App Store active subscriptions daily against grants; webhook delivery is the fast path, not the sole source of truth.
 - Before reconciliation testing, generate a distinct 32-byte staging key, install only the versioned `PROVIDER_TOKEN_ENCRYPTION_KEYS` JSON in Netlify, and verify the operations-console token counts. During rotation, retain the old and new keys until every encrypted-token count has moved to the new key ID.

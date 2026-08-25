@@ -29,6 +29,7 @@ import { lambdaHandler as outboxHandler } from "../netlify/functions/outbox-work
 import { lambdaHandler as stripeHandler } from "../netlify/functions/stripe-webhook.js";
 import { lambdaHandler as reconciliationHandler } from "../netlify/functions/subscription-reconciliation.js";
 import { lambdaHandler as cloudStorageMonitorHandler } from "../netlify/functions/cloud-storage-monitor.js";
+import { lambdaHandler as cloudSaveCleanupHandler } from "../netlify/functions/cloud-save-cleanup.js";
 import { lambdaHandler as deviceSignInCleanupHandler } from "../netlify/functions/device-sign-in-cleanup.js";
 import { resetEnvironmentForTests } from "../src/config/env.js";
 import { firestore } from "../src/infrastructure/firebase.js";
@@ -67,6 +68,7 @@ beforeEach(() => {
     OUTBOX_PROCESSING_ENABLED: "false",
     SUBSCRIPTION_RECONCILIATION_ENABLED: "false",
     CLOUD_STORAGE_MONITORING_ENABLED: "false",
+    CLOUD_SAVE_CLEANUP_ENABLED: "false",
     DEVICE_SIGN_IN_ENABLED: "false",
     DEVICE_SIGN_IN_CLEANUP_ENABLED: "false"
   });
@@ -107,6 +109,15 @@ describe("staging function boundaries", () => {
     const response = await cloudStorageMonitorHandler(event(), {} as never);
     expect(response).toMatchObject({ statusCode: 200 });
     expect(JSON.parse(String(response?.body))).toEqual({ state: "disabled", scanned: 0 });
+  });
+
+  it("does not access Firebase or delete revisions while cloud-save cleanup is disabled", async () => {
+    const response = await cloudSaveCleanupHandler(event(), {} as never);
+    expect(response).toMatchObject({ statusCode: 200 });
+    expect(JSON.parse(String(response?.body))).toEqual({
+      state: "disabled", scanned: 0, deleted: 0, failed: 0, skipped: 0
+    });
+    expect(vi.mocked(firestore)).not.toHaveBeenCalled();
   });
 
   it("does not access Firebase or issue a token while PC/Mac device sign-in is disabled", async () => {

@@ -21,6 +21,10 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("Retained save inventory");
     expect(admin).toContain("CLOUD STORAGE");
     expect(admin).toContain("staleStagingObjects");
+    expect(admin).toContain("cloudSaveCleanup");
+    expect(admin).toContain("Revision cleanup queue");
+    expect(admin).toContain("data-retry-cleanup");
+    expect(operations).toContain("retryCloudSaveCleanup");
     expect(admin).toContain("refundableAmount > 0");
     expect(admin).toContain("Number(options.body?.amount)");
     expect(admin).toContain("A partial refund does not revoke access automatically.");
@@ -67,6 +71,7 @@ describe("isolated integration configuration", () => {
       "stripe-webhook",
       "subscription-reconciliation",
       "cloud-storage-monitor",
+      "cloud-save-cleanup",
       "device-sign-in-cleanup",
     ];
 
@@ -99,10 +104,12 @@ describe("isolated integration configuration", () => {
     expect(example).toMatch(/^SUBSCRIPTION_RECONCILIATION_ENABLED=false$/m);
     expect(example).toMatch(/^PROVIDER_TOKEN_ENCRYPTION_KEYS=$/m);
     expect(example).toMatch(/^CLOUD_STORAGE_MONITORING_ENABLED=false$/m);
+    expect(example).toMatch(/^CLOUD_SAVE_CLEANUP_ENABLED=false$/m);
     expect(example).toMatch(/^DEVICE_SIGN_IN_ENABLED=false$/m);
     expect(example).toMatch(/^DEVICE_SIGN_IN_CLEANUP_ENABLED=false$/m);
     expect(netlify).toMatch(/\[functions\."subscription-reconciliation"\][\s\S]*schedule\s*=\s*"17 \* \* \* \*"/);
     expect(netlify).toMatch(/\[functions\."cloud-storage-monitor"\][\s\S]*schedule\s*=\s*"43 2 \* \* \*"/);
+    expect(netlify).toMatch(/\[functions\."cloud-save-cleanup"\][\s\S]*schedule\s*=\s*"23 \* \* \* \*"/);
     expect(netlify).toMatch(/\[functions\."device-sign-in-cleanup"\][\s\S]*schedule\s*=\s*"7 \* \* \* \*"/);
   });
 
@@ -276,8 +283,11 @@ describe("isolated integration configuration", () => {
     expect(cloudSave).toContain("cloud-save-uploads/${uid}/${uploadId}.json");
     expect(cloudSave).toContain("preconditionOpts: { ifGenerationMatch: 0 }");
     expect(cloudSave).toContain("objectPath: revisionObjectPath");
+    expect(cloudSave).toContain("cloudSaveSlotSchema");
+    expect(api).toContain("cloudSaveSlotSchema.safeParse");
     const accountDeletion = read("src/account-deletion/service.ts");
     expect(accountDeletion).toContain("cloud-save-uploads/${uid}/");
+    expect(accountDeletion).toContain('collection("cloudSaveCleanupJobs")');
     expect(adminApi).toContain("...(row.mobilePlatform ? { mobilePlatform: row.mobilePlatform } : {})");
     for (const choice of ["Keep device", "Use cloud", "Not now"]) expect(rmmz).toContain(choice);
     expect(rmmz).toContain("await sha256Hex(bytes)");
@@ -288,6 +298,17 @@ describe("isolated integration configuration", () => {
     expect(rmmz).toContain("queueUpload(savefileId, error)");
     expect(rmmz).toContain('window.addEventListener("online"');
     expect(packaged).toBe(rmmz);
+  });
+
+  it("bounds cloud-save retention and expires only abandoned staging uploads", () => {
+    const lifecycle = JSON.parse(read("storage.lifecycle.json"));
+    expect(lifecycle).toEqual({
+      rule: [{ action: { type: "Delete" }, condition: { age: 1, matchesPrefix: ["cloud-save-uploads/"] } }]
+    });
+    expect(JSON.stringify(lifecycle)).not.toContain("cloud-saves/");
+    const cleanup = read("src/cloud-save/cleanup-service.ts");
+    expect(cleanup).toContain("isSafeCloudRevisionObjectPath(objectPath, job.uid)");
+    expect(cleanup).toContain("MAX_ATTEMPTS = 10");
   });
 
   it("publishes a side-effect-free browser harness for testing the RPG Maker UI", () => {

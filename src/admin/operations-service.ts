@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Firestore, Query } from "firebase-admin/firestore";
+import { FieldValue, type Firestore, type Query } from "firebase-admin/firestore";
 import type { Auth, UserRecord } from "firebase-admin/auth";
 import type { Product, Provider } from "../domain/model.js";
 import { summarizeSubscription } from "../domain/account-summary.js";
@@ -23,6 +23,12 @@ const ADMIN_GRANT_PRODUCTS: Product[] = [
   "legacy_chapter_3",
   "legacy_chapter_4"
 ];
+const CLEANUP_JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function safeOperationalTimestamp(value: unknown): string | null {
+  const parsed = Date.parse(String(value ?? ""));
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
+}
 
 function publicUser(user: UserRecord) {
   return {
@@ -68,7 +74,7 @@ export class AdminOperationsService {
 
   async overview(): Promise<Record<string, unknown>> {
     const entitlements = this.db.collection("entitlements");
-    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, inventory, recent, cloudStorage, cloudStorageMonitor] = await Promise.all([
+    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, failedCloudSaveCleanup, inventory, recent, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor] = await Promise.all([
       this.count(entitlements.where("accessKind", "==", "subscription").where("subscriptionState", "==", "active")),
       this.count(entitlements.where("accessKind", "==", "permanent")),
       this.count(entitlements.where("accessKind", "==", "premium_lifetime")),
@@ -76,10 +82,12 @@ export class AdminOperationsService {
       this.count(this.db.collection("outbox").where("state", "==", "failed")),
       this.count(this.db.collection("providerEvents").where("status", "==", "failed")),
       this.count(this.db.collection("providerSubscriptions").where("lastReconciliationState", "==", "failed")),
+      this.count(this.db.collection("cloudSaveCleanupJobs").where("state", "==", "failed")),
       this.inventorySummary(),
       this.db.collection("grants").orderBy("startsAt", "desc").limit(12).get(),
       this.db.collection("operationalMetrics").doc("cloudStorage").get(),
-      this.db.collection("operationalMetrics").doc("cloudStorageMonitor").get()
+      this.db.collection("operationalMetrics").doc("cloudStorageMonitor").get(),
+      this.db.collection("operationalMetrics").doc("cloudSaveCleanup").get()
     ]);
     const recentRows = dataRows(recent);
     const users = new Map<string, UserRecord | undefined>();
@@ -89,12 +97,15 @@ export class AdminOperationsService {
     const lowStock = inventory.filter((row) => row.lowStock);
     const cloud = cloudStorage.exists ? cloudStorage.data() : undefined;
     const cloudMonitor = cloudStorageMonitor.exists ? cloudStorageMonitor.data() : undefined;
-    const failedOperations = failedOutbox + failedEvents + failedReconciliations + (cloudMonitor?.state === "failed" ? 1 : 0);
+    const cleanupMonitor = cloudSaveCleanupMonitor.exists ? cloudSaveCleanupMonitor.data() : undefined;
+    const failedOperations = failedOutbox + failedEvents + failedReconciliations + failedCloudSaveCleanup + (cloudMonitor?.state === "failed" ? 1 : 0) + (cleanupMonitor?.state === "failed" ? 1 : 0);
     const alerts = [
-      ...(failedOperations ? [{ tone: "danger", title: `${failedOperations} operation${failedOperations === 1 ? "" : "s"} need attention`, detail: "Review failed webhooks, jobs, and provider reconciliation", action: "Open operations" }] : []),
+      ...(failedOperations ? [{ tone: "danger", title: `${failedOperations} operation${failedOperations === 1 ? "" : "s"} need attention`, detail: "Review failed webhooks, jobs, provider reconciliation, and cloud-save cleanup", action: "Open operations" }] : []),
+      ...(failedCloudSaveCleanup ? [{ tone: "danger", title: `${failedCloudSaveCleanup} cloud-save cleanup job${failedCloudSaveCleanup === 1 ? "" : "s"} failed`, detail: "Obsolete revisions remain retained until cleanup is retried", action: "Open operations" }] : []),
       ...(cloud?.staleUploadAlert ? [{ tone: "warning", title: `${Number(cloud.staleStagingObjects ?? 0)} stale cloud upload${Number(cloud.staleStagingObjects ?? 0) === 1 ? "" : "s"}`, detail: "Expired staging objects should be removed", action: "Open operations" }] : []),
       ...(cloud?.growthAlert ? [{ tone: "warning", title: "Cloud storage growth exceeded its daily threshold", detail: `${Number(cloud.dailyChangeBytes ?? 0).toLocaleString()} bytes since the previous snapshot`, action: "Open operations" }] : []),
       ...(cloudMonitor?.state === "failed" ? [{ tone: "danger", title: "Cloud storage inventory failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
+      ...(cleanupMonitor?.state === "failed" ? [{ tone: "danger", title: "Cloud-save cleanup worker failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
       ...lowStock.slice(0, 3).map((row) => ({ tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available · threshold ${row.lowStockThreshold}`, action: "Review inventory" })),
       ...(graceSubscriptions ? [{ tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];
@@ -107,6 +118,7 @@ export class AdminOperationsService {
         graceSubscriptions,
         failedOperations,
         failedReconciliations,
+        failedCloudSaveCleanup,
         cloudStorageBytes: cloud?.totalBytes ?? null,
         cloudStorageDailyChangeBytes: cloud?.dailyChangeBytes ?? null,
         cloudStorageObjects: cloud?.totalObjects ?? null,
@@ -344,13 +356,18 @@ export class AdminOperationsService {
   }
 
   async operations(): Promise<Record<string, unknown>> {
-    const [events, outbox, reconciliationRuns, providerSecrets, cloudStorage, cloudStorageMonitor] = await Promise.all([
+    const [events, outbox, reconciliationRuns, providerSecrets, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor, cleanupPending, cleanupProcessing, cleanupFailed, cleanupFailures] = await Promise.all([
       this.db.collection("providerEvents").orderBy("receivedAt", "desc").limit(80).get(),
       this.db.collection("outbox").orderBy("createdAt", "desc").limit(80).get(),
       this.db.collection("subscriptionReconciliationRuns").orderBy("startedAt", "desc").limit(30).get(),
       this.db.collection("providerSecrets").select("encrypted.keyId").get(),
       this.db.collection("operationalMetrics").doc("cloudStorage").get(),
-      this.db.collection("operationalMetrics").doc("cloudStorageMonitor").get()
+      this.db.collection("operationalMetrics").doc("cloudStorageMonitor").get(),
+      this.db.collection("operationalMetrics").doc("cloudSaveCleanup").get(),
+      this.count(this.db.collection("cloudSaveCleanupJobs").where("state", "==", "pending")),
+      this.count(this.db.collection("cloudSaveCleanupJobs").where("state", "==", "processing")),
+      this.count(this.db.collection("cloudSaveCleanupJobs").where("state", "==", "failed")),
+      this.db.collection("cloudSaveCleanupJobs").where("state", "==", "failed").limit(50).get()
     ]);
     const tokensByKeyId = new Map<string, number>();
     for (const secret of providerSecrets.docs) {
@@ -358,6 +375,16 @@ export class AdminOperationsService {
       const label = typeof keyId === "string" && keyId ? keyId : "invalid_or_unknown";
       tokensByKeyId.set(label, (tokensByKeyId.get(label) ?? 0) + 1);
     }
+    const cleanupMetric = cloudSaveCleanupMonitor.exists ? cloudSaveCleanupMonitor.data() : undefined;
+    const cleanupMonitor = cleanupMetric ? {
+      state: cleanupMetric.state === "failed" ? "failed" : "succeeded",
+      lastRunAt: safeOperationalTimestamp(cleanupMetric.lastRunAt),
+      scanned: Math.max(0, Math.trunc(Number(cleanupMetric.scanned) || 0)),
+      deleted: Math.max(0, Math.trunc(Number(cleanupMetric.deleted) || 0)),
+      failed: Math.max(0, Math.trunc(Number(cleanupMetric.failed) || 0)),
+      skipped: Math.max(0, Math.trunc(Number(cleanupMetric.skipped) || 0)),
+      lastError: cleanupMetric.state === "failed" ? "Cloud-save cleanup worker failed." : null
+    } : null;
     return {
       providerEvents: dataRows(events),
       outbox: dataRows(outbox),
@@ -367,8 +394,57 @@ export class AdminOperationsService {
         keys: [...tokensByKeyId.entries()].map(([keyId, tokens]) => ({ keyId, tokens })).sort((a, b) => a.keyId.localeCompare(b.keyId))
       },
       cloudStorage: cloudStorage.exists ? cloudStorage.data() : null,
-      cloudStorageMonitor: cloudStorageMonitor.exists ? cloudStorageMonitor.data() : null
+      cloudStorageMonitor: cloudStorageMonitor.exists ? cloudStorageMonitor.data() : null,
+      cloudSaveCleanup: {
+        pending: cleanupPending,
+        processing: cleanupProcessing,
+        failed: cleanupFailed,
+        monitor: cleanupMonitor,
+        failures: cleanupFailures.docs.flatMap((snapshot) => {
+          if (!CLEANUP_JOB_ID.test(snapshot.id)) return [];
+          const row = snapshot.data();
+          return [{
+            id: snapshot.id,
+            state: "failed",
+            attemptCount: Math.max(0, Math.min(10, Math.trunc(Number(row.attemptCount) || 0))),
+            createdAt: safeOperationalTimestamp(row.createdAt),
+            lastAttemptAt: safeOperationalTimestamp(row.lastAttemptAt),
+            lastError: row.lastError === "Cleanup job contained an unsafe object path."
+              ? row.lastError
+              : "Cloud Storage revision deletion failed."
+          }];
+        }).sort((a, b) => Date.parse(String(b.lastAttemptAt ?? b.createdAt ?? "")) - Date.parse(String(a.lastAttemptAt ?? a.createdAt ?? "")))
+      }
     };
+  }
+
+  async retryCloudSaveCleanup(input: { actor: AdminActor; jobId: string; reason: string; now: Date }): Promise<void> {
+    if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason is required.");
+    const ref = this.db.collection("cloudSaveCleanupJobs").doc(input.jobId);
+    await this.db.runTransaction(async (transaction) => {
+      const snapshot = await transaction.get(ref);
+      if (!snapshot.exists) throw new HttpError(404, "Cloud-save cleanup job not found.");
+      if (snapshot.data()?.state !== "failed") throw new HttpError(409, "Only terminal failed cleanup jobs can be manually retried.");
+      transaction.update(ref, {
+        state: "pending",
+        attemptCount: 0,
+        notBefore: input.now.toISOString(),
+        lastError: FieldValue.delete(),
+        leaseOwner: FieldValue.delete(),
+        leaseUntil: FieldValue.delete(),
+        manuallyRetriedAt: input.now.toISOString()
+      });
+    });
+    await recordAdminAudit({
+      db: this.db,
+      actor: input.actor,
+      action: "cloud_save_cleanup.retry",
+      targetType: "cloudSaveCleanupJob",
+      targetId: input.jobId,
+      summary: "Reset failed cloud-save cleanup job for retry",
+      metadata: { reason: input.reason.trim() },
+      now: input.now
+    });
   }
 
   async retryOutbox(input: { actor: AdminActor; jobId: string; reason: string; now: Date }): Promise<void> {

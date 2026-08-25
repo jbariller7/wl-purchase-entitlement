@@ -208,6 +208,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     await operations.retryOutbox({ actor, jobId: retryMatch[1], ...body(reasonSchema, event), now });
     return json(200, { queued: true });
   }
+  const cleanupRetryMatch = path.match(/^\/v1\/cloud-save-cleanup\/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/retry$/i);
+  if (event.httpMethod === "POST" && cleanupRetryMatch?.[1]) {
+    await operations.retryCloudSaveCleanup({ actor, jobId: cleanupRetryMatch[1], ...body(reasonSchema, event), now });
+    return json(200, { queued: true });
+  }
   const releaseMatch = path.match(/^\/v1\/provider-events\/([A-Za-z0-9_-]{1,128})\/release$/);
   if (event.httpMethod === "POST" && releaseMatch?.[1]) {
     await operations.releaseProviderEvent({ actor, eventId: releaseMatch[1], ...body(reasonSchema, event), now });

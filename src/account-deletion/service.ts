@@ -297,6 +297,7 @@ export class AccountDeletionService {
 
     const deletedPrivateRows = await Promise.all([
       this.deleteQuery(this.db.collection("cloudSaveUploads").where("uid", "==", uid)),
+      this.deleteQuery(this.db.collection("cloudSaveCleanupJobs").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("checkoutContexts").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("subscriptionContexts").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("providerSecrets").where("uid", "==", uid)),

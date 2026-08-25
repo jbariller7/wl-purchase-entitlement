@@ -5,12 +5,19 @@ import { z } from "zod";
 import type { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { sha256 } from "../infrastructure/ids.js";
 import { HttpError } from "../http/auth.js";
+import { isSafeCloudRevisionObjectPath } from "./cleanup-service.js";
 
 const MAX_SAVE_BYTES = 5 * 1024 * 1024;
 const URL_TTL_MS = 10 * 60 * 1000;
+const RETAINED_PRIOR_REVISIONS = 3;
+
+export const cloudSaveSlotSchema = z.string().regex(
+  /^save(?:0|[1-9]|1[0-9]|20)$/,
+  "Cloud-save slots must be save0 through save20."
+);
 
 export const prepareUploadSchema = z.object({
-  slot: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+  slot: cloudSaveSlotSchema,
   byteLength: z.number().int().positive().max(MAX_SAVE_BYTES),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   baseRevision: z.string().uuid().nullable().optional()
@@ -31,9 +38,16 @@ interface PendingUpload {
   createdAt: string;
   expiresAt: string;
   state: "pending" | "complete" | "conflict";
+  cleanupObjectPaths?: string[];
 }
 
-interface SaveManifest {
+export interface CloudRevisionPointer {
+  revision: string;
+  objectPath: string;
+  updatedAt: string;
+}
+
+export interface SaveManifest {
   uid: string;
   slot: string;
   currentRevision: string;
@@ -41,7 +55,22 @@ interface SaveManifest {
   byteLength: number;
   sha256: string;
   updatedAt: string;
-  previousRevisions: Array<{ revision: string; objectPath: string; updatedAt: string }>;
+  previousRevisions: CloudRevisionPointer[];
+}
+
+export function retainedCloudRevisionPlan(current: SaveManifest | undefined): {
+  retained: CloudRevisionPointer[];
+  prunedObjectPaths: string[];
+} {
+  if (!current) return { retained: [], prunedObjectPaths: [] };
+  const candidates: CloudRevisionPointer[] = [
+    { revision: current.currentRevision, objectPath: current.objectPath, updatedAt: current.updatedAt },
+    ...(current.previousRevisions ?? [])
+  ];
+  return {
+    retained: candidates.slice(0, RETAINED_PRIOR_REVISIONS),
+    prunedObjectPaths: candidates.slice(RETAINED_PRIOR_REVISIONS).map((revision) => revision.objectPath)
+  };
 }
 
 export function cloudObjectMatches(contents: Buffer, expected: { byteLength: number; sha256: string }): boolean {
@@ -57,7 +86,9 @@ export function cloudStagingObjectPath(uid: string, uploadId: string): string {
 }
 
 export function cloudRevisionObjectPath(uid: string, slot: string, uploadId: string): string {
-  return `cloud-saves/${uid}/slots/${slot}/revisions/${uploadId}.json`;
+  const validSlot = cloudSaveSlotSchema.safeParse(slot);
+  if (!validSlot.success) throw new Error(validSlot.error.issues[0]?.message ?? "Invalid cloud-save slot.");
+  return `cloud-saves/${uid}/slots/${validSlot.data}/revisions/${uploadId}.json`;
 }
 
 function isPreconditionFailure(error: unknown): boolean {
@@ -137,6 +168,25 @@ export class CloudSaveService {
     }
   }
 
+  private async cleanupPrunedRevisions(uid: string, uploadId: string, objectPaths: string[], now: Date): Promise<void> {
+    if (!objectPaths.length) return;
+    const cleanupRef = this.db.collection("cloudSaveCleanupJobs").doc(uploadId);
+    const remaining: string[] = [];
+    for (const objectPath of objectPaths) {
+      if (!isSafeCloudRevisionObjectPath(objectPath, uid)) {
+        remaining.push(objectPath);
+        continue;
+      }
+      try { await this.storage.bucket().file(objectPath).delete({ ignoreNotFound: true }); }
+      catch { remaining.push(objectPath); }
+    }
+    if (remaining.length) {
+      await cleanupRef.update({ objectPaths: remaining, lastAttemptAt: now.toISOString() }).catch(() => undefined);
+    } else {
+      await cleanupRef.delete().catch(() => undefined);
+    }
+  }
+
   async finalizeUpload(uid: string, uploadId: string, now: Date): Promise<SaveManifest> {
     await this.requireCloudSave(uid, now);
     const uploadRef = this.db.collection("cloudSaveUploads").doc(uploadId);
@@ -147,6 +197,7 @@ export class CloudSaveService {
     if (pending.state === "complete") {
       const manifest = await this.manifest(uid, pending.slot);
       if (!manifest) throw new Error("Completed upload is missing its manifest.");
+      await this.cleanupPrunedRevisions(pending.uid, pending.uploadId, pending.cleanupObjectPaths ?? [], now);
       return manifest;
     }
     if (Date.parse(pending.expiresAt) < now.getTime()) throw new HttpError(410, "Cloud-save upload expired.");
@@ -165,7 +216,7 @@ export class CloudSaveService {
 
     const manifestRef = this.db.collection("cloudSaves").doc(uid).collection("slots").doc(pending.slot);
     const result = await this.db.runTransaction(async (transaction): Promise<
-      { manifest: SaveManifest } | { conflictRevision: string | null }
+      { manifest: SaveManifest; cleanupObjectPaths: string[] } | { conflictRevision: string | null }
     > => {
       const [freshUpload, currentSnapshot] = await Promise.all([
         transaction.get(uploadRef),
@@ -173,19 +224,16 @@ export class CloudSaveService {
       ]);
       const fresh = freshUpload.data() as PendingUpload;
       const current = currentSnapshot.data() as SaveManifest | undefined;
-      if (fresh.state === "complete" && current) return { manifest: current };
+      if (fresh.state === "complete" && current) {
+        return { manifest: current, cleanupObjectPaths: fresh.cleanupObjectPaths ?? [] };
+      }
       const expected = fresh.baseRevision;
       const actual = current?.currentRevision ?? null;
       if (cloudRevisionConflicts(expected, actual)) {
         transaction.update(uploadRef, { state: "conflict", conflictRevision: actual, updatedAt: now.toISOString() });
         return { conflictRevision: actual };
       }
-      const previous = current
-        ? [
-            { revision: current.currentRevision, objectPath: current.objectPath, updatedAt: current.updatedAt },
-            ...(current.previousRevisions ?? [])
-          ].slice(0, 3)
-        : [];
+      const retention = retainedCloudRevisionPlan(current);
       const manifest: SaveManifest = {
         uid,
         slot: fresh.slot,
@@ -194,11 +242,24 @@ export class CloudSaveService {
         byteLength: fresh.byteLength,
         sha256: fresh.sha256,
         updatedAt: now.toISOString(),
-        previousRevisions: previous
+        previousRevisions: retention.retained
       };
       transaction.set(manifestRef, manifest);
-      transaction.update(uploadRef, { state: "complete", completedAt: now.toISOString() });
-      return { manifest };
+      transaction.update(uploadRef, {
+        state: "complete",
+        completedAt: now.toISOString(),
+        cleanupObjectPaths: retention.prunedObjectPaths
+      });
+      if (retention.prunedObjectPaths.length) {
+        transaction.set(this.db.collection("cloudSaveCleanupJobs").doc(fresh.uploadId), {
+          state: "pending",
+          uid,
+          objectPaths: retention.prunedObjectPaths,
+          createdAt: now.toISOString(),
+          attemptCount: 0
+        });
+      }
+      return { manifest, cleanupObjectPaths: retention.prunedObjectPaths };
     });
     if ("conflictRevision" in result) {
       await this.storage.bucket().file(revisionObjectPath).delete({ ignoreNotFound: true }).catch(() => undefined);
@@ -208,11 +269,14 @@ export class CloudSaveService {
     // The signed write URL can still be reused until it expires, but it only
     // targets this unreferenced staging object. Remove the verified copy now.
     await file.delete({ ignoreNotFound: true }).catch(() => undefined);
+    await this.cleanupPrunedRevisions(pending.uid, pending.uploadId, result.cleanupObjectPaths, now);
     return result.manifest;
   }
 
   async manifest(uid: string, slot: string): Promise<SaveManifest | undefined> {
-    const snapshot = await this.db.collection("cloudSaves").doc(uid).collection("slots").doc(slot).get();
+    const validSlot = cloudSaveSlotSchema.safeParse(slot);
+    if (!validSlot.success) throw new HttpError(400, validSlot.error.issues[0]?.message ?? "Invalid cloud-save slot.");
+    const snapshot = await this.db.collection("cloudSaves").doc(uid).collection("slots").doc(validSlot.data).get();
     return snapshot.exists ? snapshot.data() as SaveManifest : undefined;
   }
 

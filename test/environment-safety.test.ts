@@ -46,6 +46,7 @@ describe("deployment safety", () => {
       APP_CHECK_ENFORCEMENT_ENABLED: false,
       SUBSCRIPTION_RECONCILIATION_ENABLED: false,
       CLOUD_STORAGE_MONITORING_ENABLED: false,
+      CLOUD_SAVE_CLEANUP_ENABLED: false,
       DEVICE_SIGN_IN_ENABLED: false,
       DEVICE_SIGN_IN_CLEANUP_ENABLED: false
     });

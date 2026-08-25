@@ -4,7 +4,7 @@ import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-
 import { z } from "zod";
 import { CatalogService } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
-import { CloudSaveService, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
+import { CloudSaveService, cloudSaveSlotSchema, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
 import { deploymentControls, env } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { summarizeSubscription } from "../../src/domain/account-summary.js";
@@ -356,9 +356,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     if (!parsed.success) throw new HttpError(400, "A valid upload ID is required.");
     return json(200, await cloudSave.finalizeUpload(user.uid, parsed.data.uploadId, now));
   }
-  const downloadMatch = path.match(/^\/v1\/cloud-saves\/([a-zA-Z0-9_-]{1,64})$/);
+  const downloadMatch = path.match(/^\/v1\/cloud-saves\/([^/]+)$/);
   if (event.httpMethod === "GET" && downloadMatch?.[1]) {
-    return json(200, await cloudSave.downloadUrl(user.uid, downloadMatch[1], now));
+    const slot = cloudSaveSlotSchema.safeParse(downloadMatch[1]);
+    if (!slot.success) throw new HttpError(400, slot.error.issues[0]?.message ?? "Invalid cloud-save slot.");
+    return json(200, await cloudSave.downloadUrl(user.uid, slot.data, now));
   }
   return json(404, { error: "Not found" });
 }

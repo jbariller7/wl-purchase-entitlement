@@ -30,8 +30,8 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - Scheduled Stripe, Google Play and Apple subscription reconciliation, with an exclusive lease, per-subscription retry backoff and an operations-console run history. Provider access is read-only; Google Play bearer tokens are AES-256-GCM encrypted with a rotatable Netlify-only key ring.
 - Transactional legacy key allocation with retryable Google Sheets and MailerLite mirroring.
 - Meta/TikTok server conversion outbox with real checkout attribution, stable event IDs, pre-storage email hashing, and correct zero-decimal currency values.
-- Versioned SHA-256-verified cloud saves using short-lived staging URLs, immutable finalized revisions and conflict detection.
-- Daily aggregate Cloud Storage inventory snapshots with byte/object growth, stale staging-upload detection, threshold alerts and an Admin Operations view. Monitoring is independently disabled until the staging bucket is provisioned.
+- Versioned SHA-256-verified cloud saves using 21 fixed RPG Maker slots, short-lived staging URLs, immutable finalized revisions and conflict detection. Each slot retains the current save plus three prior revisions; pruned objects enter a leased, retrying cleanup queue.
+- Daily aggregate Cloud Storage inventory snapshots with byte/object growth, stale staging-upload detection, threshold alerts and an Admin Operations view. Monitoring and revision cleanup are independently disabled until the staging bucket is provisioned.
 - Reviewed RPG Maker, Android and iOS integration sources, including the synchronized mirror used to update the editable RMMZ project and authoritative Android project. The iOS adapter remains a reviewed integration source until the Xcode project is supplied.
 
 ## Local verification

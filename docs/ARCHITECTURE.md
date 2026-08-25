@@ -43,7 +43,8 @@ An active monthly grant ends at the provider period end unless a newer provider 
 - `legacyKeys`, `legacyFulfillments`: exclusive key inventory and durable fulfillment result.
 - `checkoutContexts`, `subscriptionContexts`: browser attribution captured before Stripe redirect.
 - `outbox/{hash}`: leased, retrying external side effects; successful payloads are immediately replaced by a redaction marker.
-- `cloudSaves/{uid}/slots/{slot}` and `cloudSaveUploads`: manifests and upload transactions.
+- `cloudSaves/{uid}/slots/{save0..save20}` and `cloudSaveUploads`: bounded manifests and upload transactions.
+- `cloudSaveCleanupJobs/{uploadId}`: server-only, leased deletion queue for immutable revisions pruned from the retained current-plus-three history. Admin receives counts by state, never UIDs or object paths.
 - `cloudStorageSnapshots/{YYYY-MM-DD}` and `operationalMetrics/cloudStorage*`: aggregate bucket counts, bytes and monitor health. They contain no UIDs, object paths or customer identifiers.
 
-Clients are denied direct Firestore/Storage access. Authenticated HTTP endpoints gate reads/writes. Ten-minute signed write URLs target disposable staging objects; finalization verifies SHA-256 and size, then creates an immutable revision object before advancing the manifest.
+Clients are denied direct Firestore/Storage access. Authenticated HTTP endpoints gate reads/writes. Ten-minute signed write URLs target disposable staging objects; finalization verifies SHA-256 and size, then creates an immutable revision object before advancing the manifest. Finalization attempts obsolete-revision deletion immediately and persists any failure for bounded scheduled retry. A bucket lifecycle deletes abandoned or replayed staging objects after one day.

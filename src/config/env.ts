@@ -17,6 +17,7 @@ const controlsSchema = z.object({
   APP_CHECK_ENFORCEMENT_ENABLED: disabledByDefault,
   SUBSCRIPTION_RECONCILIATION_ENABLED: disabledByDefault,
   CLOUD_STORAGE_MONITORING_ENABLED: disabledByDefault,
+  CLOUD_SAVE_CLEANUP_ENABLED: disabledByDefault,
   DEVICE_SIGN_IN_ENABLED: disabledByDefault,
   DEVICE_SIGN_IN_CLEANUP_ENABLED: disabledByDefault
 });

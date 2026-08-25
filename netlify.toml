@@ -21,6 +21,9 @@
 [functions."cloud-storage-monitor"]
   schedule = "43 2 * * *"
 
+[functions."cloud-save-cleanup"]
+  schedule = "23 * * * *"
+
 [functions."device-sign-in-cleanup"]
   schedule = "7 * * * *"
 

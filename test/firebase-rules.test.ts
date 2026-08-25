@@ -14,6 +14,8 @@ import { getFirestore as getAdminFirestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AccountDeletionService } from "../src/account-deletion/service.js";
+import { AdminOperationsService } from "../src/admin/operations-service.js";
+import { CloudSaveService, cloudStagingObjectPath } from "../src/cloud-save/service.js";
 import { EntitlementStore } from "../src/infrastructure/entitlement-store.js";
 import { sha256, stableDocumentId } from "../src/infrastructure/ids.js";
 import {
@@ -261,6 +263,113 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
     }
   });
 
+  it("retains exactly four immutable save generations and drains the pruning queue", async () => {
+    const app = initializeApp({ projectId }, `cloud-save-retention-${Date.now()}`);
+    const database = getAdminFirestore(app);
+    const uid = "cloud-retention-user";
+    const store = new EntitlementStore(database);
+    const objects = new Map<string, Buffer>();
+    const fakeStorage = {
+      bucket: () => ({
+        file: (path: string) => ({
+          getSignedUrl: async () => [`https://signed.invalid/${encodeURIComponent(path)}`],
+          exists: async () => [objects.has(path)],
+          download: async () => {
+            const value = objects.get(path);
+            if (!value) throw new Error("missing object");
+            return [value];
+          },
+          save: async (contents: Buffer) => {
+            if (objects.has(path)) {
+              const error = new Error("precondition failed") as Error & { code: number };
+              error.code = 412;
+              throw error;
+            }
+            objects.set(path, Buffer.from(contents));
+          },
+          delete: async () => { objects.delete(path); }
+        })
+      })
+    } as unknown as Storage;
+    const service = new CloudSaveService(database, fakeStorage, store);
+    const uploadedIds: string[] = [];
+    let baseRevision: string | null = null;
+    let finalManifest: Awaited<ReturnType<CloudSaveService["finalizeUpload"]>> | undefined;
+
+    try {
+      await store.upsertGrant({
+        id: "",
+        uid,
+        provider: "admin",
+        providerTransactionId: "cloud-retention-grant",
+        product: "premium_lifetime_pass",
+        state: "active",
+        startsAt: "2026-08-25T08:00:00.000Z",
+        metadata: { primaryMobilePlatform: "android" }
+      }, { id: "grant", created: 1_777_000_000 });
+
+      for (let index = 0; index < 5; index += 1) {
+        const contents = Buffer.from(JSON.stringify({ index, payload: `save-${index}` }));
+        const at = new Date(Date.parse("2026-08-25T10:00:00.000Z") + index * 1000);
+        const prepared = await service.prepareUpload(uid, {
+          slot: "save1",
+          byteLength: contents.byteLength,
+          sha256: sha256(contents),
+          baseRevision
+        }, at);
+        uploadedIds.push(prepared.uploadId);
+        objects.set(cloudStagingObjectPath(uid, prepared.uploadId), contents);
+        finalManifest = await service.finalizeUpload(uid, prepared.uploadId, at);
+        baseRevision = finalManifest.currentRevision;
+      }
+
+      expect(finalManifest?.previousRevisions).toHaveLength(3);
+      const immutable = [...objects.keys()].filter((path) => path.startsWith(`cloud-saves/${uid}/`));
+      expect(immutable).toHaveLength(4);
+      expect([...objects.keys()].filter((path) => path.startsWith(`cloud-save-uploads/${uid}/`))).toHaveLength(0);
+      expect(immutable.some((path) => path.includes(uploadedIds[0]!))).toBe(false);
+      expect(immutable.some((path) => path.includes(uploadedIds[4]!))).toBe(true);
+      expect((await database.collection("cloudSaveCleanupJobs").where("uid", "==", uid).get()).empty).toBe(true);
+    } finally {
+      await deleteApp(app);
+    }
+  });
+
+  it("lets an administrator audit and requeue a terminal cloud-save cleanup failure", async () => {
+    const app = initializeApp({ projectId }, `cloud-save-cleanup-retry-${Date.now()}`);
+    const database = getAdminFirestore(app);
+    const jobId = "4acb303f-18d2-4b98-b665-058c332271df";
+    const ref = database.collection("cloudSaveCleanupJobs").doc(jobId);
+    try {
+      await ref.set({
+        state: "failed",
+        uid: "retry-user",
+        objectPaths: [`cloud-saves/retry-user/slots/save1/revisions/${jobId}.json`],
+        createdAt: "2026-08-25T09:00:00.000Z",
+        attemptCount: 10,
+        lastError: "Cloud Storage revision deletion failed."
+      });
+      const now = new Date("2026-08-25T12:00:00.000Z");
+      await new AdminOperationsService(database, {} as Auth).retryCloudSaveCleanup({
+        actor: { uid: "admin-user", email: "owner@wonderlang.net" },
+        jobId,
+        reason: "Retry after correcting the staging bucket IAM role.",
+        now
+      });
+      expect((await ref.get()).data()).toMatchObject({
+        state: "pending",
+        attemptCount: 0,
+        notBefore: now.toISOString(),
+        manuallyRetriedAt: now.toISOString()
+      });
+      expect((await ref.get()).data()).not.toHaveProperty("lastError");
+      const audit = await database.collection("adminAudit").where("targetId", "==", jobId).get();
+      expect(audit.docs.some((row) => row.data().action === "cloud_save_cleanup.retry")).toBe(true);
+    } finally {
+      await deleteApp(app);
+    }
+  });
+
   it("pseudonymizes linked purchase records and cancels personal outbox work on final account deletion", async () => {
     const app = initializeApp({ projectId }, `account-deletion-${Date.now()}`);
     const database = getAdminFirestore(app);
@@ -297,6 +406,11 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         database.collection("providerSecrets").doc("secret-delete-me").set({
           uid,
           encrypted: { ciphertext: "encrypted-only" }
+        }),
+        database.collection("cloudSaveCleanupJobs").doc("cleanup-delete-me").set({
+          uid,
+          state: "pending",
+          objectPaths: [`cloud-saves/${uid}/slots/save1/revisions/4acb303f-18d2-4b98-b665-058c332271df.json`]
         }),
         database.collection("legacyOrders").doc("order-delete-me").set({
           buyerEmail: "buyer@example.com",
@@ -346,7 +460,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         mailerLiteSubscribersForgotten: 1
       });
 
-      const [order, key, fulfillment, conversion, deletion, grant, providerSubscription, providerSecret, user, tombstone] = await Promise.all([
+      const [order, key, fulfillment, conversion, deletion, grant, providerSubscription, providerSecret, cleanupJob, user, tombstone] = await Promise.all([
         database.collection("legacyOrders").doc("order-delete-me").get(),
         database.collection("legacyKeys").doc("key-delete-me").get(),
         database.collection("outbox").doc("fulfillment-delete-me").get(),
@@ -355,6 +469,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         database.collection("grants").doc("grant-delete-me").get(),
         database.collection("providerSubscriptions").doc("subscription-delete-me").get(),
         database.collection("providerSecrets").doc("secret-delete-me").get(),
+        database.collection("cloudSaveCleanupJobs").doc("cleanup-delete-me").get(),
         database.collection("users").doc(uid).get(),
         database.collection("accountDeletionTombstones").doc(sha256(uid)).get()
       ]);
@@ -373,6 +488,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
       });
       expect(providerSubscription.data()).not.toHaveProperty("lastReconciliationError");
       expect(providerSecret.exists).toBe(false);
+      expect(cleanupJob.exists).toBe(false);
       expect(user.exists).toBe(false);
       expect(tombstone.data()?.deletedUid).toBe(deletedUid);
       expect(deletedAuthUsers).toEqual([uid]);
