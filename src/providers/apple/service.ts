@@ -61,13 +61,33 @@ async function resolveUid(input: {
   const accountToken = input.transaction.appAccountToken ?? input.renewal?.appAccountToken;
   const tokenUid = accountToken ? await input.store.uidForStoreAccountToken(accountToken) : undefined;
   const originalId = input.transaction.originalTransactionId;
-  const linkedUid = originalId ? await input.store.uidForProviderSubscription("apple", originalId) : undefined;
-  const uid = tokenUid ?? linkedUid ?? input.authenticatedUid;
+  const canonicalId = canonicalAppleTransactionId(input.transaction);
+  const [transactionUid, subscriptionUid] = await Promise.all([
+    canonicalId ? input.store.uidForProviderTransaction("apple", canonicalId) : Promise.resolve(undefined),
+    originalId ? input.store.uidForProviderSubscription("apple", originalId) : Promise.resolve(undefined)
+  ]);
+  const uid = tokenUid ?? transactionUid ?? subscriptionUid ?? input.authenticatedUid;
   if (!uid) throw new Error("Apple transaction is not linked to a WonderLang account.");
-  for (const candidate of [tokenUid, linkedUid, input.authenticatedUid]) {
+  for (const candidate of [tokenUid, transactionUid, subscriptionUid, input.authenticatedUid]) {
     if (candidate && candidate !== uid) throw new Error("Apple transaction account identifiers disagree.");
   }
   return uid;
+}
+
+export function canonicalAppleTransactionId(transaction: JWSTransactionDecodedPayload): string {
+  const value = transaction.originalTransactionId;
+  if (!value) throw new Error("Verified Apple transaction is missing its original transaction ID.");
+  return value;
+}
+
+export function appleTransactionSignedAtSeconds(transaction: JWSTransactionDecodedPayload): number {
+  const signedDate = transaction.signedDate;
+  if (!signedDate || !Number.isFinite(signedDate)) {
+    throw new Error("Verified Apple transaction is missing its signed date.");
+  }
+  // Preserve milliseconds so two provider events signed in the same wall-clock
+  // second still have a deterministic order in the ledger.
+  return signedDate / 1000;
 }
 
 export function normalizeAppleSubscriptionState(input: {
@@ -100,6 +120,7 @@ async function applyAppleTransaction(input: {
   const transactionId = input.transaction.transactionId;
   const originalId = input.transaction.originalTransactionId;
   if (!productId || !transactionId) throw new Error("Verified Apple transaction is missing product or transaction ID.");
+  const canonicalTransactionId = canonicalAppleTransactionId(input.transaction);
   const uid = await resolveUid(input);
   const now = new Date(input.eventCreated * 1000);
   let product: LedgerGrant["product"];
@@ -144,15 +165,18 @@ async function applyAppleTransaction(input: {
       id: "",
       uid,
       provider: "apple",
-      providerTransactionId: transactionId,
+      providerTransactionId: canonicalTransactionId,
       product,
       state: revoked ? "refunded" : "active",
-      startsAt: new Date(input.transaction.purchaseDate ?? now.getTime()).toISOString(),
+      startsAt: new Date(input.transaction.originalPurchaseDate ?? input.transaction.purchaseDate ?? now.getTime()).toISOString(),
       ...(revoked ? {
         endsAt: new Date(input.transaction.revocationDate as number).toISOString(),
         refundedAt: new Date(input.transaction.revocationDate as number).toISOString()
       } : {}),
-      metadata: { originalTransactionId: originalId ?? transactionId }
+      metadata: {
+        originalTransactionId: canonicalTransactionId,
+        latestTransactionId: transactionId
+      }
     };
     await input.store.upsertGrant(originalGrant, { id: input.eventId, created: input.eventCreated });
     const migration = chapterMigrationGrant(originalGrant);
@@ -186,13 +210,17 @@ export async function processAppleNotification(input: {
 }): Promise<void> {
   const { notification, transaction, renewal } = input.verified;
   if (!transaction) return;
+  const signedDate = notification.signedDate ?? transaction.signedDate;
+  if (!signedDate || !Number.isFinite(signedDate)) {
+    throw new Error("Verified Apple notification is missing its signed date.");
+  }
   await applyAppleTransaction({
     store: input.store,
     transaction,
     ...(renewal ? { renewal } : {}),
     ...(notification.data?.status !== undefined ? { status: notification.data.status } : {}),
     eventId: notification.notificationUUID ?? `apple-${transaction.transactionId}`,
-    eventCreated: Math.floor((notification.signedDate ?? Date.now()) / 1000)
+    eventCreated: signedDate / 1000
   });
 }
 
@@ -208,7 +236,10 @@ export async function claimAppleTransaction(input: {
     transaction,
     authenticatedUid: input.authenticatedUid,
     eventId: `app-claim:${transaction.transactionId}`,
-    eventCreated: Math.floor(input.now.getTime() / 1000)
+    // Order claims by Apple's signed timestamp, not the time a client submits
+    // the receipt. Otherwise an old pre-refund JWS replayed later could appear
+    // newer than the refund notification and reactivate a revoked grant.
+    eventCreated: appleTransactionSignedAtSeconds(transaction)
   });
 }
 

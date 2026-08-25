@@ -23,7 +23,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - Responsive `/admin/` operations console with customer lookup, a Premium second-mobile-platform review queue, audited approval/decline decisions, manual grants, two-step refunds, Premium Stripe price changes, native-store regional price references, dry-run imports, delivery retries, key inventory, provider monitoring and audit history. Explicit `?demo=1` sessions are stateful but fictional and side-effect-free; the normal page never substitutes demo records for unavailable services.
 - Server-verified, email-verified Firebase `admin` custom claims; signing in with Google or Apple alone never grants operations access.
 - Fail-closed test deployment controls. Test mode accepts only Stripe test credentials (`sk_test_` or least-privilege `rk_test_`) and all side-effect switches default to off.
-- Append-only provider event inbox, replay protection, stale-claim recovery and out-of-order grant protection.
+- Append-only provider event inbox, replay protection, stale-claim recovery and out-of-order grant protection. Apple non-consumables are owned by the stable original transaction ID across restores, receipt claims use Apple's signed chronology, and the ledger atomically rejects a provider purchase claimed by another account.
 - Effective entitlement projector with Stripe, Play, App Store and legacy ownership sources.
 - Premium-only Stripe Checkout, Billing Portal, historical subscription lifecycle webhooks, refunds/disputes, seven-day grace and conversion policy.
 - Google Play Developer API verification, backend acknowledgment, OIDC-authenticated RTDN and token replay prevention.

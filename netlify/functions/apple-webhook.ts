@@ -29,7 +29,9 @@ export const lambdaHandler: LambdaHandler = async (event) => {
   }
   const eventId = verified.notification.notificationUUID;
   if (!eventId) return { statusCode: 400, body: "Missing notification UUID" };
-  const eventCreated = Math.floor((verified.notification.signedDate ?? Date.now()) / 1000);
+  const signedDate = verified.notification.signedDate ?? verified.transaction?.signedDate;
+  if (!signedDate || !Number.isFinite(signedDate)) return { statusCode: 400, body: "Missing signed date" };
+  const eventCreated = signedDate / 1000;
   const store = new EntitlementStore(firestore());
   const decision = await store.beginProviderEvent({
     provider: "apple",

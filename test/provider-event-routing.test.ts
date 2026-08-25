@@ -23,7 +23,12 @@ vi.mock("../src/providers/google-play/service.js", async () => {
   };
 });
 
-import { normalizeAppleSubscriptionState, processAppleNotification } from "../src/providers/apple/service.js";
+import {
+  appleTransactionSignedAtSeconds,
+  canonicalAppleTransactionId,
+  normalizeAppleSubscriptionState,
+  processAppleNotification
+} from "../src/providers/apple/service.js";
 import { normalizeGooglePlaySubscriptionState } from "../src/providers/google-play/service.js";
 import { parseRtdn, processRtdn } from "../src/providers/google-play/rtdn.js";
 
@@ -115,6 +120,7 @@ describe("provider subscription state normalization", () => {
 function appleStore(grants: LedgerGrant[]) {
   return {
     uidForStoreAccountToken: vi.fn().mockResolvedValue("apple-user"),
+    uidForProviderTransaction: vi.fn().mockResolvedValue(undefined),
     uidForProviderSubscription: vi.fn().mockResolvedValue(undefined),
     upsertGrant: vi.fn(async (grant: LedgerGrant) => { grants.push(grant); }),
     effectiveEntitlements: vi.fn().mockResolvedValue({ uid: "apple-user" } as EffectiveEntitlements)
@@ -122,6 +128,27 @@ function appleStore(grants: LedgerGrant[]) {
 }
 
 describe("Apple verified notification routing", () => {
+  it("uses the original transaction as the permanent ownership key across restores", () => {
+    expect(canonicalAppleTransactionId({
+      transactionId: "apple-restored-transaction-a",
+      originalTransactionId: "apple-original-purchase"
+    } as JWSTransactionDecodedPayload)).toBe("apple-original-purchase");
+    expect(canonicalAppleTransactionId({
+      transactionId: "apple-restored-transaction-b",
+      originalTransactionId: "apple-original-purchase"
+    } as JWSTransactionDecodedPayload)).toBe("apple-original-purchase");
+    expect(() => canonicalAppleTransactionId({
+      transactionId: "apple-restore-without-original"
+    } as JWSTransactionDecodedPayload)).toThrow(/original transaction ID/i);
+  });
+
+  it("orders app claims by Apple's signed time and rejects an unordered JWS", () => {
+    expect(appleTransactionSignedAtSeconds({ signedDate: 1_787_654_321_999 } as JWSTransactionDecodedPayload))
+      .toBeCloseTo(1_787_654_321.999);
+    expect(() => appleTransactionSignedAtSeconds({} as JWSTransactionDecodedPayload))
+      .toThrow(/signed date/i);
+  });
+
   it("creates an active Monthly grant from a verified subscription notification", async () => {
     const grants: LedgerGrant[] = [];
     const purchaseDate = Date.parse("2026-08-25T10:00:00.000Z");
@@ -142,6 +169,7 @@ describe("Apple verified notification routing", () => {
           appAccountToken: "00000000-0000-4000-8000-000000000001",
           purchaseDate,
           originalPurchaseDate: purchaseDate,
+          signedDate: Date.parse("2026-08-25T10:04:59.000Z"),
           expiresDate
         }
       }
@@ -177,19 +205,20 @@ describe("Apple verified notification routing", () => {
           transactionId: "apple-chapter-transaction",
           originalTransactionId: "apple-chapter-original",
           appAccountToken: "00000000-0000-4000-8000-000000000002",
-          purchaseDate
+          purchaseDate,
+          signedDate: Date.parse("2026-08-25T10:04:59.000Z")
         }
       }
     });
 
     expect(grants).toHaveLength(2);
     expect(grants[0]).toMatchObject({
-      providerTransactionId: "apple-chapter-transaction",
+      providerTransactionId: "apple-chapter-original",
       product: "legacy_chapter_1",
       state: "active"
     });
     expect(grants[1]).toMatchObject({
-      providerTransactionId: "chapter-full-upgrade:apple-chapter-transaction",
+      providerTransactionId: "chapter-full-upgrade:apple-chapter-original",
       product: "mobile_polyglot_permanent",
       state: "active",
       metadata: {
@@ -197,6 +226,82 @@ describe("Apple verified notification routing", () => {
         originalProduct: "legacy_chapter_1"
       }
     });
+  });
+
+  it("routes a tokenless non-consumable refund to the owner of the original Apple purchase", async () => {
+    const grants: LedgerGrant[] = [];
+    const originalPurchaseDate = Date.parse("2026-07-01T10:00:00.000Z");
+    const revocationDate = Date.parse("2026-08-25T10:00:00.000Z");
+    const store = {
+      uidForStoreAccountToken: vi.fn().mockResolvedValue(undefined),
+      uidForProviderTransaction: vi.fn().mockResolvedValue("original-owner"),
+      uidForProviderSubscription: vi.fn().mockResolvedValue(undefined),
+      upsertGrant: vi.fn(async (grant: LedgerGrant) => { grants.push(grant); }),
+      effectiveEntitlements: vi.fn().mockResolvedValue({ uid: "original-owner" } as EffectiveEntitlements)
+    } as unknown as EntitlementStore;
+
+    await processAppleNotification({
+      store,
+      verified: {
+        notification: {
+          notificationUUID: "apple-polyglot-refund",
+          signedDate: Date.parse("2026-08-25T10:05:00.000Z")
+        } as ResponseBodyV2DecodedPayload,
+        transaction: {
+          productId: "wonderlangfull",
+          transactionId: "apple-refund-transaction",
+          originalTransactionId: "apple-original-purchase",
+          originalPurchaseDate,
+          purchaseDate: revocationDate,
+          revocationDate,
+          signedDate: Date.parse("2026-08-25T10:04:59.000Z")
+        }
+      }
+    });
+
+    expect(store.uidForProviderTransaction).toHaveBeenCalledWith("apple", "apple-original-purchase");
+    expect(grants).toHaveLength(1);
+    expect(grants[0]).toMatchObject({
+      uid: "original-owner",
+      providerTransactionId: "apple-original-purchase",
+      product: "mobile_polyglot_permanent",
+      state: "refunded",
+      startsAt: new Date(originalPurchaseDate).toISOString(),
+      endsAt: new Date(revocationDate).toISOString(),
+      metadata: {
+        originalTransactionId: "apple-original-purchase",
+        latestTransactionId: "apple-refund-transaction"
+      }
+    });
+  });
+
+  it("rejects a claim when Apple's account token disagrees with the existing purchase owner", async () => {
+    const upsertGrant = vi.fn();
+    const store = {
+      uidForStoreAccountToken: vi.fn().mockResolvedValue("token-owner"),
+      uidForProviderTransaction: vi.fn().mockResolvedValue("ledger-owner"),
+      uidForProviderSubscription: vi.fn().mockResolvedValue(undefined),
+      upsertGrant,
+      effectiveEntitlements: vi.fn()
+    } as unknown as EntitlementStore;
+
+    await expect(processAppleNotification({
+      store,
+      verified: {
+        notification: {
+          notificationUUID: "apple-account-mismatch",
+          signedDate: Date.parse("2026-08-25T10:05:00.000Z")
+        } as ResponseBodyV2DecodedPayload,
+        transaction: {
+          productId: "wonderlangfull",
+          transactionId: "apple-restored-transaction",
+          originalTransactionId: "apple-original-purchase",
+          appAccountToken: "00000000-0000-4000-8000-000000000003",
+          signedDate: Date.parse("2026-08-25T10:04:59.000Z")
+        }
+      }
+    })).rejects.toThrow(/account identifiers disagree/i);
+    expect(upsertGrant).not.toHaveBeenCalled();
   });
 });
 

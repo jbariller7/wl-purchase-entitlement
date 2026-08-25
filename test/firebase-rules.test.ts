@@ -201,6 +201,75 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
     }
   });
 
+  it("atomically prevents one provider purchase from being claimed by two accounts", async () => {
+    const app = initializeApp({ projectId }, `provider-ownership-${Date.now()}`);
+    const database = getAdminFirestore(app);
+    const store = new EntitlementStore(database);
+    const purchase = {
+      id: "",
+      provider: "apple" as const,
+      providerTransactionId: "apple-original-purchase-ownership-test",
+      product: "mobile_polyglot_permanent" as const,
+      state: "active" as const,
+      startsAt: "2026-08-25T10:00:00.000Z"
+    };
+    try {
+      await store.upsertGrant({ ...purchase, uid: "first-player" }, {
+        id: "first-claim",
+        created: 1_787_654_321
+      });
+      await expect(store.upsertGrant({ ...purchase, uid: "second-player" }, {
+        id: "restored-claim",
+        created: 1_787_654_322
+      })).rejects.toThrow(/already linked to another account/i);
+      expect(await store.uidForProviderTransaction("apple", purchase.providerTransactionId)).toBe("first-player");
+      expect((await store.grantsForUid("second-player"))).toHaveLength(0);
+    } finally {
+      await deleteApp(app);
+    }
+  });
+
+  it("keeps a later Apple refund over a stale receipt replay signed in the same second", async () => {
+    const app = initializeApp({ projectId }, `provider-chronology-${Date.now()}`);
+    const database = getAdminFirestore(app);
+    const store = new EntitlementStore(database);
+    const purchase = {
+      id: "",
+      uid: "refund-owner",
+      provider: "apple" as const,
+      providerTransactionId: "apple-original-refund-chronology-test",
+      product: "mobile_polyglot_permanent" as const,
+      startsAt: "2026-08-25T10:00:00.000Z"
+    };
+    try {
+      await store.upsertGrant({ ...purchase, state: "active" }, {
+        id: "initial-purchase",
+        created: 1_787_654_320.100
+      });
+      await store.upsertGrant({
+        ...purchase,
+        state: "refunded",
+        endsAt: "2026-08-25T10:05:00.900Z",
+        refundedAt: "2026-08-25T10:05:00.900Z"
+      }, {
+        id: "refund-notification",
+        created: 1_787_654_321.900
+      });
+      await expect(store.upsertGrant({ ...purchase, state: "active" }, {
+        id: "stale-client-replay",
+        created: 1_787_654_321.100
+      })).resolves.toBe(false);
+      expect(await store.getGrant("apple", purchase.providerTransactionId, purchase.product)).toMatchObject({
+        uid: "refund-owner",
+        state: "refunded",
+        sourceEventId: "refund-notification",
+        sourceEventCreated: 1_787_654_321.900
+      });
+    } finally {
+      await deleteApp(app);
+    }
+  });
+
   it("cannot re-enable reconciliation after an account-deletion race", async () => {
     const app = initializeApp({ projectId }, `reconciliation-deletion-race-${Date.now()}`);
     const database = getAdminFirestore(app);
