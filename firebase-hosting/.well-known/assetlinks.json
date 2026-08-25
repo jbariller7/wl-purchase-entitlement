@@ -1,0 +1,16 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.wonderlang.app",
+      "sha256_cert_fingerprints": [
+        "93:93:C8:45:B9:2B:B0:BA:17:9B:19:C2:FD:F7:C2:8F:25:B4:3C:EB:44:6D:28:6C:44:0C:4A:53:40:37:00:F0",
+        "1D:3C:B3:12:24:72:C1:EB:52:E7:B2:CD:48:EF:F5:AC:41:32:8C:FA:55:AE:6C:87:A1:5A:7F:10:B7:17:C0:C6",
+        "1E:DB:70:E1:65:46:AA:57:82:C8:7F:D7:92:DF:F4:A9:36:53:77:A2:74:5B:B2:4D:1D:00:FA:D7:B6:C5:44:39"
+      ]
+    }
+  }
+]
