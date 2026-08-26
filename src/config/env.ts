@@ -39,8 +39,8 @@ const firebaseAuthDiagnosticSchema = firebaseAdminSchema.extend({
 });
 
 const googlePlaySchema = z.object({
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email(),
-  GOOGLE_PRIVATE_KEY: z.string().min(1),
+  GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: z.string().email(),
+  GOOGLE_PLAY_PRIVATE_KEY: z.string().min(1),
   GOOGLE_PLAY_PACKAGE_NAME: z.string().min(1).default("com.wonderlang.app"),
   GOOGLE_PLAY_MONTHLY_PRODUCT_ID: z.string().min(1).default("wonderlangmonthly"),
   GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID: z.string().min(1).default("monthly"),
@@ -138,8 +138,10 @@ const schema = controlsSchema.extend({
   TIKTOK_PIXEL_ID: z.string().optional(),
   TIKTOK_ACCESS_TOKEN: z.string().optional(),
   TIKTOK_TEST_EVENT_CODE: z.string().optional(),
-  GOOGLE_SERVICE_ACCOUNT_EMAIL: googlePlaySchema.shape.GOOGLE_SERVICE_ACCOUNT_EMAIL.optional(),
-  GOOGLE_PRIVATE_KEY: googlePlaySchema.shape.GOOGLE_PRIVATE_KEY.optional(),
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: z.string().email().optional(),
+  GOOGLE_PRIVATE_KEY: z.string().min(1).optional(),
+  GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: googlePlaySchema.shape.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL.optional(),
+  GOOGLE_PLAY_PRIVATE_KEY: googlePlaySchema.shape.GOOGLE_PLAY_PRIVATE_KEY.optional(),
   GOOGLE_PLAY_PACKAGE_NAME: googlePlaySchema.shape.GOOGLE_PLAY_PACKAGE_NAME.optional().default("com.wonderlang.app"),
   GOOGLE_PLAY_MONTHLY_PRODUCT_ID: googlePlaySchema.shape.GOOGLE_PLAY_MONTHLY_PRODUCT_ID.optional().default("wonderlangmonthly"),
   GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID: googlePlaySchema.shape.GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID.optional().default("monthly"),

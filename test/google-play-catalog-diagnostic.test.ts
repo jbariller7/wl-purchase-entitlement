@@ -8,8 +8,8 @@ import {
 
 function environment(rollout: GooglePlayEnvironment["GOOGLE_PLAY_POLYGLOT_ROLLOUT_PHASE"] = "legacy_live_new_draft"): GooglePlayEnvironment {
   return {
-    GOOGLE_SERVICE_ACCOUNT_EMAIL: "play@example.iam.gserviceaccount.com",
-    GOOGLE_PRIVATE_KEY: "test-only",
+    GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: "play@example.iam.gserviceaccount.com",
+    GOOGLE_PLAY_PRIVATE_KEY: "test-only",
     GOOGLE_PLAY_PACKAGE_NAME: "com.wonderlang.app",
     GOOGLE_PLAY_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
     GOOGLE_PLAY_MONTHLY_BASE_PLAN_ID: "monthly",

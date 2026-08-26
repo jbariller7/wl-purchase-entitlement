@@ -41,7 +41,8 @@ const credentialKeys = [
   "FIREBASE_WEB_API_KEY", "FIREBASE_AUTH_DOMAIN", "FIREBASE_APP_CHECK_RECAPTCHA_ENTERPRISE_SITE_KEY", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
   "STRIPE_PRICE_MOBILE_MONTHLY", "STRIPE_PRICE_POLYGLOT_PERMANENT", "STRIPE_PRICE_PREMIUM_LIFETIME", "STRIPE_COUPON_LEGACY_DESKTOP_50",
   "STRIPE_SUCCESS_URL", "STRIPE_CANCEL_URL", "STRIPE_PORTAL_RETURN_URL", "PUBLIC_APP_ORIGIN",
-  "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PRIVATE_KEY", "GOOGLE_SHEET_ID", "MAILERLITE_API_TOKEN"
+  "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PRIVATE_KEY", "GOOGLE_SHEET_ID", "MAILERLITE_API_TOKEN",
+  "GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PLAY_PRIVATE_KEY"
 ];
 
 function event(): HandlerEvent {
@@ -196,8 +197,8 @@ describe("staging function boundaries", () => {
 
   it("requires Play-authorized credentials and RTDN configuration before reporting Google Play ready", async () => {
     Object.assign(process.env, {
-      GOOGLE_SERVICE_ACCOUNT_EMAIL: "play-verifier@example.iam.gserviceaccount.com",
-      GOOGLE_PRIVATE_KEY: "test-play-private-key",
+      GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: "play-verifier@example.iam.gserviceaccount.com",
+      GOOGLE_PLAY_PRIVATE_KEY: "test-play-private-key",
       GOOGLE_PLAY_PACKAGE_NAME: "com.wonderlang.app",
       GOOGLE_PLAY_RTDN_AUDIENCE: "https://test.example.com/webhooks/google-play",
       GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: "rtdn-push@example.iam.gserviceaccount.com"

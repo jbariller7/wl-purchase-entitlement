@@ -200,8 +200,10 @@ describe("isolated integration configuration", () => {
 
   it("keeps Android Publisher credentials separate from Firebase Admin", () => {
     const play = read("src/providers/google-play/service.ts");
-    expect(play).toContain("GOOGLE_SERVICE_ACCOUNT_EMAIL");
-    expect(play).toContain("GOOGLE_PRIVATE_KEY");
+    expect(play).toContain("GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL");
+    expect(play).toContain("GOOGLE_PLAY_PRIVATE_KEY");
+    expect(play).not.toContain("configuration.GOOGLE_SERVICE_ACCOUNT_EMAIL");
+    expect(play).not.toContain("configuration.GOOGLE_PRIVATE_KEY");
     expect(play).not.toContain("client_email: env().FIREBASE_CLIENT_EMAIL");
     expect(play).not.toContain("private_key: normalizeGoogleServiceAccountPrivateKey(env().FIREBASE_PRIVATE_KEY)");
   });

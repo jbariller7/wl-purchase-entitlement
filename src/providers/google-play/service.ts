@@ -33,8 +33,8 @@ async function androidPublisher(): Promise<androidpublisher_v3.Androidpublisher>
   const configuration = googlePlayEnv();
   const auth = new google.auth.GoogleAuth({
     credentials: {
-      client_email: configuration.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: normalizeGoogleServiceAccountPrivateKey(configuration.GOOGLE_PRIVATE_KEY)
+      client_email: configuration.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL,
+      private_key: normalizeGoogleServiceAccountPrivateKey(configuration.GOOGLE_PLAY_PRIVATE_KEY)
     },
     scopes: ["https://www.googleapis.com/auth/androidpublisher"]
   });

@@ -71,8 +71,8 @@ function playStore(input: { deleted?: boolean } = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(process.env, {
-    GOOGLE_SERVICE_ACCOUNT_EMAIL: "play-test@example.iam.gserviceaccount.com",
-    GOOGLE_PRIVATE_KEY: testPrivateKey,
+    GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: "play-test@example.iam.gserviceaccount.com",
+    GOOGLE_PLAY_PRIVATE_KEY: testPrivateKey,
     GOOGLE_PLAY_PACKAGE_NAME: "com.wonderlang.app",
     GOOGLE_PLAY_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
     GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: "wonderlangfull",

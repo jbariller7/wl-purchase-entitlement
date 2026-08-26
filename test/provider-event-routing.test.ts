@@ -51,8 +51,8 @@ function push(notification: Record<string, unknown>, messageId = "play-message-1
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(process.env, {
-    GOOGLE_SERVICE_ACCOUNT_EMAIL: "play-test@example.iam.gserviceaccount.com",
-    GOOGLE_PRIVATE_KEY: "test-private-key",
+    GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: "play-test@example.iam.gserviceaccount.com",
+    GOOGLE_PLAY_PRIVATE_KEY: "test-private-key",
     GOOGLE_PLAY_PACKAGE_NAME: "com.wonderlang.app",
     GOOGLE_PLAY_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
     GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: "wonderlangfull",

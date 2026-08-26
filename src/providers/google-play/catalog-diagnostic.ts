@@ -243,8 +243,8 @@ export function createGooglePlayCatalogReader(environment: GooglePlayEnvironment
     if (api) return api;
     const auth = new google.auth.GoogleAuth({
       credentials: {
-        client_email: environment.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-        private_key: normalizeGoogleServiceAccountPrivateKey(environment.GOOGLE_PRIVATE_KEY)
+        client_email: environment.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL,
+        private_key: normalizeGoogleServiceAccountPrivateKey(environment.GOOGLE_PLAY_PRIVATE_KEY)
       },
       scopes: ["https://www.googleapis.com/auth/androidpublisher"]
     });
