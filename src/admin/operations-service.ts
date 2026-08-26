@@ -201,6 +201,10 @@ export class AdminOperationsService {
     }));
   }
 
+  private inventoryInitialized(summary: Array<{ available: number; assigned: number }>): boolean {
+    return summary.some((row) => row.available + row.assigned > 0);
+  }
+
   async overview(): Promise<Record<string, unknown>> {
     const entitlements = this.db.collection("entitlements");
     const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, failedCloudSaveCleanup, openSecondPlatformRequests, inventory, recent, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor] = await Promise.all([
@@ -228,6 +232,7 @@ export class AdminOperationsService {
       users.set(uid, await this.auth.getUser(uid).catch(() => undefined));
     }));
     const lowStock = inventory.filter((row) => row.lowStock);
+    const inventoryInitialized = this.inventoryInitialized(inventory);
     const cloud = cloudStorage.exists ? cloudStorage.data() : undefined;
     const cloudMonitor = cloudStorageMonitor.exists ? cloudStorageMonitor.data() : undefined;
     const cleanupMonitor = cloudSaveCleanupMonitor.exists ? cloudSaveCleanupMonitor.data() : undefined;
@@ -240,7 +245,9 @@ export class AdminOperationsService {
       ...(cloudMonitor?.state === "failed" ? [{ view: "operations", tone: "danger", title: "Cloud storage inventory failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
       ...(cleanupMonitor?.state === "failed" ? [{ view: "operations", tone: "danger", title: "Cloud-save cleanup worker failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
       ...(openSecondPlatformRequests ? [{ view: "customers", tone: "neutral", title: `${openSecondPlatformRequests} Premium second-platform request${openSecondPlatformRequests === 1 ? "" : "s"} awaiting review`, detail: "Approve or decline each request with an audit reason", action: "Review requests" }] : []),
-      ...lowStock.slice(0, 3).map((row) => ({ view: "inventory", tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available · threshold ${row.lowStockThreshold}`, action: "Review inventory" })),
+      ...(!inventoryInitialized
+        ? [{ view: "inventory", tone: "warning", title: "Key inventory has not been imported", detail: "Google Sheets remains untouched; run the dry-run comparison before creating the Firestore mirror", action: "Review inventory" }]
+        : lowStock.slice(0, 3).map((row) => ({ view: "inventory", tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available · threshold ${row.lowStockThreshold}`, action: "Review inventory" }))),
       ...(graceSubscriptions ? [{ view: "customers", tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];
     return {
@@ -676,6 +683,7 @@ export class AdminOperationsService {
       this.db.collection("legacyFulfillments").orderBy("createdAt", "desc").limit(30).get()
     ]);
     return {
+      initialized: this.inventoryInitialized(summary),
       summary,
       recentFulfillments: recent.docs.map((doc) => publicFulfillmentSummary(doc.id, doc.data()))
     };

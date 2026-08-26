@@ -230,6 +230,15 @@ describe("administrator interface route contract", () => {
     expect(admin).toMatch(/catch \(error\) \{\s*if \(revision !== viewLoadRevision \|\| state\.view !== view\) return;/);
   });
 
+  it("distinguishes an unimported Firestore key mirror from genuinely empty stock", () => {
+    expect(admin).toContain("Firestore inventory has not been imported yet");
+    expect(admin).toContain("Your existing Google Sheet is still the source and has not been changed.");
+    const operations = read("src/admin/operations-service.ts");
+    expect(operations).toContain("inventoryInitialized(summary)");
+    expect(operations).toContain("Key inventory has not been imported");
+    expect(operations).toContain("run the dry-run comparison before creating the Firestore mirror");
+  });
+
   it("limits the working Stripe price editor to Premium and labels mobile prices as native", () => {
     expect(admin).toContain('<input type="hidden" name="kind" value="premium">');
     expect(admin).not.toContain('<option value="monthly">Mobile Monthly</option>');

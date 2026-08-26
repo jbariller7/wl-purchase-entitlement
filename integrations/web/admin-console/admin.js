@@ -136,7 +136,7 @@ const demoOperations = {
     failures: [{ id: "4acb303f-18d2-4b98-b665-058c332271df", state: "failed", attemptCount: 10, createdAt: new Date(Date.now() - 86_400_000).toISOString(), lastAttemptAt: new Date().toISOString(), lastError: "Cloud Storage revision deletion failed." }]
   }
 };
-const demoInventory = { summary: [{ sheetTab: "Steam English", available: 42, assigned: 318, lowStockThreshold: 15, lowStock: false }, { sheetTab: "Steam Japanese", available: 8, assigned: 94, lowStockThreshold: 10, lowStock: true }, { sheetTab: "Itch English", available: 27, assigned: 71, lowStockThreshold: 20, lowStock: false }], recentFulfillments: [] };
+const demoInventory = { initialized: true, summary: [{ sheetTab: "Steam English", available: 42, assigned: 318, lowStockThreshold: 15, lowStock: false }, { sheetTab: "Steam Japanese", available: 8, assigned: 94, lowStockThreshold: 10, lowStock: true }, { sheetTab: "Itch English", available: 27, assigned: 71, lowStockThreshold: 20, lowStock: false }], recentFulfillments: [] };
 const demoAudit = { entries: [{ id: "audit_demo", actorEmail: "owner@wonderlang.net", action: "catalog.price.change", targetType: "catalog", targetId: "monthly", summary: "Changed monthly price for new checkouts", createdAt: new Date().toISOString() }] };
 const ZERO_DECIMAL_CURRENCIES = new Set(["CLP", "JPY", "KRW", "VND"]);
 
@@ -274,6 +274,7 @@ function renderOperations(data) {
 
 function renderInventory(data) {
   return `${pageIntro("KEY INVENTORY", "Know before stock runs out.", "Steam and Itch keys remain separate from mobile entitlements. Each sheet tab uses its configured low-stock threshold.")}
+  ${data.initialized === false ? '<aside class="alert warning"><div><strong>Firestore inventory has not been imported yet</strong><span>Your existing Google Sheet is still the source and has not been changed. Run the key-import dry run, compare every tab count, then explicitly approve the one-time Firestore mirror import before enabling fulfillment.</span></div></aside>' : ""}
   <section class="inventory-grid">${(data.summary || []).length ? data.summary.map((r) => `<article class="inventory-card ${r.lowStock ? "low" : ""}"><p>${escapeHtml(r.sheetTab)}</p><strong>${Number(r.available).toLocaleString()}</strong><span>available</span><small>${Number(r.assigned).toLocaleString()} assigned · alert at ${Number(r.lowStockThreshold).toLocaleString()}</small></article>`).join("") : empty("No key inventory records in this environment.")}</section>
   <section class="panel"><header><div><p class="section-kicker">RECENT FULFILLMENT</p><h3>Delivered key orders</h3></div></header>${(data.recentFulfillments || []).length ? table(["When", "Order", "Keys"], data.recentFulfillments.map((r) => [formatDate(r.createdAt), r.orderId, Number(r.keyCount || 0)])) : empty("No fulfillment records in this environment.")}</section>`;
 }
