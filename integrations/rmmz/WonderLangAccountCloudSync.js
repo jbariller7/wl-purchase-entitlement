@@ -453,10 +453,11 @@
       return;
     }
     if (state === "authorized") {
-      showPanel("Signed in to WonderLang", `<p class="wl-account-success">Google sign-in succeeded. Refreshing your access and cloud saves…</p>`, [
+      const signedInOverlay = showPanel("Signed in to WonderLang", `<p class="wl-account-success">Google sign-in succeeded. Refreshing your access and cloud saves…</p>`, [
         { label: "Continue", run: openAccountPanel },
         { label: "Close", kind: "secondary", run: closeOverlay }
       ]);
+      setTimeout(() => { if (activeOverlay === signedInOverlay) openAccountPanel(); }, 900);
       return;
     }
     if (state === "error") {
