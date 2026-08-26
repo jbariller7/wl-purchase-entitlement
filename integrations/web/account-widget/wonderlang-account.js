@@ -21,7 +21,6 @@ import { formatLoginProviders } from "./provider-labels.js";
 import "./wonderlang-account.css";
 
 const pageParams = new URLSearchParams(location.search);
-const redirectLogin = pageParams.get("redirect_login") === "1";
 const previewParam = pageParams.get("demo");
 const demoProfile = pageParams.get("profile");
 const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"].includes(location.hostname)
@@ -305,12 +304,6 @@ class WonderLangAccount extends HTMLElement {
       if (!this.deviceCode) {
         this.status(`Signed in with ${providerId === "apple.com" ? "Apple" : "Google"} in the safe demo.`);
       }
-      return;
-    }
-    if (redirectLogin) {
-      this.status("Continuing securely in this browser…");
-      try { await signInWithRedirect(this.auth, provider); }
-      catch (redirectError) { this.fail(redirectError); }
       return;
     }
     this.status("Opening secure sign-in…");

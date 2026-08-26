@@ -19,11 +19,6 @@ describe("customer interface route contract", () => {
     expect(boundForms).toEqual(forms);
   });
 
-  it("keeps an explicit redirect sign-in fallback for browsers that cannot complete Firebase popups", () => {
-    expect(account).toContain('pageParams.get("redirect_login") === "1"');
-    expect(account).toContain("await signInWithRedirect(this.auth, provider)");
-  });
-
   it("keeps each customer API call paired with a server route", () => {
     const routes = [
       ["/api/v1/config", 'path === "/v1/config"'],
