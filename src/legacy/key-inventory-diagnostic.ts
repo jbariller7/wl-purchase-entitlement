@@ -48,6 +48,40 @@ function escapedSheetRange(sheetTab: string): string {
   return `'${sheetTab.replace(/'/g, "''")}'!A2:B`;
 }
 
+function errorStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const value = error as { code?: unknown; status?: unknown; response?: { status?: unknown } };
+  for (const candidate of [value.response?.status, value.status, value.code]) {
+    const status = Number(candidate);
+    if (Number.isInteger(status) && status >= 400 && status <= 599) return status;
+  }
+  return undefined;
+}
+
+function safeInventoryFailure(error: unknown): { failureCode: string; issue: string } {
+  const status = errorStatus(error);
+  const message = error instanceof Error ? error.message : "";
+  if (/Missing GOOGLE_(?:SERVICE_ACCOUNT_EMAIL|PRIVATE_KEY|SHEET_ID)/.test(message)) {
+    return { failureCode: "missing_configuration", issue: "The Google Sheets server credential or spreadsheet ID is not configured." };
+  }
+  if (/DECODER|PEM|private key|invalid_grant|invalid jwt|invalid signature/i.test(message)) {
+    return { failureCode: "credential_invalid", issue: "The configured Google Sheets private credential is invalid or cannot be decoded." };
+  }
+  if (status === 401) {
+    return { failureCode: "credential_rejected", issue: "Google rejected the configured Google Sheets server credential." };
+  }
+  if (status === 403) {
+    return { failureCode: "permission_denied", issue: "The configured service account does not have permission to read the Google Sheet." };
+  }
+  if (status === 404 || status === 400 && /range|sheet|spreadsheet/i.test(message)) {
+    return { failureCode: "sheet_not_found", issue: "The configured spreadsheet or one expected inventory tab could not be found." };
+  }
+  if (status === 429) {
+    return { failureCode: "rate_limited", issue: "Google Sheets temporarily rate-limited the read-only inventory check." };
+  }
+  return { failureCode: "provider_unavailable", issue: "Google Sheets inventory could not be read with the configured server credential." };
+}
+
 export function summarizeKeyInventoryRows(sheetTab: string, rows: unknown[][]): KeyInventoryCount {
   let available = 0;
   let assigned = 0;
@@ -153,17 +187,19 @@ export class LegacyKeyInventoryDiagnosticService {
         tabs,
         issues
       };
-    } catch {
+    } catch (error) {
+      const failure = safeInventoryFailure(error);
       return {
         checkedAt,
         readOnly: true,
         state: "unavailable",
         passed: false,
         readyForInitialImport: false,
+        failureCode: failure.failureCode,
         sheet: null,
         firestore: null,
         tabs: [],
-        issues: ["Google Sheets inventory could not be read with the configured server credential."]
+        issues: [failure.issue]
       };
     }
   }

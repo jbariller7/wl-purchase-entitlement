@@ -85,9 +85,27 @@ describe("read-only legacy key-inventory diagnostic", () => {
       readOnly: true,
       readyForInitialImport: false,
       tabs: [],
+      failureCode: "provider_unavailable",
       issues: ["Google Sheets inventory could not be read with the configured server credential."]
     });
     expect(JSON.stringify(result)).not.toMatch(/secret|credential secret-key-value|sheet-id/i);
+  });
+
+  it.each([
+    [{ response: { status: 401 } }, "credential_rejected"],
+    [{ response: { status: 403 } }, "permission_denied"],
+    [{ response: { status: 404 } }, "sheet_not_found"],
+    [{ response: { status: 429 } }, "rate_limited"],
+    [new Error("error:1E08010C:DECODER routines::unsupported"), "credential_invalid"]
+  ])("classifies provider failures without returning raw details", async (providerError, failureCode) => {
+    const service = new LegacyKeyInventoryDiagnosticService({
+      sheetsFactory: async () => { throw providerError; },
+      spreadsheetId: "private-sheet-id",
+      tabs: ["Polyglot Steam"]
+    });
+    const result = await service.compare([], new Date("2026-08-27T12:00:00.000Z"));
+    expect(result).toMatchObject({ state: "unavailable", failureCode });
+    expect(JSON.stringify(result)).not.toContain("1E08010C");
   });
 
   it("summarizes rows deterministically without exposing their contents", () => {
