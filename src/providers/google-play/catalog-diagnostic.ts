@@ -238,24 +238,29 @@ async function inspectPolyglot(input: {
 }
 
 export function createGooglePlayCatalogReader(environment: GooglePlayEnvironment): GooglePlayCatalogReader {
-  const auth = new google.auth.GoogleAuth({
-    credentials: {
-      client_email: environment.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: normalizeGoogleServiceAccountPrivateKey(environment.GOOGLE_PRIVATE_KEY)
-    },
-    scopes: ["https://www.googleapis.com/auth/androidpublisher"]
-  });
-  const api = google.androidpublisher({ version: "v3", auth });
+  let api: androidpublisher_v3.Androidpublisher | undefined;
+  const client = (): androidpublisher_v3.Androidpublisher => {
+    if (api) return api;
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: environment.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: normalizeGoogleServiceAccountPrivateKey(environment.GOOGLE_PRIVATE_KEY)
+      },
+      scopes: ["https://www.googleapis.com/auth/androidpublisher"]
+    });
+    api = google.androidpublisher({ version: "v3", auth });
+    return api;
+  };
   return {
     async subscription(packageName, productId) {
-      return (await api.monetization.subscriptions.get({ packageName, productId })).data;
+      return (await client().monetization.subscriptions.get({ packageName, productId })).data;
     },
     async subscriptionOffers(packageName, productId, basePlanId) {
-      const response = await api.monetization.subscriptions.basePlans.offers.list({ packageName, productId, basePlanId, pageSize: 100 });
+      const response = await client().monetization.subscriptions.basePlans.offers.list({ packageName, productId, basePlanId, pageSize: 100 });
       return response.data.subscriptionOffers ?? [];
     },
     async oneTimeProduct(packageName, productId) {
-      return (await api.monetization.onetimeproducts.get({ packageName, productId })).data;
+      return (await client().monetization.onetimeproducts.get({ packageName, productId })).data;
     }
   };
 }

@@ -92,6 +92,20 @@ describe("read-only Firebase Authentication diagnostic", () => {
     expect(JSON.stringify(result)).not.toContain("google-client.apps.googleusercontent.com");
   });
 
+  it("accepts Identity Platform's canonical numeric Google Cloud project resource name", async () => {
+    const result = await diagnoseFirebaseAuthentication({
+      reader: reader({ project: project({ name: "projects/1034814537215/config" }) }),
+      environment: environment(),
+      now: new Date("2026-08-26T00:00:00.000Z")
+    });
+
+    expect(result.checks.find((check) => check.id === "project-domains")).toMatchObject({
+      resourceId: "projects/1034814537215/config",
+      state: "passed",
+      issues: []
+    });
+  });
+
   it("reports every unsafe or incomplete authentication setting without exposing provider credentials", async () => {
     const result = await diagnoseFirebaseAuthentication({
       reader: reader({

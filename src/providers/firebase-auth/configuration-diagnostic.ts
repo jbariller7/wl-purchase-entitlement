@@ -97,7 +97,13 @@ export async function diagnoseFirebaseAuthentication(input: {
     const actualDomains = new Set(project.authorizedDomains.map((domain) => domain.toLowerCase()));
     const missingDomains = expectedDomains.filter((domain) => !actualDomains.has(domain));
     const projectIssues: string[] = [];
-    if (project.name !== `projects/${environment.FIREBASE_PROJECT_ID}/config`) projectIssues.push("Identity Platform returned a different Firebase project.");
+    const expectedProjectName = `projects/${environment.FIREBASE_PROJECT_ID}/config`;
+    // Identity Platform may canonicalize a Firebase project ID to its numeric
+    // Google Cloud project number in this resource name. The request itself is
+    // still scoped to FIREBASE_PROJECT_ID, so either canonical form is valid.
+    if (project.name !== expectedProjectName && !/^projects\/\d+\/config$/.test(project.name)) {
+      projectIssues.push("Identity Platform returned a different Firebase project.");
+    }
     const actualSubdomain = project.firebaseSubdomain?.replace(/\.firebaseapp\.com$/i, "").toLowerCase();
     const expectedSubdomain = environment.FIREBASE_AUTH_DOMAIN.replace(/\.firebaseapp\.com$/i, "").toLowerCase();
     if (actualSubdomain && actualSubdomain !== expectedSubdomain) {

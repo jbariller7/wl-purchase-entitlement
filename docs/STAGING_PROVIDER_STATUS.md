@@ -136,6 +136,16 @@ Last verified: 2026-08-26. This file records only non-secret identifiers and saf
 
 GitHub secret-scanning alert `#1` was traced to the Firebase Android client key in commit `641a64b`, belonging to the abandoned `wonderlang-entitlements-9590f` project. Public `main` history was rewritten without the value and the current tree has regression coverage. After authenticating the old project owner, Google Cloud showed exactly two Firebase-created API credentials. The exposed Android key resource `7fa7bb10-8320-4cfe-b844-fc7b243fb310` was verified in the abandoned project and deleted on 2026-08-26; a fresh credential-list read proved the Android key absent and left the separate old-project Browser key intact. No `wonderlang-accounts` credential was changed. GitHub alert `#1` is now resolved with resolution `revoked`, and Netlify's active `FIREBASE_WEB_API_KEY` remains secret-scoped.
 
+## Firebase administrator bootstrap and account availability
+
+- Public `/api/v1/config` no longer performs a Stripe API request. It reads the cached Firestore catalog when available and falls back to the approved USD/regional catalog when Firestore is unavailable. A regression test proves that an invalid/unavailable Stripe provider cannot take down Firebase account login. Commit `6c90e55` published successfully and restored the real Account page after the prior restricted-key failure.
+- The one-time audited bootstrap granted the Firebase `admin` custom claim only to the verified `jonathan@wonderlang.app` account. The operation created its audit record, revoked existing sessions and redirected to the protected Operations sign-in as designed.
+- `ADMIN_BOOTSTRAP_ENABLED` was immediately changed back to `false` in every Netlify deploy context and a clean production redeploy published that disabled setting. Purchasing, provider webhooks, outbox processing, fulfillment, advertising conversions, cancellation processing, deletion processing and App Check enforcement remain disabled.
+- The ordinary suite passes 254 tests, the dedicated Firebase emulator suite passes all 15 deny-by-default and server-invariant tests, the production build passes, `npm audit --omit=dev` reports zero vulnerabilities, and the repository scan finds no Firebase, Stripe or webhook secret values. The only private-key marker is the expected parser in `src/infrastructure/private-key.ts`.
+- Real testing rejected an attempted Firebase redirect-login compatibility path because the hosted handler returned `The requested action is invalid` in the embedded browser. That path was removed rather than left as an unverified fallback. The verified Google popup flow remains authoritative; it completed the real administrator bootstrap successfully.
+- A fresh real Google administrator session then loaded all eight protected Operations sections with the server-verified claim and all 16 deployment guards Off. Mobile 390×844 testing rendered the customer sign-in UI and every administrator section without horizontal layout loss; the temporary viewport was reset afterward.
+- Real diagnostics exposed three configuration/code issues. Catalog reads still contacted Stripe, the installed restricted Stripe key is rejected by Stripe, and the installed Google Play private key does not parse as a service-account PEM. Catalog reads are now provider-independent, the Firebase diagnostic accepts Identity Platform's canonical numeric project resource name, and malformed Google Play credentials return sanitized failed checks instead of a generic server error. Replacing the two invalid Netlify provider credentials remains an operator step.
+
 ## Unverified release gates
 
 - Real Apple and passwordless-email sign-in against Firebase test credentials
@@ -143,7 +153,7 @@ GitHub secret-scanning alert `#1` was traced to the Firebase Android client key 
 - Play license-tester purchase and backend verification
 - Apple Sandbox purchase and App Store Server Notification verification
 - Two-installation cloud-save upload/restore/conflict test
-- Real authenticated administrator browser workflows against the configured Firebase test project; the customer account workflow is verified
+- Real provider-backed administrator diagnostics and controlled canaries against the configured test services; all UI actions are verified in the side-effect-free demo, and the real administrator claim/protected-route gate is verified
 - Real-device Android tap, cancel, scroll and rapid-double-tap Billing matrix
 - Installed-device verification that a real Firebase passwordless email link opens `com.wonderlang.app` directly and completes sign-in for both Play-signed and test builds
 - The deterministic storefront audit still contains a legacy rule requiring all four chapter offers to remain on sale. This conflicts with the approved commercial model in which chapter SKUs are restore-only; do not satisfy that rule by reintroducing chapter sales.

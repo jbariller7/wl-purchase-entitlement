@@ -2,6 +2,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import type Stripe from "stripe";
 import { stripeEnv } from "../config/env.js";
 import { stripeClient } from "../providers/stripe/client.js";
+import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS } from "../domain/catalog.js";
 import { REGIONAL_PRICES, stripeMinorAmount, type OfferPriceKind } from "../domain/regional-pricing.js";
 
 export type CatalogOfferKind = OfferPriceKind;
@@ -95,14 +96,27 @@ export class CatalogService {
       lifetime?: CatalogOffer;
       lifetimePriceHistory?: string[];
     } : {};
-    const [monthlyPrice, polyglotPrice, premiumPrice] = await Promise.all([
-      stored.monthly ? undefined : stripeClient().prices.retrieve(stripeEnv().STRIPE_PRICE_MOBILE_MONTHLY),
-      stored.polyglot ? undefined : stripeClient().prices.retrieve(stripeEnv().STRIPE_PRICE_POLYGLOT_PERMANENT),
-      stored.premium ? undefined : stripeClient().prices.retrieve(stripeEnv().STRIPE_PRICE_PREMIUM_LIFETIME)
-    ]);
-    const monthly = stored.monthly ?? asOffer(monthlyPrice as Stripe.Price, "monthly");
-    const polyglot = stored.polyglot ?? asOffer(polyglotPrice as Stripe.Price, "polyglot");
-    const premium = stored.premium ?? asOffer(premiumPrice as Stripe.Price, "premium");
+    const environment = stripeEnv();
+    // Catalog reads must remain available during a Stripe outage. Provider-backed
+    // validation belongs to the explicit diagnostic and mutation paths.
+    const monthly = stored.monthly ?? {
+      stripePriceId: environment.STRIPE_PRICE_MOBILE_MONTHLY,
+      unitAmount: MONTHLY_PRICE_USD_CENTS,
+      currency: "USD",
+      recurring: true
+    };
+    const polyglot = stored.polyglot ?? {
+      stripePriceId: environment.STRIPE_PRICE_POLYGLOT_PERMANENT,
+      unitAmount: POLYGLOT_PERMANENT_PRICE_USD_CENTS,
+      currency: "USD",
+      recurring: false
+    };
+    const premium = stored.premium ?? {
+      stripePriceId: environment.STRIPE_PRICE_PREMIUM_LIFETIME,
+      unitAmount: PREMIUM_LIFETIME_PRICE_USD_CENTS,
+      currency: "USD",
+      recurring: false
+    };
     return {
       revision: Number(stored.revision ?? 0),
       monthly,
