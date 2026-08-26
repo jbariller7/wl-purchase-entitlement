@@ -30,6 +30,23 @@ export interface StripeCatalogDiagnostic {
 
 const OPTIONAL_STRIPE_CURRENCIES = new Set(["KWD"]);
 
+function safeProviderReadIssue(error: unknown, resourceLabel: string): string {
+  const providerError = error as { type?: unknown; code?: unknown; statusCode?: unknown };
+  const type = typeof providerError?.type === "string" ? providerError.type : "";
+  const code = typeof providerError?.code === "string" ? providerError.code : "";
+  const statusCode = typeof providerError?.statusCode === "number" ? providerError.statusCode : 0;
+  if (type === "StripePermissionError" || statusCode === 403) {
+    return `The restricted Stripe key lacks read permission for this ${resourceLabel}.`;
+  }
+  if (code === "resource_missing" || statusCode === 404) {
+    return `This ${resourceLabel} does not exist in the configured Stripe test account or mode.`;
+  }
+  if (type === "StripeAuthenticationError" || statusCode === 401) {
+    return "Stripe rejected the configured restricted test credential.";
+  }
+  return `Stripe could not read this ${resourceLabel} with the configured test credential.`;
+}
+
 function keyDescription(secret: string): Pick<StripeCatalogDiagnostic, "mode" | "keyType"> {
   const mode = /_(test)_/.test(secret) ? "test" : /_(live)_/.test(secret) ? "live" : "unknown";
   const keyType = secret.startsWith("rk_") ? "restricted" : secret.startsWith("sk_") ? "standard" : "unknown";
@@ -107,13 +124,13 @@ async function inspectOffer(input: {
         optionalCurrenciesUnavailable: [...OPTIONAL_STRIPE_CURRENCIES].filter((currency) => !options[currency.toLowerCase()])
       }
     };
-  } catch {
+  } catch (error) {
     return {
       id: `${kind}-price`,
       label,
       state: "failed",
       resourceId: offer.stripePriceId,
-      issues: ["Stripe could not read this Price and Product with the configured test credential."]
+      issues: [safeProviderReadIssue(error, "Price and Product")]
     };
   }
 }
@@ -139,13 +156,13 @@ async function inspectCoupon(client: DiagnosticStripeClient, couponId: string): 
         duration: coupon.duration
       }
     };
-  } catch {
+  } catch (error) {
     return {
       id: "historical-owner-coupon",
       label: "Historical desktop-owner 50% Coupon",
       state: "failed",
       resourceId: couponId,
-      issues: ["Stripe could not read this Coupon with the configured test credential."]
+      issues: [safeProviderReadIssue(error, "Coupon")]
     };
   }
 }

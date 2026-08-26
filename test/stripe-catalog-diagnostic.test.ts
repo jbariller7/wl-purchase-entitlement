@@ -162,4 +162,35 @@ describe("read-only Stripe catalog diagnostic", () => {
     ]);
     expect(JSON.stringify(result)).not.toContain("raw Stripe response");
   });
+
+  it("turns safe Stripe error categories into actionable permission and account-mode guidance", async () => {
+    const fake = client();
+    fake.pricesRetrieve.mockRejectedValue({
+      type: "StripePermissionError",
+      statusCode: 403,
+      message: "raw Stripe permission response"
+    });
+    fake.couponsRetrieve.mockRejectedValue({
+      type: "StripeInvalidRequestError",
+      code: "resource_missing",
+      statusCode: 404,
+      message: "raw Stripe missing-resource response"
+    });
+
+    const result = await diagnoseStripeCatalog({
+      client: fake.value,
+      catalog: catalog(),
+      environment: { STRIPE_SECRET_KEY: "rk_test_redacted", STRIPE_COUPON_LEGACY_DESKTOP_50: "coupon_legacy" },
+      controls: { STRIPE_MUTATIONS_ENABLED: false, STRIPE_WEBHOOKS_ENABLED: false },
+      now: new Date("2026-08-27T00:00:00.000Z")
+    });
+
+    expect(result.checks.find((check) => check.id === "monthly-price")?.issues).toEqual([
+      "The restricted Stripe key lacks read permission for this Price and Product."
+    ]);
+    expect(result.checks.find((check) => check.id === "historical-owner-coupon")?.issues).toEqual([
+      "This Coupon does not exist in the configured Stripe test account or mode."
+    ]);
+    expect(JSON.stringify(result)).not.toContain("raw Stripe");
+  });
 });
