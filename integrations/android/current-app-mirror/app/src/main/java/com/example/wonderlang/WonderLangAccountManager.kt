@@ -99,11 +99,13 @@ class WonderLangAccountManager(
     @Volatile private var cachedAccountUid = ""
     @Volatile private var fullGameEntitled = false
     @Volatile private var cloudSaveEntitled = false
-    @Volatile private var entitlementLeaseExpiresAtWallMs = 0L
+    @Volatile private var fullGameLeaseExpiresAtWallMs = 0L
+    @Volatile private var cloudSaveLeaseExpiresAtWallMs = 0L
     @Volatile private var entitlementVerifiedAtWallMs = 0L
     @Volatile private var entitlementVerifiedAtElapsedMs = 0L
     @Volatile private var entitlementVerifiedBootCount = -1
-    @Volatile private var entitlementLeaseMaximumAgeMs = 0L
+    @Volatile private var fullGameLeaseMaximumAgeMs = 0L
+    @Volatile private var cloudSaveLeaseMaximumAgeMs = 0L
 
     private val authListener = FirebaseAuth.AuthStateListener { state ->
         val user = state.currentUser
@@ -146,18 +148,37 @@ class WonderLangAccountManager(
     fun isSignedIn(): Boolean = auth.currentUser != null
 
     fun ownsProduct(productId: String): Boolean {
-        if (!hasValidEntitlementLease() || !fullGameEntitled) return false
-        return productId.lowercase() in setOf(
-            "wonderlangfull",
-            "wonderlangmonthly",
-            "wonderlangch1",
-            "wonderlangch2",
-            "wonderlangch3",
-            "wonderlangch4"
-        )
+        val entitlements = currentEntitlementsSnapshot() ?: return false
+        if (!fullGameEntitled || !entitlements.optBoolean("fullGame", false)) return false
+        val normalizedProductId = productId.trim().lowercase(Locale.ROOT)
+        val accessKind = entitlements.optString("accessKind")
+        val subscriptionState = entitlements.optString("subscriptionState")
+        val premiumLifetime = entitlements.optBoolean("premiumLifetime", false)
+        val permanentPlatforms = entitlements.optJSONArray("permanentMobilePlatforms")
+        val hasAndroidPermanent = permanentPlatforms != null &&
+            (0 until permanentPlatforms.length()).any {
+                permanentPlatforms.optString(it).equals("android", ignoreCase = true)
+            }
+        return when (normalizedProductId) {
+            // Premium already contains both benefits. Otherwise Monthly and Polyglot
+            // remain independently purchasable so a permanent owner can add cloud
+            // saves and a subscriber can secure permanent mobile ownership.
+            "wonderlangmonthly" -> premiumLifetime || subscriptionState in setOf("active", "grace")
+            "wonderlangfull" -> premiumLifetime || hasAndroidPermanent || accessKind == "legacy"
+            "wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4" -> true
+            else -> false
+        }
     }
 
-    fun hasFullGame(): Boolean = hasValidEntitlementLease() && fullGameEntitled
+    fun hasFullGame(): Boolean = refreshRuntimeLeaseState() && fullGameEntitled
+
+    fun hasActiveSubscription(): Boolean {
+        val entitlements = currentEntitlementsSnapshot() ?: return false
+        return cloudSaveEntitled && entitlements.optString("subscriptionState") in setOf("active", "grace")
+    }
+
+    fun currentAccessKind(): String =
+        currentEntitlementsSnapshot()?.optString("accessKind").orEmpty()
 
     fun ensureStoreAccountToken(onSuccess: (String) -> Unit, onFailure: (String) -> Unit) {
         val cached = cachedStoreAccountToken
@@ -232,7 +253,7 @@ class WonderLangAccountManager(
     fun getAccountSnapshot(): String {
         val currentUid = auth.currentUser?.uid.orEmpty()
         if (currentUid.isBlank() || cachedAccountUid != currentUid) return ""
-        if (fullGameEntitled) hasValidEntitlementLease()
+        if (fullGameEntitled || cloudSaveEntitled) refreshRuntimeLeaseState()
         return cachedAccountJson
     }
 
@@ -243,7 +264,10 @@ class WonderLangAccountManager(
     fun isSignedInFromGame(): Boolean = isSignedIn()
 
     @JavascriptInterface
-    fun hasCloudSave(): Boolean = hasValidEntitlementLease() && cloudSaveEntitled
+    fun hasCloudSave(): Boolean {
+        refreshRuntimeLeaseState()
+        return cloudSaveEntitled
+    }
 
     @JavascriptInterface
     fun openAccount(): Boolean {
@@ -273,7 +297,9 @@ class WonderLangAccountManager(
         val allowed = uri.scheme == "https" && (
             host == "wonderlang.net" ||
                 host == "www.wonderlang.net" ||
-                host == "billing.stripe.com"
+                host == "billing.stripe.com" ||
+                host == "play.google.com" ||
+                host == "apps.apple.com"
             )
         if (!allowed) return false
         return try {
@@ -563,15 +589,23 @@ class WonderLangAccountManager(
         entitlementVerifiedAtWallMs = verifiedAtWallMs
         entitlementVerifiedAtElapsedMs = SystemClock.elapsedRealtime()
         entitlementVerifiedBootCount = currentBootCount()
-        entitlementLeaseMaximumAgeMs = offlineLeaseMaximumAge(entitlements)
-        entitlementLeaseExpiresAtWallMs = if (fullGameEntitled) {
-            offlineLeaseExpiry(entitlements, verifiedAtWallMs)
+        fullGameLeaseMaximumAgeMs = offlineFullGameLeaseMaximumAge(entitlements)
+        cloudSaveLeaseMaximumAgeMs = offlineCloudSaveLeaseMaximumAge(entitlements)
+        fullGameLeaseExpiresAtWallMs = if (fullGameEntitled) {
+            offlineFullGameLeaseExpiry(entitlements, verifiedAtWallMs)
+        } else {
+            0L
+        }
+        cloudSaveLeaseExpiresAtWallMs = if (cloudSaveEntitled) {
+            offlineCloudSaveLeaseExpiry(entitlements, verifiedAtWallMs)
         } else {
             0L
         }
         cachedAccountUid = currentUid
         cachedAccountJson = fullResponse.toString()
-        if (saveOfflineLease) persistOfflineLease(entitlements)
+        if (saveOfflineLease) {
+            persistOfflineLease(entitlements, fullResponse.optJSONObject("subscription"))
+        }
         evaluate(
             "window.WLAccountEntitlements?._nativeAccount?.(" +
                 JSONObject.quote(fullResponse.toString()) + ")"
@@ -584,7 +618,7 @@ class WonderLangAccountManager(
      * The lease is tied to the Firebase UID, never contains an ID/refresh token,
      * rejects wall-clock rollback, and can never outlive a subscription/grace end.
      */
-    private fun persistOfflineLease(entitlements: JSONObject) {
+    private fun persistOfflineLease(entitlements: JSONObject, subscription: JSONObject?) {
         val user = auth.currentUser ?: return
         val platforms = entitlements.optJSONArray("mobilePlatforms")
         val androidGranted = platforms != null && (0 until platforms.length()).any {
@@ -597,14 +631,20 @@ class WonderLangAccountManager(
 
         val nowWallMs = System.currentTimeMillis()
         val verifiedAtWallMs = parseIsoTimestamp(entitlements.optString("computedAt")) ?: nowWallMs
+        val fullGameExpiresAtWallMs = offlineFullGameLeaseExpiry(entitlements, verifiedAtWallMs)
+        val cloudSaveExpiresAtWallMs = offlineCloudSaveLeaseExpiry(entitlements, verifiedAtWallMs)
         val lease = JSONObject()
             .put("schema", OFFLINE_LEASE_SCHEMA)
             .put("uid", user.uid)
             .put("verifiedAtWallMs", verifiedAtWallMs)
             .put("verifiedAtElapsedMs", SystemClock.elapsedRealtime())
             .put("bootCount", currentBootCount())
-            .put("expiresAtWallMs", offlineLeaseExpiry(entitlements, verifiedAtWallMs))
+            .put("fullGameExpiresAtWallMs", fullGameExpiresAtWallMs)
+            .put("cloudSaveExpiresAtWallMs", cloudSaveExpiresAtWallMs)
             .put("entitlements", JSONObject(entitlements.toString()))
+        if (subscription != null) {
+            lease.put("subscription", JSONObject(subscription.toString()))
+        }
 
         runCatching { encryptOfflineLease(lease.toString()) }
             .onSuccess { encrypted ->
@@ -640,11 +680,16 @@ class WonderLangAccountManager(
             } else {
                 wallAgeMs
             }
-            val expiresAtWallMs = lease.getLong("expiresAtWallMs")
-            require(trustedAgeMs <= offlineLeaseMaximumAge(lease.getJSONObject("entitlements")))
-            require(nowWallMs < expiresAtWallMs)
-
             val entitlements = lease.getJSONObject("entitlements")
+            val fullGameExpiresAtWallMs = lease.getLong("fullGameExpiresAtWallMs")
+            val cloudSaveExpiresAtWallMs = lease.getLong("cloudSaveExpiresAtWallMs")
+            val maximumTrustedAgeMs = maxOf(
+                offlineFullGameLeaseMaximumAge(entitlements),
+                offlineCloudSaveLeaseMaximumAge(entitlements)
+            )
+            require(maximumTrustedAgeMs > 0L && trustedAgeMs <= maximumTrustedAgeMs)
+            require(nowWallMs < maxOf(fullGameExpiresAtWallMs, cloudSaveExpiresAtWallMs))
+
             val account = JSONObject()
                 .put("uid", user.uid)
                 .put("email", user.email ?: JSONObject.NULL)
@@ -656,13 +701,18 @@ class WonderLangAccountManager(
                         .put("enabled", entitlements.optBoolean("cloudSave", false))
                         .put("retainedWhenAccessEnds", true)
                 )
+            lease.optJSONObject("subscription")?.let { subscription ->
+                account.put("subscription", JSONObject(subscription.toString()))
+            }
             publishEntitlements(entitlements, account, saveOfflineLease = false)
             entitlementVerifiedAtWallMs = verifiedAtWallMs
             entitlementVerifiedAtElapsedMs = verifiedAtElapsedMs
             entitlementVerifiedBootCount = storedBootCount
-            entitlementLeaseMaximumAgeMs = offlineLeaseMaximumAge(entitlements)
-            entitlementLeaseExpiresAtWallMs = expiresAtWallMs
-            true
+            fullGameLeaseMaximumAgeMs = offlineFullGameLeaseMaximumAge(entitlements)
+            cloudSaveLeaseMaximumAgeMs = offlineCloudSaveLeaseMaximumAge(entitlements)
+            fullGameLeaseExpiresAtWallMs = fullGameExpiresAtWallMs
+            cloudSaveLeaseExpiresAtWallMs = cloudSaveExpiresAtWallMs
+            refreshRuntimeLeaseState()
         } catch (error: Exception) {
             Log.w(tag, "Offline entitlement lease rejected: ${error.javaClass.simpleName}")
             clearOfflineLease()
@@ -670,25 +720,59 @@ class WonderLangAccountManager(
         }
     }
 
-    private fun offlineLeaseMaximumAge(entitlements: JSONObject): Long =
-        if (entitlements.optString("accessKind") == "subscription") {
-            OFFLINE_SUBSCRIPTION_MAX_AGE_MS
-        } else {
-            OFFLINE_PERMANENT_MAX_AGE_MS
-        }
+    private fun offlineFullGameLeaseMaximumAge(entitlements: JSONObject): Long = when {
+        hasAndroidPermanentAccess(entitlements) -> OFFLINE_PERMANENT_MAX_AGE_MS
+        hasActiveSubscriptionEntitlement(entitlements) -> OFFLINE_SUBSCRIPTION_MAX_AGE_MS
+        else -> 0L
+    }
 
-    private fun offlineLeaseExpiry(entitlements: JSONObject, verifiedAtWallMs: Long): Long {
-        var expiry = verifiedAtWallMs + offlineLeaseMaximumAge(entitlements)
-        if (entitlements.optString("accessKind") == "subscription") {
-            val providerExpiry = if (entitlements.optString("subscriptionState") == "grace") {
-                entitlements.optString("graceEndsAt")
-            } else {
-                entitlements.optString("subscriptionEndsAt")
-            }
-            val parsedProviderExpiry = parseIsoTimestamp(providerExpiry)
-            if (parsedProviderExpiry != null) expiry = minOf(expiry, parsedProviderExpiry)
+    private fun offlineCloudSaveLeaseMaximumAge(entitlements: JSONObject): Long = when {
+        entitlements.optBoolean("premiumLifetime", false) -> OFFLINE_PERMANENT_MAX_AGE_MS
+        hasActiveSubscriptionEntitlement(entitlements) -> OFFLINE_SUBSCRIPTION_MAX_AGE_MS
+        else -> 0L
+    }
+
+    private fun offlineFullGameLeaseExpiry(entitlements: JSONObject, verifiedAtWallMs: Long): Long {
+        val maximumAgeMs = offlineFullGameLeaseMaximumAge(entitlements)
+        if (maximumAgeMs <= 0L) return 0L
+        var expiry = verifiedAtWallMs + maximumAgeMs
+        if (!hasAndroidPermanentAccess(entitlements)) {
+            subscriptionProviderExpiry(entitlements)?.let { expiry = minOf(expiry, it) }
         }
         return expiry
+    }
+
+    private fun offlineCloudSaveLeaseExpiry(entitlements: JSONObject, verifiedAtWallMs: Long): Long {
+        val maximumAgeMs = offlineCloudSaveLeaseMaximumAge(entitlements)
+        if (maximumAgeMs <= 0L) return 0L
+        var expiry = verifiedAtWallMs + maximumAgeMs
+        if (!entitlements.optBoolean("premiumLifetime", false)) {
+            subscriptionProviderExpiry(entitlements)?.let { expiry = minOf(expiry, it) }
+        }
+        return expiry
+    }
+
+    private fun subscriptionProviderExpiry(entitlements: JSONObject): Long? {
+        val providerExpiry = if (entitlements.optString("subscriptionState") == "grace") {
+            entitlements.optString("graceEndsAt")
+        } else {
+            entitlements.optString("subscriptionEndsAt")
+        }
+        return parseIsoTimestamp(providerExpiry)
+    }
+
+    private fun hasActiveSubscriptionEntitlement(entitlements: JSONObject): Boolean =
+        entitlements.optString("subscriptionState") in setOf("active", "grace")
+
+    private fun hasAndroidPermanentAccess(entitlements: JSONObject): Boolean {
+        if (entitlements.optBoolean("premiumLifetime", false)) return true
+        val permanentPlatforms = entitlements.optJSONArray("permanentMobilePlatforms")
+        val hasAndroidPermanent = permanentPlatforms != null &&
+            (0 until permanentPlatforms.length()).any {
+                permanentPlatforms.optString(it).equals("android", ignoreCase = true)
+            }
+        return hasAndroidPermanent ||
+            (entitlements.optString("accessKind") == "legacy" && entitlements.optBoolean("fullGame", false))
     }
 
     private fun parseIsoTimestamp(value: String): Long? {
@@ -762,23 +846,33 @@ class WonderLangAccountManager(
         cachedAccountUid = ""
         fullGameEntitled = false
         cloudSaveEntitled = false
-        entitlementLeaseExpiresAtWallMs = 0L
+        fullGameLeaseExpiresAtWallMs = 0L
+        cloudSaveLeaseExpiresAtWallMs = 0L
         entitlementVerifiedAtWallMs = 0L
         entitlementVerifiedAtElapsedMs = 0L
         entitlementVerifiedBootCount = -1
-        entitlementLeaseMaximumAgeMs = 0L
+        fullGameLeaseMaximumAgeMs = 0L
+        cloudSaveLeaseMaximumAgeMs = 0L
         if (clearLease) clearOfflineLease()
     }
 
-    private fun hasValidEntitlementLease(): Boolean {
+    private fun currentEntitlementsSnapshot(): JSONObject? {
+        val currentUid = auth.currentUser?.uid.orEmpty()
+        if (currentUid.isBlank() || cachedAccountUid != currentUid) return null
+        if (fullGameEntitled || cloudSaveEntitled) refreshRuntimeLeaseState()
+        return runCatching {
+            JSONObject(cachedAccountJson).optJSONObject("entitlements")
+        }.getOrNull()
+    }
+
+    private fun refreshRuntimeLeaseState(): Boolean {
         if (cachedAccountUid.isBlank() || cachedAccountUid != auth.currentUser?.uid) {
             clearCachedAccountState(clearLease = true)
             return false
         }
-        if (!fullGameEntitled) return false
+        if (!fullGameEntitled && !cloudSaveEntitled) return false
         val nowWallMs = System.currentTimeMillis()
         val nowElapsedMs = SystemClock.elapsedRealtime()
-        val expiresAt = entitlementLeaseExpiresAtWallMs
         val sameBoot = entitlementVerifiedBootCount >= 0 &&
             entitlementVerifiedBootCount == currentBootCount()
         val wallAgeMs = (nowWallMs - entitlementVerifiedAtWallMs).coerceAtLeast(0L)
@@ -787,30 +881,51 @@ class WonderLangAccountManager(
         } else {
             wallAgeMs
         }
-        val runtimeLeaseIsValid =
+        val clockIsTrusted =
             nowWallMs + OFFLINE_CLOCK_ROLLBACK_TOLERANCE_MS >= entitlementVerifiedAtWallMs &&
-                (!sameBoot || nowElapsedMs >= entitlementVerifiedAtElapsedMs) &&
-                entitlementLeaseMaximumAgeMs > 0L &&
-                trustedAgeMs <= entitlementLeaseMaximumAgeMs &&
-                expiresAt > 0L &&
-                nowWallMs < expiresAt
-        if (runtimeLeaseIsValid) return true
-        fullGameEntitled = false
-        cloudSaveEntitled = false
-        entitlementLeaseExpiresAtWallMs = 0L
-        entitlementVerifiedAtWallMs = 0L
-        entitlementVerifiedAtElapsedMs = 0L
-        entitlementVerifiedBootCount = -1
-        entitlementLeaseMaximumAgeMs = 0L
-        clearOfflineLease()
+                (!sameBoot || nowElapsedMs >= entitlementVerifiedAtElapsedMs)
+        val fullGameLeaseIsValid = clockIsTrusted &&
+            fullGameEntitled &&
+            fullGameLeaseMaximumAgeMs > 0L &&
+            trustedAgeMs <= fullGameLeaseMaximumAgeMs &&
+            fullGameLeaseExpiresAtWallMs > 0L &&
+            nowWallMs < fullGameLeaseExpiresAtWallMs
+        val cloudSaveLeaseIsValid = clockIsTrusted &&
+            cloudSaveEntitled &&
+            cloudSaveLeaseMaximumAgeMs > 0L &&
+            trustedAgeMs <= cloudSaveLeaseMaximumAgeMs &&
+            cloudSaveLeaseExpiresAtWallMs > 0L &&
+            nowWallMs < cloudSaveLeaseExpiresAtWallMs
+        if (fullGameLeaseIsValid && (cloudSaveLeaseIsValid || !cloudSaveEntitled)) return true
+
+        val fullGameExpired = fullGameEntitled && !fullGameLeaseIsValid
+        val cloudSaveExpired = cloudSaveEntitled && !cloudSaveLeaseIsValid
+        fullGameEntitled = fullGameLeaseIsValid
+        cloudSaveEntitled = cloudSaveLeaseIsValid
+        if (!fullGameEntitled && !cloudSaveEntitled) {
+            fullGameLeaseExpiresAtWallMs = 0L
+            cloudSaveLeaseExpiresAtWallMs = 0L
+            entitlementVerifiedAtWallMs = 0L
+            entitlementVerifiedAtElapsedMs = 0L
+            entitlementVerifiedBootCount = -1
+            fullGameLeaseMaximumAgeMs = 0L
+            cloudSaveLeaseMaximumAgeMs = 0L
+            clearOfflineLease()
+        }
         cachedAccountJson = runCatching {
             val account = JSONObject(cachedAccountJson)
             val entitlements = account.optJSONObject("entitlements") ?: JSONObject()
-            entitlements
-                .put("fullGame", false)
-                .put("allLanguages", false)
-                .put("cloudSave", false)
-                .put("offlineExpired", true)
+            if (fullGameExpired) {
+                entitlements
+                    .put("fullGame", false)
+                    .put("allLanguages", false)
+                    .put("offlineExpired", true)
+            }
+            if (cloudSaveExpired) {
+                entitlements
+                    .put("cloudSave", false)
+                    .put("offlineCloudSaveExpired", true)
+            }
             account.put("entitlements", entitlements).toString()
         }.getOrDefault(cachedAccountJson)
         if (cachedAccountJson.isNotBlank()) {
@@ -819,7 +934,7 @@ class WonderLangAccountManager(
                     JSONObject.quote(cachedAccountJson) + ")"
             )
         }
-        return false
+        return fullGameEntitled
     }
 
     private fun currentUserLabel(user: FirebaseUser?): String =
@@ -890,7 +1005,7 @@ class WonderLangAccountManager(
 
     private companion object {
         const val ENTITLEMENT_FIREBASE_APP_NAME = "wonderlang-accounts"
-        const val OFFLINE_LEASE_SCHEMA = 1
+        const val OFFLINE_LEASE_SCHEMA = 2
         const val OFFLINE_LEASE_VALUE = "encrypted_lease_v1"
         const val OFFLINE_LEASE_KEY_ALIAS = "wonderlang_entitlement_offline_lease_v1"
         const val OFFLINE_CLOCK_ROLLBACK_TOLERANCE_MS = 5 * 60 * 1000L

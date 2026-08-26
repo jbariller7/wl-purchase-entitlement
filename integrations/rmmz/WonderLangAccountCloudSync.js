@@ -643,7 +643,7 @@
       <p class="wl-account-muted">Login methods are linked explicitly. Signing in with Google or Apple alone never grants administrator access.</p>`, [
       { label: "Manage profiles", run: openCloudSavesPanel },
       { label: "Manage login methods", kind: "secondary", run: () => bridge()?.openAccount?.() },
-      ...(access.accessKind === "subscription" ? [{ label: "Manage subscription", kind: "secondary", run: openBillingPortal }] : []),
+      ...(current?.subscription?.provider ? [{ label: "Manage subscription", kind: "secondary", run: openBillingPortal }] : []),
       { label: "Refresh", kind: "secondary", run: openAccountPanel },
       { label: "Close", kind: "secondary", run: closeOverlay }
     ]);
@@ -651,6 +651,18 @@
 
   async function openBillingPortal() {
     try {
+      const provider = authoritativeAccount()?.subscription?.provider;
+      if (provider === "google_play") {
+        const url = "https://play.google.com/store/account/subscriptions?sku=wonderlangmonthly&package=com.wonderlang.app";
+        if (bridge()?.openExternalUrl?.(url) === false) throw new Error("Could not open Google Play subscriptions.");
+        return;
+      }
+      if (provider === "apple") {
+        const url = "https://apps.apple.com/account/subscriptions";
+        if (bridge()?.openExternalUrl?.(url) === false) throw new Error("Could not open Apple subscriptions.");
+        return;
+      }
+      if (provider !== "stripe") throw new Error("This subscription does not have a supported management provider.");
       const { url } = await request("/api/v1/billing-portal", { method: "POST" });
       if (!url || bridge()?.openExternalUrl?.(url) === false) throw new Error("Could not open the secure billing portal.");
     } catch (error) {

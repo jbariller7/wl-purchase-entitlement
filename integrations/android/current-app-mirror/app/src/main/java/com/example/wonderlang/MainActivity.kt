@@ -2374,7 +2374,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun analyticsItemName(sku: String): String {
         return when (sku) {
-            "wonderlangfull" -> "WonderLang Full Game"
+            "wonderlangfull" -> "WonderLang Polyglot Permanent"
+            "wonderlangmonthly" -> "WonderLang Mobile Monthly"
             "wonderlangch1" -> "WonderLang Chapter 1"
             "wonderlangch2" -> "WonderLang Chapter 2"
             "wonderlangch3" -> "WonderLang Chapter 3"
@@ -2412,7 +2413,11 @@ class MainActivity : AppCompatActivity() {
 
         return try {
             val price = BigDecimal.valueOf(storePrice.amountMicros, 6).toDouble()
-            val itemCategory = if (sku == "wonderlangfull") "full_game" else "legacy_chapter"
+            val itemCategory = when (sku) {
+                "wonderlangmonthly" -> "subscription"
+                "wonderlangfull" -> "polyglot_permanent"
+                else -> "legacy_chapter"
+            }
             val item = Bundle().apply {
                 putString(FirebaseAnalytics.Param.ITEM_ID, sku)
                 putString(FirebaseAnalytics.Param.ITEM_NAME, analyticsItemName(sku))
@@ -3836,9 +3841,10 @@ class MainActivity : AppCompatActivity() {
         fun getAnalyticsEntitlementTier(): String {
             return synchronized(purchaseQueryLock) {
                 when {
+                    (::accountManager.isInitialized && accountManager.hasActiveSubscription()) -> "subscription"
+                    purchasedProducts.contains("wonderlangmonthly") -> "subscription"
                     (::accountManager.isInitialized && accountManager.hasFullGame()) -> "full"
                     purchasedProducts.contains("wonderlangfull") || historicalFullUpgradeProducts.isNotEmpty() -> "full"
-                    purchasedProducts.contains("wonderlangmonthly") -> "subscription"
                     purchasedProducts.any { it in CHAPTER_SKUS } -> "chapter"
                     pendingProducts.isNotEmpty() -> "pending"
                     !purchaseEntitlementSyncCompleted -> "unknown"

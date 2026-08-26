@@ -24,7 +24,10 @@ vi.mock("googleapis", () => ({
   }
 }));
 
-import { syncGooglePlaySubscription } from "../src/providers/google-play/service.js";
+import {
+  googlePlayLineItemIsFreeTrial,
+  syncGooglePlaySubscription
+} from "../src/providers/google-play/service.js";
 
 const original = { ...process.env };
 const testPrivateKey = generateKeyPairSync("rsa", { modulusLength: 1024 }).privateKey.export({
@@ -106,6 +109,11 @@ afterEach(() => {
 });
 
 describe("Google Play subscriptions-center resubscriptions", () => {
+  it("recognizes the current Google Play free-trial offer phase", () => {
+    expect(googlePlayLineItemIsFreeTrial({ offerPhase: { freeTrial: {} } } as never)).toBe(true);
+    expect(googlePlayLineItemIsFreeTrial({ offerPhase: {} } as never)).toBe(false);
+  });
+
   it("recovers the prior WonderLang owner, persists the new token, and acknowledges with the stable account token", async () => {
     const { store, grants } = playStore();
     await syncGooglePlaySubscription({
@@ -165,5 +173,36 @@ describe("Google Play subscriptions-center resubscriptions", () => {
     });
     expect(store.storeAccountToken).not.toHaveBeenCalled();
     expect(playApi.acknowledgeSubscription).not.toHaveBeenCalled();
+  });
+
+  it("records the active Google Play trial end for account and Admin UI", async () => {
+    playApi.getSubscription.mockResolvedValueOnce({
+      data: {
+        lineItems: [{
+          productId: "wonderlangmonthly",
+          expiryTime: "2026-08-29T00:00:00.000Z",
+          offerPhase: { freeTrial: {} },
+          autoRenewingPlan: { autoRenewEnabled: true }
+        }],
+        startTime: "2026-08-26T00:00:00.000Z",
+        subscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
+        acknowledgementState: "ACKNOWLEDGEMENT_STATE_ACKNOWLEDGED",
+        outOfAppPurchaseContext: { expiredPurchaseToken: expiredToken }
+      }
+    });
+    const { store, grants } = playStore();
+
+    await syncGooglePlaySubscription({
+      store,
+      purchaseToken: newToken,
+      eventId: "play-free-trial",
+      eventCreated: 1_787_697_600
+    });
+
+    expect(grants[0]).toMatchObject({
+      state: "active",
+      currentPeriodEndsAt: "2026-08-29T00:00:00.000Z",
+      metadata: { trialEndsAt: "2026-08-29T00:00:00.000Z" }
+    });
   });
 });

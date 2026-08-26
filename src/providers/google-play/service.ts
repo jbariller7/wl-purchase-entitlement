@@ -22,6 +22,12 @@ type SubscriptionPurchaseWithOutOfAppContext = androidpublisher_v3.Schema$Subscr
   outOfAppPurchaseContext?: GooglePlayOutOfAppPurchaseContext | null;
 };
 
+type SubscriptionLineItemWithOfferPhase = androidpublisher_v3.Schema$SubscriptionPurchaseLineItem & {
+  offerPhase?: {
+    freeTrial?: unknown;
+  } | null;
+};
+
 type SubscriptionAcknowledgeRequestWithAccount = androidpublisher_v3.Schema$SubscriptionPurchasesAcknowledgeRequest & {
   externalAccountIds?: {
     obfuscatedAccountId?: string;
@@ -65,6 +71,13 @@ export function googlePlaySubscriptionAcknowledgeRequest(
   return accountToken
     ? { externalAccountIds: { obfuscatedAccountId: accountToken } }
     : {};
+}
+
+export function googlePlayLineItemIsFreeTrial(
+  lineItem: androidpublisher_v3.Schema$SubscriptionPurchaseLineItem
+): boolean {
+  const offerPhase = (lineItem as SubscriptionLineItemWithOfferPhase).offerPhase;
+  return Boolean(offerPhase && Object.prototype.hasOwnProperty.call(offerPhase, "freeTrial"));
 }
 
 export async function resolveGooglePlayPurchaseIdentity(input: {
@@ -180,6 +193,9 @@ export async function syncGooglePlaySubscription(input: {
   });
   const uid = identity.uid;
   const periodEnd = maxExpiry(purchase.lineItems);
+  const trialEndsAt = googlePlayLineItemIsFreeTrial(monthlyLine)
+    ? monthlyLine.expiryTime ?? periodEnd
+    : undefined;
   let state = normalizeGooglePlaySubscriptionState(purchase.subscriptionState);
   if (state === "active" && purchase.subscriptionState === "SUBSCRIPTION_STATE_CANCELED" && periodEnd && Date.parse(periodEnd) <= Date.now()) {
     state = "expired";
@@ -203,7 +219,8 @@ export async function syncGooglePlaySubscription(input: {
       autoRenewEnabled: monthlyLine.autoRenewingPlan?.autoRenewEnabled ?? false,
       latestOrderId: purchase.lineItems?.[0]?.latestSuccessfulOrderId ?? purchase.latestOrderId ?? "",
       outOfAppResubscription: Boolean(outOfApp),
-      attributionVerified: identity.attributionVerified
+      attributionVerified: identity.attributionVerified,
+      ...(trialEndsAt ? { trialEndsAt } : {})
     }
   }, { id: input.eventId, created: input.eventCreated });
   await input.store.saveGooglePlaySubscriptionToken({

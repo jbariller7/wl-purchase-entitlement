@@ -242,6 +242,20 @@ describe("subscription and conversion policy", () => {
       phase: "grace",
       graceEndsAt: "2026-08-30T12:00:00.000Z"
     });
+    expect(summarizeSubscription([grant({
+      provider: "google_play",
+      metadata: {
+        playSubscriptionState: "SUBSCRIPTION_STATE_ACTIVE",
+        trialEndsAt: "2026-08-29T12:00:00.000Z",
+        autoRenewEnabled: true
+      },
+      currentPeriodEndsAt: "2026-08-29T12:00:00.000Z"
+    })])).toMatchObject({
+      provider: "google_play",
+      phase: "trial",
+      trialEndsAt: "2026-08-29T12:00:00.000Z",
+      renewsAt: "2026-08-29T12:00:00.000Z"
+    });
   });
   it("keeps the confirmed test catalog and trial terms in code", () => {
     expect(MONTHLY_PRICE_USD_CENTS).toBe(699);
