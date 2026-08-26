@@ -29,7 +29,7 @@ function fakeFirestore(value: Record<string, unknown>, auditRows: Record<string,
             collection: (child: string) => ({
               doc: (slot: string) => ({
                 get: async () => ({
-                  exists: requestedUid === uid && child === "slots" && slot === "save1",
+                  exists: requestedUid === uid && ((child === "slots" && slot === "save1") || (child === "profiles" && slot === "default")),
                   data: () => value
                 })
               })
@@ -104,5 +104,38 @@ describe("audited administrator cloud-save downloads", () => {
     })).rejects.toMatchObject({ status: 409 });
     expect(storageCalls).toEqual([]);
     expect(audits).toEqual([]);
+  });
+
+  it("audits complete profile downloads without exposing their Storage path", async () => {
+    const profilePath = "cloud-save-profiles/customer-1/profiles/default/revisions/4acb303f-18d2-4b98-b665-058c332271df.json";
+    const audits: Record<string, unknown>[] = [];
+    const storageCalls: Array<{ path: string; config?: Record<string, unknown> }> = [];
+    const result = await new AdminCloudSaveService(fakeFirestore({
+      uid,
+      profileId: "default",
+      name: "Japanese",
+      currentRevision: "4acb303f-18d2-4b98-b665-058c332271df",
+      objectPath: profilePath,
+      byteLength: 4321,
+      sha256: "b".repeat(64),
+      createdAt: "2026-08-24T11:45:00.000Z",
+      updatedAt: "2026-08-25T11:45:00.000Z",
+      previousRevisions: []
+    }, audits), fakeStorage(storageCalls)).createProfileDownload({
+      actor: { uid: "admin-1", email: "owner@example.com" },
+      uid,
+      profileId: "default",
+      reason: "Player explicitly requested save-file inspection.",
+      now
+    });
+
+    expect(result).toMatchObject({
+      downloadUrl: "https://storage.test/private-signed-url",
+      manifest: { profileId: "default", name: "Japanese", byteLength: 4321 }
+    });
+    expect(storageCalls[0]?.path).toBe(profilePath);
+    expect(audits[0]).toMatchObject({ action: "cloud_save_profile.download", targetId: uid });
+    expect(JSON.stringify(audits[0])).not.toContain(profilePath);
+    expect(JSON.stringify(audits[0])).not.toContain("private-signed-url");
   });
 });

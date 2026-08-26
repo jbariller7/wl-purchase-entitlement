@@ -25,7 +25,7 @@
 2. Configure Firebase service-account, Stripe, key inventory, MailerLite and ad secrets in Netlify. Use environment UI/secrets, never checked-in files.
 3. Build and deploy the functions and static widget.
 4. Apply `storage.cors.json` to the Firebase Storage bucket. It includes both WonderLang website origins and the isolated Netlify test origin; remove the Netlify origin from the production bucket after staging is retired.
-5. Inspect any existing bucket lifecycle, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. The scoped rule deletes only `cloud-save-uploads/` objects after one day; applying a lifecycle file replaces the bucket's lifecycle configuration, so merge any pre-existing rules first.
+5. Inspect any existing bucket lifecycle, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. The scoped rule deletes only abandoned `cloud-save-uploads/` and `cloud-save-profile-uploads/` objects after one day; retained revisions are excluded. Applying a lifecycle file replaces the bucket's lifecycle configuration, so merge any pre-existing rules first.
 6. Smoke-test `/api/v1/config`; all other API endpoints must reject missing/revoked Firebase tokens.
 
 ## 3. Merge the current purchase automation safely

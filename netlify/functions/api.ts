@@ -5,6 +5,13 @@ import { z } from "zod";
 import { CatalogService, type PublicCatalogConfiguration } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, cloudSaveSlotSchema, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
+import {
+  CloudSaveProfileService,
+  cloudSaveProfileIdSchema,
+  createCloudSaveProfileSchema,
+  prepareProfileUploadSchema,
+  renameCloudSaveProfileSchema
+} from "../../src/cloud-save/profile-service.js";
 import { deploymentControls, firebaseAdminEnv, stripeEnv } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { REGIONAL_PRICES } from "../../src/domain/regional-pricing.js";
@@ -138,7 +145,7 @@ function userRateLimitPolicy(method: string, path: string): RateLimitPolicy {
   if (path === "/v1/me/revoke-sessions" || path.startsWith("/v1/me/deletion-")) return { action: "account-security", limit: 10, windowSeconds: 10 * 60 };
   if (path === "/v1/admin-bootstrap") return { action: "admin-bootstrap", limit: 3, windowSeconds: 60 * 60 };
   if (path.startsWith("/v1/me/second-platform-request")) return { action: "second-platform-request", limit: 6, windowSeconds: 60 * 60 };
-  if (path.includes("/cloud-saves")) {
+  if (path.includes("/cloud-saves") || path.includes("/cloud-save-profiles")) {
     return method === "GET"
       ? { action: "cloud-read", limit: 120, windowSeconds: 60 }
       : { action: "cloud-write", limit: 60, windowSeconds: 10 * 60 };
@@ -444,6 +451,42 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   }
 
   const cloudSave = new CloudSaveService(db, firebaseStorage(), store);
+  const cloudProfiles = new CloudSaveProfileService(db, firebaseStorage(), store);
+  if (event.httpMethod === "GET" && path === "/v1/cloud-save-profiles") {
+    return json(200, { profiles: await cloudProfiles.list(user.uid, now) });
+  }
+  if (event.httpMethod === "POST" && path === "/v1/cloud-save-profiles") {
+    const parsed = createCloudSaveProfileSchema.safeParse(parseJsonBody(event.body));
+    if (!parsed.success) throw new HttpError(400, parsed.error.issues.map((issue) => issue.message).join("; "));
+    return json(201, await cloudProfiles.create(user.uid, parsed.data.name, now));
+  }
+  const profileRenameMatch = path.match(/^\/v1\/cloud-save-profiles\/([^/]+)\/rename$/);
+  if (event.httpMethod === "POST" && profileRenameMatch?.[1]) {
+    const profileId = cloudSaveProfileIdSchema.safeParse(profileRenameMatch[1]);
+    const body = renameCloudSaveProfileSchema.safeParse(parseJsonBody(event.body));
+    if (!profileId.success || !body.success) throw new HttpError(400, "A valid profile ID and name are required.");
+    return json(200, await cloudProfiles.rename(user.uid, profileId.data, body.data.name, now));
+  }
+  const profilePrepareMatch = path.match(/^\/v1\/cloud-save-profiles\/([^/]+)\/prepare-upload$/);
+  if (event.httpMethod === "POST" && profilePrepareMatch?.[1]) {
+    const profileId = cloudSaveProfileIdSchema.safeParse(profilePrepareMatch[1]);
+    const body = prepareProfileUploadSchema.safeParse(parseJsonBody(event.body));
+    if (!profileId.success || !body.success) throw new HttpError(400, "Valid profile upload metadata is required.");
+    return json(201, await cloudProfiles.prepareUpload(user.uid, profileId.data, body.data, now));
+  }
+  const profileFinalizeMatch = path.match(/^\/v1\/cloud-save-profiles\/([^/]+)\/finalize$/);
+  if (event.httpMethod === "POST" && profileFinalizeMatch?.[1]) {
+    const profileId = cloudSaveProfileIdSchema.safeParse(profileFinalizeMatch[1]);
+    const parsed = finalizeUploadSchema.safeParse(parseJsonBody(event.body));
+    if (!profileId.success || !parsed.success) throw new HttpError(400, "A valid profile ID and upload ID are required.");
+    return json(200, await cloudProfiles.finalizeUpload(user.uid, profileId.data, parsed.data.uploadId, now));
+  }
+  const profileDownloadMatch = path.match(/^\/v1\/cloud-save-profiles\/([^/]+)\/download$/);
+  if (event.httpMethod === "GET" && profileDownloadMatch?.[1]) {
+    const profileId = cloudSaveProfileIdSchema.safeParse(profileDownloadMatch[1]);
+    if (!profileId.success) throw new HttpError(400, "A valid profile ID is required.");
+    return json(200, await cloudProfiles.downloadUrl(user.uid, profileId.data, now));
+  }
   if (event.httpMethod === "GET" && path === "/v1/cloud-saves") {
     return json(200, { saves: await cloudSave.list(user.uid, now) });
   }

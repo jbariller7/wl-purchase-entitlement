@@ -4,7 +4,8 @@ import type { Storage } from "firebase-admin/storage";
 
 const LEASE_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 10;
-const REVISION_PATH = /^cloud-saves\/[^/]{1,128}\/slots\/save(?:0|[1-9]|1[0-9]|20)\/revisions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i;
+const LEGACY_REVISION_PATH = /^cloud-saves\/[^/]{1,128}\/slots\/save(?:0|[1-9]|1[0-9]|20)\/revisions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i;
+const PROFILE_REVISION_PATH = /^cloud-save-profiles\/[^/]{1,128}\/profiles\/(?:default|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\/revisions\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/i;
 
 export interface CloudSaveCleanupJob {
   state: "pending" | "processing" | "failed";
@@ -20,7 +21,7 @@ export interface CloudSaveCleanupJob {
 }
 
 export function isSafeCloudRevisionObjectPath(value: string, expectedUid?: string): boolean {
-  if (value.length > 512 || !REVISION_PATH.test(value)) return false;
+  if (value.length > 512 || (!LEGACY_REVISION_PATH.test(value) && !PROFILE_REVISION_PATH.test(value))) return false;
   return !expectedUid || value.split("/")[1] === expectedUid;
 }
 

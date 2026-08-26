@@ -1,6 +1,6 @@
 /*:
  * @target MZ
- * @plugindesc WonderLang account UI, cross-platform entitlements, and conflict-safe cloud saves (test integration).
+ * @plugindesc WonderLang account UI, six save profiles, and automatic whole-profile cloud sync (test integration).
  * @author WonderLang
  *
  * @param ApiBaseUrl
@@ -20,20 +20,12 @@
  * @desc Shows sign-in state, access, subscription, cloud saves, and account actions.
  *
  * @command openCloudSaves
- * @text Open Cloud Saves
- * @desc Lists cloud slots and lets the player explicitly keep the device copy or use the cloud copy.
+ * @text Manage Save Profiles
+ * @desc Selects, creates, and renames complete cloud-save profiles.
  *
  * @command refreshEntitlements
  * @text Refresh Entitlements
  * @desc Refreshes the signed-in player's server-authoritative access snapshot.
- *
- * @command uploadSave
- * @text Upload Save to Cloud
- * @arg savefileId
- * @text Save Slot
- * @type number
- * @min 1
- * @default 1
  *
  * @help
  * Duplicate/test-build integration. Keep production WonderLang files untouched until
@@ -43,9 +35,9 @@
  *   getCachedIdToken(), refreshIdToken(), openSignIn(), openAccount(),
  *   openExternalUrl(url), and Firebase-auth callbacks documented below.
  *
- * Local saves always finish first. Cloud access never deletes data when an entitlement
- * lapses. A revision conflict never overwrites either side automatically: the player sees
- * timestamps and chooses Keep device, Use cloud, or Not now.
+ * Every selected profile contains global.rmmzsave and every file0-file20 save.
+ * Local saves finish first, then the complete profile synchronizes automatically.
+ * A revision conflict never overwrites either side without asking the player.
  * Verified permanent and Premium Lifetime access remains available offline on its granted platform. A cached subscription remains usable
  * through its paid period or for seven days after the last server refresh, whichever is later;
  * provider grace access ends at the server-provided grace deadline.
@@ -62,6 +54,7 @@
   const cacheKey = "wl-account-entitlements-v3";
   const revisionsPrefix = "wl-cloud-revisions-v3";
   const retryPrefix = "wl-cloud-upload-retry-v3";
+  const activeProfilePrefix = "wl-cloud-active-profile-v1";
   const OFFLINE_SUBSCRIPTION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
   const textEncoder = new TextEncoder();
   const textDecoder = new TextDecoder();
@@ -73,6 +66,10 @@
   let current = loadJson(cacheKey, null);
   let activeOverlay = null;
   let drainingRetries = false;
+  let applyingProfile = false;
+  let profileSyncTimer = null;
+  let profileSyncInFlight = null;
+  let profileSelectionInFlight = false;
 
   class AccountApiError extends Error {
     constructor(status, message) {
@@ -121,6 +118,12 @@
     else delete value[slot];
     localStorage.setItem(revisionsKey(), JSON.stringify(value));
   }
+  function activeProfileKey() { return `${activeProfilePrefix}:${accountUid()}`; }
+  function activeProfileId() { return String(localStorage.getItem(activeProfileKey()) || ""); }
+  function setActiveProfileId(profileId) {
+    if (profileId) localStorage.setItem(activeProfileKey(), String(profileId));
+    else localStorage.removeItem(activeProfileKey());
+  }
   function entitlement() { return current?.entitlements || null; }
   function effectiveCachedEntitlement(now = Date.now()) {
     const value = restrictToGrantedPlatform(entitlement());
@@ -138,32 +141,15 @@
   }
   function account() { return current; }
   function retryKey() { return `${retryPrefix}:${accountUid()}`; }
-  function retryQueue() { return loadJson(retryKey(), {}); }
+  function retryQueue() {
+    const stored = loadJson(retryKey(), {});
+    return Object.fromEntries(Object.entries(stored).filter(([, item]) => item && typeof item.profileId === "string"));
+  }
   function retryCount() { return Object.keys(retryQueue()).length; }
   function saveRetryQueue(queue) {
     if (Object.keys(queue).length) localStorage.setItem(retryKey(), JSON.stringify(queue));
     else localStorage.removeItem(retryKey());
     window.dispatchEvent(new CustomEvent("wl-cloud-save-retry-state", { detail: { queued: Object.keys(queue).length } }));
-  }
-  function queueUpload(savefileId, error) {
-    const queue = retryQueue();
-    const slot = `save${Number(savefileId)}`;
-    const previous = queue[slot] || {};
-    const attemptCount = Number(previous.attemptCount || 0) + 1;
-    const delayMs = Math.min(6 * 60 * 60 * 1000, 30_000 * (2 ** Math.min(attemptCount - 1, 9)));
-    queue[slot] = {
-      savefileId: Number(savefileId),
-      queuedAt: previous.queuedAt || new Date().toISOString(),
-      attemptCount,
-      notBefore: new Date(Date.now() + delayMs).toISOString(),
-      lastError: safeMessage(error)
-    };
-    saveRetryQueue(queue);
-  }
-  function clearQueuedUpload(savefileId) {
-    const queue = retryQueue();
-    delete queue[`save${Number(savefileId)}`];
-    saveRetryQueue(queue);
   }
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, char => ({
@@ -234,14 +220,13 @@
     drainingRetries = true;
     try {
       const queue = retryQueue();
-      for (const item of Object.values(queue).sort((a, b) => Number(a.savefileId) - Number(b.savefileId))) {
+      for (const item of Object.values(queue)) {
         if (Date.parse(item.notBefore || "") > Date.now()) continue;
+        if (!item.profileId || item.profileId !== activeProfileId()) continue;
         try {
-          const result = await uploadSlot(item.savefileId);
-          if (!result?.conflict) clearQueuedUpload(item.savefileId);
-          else clearQueuedUpload(item.savefileId);
+          await uploadProfile(item.profileId);
         } catch (error) {
-          queueUpload(item.savefileId, error);
+          queueProfileUpload(item.profileId, error);
         }
       }
     } finally {
@@ -249,23 +234,121 @@
     }
   }
 
-  async function saveBytes(savefileId) {
-    const object = await StorageManager.loadObject(DataManager.makeSavename(savefileId));
-    return textEncoder.encode(JSON.stringify(object));
+  function queueProfileUpload(profileId, error) {
+    if (!profileId) return;
+    const queue = retryQueue();
+    const previous = queue[profileId] || {};
+    const attemptCount = Number(previous.attemptCount || 0) + 1;
+    const delayMs = Math.min(6 * 60 * 60 * 1000, 30_000 * (2 ** Math.min(attemptCount - 1, 9)));
+    queue[profileId] = {
+      profileId,
+      queuedAt: previous.queuedAt || new Date().toISOString(),
+      attemptCount,
+      notBefore: new Date(Date.now() + delayMs).toISOString(),
+      changeToken: previous.changeToken || `${Date.now()}-${Math.random()}`,
+      lastError: safeMessage(error)
+    };
+    saveRetryQueue(queue);
   }
 
-  async function uploadSlot(savefileId, options = {}) {
-    const value = effectiveCachedEntitlement();
-    if (!value?.cloudSave) return { skipped: "not_entitled" };
-    const slot = `save${Number(savefileId)}`;
-    const bytes = await saveBytes(savefileId);
+  function markProfileDirty(profileId) {
+    if (!profileId) return;
+    const queue = retryQueue();
+    const previous = queue[profileId] || {};
+    queue[profileId] = {
+      profileId,
+      queuedAt: previous.queuedAt || new Date().toISOString(),
+      attemptCount: Number(previous.attemptCount || 0),
+      notBefore: new Date(Date.now() + 1500).toISOString(),
+      changeToken: `${Date.now()}-${Math.random()}`,
+      ...(previous.lastError ? { lastError: previous.lastError } : {})
+    };
+    saveRetryQueue(queue);
+  }
+
+  function clearQueuedProfile(profileId) {
+    const queue = retryQueue();
+    delete queue[profileId];
+    saveRetryQueue(queue);
+  }
+
+  function managedSaveNames() {
+    const maximum = Math.min(20, Math.max(1, Number(DataManager.maxSavefiles?.()) || 20));
+    return ["global", ...Array.from({ length: maximum + 1 }, (_, index) => `file${index}`)];
+  }
+
+  function hasLocalPlayerSaves() {
+    return managedSaveNames().some(name => name !== "global" && StorageManager.exists(name));
+  }
+
+  async function objectJson(saveName) {
+    const object = saveName === "global" && !StorageManager.exists("global")
+      ? (DataManager._globalInfo || [])
+      : await StorageManager.loadObject(saveName);
+    return StorageManager.objectToJson(object);
+  }
+
+  async function buildProfileBundle(profileId) {
+    const files = {};
+    for (const saveName of managedSaveNames()) {
+      if (saveName !== "global" && !StorageManager.exists(saveName)) continue;
+      files[saveName] = await objectJson(saveName);
+    }
+    if (!files.global) files.global = await StorageManager.objectToJson(DataManager._globalInfo || []);
+    return {
+      magic: "WL_CLOUD_PROFILE",
+      version: 1,
+      profileId,
+      exportedAt: new Date().toISOString(),
+      files
+    };
+  }
+
+  function validateProfileBundle(bundle, profileId) {
+    if (!bundle || bundle.magic !== "WL_CLOUD_PROFILE" || bundle.version !== 1 || bundle.profileId !== profileId ||
+        !bundle.files || typeof bundle.files.global !== "string") {
+      throw new Error("Downloaded cloud profile is invalid.");
+    }
+    const allowed = /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/;
+    if (Object.keys(bundle.files).some(name => !allowed.test(name) || typeof bundle.files[name] !== "string")) {
+      throw new Error("Downloaded cloud profile contains an invalid save-file set.");
+    }
+  }
+
+  async function applyProfileBundle(bundle, profileId) {
+    validateProfileBundle(bundle, profileId);
+    applyingProfile = true;
+    try {
+      for (const saveName of managedSaveNames()) {
+        if (StorageManager.exists(saveName)) await Promise.resolve(StorageManager.remove(saveName));
+      }
+      for (const [saveName, json] of Object.entries(bundle.files)) {
+        const object = await StorageManager.jsonToObject(json);
+        await StorageManager.saveObject(saveName, object);
+      }
+      DataManager._globalInfo = await StorageManager.loadObject("global");
+      DataManager.removeInvalidGlobalInfo?.();
+    } finally {
+      applyingProfile = false;
+    }
+    window.dispatchEvent(new CustomEvent("wl-cloud-profile-applied", { detail: { profileId } }));
+  }
+
+  async function listProfiles() {
+    return (await request("/api/v1/cloud-save-profiles")).profiles || [];
+  }
+
+  async function uploadProfile(profileId, options = {}) {
+    if (!effectiveCachedEntitlement()?.cloudSave) return { skipped: "not_entitled" };
+    if (!profileId || profileId !== activeProfileId()) return { skipped: "not_active" };
+    const queuedChangeToken = retryQueue()[profileId]?.changeToken || null;
+    const bytes = textEncoder.encode(JSON.stringify(await buildProfileBundle(profileId)));
     const baseRevision = Object.prototype.hasOwnProperty.call(options, "baseRevision")
       ? options.baseRevision
-      : (revisions()[slot] || null);
-    const prepare = await request("/api/v1/cloud-saves/prepare-upload", {
+      : (revisions()[profileId] || null);
+    const prepare = await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profileId)}/prepare-upload`, {
       method: "POST",
       body: {
-        slot,
         byteLength: bytes.byteLength,
         sha256: await sha256Hex(bytes),
         baseRevision
@@ -276,65 +359,69 @@
       headers: { "content-type": "application/json" },
       body: bytes
     });
-    if (!upload.ok) throw new Error(`Cloud upload failed (${upload.status}).`);
+    if (!upload.ok) throw new Error(`Cloud profile upload failed (${upload.status}).`);
     try {
-      const manifest = await request("/api/v1/cloud-saves/finalize", {
+      const manifest = await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profileId)}/finalize`, {
         method: "POST",
         body: { uploadId: prepare.uploadId }
       });
-      setRevision(slot, manifest.currentRevision);
-      clearQueuedUpload(savefileId);
-      window.dispatchEvent(new CustomEvent("wl-cloud-save-synced", { detail: { savefileId, manifest } }));
+      setRevision(profileId, manifest.currentRevision);
+      const latestChangeToken = retryQueue()[profileId]?.changeToken || null;
+      if (latestChangeToken === queuedChangeToken) clearQueuedProfile(profileId);
+      window.dispatchEvent(new CustomEvent("wl-cloud-profile-synced", { detail: { profileId, manifest } }));
       return manifest;
     } catch (error) {
       if (error?.status === 409 && options.showConflict !== false) {
-        await presentConflict(savefileId);
+        await presentProfileConflict(profileId);
         return { conflict: true };
       }
       throw error;
     }
   }
 
-  async function downloadSlot(savefileId) {
-    const slot = `save${Number(savefileId)}`;
-    const remote = await request(`/api/v1/cloud-saves/${slot}`);
+  async function downloadProfile(profileId) {
+    const remote = await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profileId)}/download`);
     const response = await fetch(remote.downloadUrl);
-    if (!response.ok) throw new Error(`Cloud download failed (${response.status}).`);
+    if (!response.ok) throw new Error(`Cloud profile download failed (${response.status}).`);
     const bytes = new Uint8Array(await response.arrayBuffer());
     if (bytes.byteLength !== remote.manifest.byteLength || await sha256Hex(bytes) !== remote.manifest.sha256) {
-      throw new Error("Downloaded cloud save failed its integrity check.");
+      throw new Error("Downloaded cloud profile failed its integrity check.");
     }
-    return { remote, object: JSON.parse(textDecoder.decode(bytes)) };
+    const bundle = JSON.parse(textDecoder.decode(bytes));
+    validateProfileBundle(bundle, profileId);
+    return { remote, bundle };
   }
 
-  async function restoreSlot(savefileId) {
-    const { remote, object } = await downloadSlot(savefileId);
-    await StorageManager.saveObject(DataManager.makeSavename(savefileId), object);
-    setRevision(`save${Number(savefileId)}`, remote.manifest.currentRevision);
-    window.dispatchEvent(new CustomEvent("wl-cloud-save-restored", { detail: { savefileId, manifest: remote.manifest } }));
+  async function restoreProfile(profileId) {
+    const { remote, bundle } = await downloadProfile(profileId);
+    await applyProfileBundle(bundle, profileId);
+    setRevision(profileId, remote.manifest.currentRevision);
+    clearQueuedProfile(profileId);
+    window.dispatchEvent(new CustomEvent("wl-cloud-profile-restored", { detail: { profileId, manifest: remote.manifest } }));
     return remote.manifest;
   }
 
-  async function listCloudSaves() {
-    return (await request("/api/v1/cloud-saves")).saves || [];
+  function scheduleProfileSync() {
+    if (applyingProfile || !activeProfileId() || !effectiveCachedEntitlement()?.cloudSave) return;
+    markProfileDirty(activeProfileId());
+    clearTimeout(profileSyncTimer);
+    profileSyncTimer = setTimeout(() => {
+      const profileId = activeProfileId();
+      profileSyncInFlight = Promise.resolve(profileSyncInFlight).catch(() => undefined).then(() => uploadProfile(profileId));
+      profileSyncInFlight.catch(error => {
+        console.warn("[WonderLang Cloud Save] Local save succeeded; complete profile upload did not.", error);
+        queueProfileUpload(profileId, error);
+        window.dispatchEvent(new CustomEvent("wl-cloud-save-error", { detail: { profileId, message: safeMessage(error) } }));
+      });
+    }, 1500);
   }
 
-  function localSaveInfo(savefileId) {
-    const info = typeof DataManager.savefileInfo === "function" ? DataManager.savefileInfo(Number(savefileId)) : null;
-    return {
-      exists: Boolean(info),
-      timestamp: info?.timestamp ? new Date(info.timestamp).toISOString() : null,
-      title: info?.title || "Device save"
-    };
-  }
-
-  function localSaveIds() {
-    const maximum = Math.max(1, Number(DataManager.maxSavefiles?.()) || 20);
-    const ids = [];
-    for (let id = 1; id <= maximum; id += 1) {
-      if (localSaveInfo(id).exists) ids.push(id);
-    }
-    return ids;
+  async function syncActiveProfileNow() {
+    const profileId = activeProfileId();
+    if (!profileId) throw new Error("Choose a save profile first.");
+    clearTimeout(profileSyncTimer);
+    if (profileSyncInFlight) await profileSyncInFlight.catch(() => undefined);
+    return uploadProfile(profileId);
   }
 
   function ensureStyles() {
@@ -344,7 +431,7 @@
     style.textContent = `
       .wl-account-overlay{position:fixed;inset:0;z-index:999999;background:rgba(4,9,18,.88);display:flex;align-items:center;justify-content:center;padding:4vh 4vw;box-sizing:border-box;color:#f6f8ff;font-family:Arial,sans-serif}
       .wl-account-panel{width:min(900px,92vw);max-height:88vh;overflow:auto;background:#101827;border:1px solid #31405c;border-radius:18px;box-shadow:0 30px 90px #000;padding:28px;box-sizing:border-box}
-      .wl-account-panel h2{font-size:30px;margin:0 0 8px}.wl-account-panel h3{font-size:21px;margin:24px 0 8px}.wl-account-muted{color:#aab6cb;line-height:1.5}.wl-account-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:20px 0}.wl-account-card{background:#172238;border:1px solid #2b3b59;border-radius:12px;padding:16px}.wl-account-card b{display:block;color:#8fd5ff;font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}.wl-account-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}.wl-account-btn{min-height:48px;border:0;border-radius:11px;padding:12px 18px;background:#2c78ff;color:white;font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation}.wl-account-btn:disabled{cursor:not-allowed;opacity:.5}.wl-account-btn.secondary{background:#263550}.wl-account-btn.danger{background:#9d3947}.wl-account-code{display:inline-block;margin:12px 0;padding:14px 18px;border:1px solid #536b93;border-radius:12px;background:#0a1220;color:#fff;font:700 30px/1.1 monospace;letter-spacing:.12em}.wl-account-save{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;border-top:1px solid #2b3b59;padding:16px 0}.wl-account-save-actions{display:flex;flex-wrap:wrap;gap:9px}.wl-account-error{background:#4a1f2a;border:1px solid #9d3947;padding:14px;border-radius:10px;color:#ffdce2}.wl-account-success{background:#173f32;border:1px solid #27795b;padding:14px;border-radius:10px;color:#d8ffed}@media(max-width:650px){.wl-account-panel{padding:20px}.wl-account-save{grid-template-columns:1fr}.wl-account-btn{width:100%}}
+      .wl-account-panel h2{font-size:30px;margin:0 0 8px}.wl-account-panel h3{font-size:21px;margin:24px 0 8px}.wl-account-muted{color:#aab6cb;line-height:1.5}.wl-account-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:20px 0}.wl-account-card{background:#172238;border:1px solid #2b3b59;border-radius:12px;padding:16px}.wl-account-card b{display:block;color:#8fd5ff;font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}.wl-account-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}.wl-account-btn{min-height:48px;border:0;border-radius:11px;padding:12px 18px;background:#2c78ff;color:white;font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation}.wl-account-btn:disabled{cursor:not-allowed;opacity:.5}.wl-account-btn.secondary{background:#263550}.wl-account-btn.danger{background:#9d3947}.wl-account-input{display:block;width:100%;box-sizing:border-box;margin:16px 0;padding:14px 16px;border-radius:10px;border:1px solid #536b93;background:#091221;color:#fff;font-size:18px}.wl-account-code{display:inline-block;margin:12px 0;padding:14px 18px;border:1px solid #536b93;border-radius:12px;background:#0a1220;color:#fff;font:700 30px/1.1 monospace;letter-spacing:.12em}.wl-account-save{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;border-top:1px solid #2b3b59;padding:16px 0}.wl-account-save.active{background:#14283a;margin:0 -12px;padding:16px 12px;border-radius:10px}.wl-account-save-actions{display:flex;flex-wrap:wrap;gap:9px}.wl-account-error{background:#4a1f2a;border:1px solid #9d3947;padding:14px;border-radius:10px;color:#ffdce2}.wl-account-success{background:#173f32;border:1px solid #27795b;padding:14px;border-radius:10px;color:#d8ffed}@media(max-width:650px){.wl-account-panel{padding:20px}.wl-account-save{grid-template-columns:1fr}.wl-account-btn{width:100%}}
     `;
     document.head.appendChild(style);
   }
@@ -495,17 +582,23 @@
       : access.subscriptionState && access.subscriptionState !== "inactive"
         ? access.subscriptionState
       : "No active subscription";
+    const profiles = access.cloudSave ? await listProfiles().catch(() => []) : [];
+    if (access.cloudSave && !activeProfileId()) {
+      openCloudSavesPanel(true, profiles);
+      return;
+    }
+    const activeProfile = profiles.find(profile => profile.profileId === activeProfileId());
     showPanel("WonderLang account", `
       <p class="wl-account-muted">${escapeHtml(current?.email || "Signed-in account")}</p>
       <div class="wl-account-status">
         <div class="wl-account-card"><b>Access</b>${escapeHtml(accessLabel)}</div>
         <div class="wl-account-card"><b>Subscription</b>${escapeHtml(subscription)}</div>
-        <div class="wl-account-card"><b>Cloud saves</b>${access.cloudSave ? "Enabled" : "Not included"}</div>
+        <div class="wl-account-card"><b>Save profile</b>${access.cloudSave ? escapeHtml(activeProfile?.name || "Choose a profile") : "Not included"}</div>
         <div class="wl-account-card"><b>Uploads waiting</b>${retryCount()}</div>
         <div class="wl-account-card"><b>Languages</b>${access.allLanguages ? "All languages" : "Demo access"}</div>
       </div>
       <p class="wl-account-muted">Login methods are linked explicitly. Signing in with Google or Apple alone never grants administrator access.</p>`, [
-      { label: "Sync saves", run: openCloudSavesPanel },
+      { label: "Manage profiles", run: openCloudSavesPanel },
       { label: "Manage login methods", kind: "secondary", run: () => bridge()?.openAccount?.() },
       ...(access.accessKind === "subscription" ? [{ label: "Manage subscription", kind: "secondary", run: openBillingPortal }] : []),
       { label: "Refresh", kind: "secondary", run: openAccountPanel },
@@ -522,113 +615,158 @@
     }
   }
 
-  async function openCloudSavesPanel() {
-    showPanel("Cloud saves", `<p class="wl-account-muted">Loading your cloud-save index…</p>`, [
-      { label: "Close", kind: "secondary", run: closeOverlay }
+  async function ensureProfileSelection() {
+    if (profileSelectionInFlight || !current?.uid || !effectiveCachedEntitlement()?.cloudSave || activeProfileId()) return;
+    profileSelectionInFlight = true;
+    try { await openCloudSavesPanel(true); }
+    finally { profileSelectionInFlight = false; }
+  }
+
+  async function openCloudSavesPanel(forcePick = false, suppliedProfiles = null) {
+    showPanel("Save profiles", `<p class="wl-account-muted">Loading your complete cloud-save profiles…</p>`, [
+      ...(!forcePick || activeProfileId() ? [{ label: "Close", kind: "secondary", run: closeOverlay }] : [])
     ]);
     try {
-      const saves = await listCloudSaves();
-      const remoteById = new Map(saves.map(save => [Number(String(save.slot).replace(/^save/, "")), save]));
-      const ids = [...new Set([...remoteById.keys(), ...localSaveIds()])].filter(Number.isFinite).sort((a, b) => a - b);
-      const rows = ids.length ? ids.map(id => {
-        const save = remoteById.get(id);
-        const local = localSaveInfo(id);
-        const cloudLine = save ? escapeHtml(formatTime(save.updatedAt)) : "Not uploaded";
-        const revisionLine = save ? `<br>Revision: ${escapeHtml(String(save.currentRevision).slice(0, 8))}` : "";
-        const actions = save
-          ? `<button class="wl-account-btn" data-use-cloud="${id}">Use cloud</button><button class="wl-account-btn secondary" data-keep-device="${id}" ${local.exists ? "" : "disabled"}>Upload device copy</button>`
-          : `<button class="wl-account-btn" data-upload-local="${id}" ${local.exists ? "" : "disabled"}>Upload to cloud</button>`;
-        return `<div class="wl-account-save" data-slot="${id}"><div><h3>Save ${id}</h3><div class="wl-account-muted">Cloud: ${cloudLine}<br>Device: ${escapeHtml(formatTime(local.timestamp))}${revisionLine}</div></div><div class="wl-account-save-actions">${actions}</div></div>`;
-      }).join("") : `<p class="wl-account-muted">No device or cloud saves exist yet. Create a normal WonderLang save, then return here to upload it.</p>`;
-      const overlay = showPanel("Cloud saves", rows, [
+      const profiles = suppliedProfiles || await listProfiles();
+      const active = activeProfileId();
+      const intro = forcePick && !active
+        ? `<p class="wl-account-success">Choose which profile this device will use. Your current local saves can become that profile's starting saves.</p>`
+        : `<p class="wl-account-muted">All saves and global.rmmzsave synchronize automatically inside the selected profile. Up to six people or learning paths can share one WonderLang account without mixing progress.</p>`;
+      const rows = profiles.map(profile => `<div class="wl-account-save ${profile.profileId === active ? "active" : ""}">
+        <div><h3>${escapeHtml(profile.name)}${profile.profileId === active ? " · Active" : ""}</h3><div class="wl-account-muted">${profile.currentRevision ? `Cloud updated ${escapeHtml(formatTime(profile.updatedAt))}` : "No cloud saves yet"}</div></div>
+        <div class="wl-account-save-actions"><button class="wl-account-btn" data-select-profile="${escapeHtml(profile.profileId)}" ${profile.profileId === active ? "disabled" : ""}>${profile.profileId === active ? "Selected" : "Use profile"}</button><button class="wl-account-btn secondary" data-rename-profile="${escapeHtml(profile.profileId)}">Rename</button></div>
+      </div>`).join("");
+      const overlay = showPanel("Save profiles", intro + rows, [
+        ...(profiles.length < 6 ? [{ label: "Create profile", run: showCreateProfile }] : []),
         { label: "Refresh", kind: "secondary", run: openCloudSavesPanel },
-        { label: "Back to account", kind: "secondary", run: openAccountPanel },
-        { label: "Close", kind: "secondary", run: closeOverlay }
+        ...(!forcePick || active ? [{ label: "Back to account", kind: "secondary", run: openAccountPanel }] : []),
+        ...(!forcePick || active ? [{ label: "Close", kind: "secondary", run: closeOverlay }] : [])
       ]);
-      overlay.querySelectorAll("[data-use-cloud]").forEach(button => bindReleaseTap(button, () => confirmUseCloud(Number(button.dataset.useCloud))));
-      overlay.querySelectorAll("[data-keep-device]").forEach(button => bindReleaseTap(button, () => keepDeviceCopy(Number(button.dataset.keepDevice))));
-      overlay.querySelectorAll("[data-upload-local]").forEach(button => bindReleaseTap(button, () => uploadLocalCopy(Number(button.dataset.uploadLocal))));
+      overlay.querySelectorAll("[data-select-profile]").forEach(button => bindReleaseTap(button, () => selectProfile(profiles.find(profile => profile.profileId === button.dataset.selectProfile))));
+      overlay.querySelectorAll("[data-rename-profile]").forEach(button => bindReleaseTap(button, () => showRenameProfile(profiles.find(profile => profile.profileId === button.dataset.renameProfile))));
     } catch (error) {
-      showError("Cloud saves unavailable", error, openCloudSavesPanel);
+      showError("Save profiles unavailable", error, openCloudSavesPanel);
     }
   }
 
-  async function uploadLocalCopy(savefileId) {
-    if (!effectiveCachedEntitlement()?.cloudSave) {
-      showError("Cloud save is not included", new Error("Cloud saves require Mobile Monthly or Premium Lifetime access."), openAccountPanel);
+  function profileNameEditor(title, initialName, submitLabel, onSubmit) {
+    const overlay = showPanel(title, `<p class="wl-account-muted">Use a name such as Jonathan, Emma, Japanese, or Spanish.</p><input class="wl-account-input" maxlength="40" value="${escapeHtml(initialName || "")}" aria-label="Profile name">`, [
+      { label: submitLabel, run: async () => {
+        const input = overlay.querySelector(".wl-account-input");
+        const name = String(input?.value || "").trim();
+        if (!name) { input?.focus(); return; }
+        await onSubmit(name);
+      } },
+      { label: "Cancel", kind: "secondary", run: openCloudSavesPanel }
+    ]);
+    setTimeout(() => overlay.querySelector(".wl-account-input")?.focus(), 0);
+  }
+
+  function showCreateProfile() {
+    profileNameEditor("Create save profile", "", "Create", async name => {
+      try {
+        showPanel("Creating profile", `<p class="wl-account-muted">Creating ${escapeHtml(name)}…</p>`);
+        const profile = await request("/api/v1/cloud-save-profiles", { method: "POST", body: { name } });
+        await selectProfile(profile);
+      } catch (error) { showError("Profile was not created", error, showCreateProfile); }
+    });
+  }
+
+  function showRenameProfile(profile) {
+    if (!profile) return openCloudSavesPanel();
+    profileNameEditor("Rename save profile", profile.name, "Rename", async name => {
+      try {
+        await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profile.profileId)}/rename`, { method: "POST", body: { name } });
+        await openCloudSavesPanel();
+      } catch (error) { showError("Profile was not renamed", error, () => showRenameProfile(profile)); }
+    });
+  }
+
+  async function clearWorkspaceForProfile(profileId) {
+    const globalJson = await StorageManager.objectToJson([]);
+    await applyProfileBundle({ magic: "WL_CLOUD_PROFILE", version: 1, profileId, files: { global: globalJson } }, profileId);
+  }
+
+  async function activateProfile(profile, source) {
+    if (!profile) return;
+    try {
+      showPanel("Switching save profile", `<p class="wl-account-muted">Preparing ${escapeHtml(profile.name)} without mixing save files…</p>`);
+      if (source === "cloud") {
+        await restoreProfile(profile.profileId);
+        setActiveProfileId(profile.profileId);
+      } else {
+        if (source === "empty") await clearWorkspaceForProfile(profile.profileId);
+        setActiveProfileId(profile.profileId);
+      }
+      if (source === "device" || source === "empty") {
+        const result = await uploadProfile(profile.profileId, { baseRevision: profile.currentRevision || null, showConflict: true });
+        if (result?.conflict) return;
+      }
+      showPanel("Profile ready", `<p class="wl-account-success">${escapeHtml(profile.name)} is active. global.rmmzsave and every save slot will now synchronize automatically.</p>`, [
+        { label: "Continue", run: () => {
+          closeOverlay();
+          if (typeof Scene_Map !== "undefined" && SceneManager._scene instanceof Scene_Map) SceneManager.goto(Scene_Title);
+        } },
+        { label: "Account", kind: "secondary", run: openAccountPanel }
+      ]);
+    } catch (error) { showError("Could not switch profile", error, () => selectProfile(profile)); }
+  }
+
+  async function selectProfile(profile) {
+    if (!profile || profile.profileId === activeProfileId()) return openCloudSavesPanel();
+    const previous = activeProfileId();
+    if (previous) {
+      try {
+        showPanel("Saving current profile", `<p class="wl-account-muted">Finishing the current profile sync before switching…</p>`);
+        const result = await syncActiveProfileNow();
+        if (result?.conflict) return;
+      } catch (error) {
+        showError("Profile switch paused", new Error(`WonderLang could not safely upload the current profile. Connect to the internet and try again. ${safeMessage(error)}`), () => selectProfile(profile));
+        return;
+      }
+      return activateProfile(profile, profile.currentRevision ? "cloud" : "empty");
+    }
+    if (hasLocalPlayerSaves() && profile.currentRevision) {
+      showPanel(`Use ${profile.name} on this device?`, `<p class="wl-account-muted">This device already has WonderLang saves, and this profile also has cloud saves. Choose which complete set should become this profile. No individual slots will be mixed.</p>`, [
+        { label: "Keep device saves", run: () => activateProfile(profile, "device") },
+        { label: "Use cloud saves", kind: "danger", run: () => activateProfile(profile, "cloud") },
+        { label: "Cancel", kind: "secondary", run: openCloudSavesPanel }
+      ]);
       return;
     }
-    try {
-      showPanel("Uploading save", `<p class="wl-account-muted">Uploading device save ${Number(savefileId)} to the WonderLang cloud…</p>`);
-      const result = await uploadSlot(savefileId, { baseRevision: null, showConflict: true });
-      if (result?.conflict) return;
-      showPanel("Save uploaded", `<p class="wl-account-success">Save ${Number(savefileId)} is now stored in the WonderLang cloud.</p>`, [
-        { label: "Done", run: openCloudSavesPanel }
-      ]);
-    } catch (error) {
-      showError("Save was not uploaded", error, () => uploadLocalCopy(savefileId));
-    }
+    return activateProfile(profile, hasLocalPlayerSaves() ? "device" : profile.currentRevision ? "cloud" : "empty");
   }
 
-  async function presentConflict(savefileId) {
+  async function presentProfileConflict(profileId) {
     let remote;
-    try { remote = await request(`/api/v1/cloud-saves/save${Number(savefileId)}`); }
-    catch (error) { showError("Cloud-save conflict", error, () => presentConflict(savefileId)); return; }
-    const local = localSaveInfo(savefileId);
-    showPanel(`Save ${savefileId} changed on two devices`, `
-      <p class="wl-account-muted">WonderLang did not overwrite either copy. Choose which one should become current.</p>
-      <div class="wl-account-status">
-        <div class="wl-account-card"><b>Device copy</b>${escapeHtml(formatTime(local.timestamp))}</div>
-        <div class="wl-account-card"><b>Cloud copy</b>${escapeHtml(formatTime(remote.manifest.updatedAt))}</div>
-      </div>`, [
-      { label: "Keep device", run: () => keepDeviceCopy(savefileId, remote.manifest.currentRevision) },
-      { label: "Use cloud", kind: "danger", run: () => confirmUseCloud(savefileId) },
+    try { remote = await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profileId)}/download`); }
+    catch (error) { showError("Cloud-profile conflict", error, () => presentProfileConflict(profileId)); return; }
+    showPanel("This profile changed on two devices", `<p class="wl-account-muted">WonderLang did not mix or overwrite the save sets. Choose which complete profile should become current.</p><div class="wl-account-status"><div class="wl-account-card"><b>This device</b>global.rmmzsave + all local saves</div><div class="wl-account-card"><b>Cloud</b>${escapeHtml(formatTime(remote.manifest.updatedAt))}</div></div>`, [
+      { label: "Keep this device", run: async () => {
+        try { await uploadProfile(profileId, { baseRevision: remote.manifest.currentRevision, showConflict: true }); closeOverlay(); }
+        catch (error) { showError("Device profile was not uploaded", error, () => presentProfileConflict(profileId)); }
+      } },
+      { label: "Use cloud profile", kind: "danger", run: async () => {
+        try { await restoreProfile(profileId); closeOverlay(); }
+        catch (error) { showError("Cloud profile was not restored", error, () => presentProfileConflict(profileId)); }
+      } },
       { label: "Not now", kind: "secondary", run: closeOverlay }
     ]);
-    window.dispatchEvent(new CustomEvent("wl-cloud-save-conflict", { detail: { savefileId, local, remote: remote.manifest } }));
+    window.dispatchEvent(new CustomEvent("wl-cloud-profile-conflict", { detail: { profileId, remote: remote.manifest } }));
   }
 
-  async function keepDeviceCopy(savefileId, knownRemoteRevision) {
-    try {
-      const remoteRevision = knownRemoteRevision || (await request(`/api/v1/cloud-saves/save${Number(savefileId)}`)).manifest.currentRevision;
-      showPanel("Uploading device copy", `<p class="wl-account-muted">WonderLang first synchronized the latest cloud revision. Uploading without deleting the previous cloud version…</p>`);
-      const result = await uploadSlot(savefileId, { baseRevision: remoteRevision, showConflict: true });
-      if (result?.conflict) return;
-      showPanel("Cloud save updated", `<p class="wl-account-success">The device copy is now current. The service retained recent cloud revisions for recovery.</p>`, [
-        { label: "Done", run: openCloudSavesPanel }
-      ]);
-    } catch (error) {
-      showError("Device copy was not uploaded", error, () => keepDeviceCopy(savefileId));
-    }
-  }
-
-  function confirmUseCloud(savefileId) {
-    const local = localSaveInfo(savefileId);
-    showPanel(`Use cloud save ${savefileId}?`, `<p class="wl-account-muted">Cloud will replace this device slot only after download and SHA-256 integrity verification.<br><br>Device copy: ${escapeHtml(formatTime(local.timestamp))}</p>`, [
-      { label: "Use cloud", kind: "danger", run: async () => {
-        try {
-          showPanel("Restoring cloud save", `<p class="wl-account-muted">Downloading and verifying before writing the device slot…</p>`);
-          await restoreSlot(savefileId);
-          showPanel("Cloud save restored", `<p class="wl-account-success">Save ${savefileId} now uses the verified cloud copy.</p>`, [
-            { label: "Done", run: openCloudSavesPanel }
-          ]);
-        } catch (error) {
-          showError("Cloud save was not restored", error, () => confirmUseCloud(savefileId));
-        }
-      } },
-      { label: "Not now", kind: "secondary", run: openCloudSavesPanel }
-    ]);
-  }
-
-  const originalSaveGame = DataManager.saveGame;
-  DataManager.saveGame = async function(savefileId) {
-    const saved = await originalSaveGame.call(this, savefileId);
-    if (saved) uploadSlot(savefileId).catch(error => {
-      console.warn("[WonderLang Cloud Save] Local save succeeded; cloud upload did not.", error);
-      queueUpload(savefileId, error);
-      window.dispatchEvent(new CustomEvent("wl-cloud-save-error", { detail: { savefileId, message: safeMessage(error) } }));
+  const originalSaveObject = StorageManager.saveObject;
+  StorageManager.saveObject = function(saveName, object) {
+    return originalSaveObject.call(this, saveName, object).then(result => {
+      if (/^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) scheduleProfileSync();
+      return result;
     });
-    return saved;
+  };
+  const originalRemoveSave = StorageManager.remove;
+  StorageManager.remove = function(saveName) {
+    const result = originalRemoveSave.call(this, saveName);
+    if (!applyingProfile && /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) scheduleProfileSync();
+    return result;
   };
 
   window.WLAccountEntitlements = {
@@ -637,9 +775,10 @@
     current: entitlement,
     currentOfflineSafe: effectiveCachedEntitlement,
     isProductPurchased: ownsProduct,
-    listCloudSaves,
-    uploadSlot,
-    restoreSlot,
+    listProfiles,
+    uploadActiveProfile: syncActiveProfileNow,
+    restoreProfile,
+    activeProfileId,
     openAccount: openAccountPanel,
     openCloudSaves: openCloudSavesPanel,
     openSignIn: beginSignIn,
@@ -656,6 +795,7 @@
         cache(value);
         window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: value.entitlements || null }));
         drainUploadQueue().catch(error => console.warn("[WonderLang Cloud Save] Retry queue paused.", safeMessage(error)));
+        ensureProfileSelection().catch(error => console.warn("[WonderLang Cloud Save] Profile selection paused.", safeMessage(error)));
       } catch (error) {
         console.warn("[WonderLang Account] Native account snapshot was invalid.", error);
       }
@@ -691,10 +831,6 @@
   PluginManager.registerCommand(pluginName, "openAccount", openAccountPanel);
   PluginManager.registerCommand(pluginName, "openCloudSaves", openCloudSavesPanel);
   PluginManager.registerCommand(pluginName, "refreshEntitlements", () => refresh().catch(error => showError("Account refresh failed", error, openAccountPanel)));
-  PluginManager.registerCommand(pluginName, "uploadSave", args => {
-    const savefileId = Math.max(1, Number(args.savefileId) || 1);
-    uploadSlot(savefileId).catch(error => showError("Cloud upload failed", error, () => uploadSlot(savefileId)));
-  });
 
   if (openOnPlaytest && typeof Utils !== "undefined" && Utils.isOptionValid?.("test")) {
     let openedForPlaytest = false;

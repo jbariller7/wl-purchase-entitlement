@@ -190,6 +190,16 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       now
     }));
   }
+  const cloudProfileDownloadMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/cloud-save-profiles\/(default|[0-9a-f-]{36})\/download$/i);
+  if (event.httpMethod === "POST" && cloudProfileDownloadMatch?.[1] && cloudProfileDownloadMatch[2]) {
+    return json(200, await cloudSaves.createProfileDownload({
+      actor,
+      uid: cloudProfileDownloadMatch[1],
+      profileId: cloudProfileDownloadMatch[2],
+      ...body(reasonSchema, event),
+      now
+    }));
+  }
   const revokeGrantMatch = path.match(/^\/v1\/grants\/([A-Za-z0-9_-]{1,128})\/revoke$/);
   if (event.httpMethod === "POST" && revokeGrantMatch?.[1]) {
     return json(200, await operations.revokeAdminGrant({ actor, grantId: revokeGrantMatch[1], ...body(reasonSchema, event), now }));

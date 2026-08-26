@@ -18,7 +18,7 @@ describe("isolated integration configuration", () => {
     expect(operations).toContain("uidForProviderSubscription");
     expect(admin).toContain("store transaction");
     expect(admin).toContain("PROVIDER IDENTITIES");
-    expect(admin).toContain("Retained save inventory");
+    expect(admin).toContain("Complete player workspaces");
     expect(admin).toContain("CLOUD STORAGE");
     expect(admin).toContain("staleStagingObjects");
     expect(admin).toContain("cloudSaveCleanup");
@@ -423,6 +423,7 @@ describe("isolated integration configuration", () => {
     const api = read("netlify/functions/api.ts");
     const originPolicy = read("src/http/origin.ts");
     const cloudSave = read("src/cloud-save/service.ts");
+    const cloudProfiles = read("src/cloud-save/profile-service.ts");
     const adminApi = read("netlify/functions/admin-api.ts");
     const cors = read("storage.cors.json");
     const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
@@ -440,18 +441,21 @@ describe("isolated integration configuration", () => {
     expect(cloudSave).toContain("preconditionOpts: { ifGenerationMatch: 0 }");
     expect(cloudSave).toContain("objectPath: revisionObjectPath");
     expect(cloudSave).toContain("cloudSaveSlotSchema");
+    expect(cloudProfiles).toContain("cloud-save-profile-uploads/${uid}/${uploadId}.json");
+    expect(cloudProfiles).toContain("cloud-save-profiles/${uid}/profiles/${valid.data}/revisions/${uploadId}.json");
+    expect(cloudProfiles).toContain("MAX_PROFILES = 6");
     expect(api).toContain("cloudSaveSlotSchema.safeParse");
     const accountDeletion = read("src/account-deletion/service.ts");
     expect(accountDeletion).toContain("cloud-save-uploads/${uid}/");
     expect(accountDeletion).toContain('collection("cloudSaveCleanupJobs")');
     expect(adminApi).toContain("...(row.mobilePlatform ? { mobilePlatform: row.mobilePlatform } : {})");
-    for (const choice of ["Keep device", "Use cloud", "Not now"]) expect(rmmz).toContain(choice);
+    for (const choice of ["Keep this device", "Use cloud profile", "Not now"]) expect(rmmz).toContain(choice);
     expect(rmmz).toContain("await sha256Hex(bytes)");
-    expect(rmmz).toContain("baseRevision: remoteRevision");
+    expect(rmmz).toContain("baseRevision: remote.manifest.currentRevision");
     expect(rmmz).toContain("OFFLINE_SUBSCRIPTION_GRACE_MS");
     expect(rmmz).toContain("restrictToGrantedPlatform");
     expect(rmmz).toContain("mobilePlatforms");
-    expect(rmmz).toContain("queueUpload(savefileId, error)");
+    expect(rmmz).toContain("queueProfileUpload(profileId, error)");
     expect(rmmz).toContain('window.addEventListener("online"');
     expect(packaged).toBe(rmmz);
   });
@@ -459,9 +463,10 @@ describe("isolated integration configuration", () => {
   it("bounds cloud-save retention and expires only abandoned staging uploads", () => {
     const lifecycle = JSON.parse(read("storage.lifecycle.json"));
     expect(lifecycle).toEqual({
-      rule: [{ action: { type: "Delete" }, condition: { age: 1, matchesPrefix: ["cloud-save-uploads/"] } }]
+      rule: [{ action: { type: "Delete" }, condition: { age: 1, matchesPrefix: ["cloud-save-uploads/", "cloud-save-profile-uploads/"] } }]
     });
     expect(JSON.stringify(lifecycle)).not.toContain("cloud-saves/");
+    expect(JSON.stringify(lifecycle)).not.toContain("cloud-save-profiles/");
     const cleanup = read("src/cloud-save/cleanup-service.ts");
     expect(cleanup).toContain("isSafeCloudRevisionObjectPath(objectPath, job.uid)");
     expect(cleanup).toContain("MAX_ATTEMPTS = 10");

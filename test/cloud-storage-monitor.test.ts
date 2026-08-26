@@ -56,7 +56,7 @@ describe("cloud storage monitoring", () => {
       fail: async () => { throw new Error("unexpected failure"); }
     };
     const result = await runCloudStorageMonitor({ source, repository, now, dailyGrowthAlertBytes: 1024 });
-    expect(prefixes.sort()).toEqual(["cloud-save-uploads/", "cloud-saves/"]);
+    expect(prefixes.sort()).toEqual(["cloud-save-profile-uploads/", "cloud-save-profiles/", "cloud-save-uploads/", "cloud-saves/"]);
     expect(result).toMatchObject({ date: "2026-08-24", totalBytes: 1024, dailyChangeBytes: null, growthAlert: false });
     expect(saved).toEqual(result);
   });

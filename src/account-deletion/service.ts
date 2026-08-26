@@ -276,7 +276,9 @@ export class AccountDeletionService {
 
     await Promise.all([
       this.storage.bucket().deleteFiles({ prefix: `cloud-saves/${uid}/`, force: true }),
-      this.storage.bucket().deleteFiles({ prefix: `cloud-save-uploads/${uid}/`, force: true })
+      this.storage.bucket().deleteFiles({ prefix: `cloud-save-uploads/${uid}/`, force: true }),
+      this.storage.bucket().deleteFiles({ prefix: `cloud-save-profiles/${uid}/`, force: true }),
+      this.storage.bucket().deleteFiles({ prefix: `cloud-save-profile-uploads/${uid}/`, force: true })
     ]);
     await this.db.recursiveDelete(this.db.collection("cloudSaves").doc(uid));
     const legacyOrders = await this.linkedLegacyOrders(uid);
@@ -298,6 +300,7 @@ export class AccountDeletionService {
 
     const deletedPrivateRows = await Promise.all([
       this.deleteQuery(this.db.collection("cloudSaveUploads").where("uid", "==", uid)),
+      this.deleteQuery(this.db.collection("cloudSaveProfileUploads").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("cloudSaveCleanupJobs").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("checkoutContexts").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("subscriptionContexts").where("uid", "==", uid)),

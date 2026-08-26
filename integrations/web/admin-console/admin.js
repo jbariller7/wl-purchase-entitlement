@@ -52,6 +52,10 @@ const demoCustomer = {
       { revision: "5bcb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date(Date.now() - 86_400_000).toISOString(), current: false },
       { revision: "6ccb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date(Date.now() - 172_800_000).toISOString(), current: false }
     ]
+  }], cloudSaveProfiles: [{
+    profileId: "default", name: "Default", currentRevision: "7dcb303f-18d2-4b98-b665-058c332271df", byteLength: 88642,
+    sha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", createdAt: "2026-08-26T10:00:00.000Z", updatedAt: new Date().toISOString(), retainedRevisionCount: 1,
+    revisions: [{ revision: "7dcb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date().toISOString(), current: true }]
   }],
   payments: [{ id: "pi_demo", amount: 699, amountReceived: 699, amountRefunded: 0, refundableAmount: 699, currency: "USD", status: "succeeded", createdAt: new Date().toISOString(), refunds: [] }],
   deletionRequest: demoProfile === "deletion" ? {
@@ -217,6 +221,16 @@ function renderCustomers() {
       : "No valid revision metadata";
     return [slot, formatDate(s.updatedAt), s.byteLength ?? "—", String(s.sha256 || "").slice(0, 12) || "—", history, htmlCell(`<button class="text-button" data-download-save="${escapeHtml(slot)}">Download current</button>`)];
   });
+  const cloudProfileRows = (c?.cloudSaveProfiles || []).map((profile) => {
+    const revisions = Array.isArray(profile.revisions) ? profile.revisions : [];
+    const history = revisions.length
+      ? htmlCell(`<details class="revision-history"><summary>${revisions.length} retained version${revisions.length === 1 ? "" : "s"}</summary><ol>${revisions.map((revision) => `<li><strong>${revision.current ? "Current" : "Previous"}</strong><span>${escapeHtml(formatDate(revision.updatedAt))}</span><code>${escapeHtml(String(revision.revision || "").slice(0, 12))}</code></li>`).join("")}</ol></details>`)
+      : "No cloud upload yet";
+    const action = profile.currentRevision
+      ? htmlCell(`<button class="text-button" data-download-profile="${escapeHtml(profile.profileId)}">Download complete profile</button>`)
+      : "Waiting for first game sync";
+    return [profile.name, formatDate(profile.updatedAt), formatBytes(profile.byteLength || 0), String(profile.sha256 || "").slice(0, 12) || "—", history, action];
+  });
   const sub = c?.subscription;
   const secondPlatformRequest = c?.secondMobilePlatformRequest;
   const requestActionable = secondPlatformRequest?.state === "pending" || (secondPlatformRequest?.state === "approving" && Date.parse(secondPlatformRequest.approvalLeaseUntil || "") <= Date.now());
@@ -228,7 +242,8 @@ function renderCustomers() {
     <article class="panel"><header><div><p class="section-kicker">GRANTS</p><h3>Access ledger</h3></div></header>${table(["Product", "Source", "State", "Started", "Action"], (c.grants || []).map((g) => [g.product, g.provider, g.state, formatDate(g.startsAt), g.provider === "admin" && g.state === "active" && !g.metadata?.migration ? htmlCell(`<button class="text-button" data-revoke-grant="${escapeHtml(g.id)}">Revoke</button>`) : "—"]))}</article></section>
     <section class="panel"><header><div><p class="section-kicker">PROVIDER IDENTITIES</p><h3>Verified purchase links</h3></div></header>${table(["Provider", "Product", "Customer", "Transaction", "Subscription", "State"], providerRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Received", "Refunded", "Status", "Action"], paymentRows)}</section>
-    <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVES</p><h3>Retained save inventory</h3></div></header><p class="panel-copy">The current save and retained revision timeline are shown without Firebase Storage paths. Downloads require a support reason, produce a five-minute private link, and are recorded in Admin Audit.</p>${table(["Slot", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
+    <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVE PROFILES</p><h3>Complete player workspaces</h3></div></header><p class="panel-copy">Each profile is one atomic bundle containing global.rmmzsave and every save slot. Downloads require a support reason, produce a five-minute private link, and are recorded in Admin Audit.</p>${table(["Profile", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudProfileRows)}</section>
+    ${cloudRows.length ? `<section class="panel spaced"><header><div><p class="section-kicker">LEGACY CLOUD SAVES</p><h3>Pre-profile slot uploads</h3></div></header><p class="panel-copy">The current save and retained revision timeline are shown without Firebase Storage paths. These older individual uploads remain available for recovery but are no longer used by the game after profile sync begins.</p>${table(["Slot", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudRows)}</section>` : ""}` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
   return `${pageIntro("CUSTOMER SUPPORT", "Find the whole customer story.", "Access, purchases, login providers, cloud saves and manual actions are tied to one Firebase UID.")}
   ${requestQueue}<form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Email, UID, Stripe customer/payment, or store transaction" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
 }
@@ -541,6 +556,14 @@ function demoApi(path, options) {
       expiresAt: new Date(Date.now() + 300_000).toISOString()
     };
   }
+  if (method === "POST" && /\/customers\/[^/]+\/cloud-save-profiles\/(?:default|[0-9a-f-]{36})\/download$/i.test(path)) {
+    const profileId = decodeURIComponent(path.split("/").at(-2));
+    addDemoAudit("cloud_save_profile.download", "user", demoCustomer.user.uid, `Downloaded fictional profile ${profileId} in the safe demo`);
+    return {
+      demoPayload: { magic: "WL_CLOUD_PROFILE", version: 1, profileId, files: { global: "[]", file1: "{}" } },
+      filename: "wonderlang-profile-demo.json"
+    };
+  }
   if (method === "POST" && /\/provider-events\/[^/]+\/release$/.test(path)) {
     const id = decodeURIComponent(path.split("/").at(-2) || "");
     const event = demoOperations.providerEvents.find((row) => row.id === id);
@@ -751,6 +774,32 @@ function bindView() {
       link.remove();
       setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
       toast("Cloud save downloaded and recorded in Admin Audit.");
+    } catch (error) { toast(error.message, true); }
+    finally { button.disabled = false; }
+  }));
+  document.querySelectorAll("[data-download-profile]").forEach((button) => button.addEventListener("click", async () => {
+    const supportReason = await reason("Why do you need to download this customer's complete cloud-save profile?");
+    if (!supportReason) return;
+    button.disabled = true;
+    try {
+      const result = await api(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-save-profiles/${encodeURIComponent(button.dataset.downloadProfile)}/download`, { method: "POST", body: { reason: supportReason } });
+      let profileBlob;
+      if (demo && result.demoPayload) profileBlob = new Blob([JSON.stringify(result.demoPayload)], { type: "application/json" });
+      else {
+        if (!result.downloadUrl) throw new Error("The private cloud-profile download URL is unavailable.");
+        const response = await fetch(result.downloadUrl);
+        if (!response.ok) throw new Error(`Cloud-profile download failed (${response.status}).`);
+        profileBlob = await response.blob();
+      }
+      const objectUrl = URL.createObjectURL(profileBlob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = result.filename || "wonderlang-profile.json";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+      toast("Complete cloud-save profile downloaded and recorded in Admin Audit.");
     } catch (error) { toast(error.message, true); }
     finally { button.disabled = false; }
   }));

@@ -21,6 +21,7 @@ const ADMIN_GRANT_PRODUCTS: Product[] = [
 ];
 const CLEANUP_JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLOUD_SAVE_SLOT = /^save(?:0|[1-9]|1[0-9]|20)$/;
+const CLOUD_PROFILE_ID = /^(?:default|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const SHA256_HEX = /^[a-f0-9]{64}$/;
 
 function safeOperationalTimestamp(value: unknown): string | null {
@@ -82,6 +83,38 @@ export function publicCloudSaveSummary(documentId: string, value: Record<string,
       ? value.byteLength
       : null,
     sha256: typeof value.sha256 === "string" && SHA256_HEX.test(value.sha256) ? value.sha256 : null,
+    updatedAt: safeOperationalTimestamp(value.updatedAt),
+    retainedRevisionCount: revisions.length,
+    revisions
+  };
+}
+
+export function publicCloudProfileSummary(documentId: string, value: Record<string, unknown>): Record<string, unknown> {
+  const profileId = CLOUD_PROFILE_ID.test(documentId) ? documentId : "invalid";
+  const currentRevision = typeof value.currentRevision === "string" && CLEANUP_JOB_ID.test(value.currentRevision)
+    ? value.currentRevision
+    : null;
+  const revisions: PublicCloudSaveRevision[] = currentRevision ? [{
+    revision: currentRevision,
+    updatedAt: safeOperationalTimestamp(value.updatedAt),
+    current: true
+  }] : [];
+  if (Array.isArray(value.previousRevisions)) {
+    for (const item of value.previousRevisions) {
+      if (!item || typeof item !== "object") continue;
+      const candidate = item as Record<string, unknown>;
+      if (typeof candidate.revision !== "string" || !CLEANUP_JOB_ID.test(candidate.revision)) continue;
+      if (revisions.some((revision) => revision.revision === candidate.revision)) continue;
+      revisions.push({ revision: candidate.revision, updatedAt: safeOperationalTimestamp(candidate.updatedAt), current: false });
+    }
+  }
+  return {
+    profileId,
+    name: typeof value.name === "string" && value.name.trim() ? value.name.trim().slice(0, 40) : "Unnamed profile",
+    currentRevision,
+    byteLength: typeof value.byteLength === "number" && Number.isSafeInteger(value.byteLength) && value.byteLength >= 0 ? value.byteLength : null,
+    sha256: typeof value.sha256 === "string" && SHA256_HEX.test(value.sha256) ? value.sha256 : null,
+    createdAt: safeOperationalTimestamp(value.createdAt),
     updatedAt: safeOperationalTimestamp(value.updatedAt),
     retainedRevisionCount: revisions.length,
     revisions
@@ -348,13 +381,14 @@ export class AdminOperationsService {
   }
 
   async customerDetail(uid: string): Promise<Record<string, unknown>> {
-    const [user, entitlements, grants, discount, userDoc, cloudSlots, deletionRequest, secondMobilePlatformRequest] = await Promise.all([
+    const [user, entitlements, grants, discount, userDoc, cloudSlots, cloudProfiles, deletionRequest, secondMobilePlatformRequest] = await Promise.all([
       this.auth.getUser(uid),
       this.store.effectiveEntitlements(uid, new Date()),
       this.store.grantsForUid(uid),
       this.store.legacyDiscountClaim(uid),
       this.db.collection("users").doc(uid).get(),
       this.db.collection("cloudSaves").doc(uid).collection("slots").get(),
+      this.db.collection("cloudSaves").doc(uid).collection("profiles").get(),
       this.db.collection("accountDeletionRequests").doc(uid).get(),
       this.secondPlatformRequests.get(uid)
     ]);
@@ -401,6 +435,7 @@ export class AdminOperationsService {
       // Customer support needs a retained-version timeline, not Firebase
       // Storage coordinates. Never expose manifest UIDs or object paths.
       cloudSaves: cloudSlots.docs.map((doc) => publicCloudSaveSummary(doc.id, doc.data())),
+      cloudSaveProfiles: cloudProfiles.docs.map((doc) => publicCloudProfileSummary(doc.id, doc.data())),
       deletionRequest: publicDeletionRequest(deletionRequest.exists ? deletionRequest.data() : undefined),
       secondMobilePlatformRequest
     };

@@ -25,7 +25,7 @@ The monitor only lists Storage objects and writes aggregate Firestore metrics. I
 ## Staging activation
 
 1. Provision the Firebase staging bucket and deploy the deny-by-default Storage rules/CORS policy.
-2. Inspect the bucket's existing lifecycle configuration. Merge it if necessary, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. It deletes only `cloud-save-uploads/` staging objects after one day.
+2. Inspect the bucket's existing lifecycle configuration. Merge it if necessary, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. It deletes only abandoned `cloud-save-uploads/` and `cloud-save-profile-uploads/` staging objects after one day; retained profile revisions are excluded.
 3. Confirm the Firebase Admin service account has only the bucket-list/metadata permissions needed by the monitor plus the separate cloud-save API permissions.
 4. Keep every purchase, webhook, fulfillment, advertising and account-deletion switch off.
 5. Enable only `CLOUD_STORAGE_MONITORING_ENABLED` in the test deploy.
