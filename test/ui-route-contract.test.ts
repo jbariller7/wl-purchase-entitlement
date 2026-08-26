@@ -137,6 +137,7 @@ describe("administrator interface route contract", () => {
       "[data-run-google-play-diagnostic]",
       "[data-run-firebase-auth-diagnostic]",
       "[data-run-apple-catalog-diagnostic]",
+      "[data-compare-key-inventory]",
       "[data-provider=\"google\"]",
       "[data-provider=\"apple\"]"
     ]) expect(admin).toContain(selector);
@@ -177,6 +178,7 @@ describe("administrator interface route contract", () => {
       ["/admin-api/v1/imports/commit", 'path === "/v1/imports/commit"'],
       ["/admin-api/v1/operations", 'path === "/v1/operations"'],
       ["/admin-api/v1/inventory", 'path === "/v1/inventory"'],
+      ["/admin-api/v1/inventory/source-comparison", 'path === "/v1/inventory/source-comparison"'],
       ["/admin-api/v1/audit", 'path === "/v1/audit"'],
       ["/admin-api/v1/second-platform-requests", 'path === "/v1/second-platform-requests"'],
       ["/admin-api/v1/session", 'path === "/v1/session"']

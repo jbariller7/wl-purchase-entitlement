@@ -4,6 +4,7 @@ import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-
 import { z } from "zod";
 import { AdminBillingService } from "../../src/admin/billing-service.js";
 import { AdminCloudSaveService } from "../../src/admin/cloud-save-service.js";
+import { LegacyKeyInventoryDiagnosticService } from "../../src/legacy/key-inventory-diagnostic.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { AdminOperationsService } from "../../src/admin/operations-service.js";
 import { AdminProviderDiagnosticService } from "../../src/admin/provider-diagnostic-service.js";
@@ -117,6 +118,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const diagnostics = new AdminProviderDiagnosticService(db);
   const imports = new AdminImportService(db, firebaseAuth());
   const cloudSaves = new AdminCloudSaveService(db, firebaseStorage());
+  const keyInventoryDiagnostic = new LegacyKeyInventoryDiagnosticService();
 
   if (event.httpMethod === "GET" && path === "/v1/session") {
     return json(200, {
@@ -277,6 +279,9 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     return json(200, { released: true });
   }
   if (event.httpMethod === "GET" && path === "/v1/inventory") return json(200, await operations.inventory());
+  if (event.httpMethod === "GET" && path === "/v1/inventory/source-comparison") {
+    return json(200, await keyInventoryDiagnostic.compare(await operations.inventorySummary(), now));
+  }
   if (event.httpMethod === "GET" && path === "/v1/audit") {
     const limit = Number(event.queryStringParameters?.limit ?? 100);
     return json(200, await operations.audit(Number.isFinite(limit) ? limit : 100));

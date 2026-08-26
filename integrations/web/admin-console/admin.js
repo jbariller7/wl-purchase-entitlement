@@ -10,7 +10,7 @@ const appNode = document.querySelector("#app");
 const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
 const demoProfile = new URLSearchParams(location.search).get("profile");
-const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, googlePlayDiagnostic: null, firebaseAuthDiagnostic: null, appleCatalogDiagnostic: null, previews: {}, notice: null };
+const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, googlePlayDiagnostic: null, firebaseAuthDiagnostic: null, appleCatalogDiagnostic: null, keyInventoryComparison: null, previews: {}, notice: null };
 let viewLoadRevision = 0;
 
 const demoOverview = {
@@ -137,6 +137,17 @@ const demoOperations = {
   }
 };
 const demoInventory = { initialized: true, summary: [{ sheetTab: "Steam English", available: 42, assigned: 318, lowStockThreshold: 15, lowStock: false }, { sheetTab: "Steam Japanese", available: 8, assigned: 94, lowStockThreshold: 10, lowStock: true }, { sheetTab: "Itch English", available: 27, assigned: 71, lowStockThreshold: 20, lowStock: false }], recentFulfillments: [] };
+const demoInventoryComparison = {
+  checkedAt: new Date().toISOString(), readOnly: true, state: "in_sync", passed: true, readyForInitialImport: false,
+  sheet: { available: 77, assigned: 483, total: 560, duplicateRows: 0 },
+  firestore: { available: 77, assigned: 483, total: 560 }, issues: [],
+  tabs: demoInventory.summary.map((row) => ({
+    sheetTab: row.sheetTab,
+    sheet: { available: row.available, assigned: row.assigned, total: row.available + row.assigned, duplicateRows: 0 },
+    firestore: { available: row.available, assigned: row.assigned, total: row.available + row.assigned },
+    delta: { available: 0, assigned: 0, total: 0 }, matches: true
+  }))
+};
 const demoAudit = { entries: [{ id: "audit_demo", actorEmail: "owner@wonderlang.net", action: "catalog.price.change", targetType: "catalog", targetId: "monthly", summary: "Changed monthly price for new checkouts", createdAt: new Date().toISOString() }] };
 const ZERO_DECIMAL_CURRENCIES = new Set(["CLP", "JPY", "KRW", "VND"]);
 
@@ -273,9 +284,19 @@ function renderOperations(data) {
 }
 
 function renderInventory(data) {
-  return `${pageIntro("KEY INVENTORY", "Know before stock runs out.", "Steam and Itch keys remain separate from mobile entitlements. Each sheet tab uses its configured low-stock threshold.")}
+  const comparison = state.keyInventoryComparison;
+  const comparisonLabel = comparison?.state === "in_sync" ? "In sync" : comparison?.state === "ready_for_initial_import" ? "Ready for dry run" : comparison?.state === "mismatch" ? "Counts differ" : comparison?.state === "empty_source" ? "Sheet empty" : comparison ? "Unavailable" : "Not checked";
+  const comparisonRows = (comparison?.tabs || []).map((row) => [
+    row.sheetTab,
+    `${Number(row.sheet?.available || 0).toLocaleString()} / ${Number(row.sheet?.assigned || 0).toLocaleString()}`,
+    `${Number(row.firestore?.available || 0).toLocaleString()} / ${Number(row.firestore?.assigned || 0).toLocaleString()}`,
+    Number(row.sheet?.duplicateRows || 0),
+    row.matches ? "Match" : `Δ ${Number(row.delta?.total || 0).toLocaleString()}`
+  ]);
+  return `${pageIntro("KEY INVENTORY", "Know before stock runs out.", "Steam and Itch keys remain separate from mobile entitlements. Each sheet tab uses its configured low-stock threshold.", '<button class="button secondary" data-compare-key-inventory>Compare with Google Sheets</button>')}
   ${data.initialized === false ? '<aside class="alert warning"><div><strong>Firestore inventory has not been imported yet</strong><span>Your existing Google Sheet is still the source and has not been changed. Run the key-import dry run, compare every tab count, then explicitly approve the one-time Firestore mirror import before enabling fulfillment.</span></div></aside>' : ""}
   <section class="inventory-grid">${(data.summary || []).length ? data.summary.map((r) => `<article class="inventory-card ${r.lowStock ? "low" : ""}"><p>${escapeHtml(r.sheetTab)}</p><strong>${Number(r.available).toLocaleString()}</strong><span>available</span><small>${Number(r.assigned).toLocaleString()} assigned · alert at ${Number(r.lowStockThreshold).toLocaleString()}</small></article>`).join("") : empty("No key inventory records in this environment.")}</section>
+  <section class="panel"><header><div><p class="section-kicker">READ-ONLY SOURCE CHECK</p><h3>Google Sheets versus Firestore</h3></div><span class="state-pill">${escapeHtml(comparisonLabel)}</span></header><p class="panel-copy">This check reads only key presence and whether the assignment cell is blank. Keys, emails and order identifiers never reach this browser, and neither system is modified.</p>${comparison ? `${(comparison.issues || []).map((issue) => `<p class="panel-copy">${escapeHtml(issue)}</p>`).join("")}${comparisonRows.length ? table(["Tab", "Sheet available / assigned", "Firestore available / assigned", "Duplicate rows", "Result"], comparisonRows) : empty("No comparison rows are available.")}` : empty("Run the source comparison before the one-time import dry run.")}</section>
   <section class="panel"><header><div><p class="section-kicker">RECENT FULFILLMENT</p><h3>Delivered key orders</h3></div></header>${(data.recentFulfillments || []).length ? table(["When", "Order", "Keys"], data.recentFulfillments.map((r) => [formatDate(r.createdAt), r.orderId, Number(r.keyCount || 0)])) : empty("No fulfillment records in this environment.")}</section>`;
 }
 
@@ -453,6 +474,7 @@ function demoApi(path, options) {
   };
   if (path.endsWith("/catalog")) return demoCatalog;
   if (path.includes("operations")) return demoOperations;
+  if (method === "GET" && path.includes("inventory/source-comparison")) return demoInventoryComparison;
   if (path.includes("inventory")) return demoInventory;
   if (path.includes("audit")) return demoAudit;
   if (path.includes("session")) return { actor: { uid: "demo_admin", email: state.user.email }, providers: ["google.com"], capabilities: Object.keys(views), controls: { APP_ENVIRONMENT: "test", STRIPE_WEBHOOKS_ENABLED: false, GOOGLE_PLAY_WEBHOOKS_ENABLED: false, APPLE_WEBHOOKS_ENABLED: false, OUTBOX_PROCESSING_ENABLED: false, AD_CONVERSIONS_ENABLED: false, LEGACY_FULFILLMENT_ENABLED: false, SUBSCRIPTION_CANCELLATION_ENABLED: false, ACCOUNT_DELETION_PROCESSING_ENABLED: false, STRIPE_MUTATIONS_ENABLED: false, APP_CHECK_ENFORCEMENT_ENABLED: false, SUBSCRIPTION_RECONCILIATION_ENABLED: false, CLOUD_STORAGE_MONITORING_ENABLED: false, CLOUD_SAVE_CLEANUP_ENABLED: false, DEVICE_SIGN_IN_ENABLED: false, DEVICE_SIGN_IN_CLEANUP_ENABLED: false, ADMIN_BOOTSTRAP_ENABLED: false } };
@@ -713,6 +735,22 @@ function bindView() {
       state.stripeDiagnostic = await api("/admin-api/v1/diagnostics/stripe-catalog");
       state.notice = { message: state.stripeDiagnostic.passed ? "Stripe catalog diagnostic passed." : "Stripe catalog diagnostic found issues.", error: !state.stripeDiagnostic.passed };
       await loadView("settings");
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message, true);
+    }
+  });
+  document.querySelector("[data-compare-key-inventory]")?.addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      state.keyInventoryComparison = await api("/admin-api/v1/inventory/source-comparison");
+      const comparison = state.keyInventoryComparison;
+      state.notice = {
+        message: comparison.state === "in_sync" ? "Google Sheets and Firestore inventory counts match." : comparison.state === "ready_for_initial_import" ? "Google Sheets is readable and ready for the one-time import dry run." : "The inventory comparison needs review.",
+        error: !["in_sync", "ready_for_initial_import"].includes(comparison.state)
+      };
+      await loadView("inventory");
     } catch (error) {
       button.disabled = false;
       toast(error.message, true);

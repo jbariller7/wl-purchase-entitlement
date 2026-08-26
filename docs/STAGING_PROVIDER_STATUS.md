@@ -110,7 +110,7 @@ Last verified: 2026-08-27. This file records only non-secret identifiers and saf
 
 ## App Check staging
 
-- The 2026-08-27 ordinary TypeScript/unit/integration/contract run passes 284 tests; the dedicated rules suite contains 15 isolated Firestore/Storage cases. Those rules cases were skipped in this run because the managed Java host cannot create the required loopback selector.
+- The 2026-08-27 ordinary TypeScript/unit/integration/contract run passes 288 tests; the dedicated rules suite contains 15 isolated Firestore/Storage cases. Those rules cases were skipped in this run because the managed Java host cannot create the required loopback selector.
 - Web account and administrator clients optionally initialize reCAPTCHA Enterprise and attach `X-Firebase-AppCheck`. Android installs the Play Integrity provider on the named `wonderlang-accounts` Firebase app and attaches a best-effort token.
 - The web CSP contains Google's documented reCAPTCHA script, frame and connection sources. `APP_CHECK_ENFORCEMENT_ENABLED` remains `false` until the web and Android providers are registered, metrics are monitored, the actual iOS client is integrated, and production-equivalent device tests pass.
 - Commit `914c85f` deployed as Netlify deploy `6a8de0e73450a500087439c7`. Live probes returned HTTP 200 for both account and administrator pages, found the App Check header plumbing in both production bundles, found every required reCAPTCHA CSP source, and confirmed `environment=test`, `accountApiReady=true`, `checkoutEnabled=false`, `appCheckConfigured=false`, and `appCheckEnforced=false` without printing public client identifiers.
