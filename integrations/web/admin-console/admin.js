@@ -11,6 +11,7 @@ const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
 const demoProfile = new URLSearchParams(location.search).get("profile");
 const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, googlePlayDiagnostic: null, firebaseAuthDiagnostic: null, appleCatalogDiagnostic: null, previews: {}, notice: null };
+let viewLoadRevision = 0;
 
 const demoOverview = {
   metrics: { activeSubscriptions: 184, permanentCustomers: 271, premiumCustomers: 56, lifetimeCustomers: 327, graceSubscriptions: 6, pendingSecondPlatformRequests: 1, failedOperations: 3, cloudStorageBytes: 18427904, cloudStorageDailyChangeBytes: 524288 },
@@ -583,6 +584,7 @@ function addDemoAudit(action, targetType, targetId, summary) {
 }
 
 async function loadView(view) {
+  const revision = ++viewLoadRevision;
   state.view = view;
   appNode.innerHTML = shell(`<div class="loading">Loading ${escapeHtml(views[view])}…</div>`);
   bindShell();
@@ -591,9 +593,11 @@ async function loadView(view) {
     if (view === "overview") data = await api(endpoints.overview);
     else if (view === "customers") {
       const result = await api(endpoints.secondPlatformRequests);
+      if (revision !== viewLoadRevision || state.view !== view) return;
       state.secondPlatformRequests = result.requests || [];
     }
     else if (["billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
+    if (revision !== viewLoadRevision || state.view !== view) return;
     const content = view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports() : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
     appNode.innerHTML = shell(content); bindShell(); bindView();
     if (state.notice) {
@@ -601,7 +605,12 @@ async function loadView(view) {
       state.notice = null;
       toast(notice.message, notice.error);
     }
-  } catch (error) { appNode.innerHTML = shell(`<section class="error-state"><h2>Could not load ${escapeHtml(views[view])}</h2><p>${escapeHtml(error.message)}</p><button class="button secondary" data-view="overview">Return to overview</button></section>`); bindShell(); toast(error.message, true); }
+  } catch (error) {
+    if (revision !== viewLoadRevision || state.view !== view) return;
+    appNode.innerHTML = shell(`<section class="error-state"><h2>Could not load ${escapeHtml(views[view])}</h2><p>${escapeHtml(error.message)}</p><button class="button secondary" data-view="overview">Return to overview</button></section>`);
+    bindShell();
+    toast(error.message, true);
+  }
 }
 
 function bindShell() {

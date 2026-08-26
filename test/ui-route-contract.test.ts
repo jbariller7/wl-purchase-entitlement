@@ -223,6 +223,13 @@ describe("administrator interface route contract", () => {
     expect(api).toContain("requireAdmin(");
   });
 
+  it("ignores stale section responses when the administrator navigates quickly", () => {
+    expect(admin).toContain("let viewLoadRevision = 0;");
+    expect(admin).toContain("const revision = ++viewLoadRevision;");
+    expect(admin.match(/revision !== viewLoadRevision \|\| state\.view !== view/g)).toHaveLength(3);
+    expect(admin).toMatch(/catch \(error\) \{\s*if \(revision !== viewLoadRevision \|\| state\.view !== view\) return;/);
+  });
+
   it("limits the working Stripe price editor to Premium and labels mobile prices as native", () => {
     expect(admin).toContain('<input type="hidden" name="kind" value="premium">');
     expect(admin).not.toContain('<option value="monthly">Mobile Monthly</option>');
