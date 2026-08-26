@@ -502,7 +502,30 @@ export class AdminOperationsService {
   }
 
   async audit(limit = 100): Promise<Record<string, unknown>> {
-    const snapshot = await this.db.collection("adminAudit").orderBy("createdAt", "desc").limit(Math.min(Math.max(limit, 1), 200)).get();
-    return { entries: dataRows(snapshot) };
+    const cappedLimit = Math.min(Math.max(limit, 1), 200);
+    const [snapshot, bootstrapSnapshot] = await Promise.all([
+      this.db.collection("adminAudit").orderBy("createdAt", "desc").limit(cappedLimit).get(),
+      this.db.collection("adminBootstrapAudit").orderBy("createdAt", "desc").limit(cappedLimit).get()
+    ]);
+    const bootstrapEntries = dataRows(bootstrapSnapshot).map((entry) => ({
+      id: entry.id,
+      actorUid: entry.actorUid,
+      actorEmail: entry.targetEmail ?? "verified bootstrap administrator",
+      action: entry.action ?? "admin_claim.set",
+      targetType: "user",
+      targetId: entry.targetUid,
+      summary: `Initial administrator claim ${String(entry.state ?? "recorded")}`,
+      metadata: {
+        state: entry.state ?? "unknown",
+        signInProvider: entry.signInProvider ?? "unknown",
+        ...(entry.completedAt ? { completedAt: entry.completedAt } : {}),
+        ...(entry.failedAt ? { failedAt: entry.failedAt } : {})
+      },
+      createdAt: entry.createdAt
+    }));
+    const entries = [...dataRows(snapshot), ...bootstrapEntries]
+      .sort((left, right) => Date.parse(String(right.createdAt ?? "")) - Date.parse(String(left.createdAt ?? "")))
+      .slice(0, cappedLimit);
+    return { entries };
   }
 }
