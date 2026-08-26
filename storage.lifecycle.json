@@ -6,10 +6,7 @@
       },
       "condition": {
         "age": 1,
-        "matchesPrefix": [
-          "cloud-save-uploads/",
-          "cloud-save-profile-uploads/"
-        ]
+        "matchesPrefix": ["cloud-save-profile-uploads/"]
       }
     }
   ]

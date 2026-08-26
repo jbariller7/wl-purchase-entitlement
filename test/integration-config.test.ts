@@ -422,7 +422,6 @@ describe("isolated integration configuration", () => {
     const manifest = read("integrations/android/current-app-mirror/app/src/main/AndroidManifest.xml");
     const api = read("netlify/functions/api.ts");
     const originPolicy = read("src/http/origin.ts");
-    const cloudSave = read("src/cloud-save/service.ts");
     const cloudProfiles = read("src/cloud-save/profile-service.ts");
     const adminApi = read("netlify/functions/admin-api.ts");
     const cors = read("storage.cors.json");
@@ -437,16 +436,13 @@ describe("isolated integration configuration", () => {
     expect(api).toContain("apiAllowedOrigins(true)");
     expect(originPolicy).toContain('"https://appassets.local"');
     expect(cors).toContain('"https://appassets.local"');
-    expect(cloudSave).toContain("cloud-save-uploads/${uid}/${uploadId}.json");
-    expect(cloudSave).toContain("preconditionOpts: { ifGenerationMatch: 0 }");
-    expect(cloudSave).toContain("objectPath: revisionObjectPath");
-    expect(cloudSave).toContain("cloudSaveSlotSchema");
     expect(cloudProfiles).toContain("cloud-save-profile-uploads/${uid}/${uploadId}.json");
     expect(cloudProfiles).toContain("cloud-save-profiles/${uid}/profiles/${valid.data}/revisions/${uploadId}.json");
     expect(cloudProfiles).toContain("MAX_PROFILES = 6");
-    expect(api).toContain("cloudSaveSlotSchema.safeParse");
+    expect(cloudProfiles).toContain("preconditionOpts: { ifGenerationMatch: 0 }");
+    expect(api).not.toContain("/v1/cloud-saves");
     const accountDeletion = read("src/account-deletion/service.ts");
-    expect(accountDeletion).toContain("cloud-save-uploads/${uid}/");
+    expect(accountDeletion).toContain("cloud-save-profile-uploads/${uid}/");
     expect(accountDeletion).toContain('collection("cloudSaveCleanupJobs")');
     expect(adminApi).toContain("...(row.mobilePlatform ? { mobilePlatform: row.mobilePlatform } : {})");
     for (const choice of ["Keep this device", "Use cloud profile", "Not now"]) expect(rmmz).toContain(choice);
@@ -463,9 +459,8 @@ describe("isolated integration configuration", () => {
   it("bounds cloud-save retention and expires only abandoned staging uploads", () => {
     const lifecycle = JSON.parse(read("storage.lifecycle.json"));
     expect(lifecycle).toEqual({
-      rule: [{ action: { type: "Delete" }, condition: { age: 1, matchesPrefix: ["cloud-save-uploads/", "cloud-save-profile-uploads/"] } }]
+      rule: [{ action: { type: "Delete" }, condition: { age: 1, matchesPrefix: ["cloud-save-profile-uploads/"] } }]
     });
-    expect(JSON.stringify(lifecycle)).not.toContain("cloud-saves/");
     expect(JSON.stringify(lifecycle)).not.toContain("cloud-save-profiles/");
     const cleanup = read("src/cloud-save/cleanup-service.ts");
     expect(cleanup).toContain("isSafeCloudRevisionObjectPath(objectPath, job.uid)");

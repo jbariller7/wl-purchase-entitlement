@@ -439,6 +439,27 @@
   function closeOverlay() {
     activeOverlay?.remove();
     activeOverlay = null;
+    clearGameInputState();
+  }
+
+  function clearGameInputState() {
+    if (globalThis.TouchInput?.clear) globalThis.TouchInput.clear();
+    if (globalThis.Input?.clear) globalThis.Input.clear();
+  }
+
+  function blockGameInput(overlay) {
+    const blockedEvents = [
+      "pointerdown", "pointerup", "pointermove", "pointercancel",
+      "mousedown", "mouseup", "mousemove", "click", "dblclick", "contextmenu", "wheel",
+      "touchstart", "touchmove", "touchend", "touchcancel",
+      "keydown", "keyup", "keypress"
+    ];
+    for (const type of blockedEvents) {
+      overlay.addEventListener(type, event => {
+        event.stopPropagation();
+        if (type === "wheel" || type === "touchmove" || type === "contextmenu") event.preventDefault();
+      }, { passive: false });
+    }
   }
 
   function bindReleaseTap(button, action) {
@@ -486,6 +507,8 @@
     closeOverlay();
     const overlay = document.createElement("div");
     overlay.className = "wl-account-overlay";
+    blockGameInput(overlay);
+    clearGameInputState();
     overlay.innerHTML = `<section class="wl-account-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}"><h2>${escapeHtml(title)}</h2>${bodyHtml}<div class="wl-account-actions"></div></section>`;
     const actionsHost = overlay.querySelector(".wl-account-actions");
     actions.forEach(action => {

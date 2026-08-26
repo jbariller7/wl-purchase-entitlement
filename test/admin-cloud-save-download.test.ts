@@ -5,33 +5,37 @@ import { AdminCloudSaveService } from "../src/admin/cloud-save-service.js";
 
 const now = new Date("2026-08-25T12:00:00.000Z");
 const uid = "customer-1";
-const objectPath = "cloud-saves/customer-1/slots/save1/revisions/4acb303f-18d2-4b98-b665-058c332271df.json";
+const profilePath = "cloud-save-profiles/customer-1/profiles/default/revisions/4acb303f-18d2-4b98-b665-058c332271df.json";
 
-function manifest(path = objectPath): Record<string, unknown> {
+function profileManifest(path = profilePath): Record<string, unknown> {
   return {
     uid,
-    slot: "save1",
+    profileId: "default",
+    name: "Japanese",
     currentRevision: "4acb303f-18d2-4b98-b665-058c332271df",
     objectPath: path,
-    byteLength: 1234,
-    sha256: "a".repeat(64),
+    byteLength: 4321,
+    sha256: "b".repeat(64),
+    createdAt: "2026-08-24T11:45:00.000Z",
     updatedAt: "2026-08-25T11:45:00.000Z",
     previousRevisions: []
   };
 }
 
 function fakeFirestore(value: Record<string, unknown>, auditRows: Record<string, unknown>[]): Firestore {
-  return {
+  let currentValue = value;
+  const database = {
     collection: (name: string) => {
       if (name === "cloudSaves") {
         return {
           doc: (requestedUid: string) => ({
             collection: (child: string) => ({
-              doc: (slot: string) => ({
+              doc: (profileId: string) => ({
                 get: async () => ({
-                  exists: requestedUid === uid && ((child === "slots" && slot === "save1") || (child === "profiles" && slot === "default")),
-                  data: () => value
-                })
+                  exists: requestedUid === uid && child === "profiles" && profileId === "default",
+                  data: () => currentValue
+                }),
+                _set: (next: Record<string, unknown>) => { currentValue = next; }
               })
             })
           })
@@ -43,15 +47,24 @@ function fakeFirestore(value: Record<string, unknown>, auditRows: Record<string,
         };
       }
       throw new Error(`Unexpected collection ${name}`);
-    }
-  } as unknown as Firestore;
+    },
+    runTransaction: async (callback: (transaction: {
+      get: (ref: { get: () => Promise<unknown> }) => Promise<unknown>;
+      set: (ref: { _set: (value: Record<string, unknown>) => void }, value: Record<string, unknown>) => void;
+    }) => Promise<unknown>) => callback({
+      get: (ref) => ref.get(),
+      set: (ref, next) => ref._set(next)
+    })
+  };
+  return database as unknown as Firestore;
 }
 
-function fakeStorage(calls: Array<{ path: string; config?: Record<string, unknown> }>, exists = true): Storage {
+function fakeStorage(calls: Array<{ path: string; config?: Record<string, unknown> }>, exists = true, contents?: Buffer): Storage {
   return {
     bucket: () => ({
       file: (path: string) => ({
         exists: async () => [exists],
+        download: async () => [contents ?? Buffer.from("{}")],
         getSignedUrl: async (config: Record<string, unknown>) => {
           calls.push({ path, config });
           return ["https://storage.test/private-signed-url"];
@@ -61,67 +74,11 @@ function fakeStorage(calls: Array<{ path: string; config?: Record<string, unknow
   } as unknown as Storage;
 }
 
-describe("audited administrator cloud-save downloads", () => {
+describe("audited administrator cloud-profile downloads", () => {
   it("returns a five-minute private URL only after recording the support reason", async () => {
     const audits: Record<string, unknown>[] = [];
     const storageCalls: Array<{ path: string; config?: Record<string, unknown> }> = [];
-    const result = await new AdminCloudSaveService(fakeFirestore(manifest(), audits), fakeStorage(storageCalls)).createDownload({
-      actor: { uid: "admin-1", email: "owner@example.com" },
-      uid,
-      slot: "save1",
-      reason: "Investigating a customer-reported save conflict.",
-      now
-    });
-
-    expect(result).toMatchObject({
-      downloadUrl: "https://storage.test/private-signed-url",
-      expiresAt: "2026-08-25T12:05:00.000Z",
-      manifest: { slot: "save1", byteLength: 1234 }
-    });
-    expect(storageCalls).toEqual([{ path: objectPath, config: { version: "v4", action: "read", expires: new Date("2026-08-25T12:05:00.000Z") } }]);
-    expect(audits).toHaveLength(1);
-    expect(audits[0]).toMatchObject({
-      action: "cloud_save.download",
-      targetId: uid,
-      actorEmail: "owner@example.com",
-      summary: expect.stringContaining("Investigating a customer-reported save conflict")
-    });
-    expect(JSON.stringify(audits[0])).not.toContain("private-signed-url");
-  });
-
-  it("refuses a manifest whose object path escapes the customer's immutable revision area", async () => {
-    const audits: Record<string, unknown>[] = [];
-    const storageCalls: Array<{ path: string; config?: Record<string, unknown> }> = [];
-    await expect(new AdminCloudSaveService(
-      fakeFirestore(manifest("cloud-saves/another-user/slots/save1/revisions/4acb303f-18d2-4b98-b665-058c332271df.json"), audits),
-      fakeStorage(storageCalls)
-    ).createDownload({
-      actor: { uid: "admin-1", email: "owner@example.com" },
-      uid,
-      slot: "save1",
-      reason: "Investigating a customer-reported save conflict.",
-      now
-    })).rejects.toMatchObject({ status: 409 });
-    expect(storageCalls).toEqual([]);
-    expect(audits).toEqual([]);
-  });
-
-  it("audits complete profile downloads without exposing their Storage path", async () => {
-    const profilePath = "cloud-save-profiles/customer-1/profiles/default/revisions/4acb303f-18d2-4b98-b665-058c332271df.json";
-    const audits: Record<string, unknown>[] = [];
-    const storageCalls: Array<{ path: string; config?: Record<string, unknown> }> = [];
-    const result = await new AdminCloudSaveService(fakeFirestore({
-      uid,
-      profileId: "default",
-      name: "Japanese",
-      currentRevision: "4acb303f-18d2-4b98-b665-058c332271df",
-      objectPath: profilePath,
-      byteLength: 4321,
-      sha256: "b".repeat(64),
-      createdAt: "2026-08-24T11:45:00.000Z",
-      updatedAt: "2026-08-25T11:45:00.000Z",
-      previousRevisions: []
-    }, audits), fakeStorage(storageCalls)).createProfileDownload({
+    const result = await new AdminCloudSaveService(fakeFirestore(profileManifest(), audits), fakeStorage(storageCalls)).createProfileDownload({
       actor: { uid: "admin-1", email: "owner@example.com" },
       uid,
       profileId: "default",
@@ -131,11 +88,60 @@ describe("audited administrator cloud-save downloads", () => {
 
     expect(result).toMatchObject({
       downloadUrl: "https://storage.test/private-signed-url",
+      expiresAt: "2026-08-25T12:05:00.000Z",
       manifest: { profileId: "default", name: "Japanese", byteLength: 4321 }
     });
-    expect(storageCalls[0]?.path).toBe(profilePath);
-    expect(audits[0]).toMatchObject({ action: "cloud_save_profile.download", targetId: uid });
+    expect(storageCalls).toEqual([{ path: profilePath, config: { version: "v4", action: "read", expires: new Date("2026-08-25T12:05:00.000Z") } }]);
+    expect(audits[0]).toMatchObject({ action: "cloud_save_profile.download", targetId: uid, actorEmail: "owner@example.com" });
     expect(JSON.stringify(audits[0])).not.toContain(profilePath);
     expect(JSON.stringify(audits[0])).not.toContain("private-signed-url");
+  });
+
+  it("refuses a profile object path belonging to another account", async () => {
+    const audits: Record<string, unknown>[] = [];
+    const storageCalls: Array<{ path: string; config?: Record<string, unknown> }> = [];
+    await expect(new AdminCloudSaveService(
+      fakeFirestore(profileManifest(profilePath.replace("customer-1", "another-user")), audits),
+      fakeStorage(storageCalls)
+    ).createProfileDownload({
+      actor: { uid: "admin-1", email: "owner@example.com" },
+      uid,
+      profileId: "default",
+      reason: "Investigating a customer-reported save conflict.",
+      now
+    })).rejects.toMatchObject({ status: 409 });
+    expect(storageCalls).toEqual([]);
+    expect(audits).toEqual([]);
+  });
+
+  it("restores an immutable previous whole-profile version and audits the change", async () => {
+    const previousRevision = "5bcb303f-18d2-4b98-b665-058c332271df";
+    const previousPath = `cloud-save-profiles/${uid}/profiles/default/revisions/${previousRevision}.json`;
+    const contents = Buffer.from(JSON.stringify({
+      magic: "WL_CLOUD_PROFILE",
+      version: 1,
+      profileId: "default",
+      files: { global: "[]", file1: "{}" }
+    }));
+    const audits: Record<string, unknown>[] = [];
+    const database = fakeFirestore({
+      ...profileManifest(),
+      previousRevisions: [{ revision: previousRevision, objectPath: previousPath, updatedAt: "2026-08-24T11:45:00.000Z" }]
+    }, audits);
+    const result = await new AdminCloudSaveService(database, fakeStorage([], true, contents)).restoreProfileRevision({
+      actor: { uid: "admin-1", email: "owner@example.com" },
+      uid,
+      profileId: "default",
+      revision: previousRevision,
+      reason: "Player asked support to recover yesterday's complete profile.",
+      now
+    });
+    expect(result).toEqual({
+      profileId: "default",
+      restoredRevision: previousRevision,
+      replacedRevision: "4acb303f-18d2-4b98-b665-058c332271df"
+    });
+    expect(audits[0]).toMatchObject({ action: "cloud_save_profile.restore_revision", targetId: uid });
+    expect(JSON.stringify(audits[0])).not.toContain(previousPath);
   });
 });

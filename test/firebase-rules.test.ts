@@ -15,7 +15,7 @@ import type { Storage } from "firebase-admin/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AccountDeletionService } from "../src/account-deletion/service.js";
 import { AdminOperationsService } from "../src/admin/operations-service.js";
-import { CloudSaveService, cloudStagingObjectPath } from "../src/cloud-save/service.js";
+import { CloudSaveProfileService, cloudProfileStagingObjectPath } from "../src/cloud-save/profile-service.js";
 import { EntitlementStore } from "../src/infrastructure/entitlement-store.js";
 import { sha256, stableDocumentId } from "../src/infrastructure/ids.js";
 import {
@@ -57,7 +57,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         product: "premium_lifetime_pass"
       });
       await uploadBytes(
-        ref(storage(context), "cloud-saves/player-1/slot-1/current.rmmzsave"),
+        ref(storage(context), "cloud-save-profiles/player-1/profiles/default/revisions/current.json"),
         new TextEncoder().encode("seed-save")
       );
     });
@@ -99,11 +99,11 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
 
     it("denies every Storage operation to an " + identity.label, async () => {
       const clientStorage = storage(identity.context());
-      const object = ref(clientStorage, "cloud-saves/player-1/slot-1/current.rmmzsave");
+      const object = ref(clientStorage, "cloud-save-profiles/player-1/profiles/default/revisions/current.json");
       await assertFails(getBytes(object));
-      await assertFails(listAll(ref(clientStorage, "cloud-saves/player-1")));
+      await assertFails(listAll(ref(clientStorage, "cloud-save-profiles/player-1")));
       await assertFails(uploadBytes(
-        ref(clientStorage, "cloud-saves/player-1/slot-1/attacker.rmmzsave"),
+        ref(clientStorage, "cloud-save-profiles/player-1/profiles/default/revisions/attacker.json"),
         new TextEncoder().encode("attacker-save")
       ));
       await assertFails(deleteObject(object));
@@ -360,10 +360,10 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         })
       })
     } as unknown as Storage;
-    const service = new CloudSaveService(database, fakeStorage, store);
+    const service = new CloudSaveProfileService(database, fakeStorage, store);
     const uploadedIds: string[] = [];
     let baseRevision: string | null = null;
-    let finalManifest: Awaited<ReturnType<CloudSaveService["finalizeUpload"]>> | undefined;
+    let finalManifest: Awaited<ReturnType<CloudSaveProfileService["finalizeUpload"]>> | undefined;
 
     try {
       await store.upsertGrant({
@@ -377,25 +377,32 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         metadata: { primaryMobilePlatform: "android" }
       }, { id: "grant", created: 1_777_000_000 });
 
+      await service.list(uid, new Date("2026-08-25T09:59:00.000Z"));
+
       for (let index = 0; index < 5; index += 1) {
-        const contents = Buffer.from(JSON.stringify({ index, payload: `save-${index}` }));
+        const contents = Buffer.from(JSON.stringify({
+          magic: "WL_CLOUD_PROFILE",
+          version: 1,
+          profileId: "default",
+          files: { global: "[]", file1: JSON.stringify({ index, payload: `save-${index}` }) }
+        }));
         const at = new Date(Date.parse("2026-08-25T10:00:00.000Z") + index * 1000);
-        const prepared = await service.prepareUpload(uid, {
-          slot: "save1",
+        const prepared = await service.prepareUpload(uid, "default", {
           byteLength: contents.byteLength,
           sha256: sha256(contents),
           baseRevision
         }, at);
         uploadedIds.push(prepared.uploadId);
-        objects.set(cloudStagingObjectPath(uid, prepared.uploadId), contents);
-        finalManifest = await service.finalizeUpload(uid, prepared.uploadId, at);
+        objects.set(cloudProfileStagingObjectPath(uid, prepared.uploadId), contents);
+        finalManifest = await service.finalizeUpload(uid, "default", prepared.uploadId, at);
         baseRevision = finalManifest.currentRevision;
       }
 
-      expect(finalManifest?.previousRevisions).toHaveLength(3);
-      const immutable = [...objects.keys()].filter((path) => path.startsWith(`cloud-saves/${uid}/`));
+      const savedProfile = await database.collection("cloudSaves").doc(uid).collection("profiles").doc("default").get();
+      expect(savedProfile.data()?.previousRevisions).toHaveLength(3);
+      const immutable = [...objects.keys()].filter((path) => path.startsWith(`cloud-save-profiles/${uid}/`));
       expect(immutable).toHaveLength(4);
-      expect([...objects.keys()].filter((path) => path.startsWith(`cloud-save-uploads/${uid}/`))).toHaveLength(0);
+      expect([...objects.keys()].filter((path) => path.startsWith(`cloud-save-profile-uploads/${uid}/`))).toHaveLength(0);
       expect(immutable.some((path) => path.includes(uploadedIds[0]!))).toBe(false);
       expect(immutable.some((path) => path.includes(uploadedIds[4]!))).toBe(true);
       expect((await database.collection("cloudSaveCleanupJobs").where("uid", "==", uid).get()).empty).toBe(true);
@@ -413,7 +420,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
       await ref.set({
         state: "failed",
         uid: "retry-user",
-        objectPaths: [`cloud-saves/retry-user/slots/save1/revisions/${jobId}.json`],
+        objectPaths: [`cloud-save-profiles/retry-user/profiles/default/revisions/${jobId}.json`],
         createdAt: "2026-08-25T09:00:00.000Z",
         attemptCount: 10,
         lastError: "Cloud Storage revision deletion failed."
@@ -483,7 +490,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         database.collection("cloudSaveCleanupJobs").doc("cleanup-delete-me").set({
           uid,
           state: "pending",
-          objectPaths: [`cloud-saves/${uid}/slots/save1/revisions/4acb303f-18d2-4b98-b665-058c332271df.json`]
+          objectPaths: [`cloud-save-profiles/${uid}/profiles/default/revisions/4acb303f-18d2-4b98-b665-058c332271df.json`]
         }),
         database.collection("secondPlatformRequests").doc(uid).set({
           uid,
@@ -584,8 +591,8 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         sheetAssignments: [{ sheetTab: "English Steam", rowNumber: 42 }]
       }]);
       expect(deletedPrefixes.sort()).toEqual([
-        `cloud-save-uploads/${uid}/`,
-        `cloud-saves/${uid}/`
+        `cloud-save-profile-uploads/${uid}/`,
+        `cloud-save-profiles/${uid}/`
       ]);
     } finally {
       await deleteApp(app);

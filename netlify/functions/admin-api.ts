@@ -180,22 +180,23 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (event.httpMethod === "POST" && cancelDeletionMatch?.[1]) {
     return json(200, await operations.cancelAccountDeletion({ actor, uid: cancelDeletionMatch[1], ...body(reasonSchema, event), now }));
   }
-  const cloudSaveDownloadMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/cloud-saves\/(save(?:0|[1-9]|1[0-9]|20))\/download$/);
-  if (event.httpMethod === "POST" && cloudSaveDownloadMatch?.[1] && cloudSaveDownloadMatch[2]) {
-    return json(200, await cloudSaves.createDownload({
-      actor,
-      uid: cloudSaveDownloadMatch[1],
-      slot: cloudSaveDownloadMatch[2],
-      ...body(reasonSchema, event),
-      now
-    }));
-  }
   const cloudProfileDownloadMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/cloud-save-profiles\/(default|[0-9a-f-]{36})\/download$/i);
   if (event.httpMethod === "POST" && cloudProfileDownloadMatch?.[1] && cloudProfileDownloadMatch[2]) {
     return json(200, await cloudSaves.createProfileDownload({
       actor,
       uid: cloudProfileDownloadMatch[1],
       profileId: cloudProfileDownloadMatch[2],
+      ...body(reasonSchema, event),
+      now
+    }));
+  }
+  const cloudProfileRestoreMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/cloud-save-profiles\/(default|[0-9a-f-]{36})\/revisions\/([0-9a-f-]{36})\/restore$/i);
+  if (event.httpMethod === "POST" && cloudProfileRestoreMatch?.[1] && cloudProfileRestoreMatch[2] && cloudProfileRestoreMatch[3]) {
+    return json(200, await cloudSaves.restoreProfileRevision({
+      actor,
+      uid: cloudProfileRestoreMatch[1],
+      profileId: cloudProfileRestoreMatch[2],
+      revision: cloudProfileRestoreMatch[3],
       ...body(reasonSchema, event),
       now
     }));

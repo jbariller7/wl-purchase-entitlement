@@ -22,4 +22,16 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(managedNames).toContain("file${index}");
     expect(managedNames).not.toContain("config");
   });
+
+  it("stops overlay input before RPG Maker document handlers can receive it", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    expect(source).toContain("function blockGameInput(overlay)");
+    for (const eventName of ["mousedown", "mouseup", "click", "touchstart", "touchend", "pointerdown", "keydown", "keyup"]) {
+      expect(source).toContain(`"${eventName}"`);
+    }
+    expect(source).toContain("event.stopPropagation()");
+    expect(source).toContain("globalThis.TouchInput.clear()");
+    expect(source).toContain("globalThis.Input.clear()");
+    expect(source.indexOf("blockGameInput(overlay)")).toBeLessThan(source.indexOf("document.body.appendChild(overlay)"));
+  });
 });

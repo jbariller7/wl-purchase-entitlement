@@ -14,9 +14,9 @@
       chapters: [1, 2, 3, 4]
     }
   };
-  const remoteSave = { system: { _saveCount: 42 }, party: { gold: 999 }, test: "cloud copy" };
-  const remoteBytes = new TextEncoder().encode(JSON.stringify(remoteSave));
-  let deviceSave = { system: { _saveCount: 44 }, party: { gold: 1200 }, test: "device copy" };
+  const remoteBundle = { magic: "WL_CLOUD_PROFILE", version: 1, profileId: "default", files: { global: "[]", file1: JSON.stringify({ system: { _saveCount: 42 }, party: { gold: 999 }, test: "cloud copy" }) } };
+  const remoteBytes = new TextEncoder().encode(JSON.stringify(remoteBundle));
+  const deviceSaves = new Map([["global", []], ["file1", { system: { _saveCount: 44 }, party: { gold: 1200 }, test: "device copy" }]]);
   const status = () => document.getElementById("status");
   const json = (value, statusCode = 200) => new Response(JSON.stringify(value), {
     status: statusCode,
@@ -37,8 +37,12 @@
     saveGame: async () => true
   };
   window.StorageManager = {
-    loadObject: async () => deviceSave,
-    saveObject: async (_name, object) => { deviceSave = object; }
+    exists: name => deviceSaves.has(name),
+    loadObject: async name => deviceSaves.get(name),
+    saveObject: async (name, object) => { deviceSaves.set(name, object); },
+    remove: name => { deviceSaves.delete(name); },
+    objectToJson: async object => JSON.stringify(object),
+    jsonToObject: async value => JSON.parse(value)
   };
   window.WLAccountManager = {
     getCachedIdToken: () => "mock-firebase-id-token",
@@ -68,14 +72,14 @@
   window.fetch = async (input, options = {}) => {
     const url = String(input);
     const method = String(options.method || "GET").toUpperCase();
-    if (url === "https://mock-upload.test/save1" && method === "PUT") return new Response("", { status: 200 });
-    if (url === "https://mock-download.test/save1") return new Response(remoteBytes, { status: 200 });
+    if (url === "https://mock-upload.test/profile" && method === "PUT") return new Response("", { status: 200 });
+    if (url === "https://mock-download.test/profile") return new Response(remoteBytes, { status: 200 });
     if (url.endsWith("/api/v1/me")) return json(account);
     if (url.endsWith("/api/v1/billing-portal")) return json({ url: "https://billing.stripe.com/p/session/test" }, 201);
-    if (url.endsWith("/api/v1/cloud-saves") && method === "GET") return json({ saves: [{ uid: account.uid, slot: "save1", currentRevision: "11111111-1111-4111-8111-111111111111", byteLength: remoteBytes.byteLength, sha256: await sha256Hex(remoteBytes), updatedAt: new Date(Date.now() - 180_000).toISOString() }] });
-    if (url.endsWith("/api/v1/cloud-saves/save1")) return json({ downloadUrl: "https://mock-download.test/save1", manifest: { uid: account.uid, slot: "save1", currentRevision: "11111111-1111-4111-8111-111111111111", byteLength: remoteBytes.byteLength, sha256: await sha256Hex(remoteBytes), updatedAt: new Date(Date.now() - 180_000).toISOString() } });
-    if (url.endsWith("/api/v1/cloud-saves/prepare-upload")) return json({ uploadId: "22222222-2222-4222-8222-222222222222", uploadUrl: "https://mock-upload.test/save1", expiresAt: new Date(Date.now() + 600_000).toISOString() }, 201);
-    if (url.endsWith("/api/v1/cloud-saves/finalize")) return json({ error: "Cloud-save conflict: current revision changed." }, 409);
+    if (url.endsWith("/api/v1/cloud-save-profiles") && method === "GET") return json({ profiles: [{ profileId: "default", name: "Default", currentRevision: "11111111-1111-4111-8111-111111111111", byteLength: remoteBytes.byteLength, sha256: await sha256Hex(remoteBytes), createdAt: new Date(Date.now() - 86_400_000).toISOString(), updatedAt: new Date(Date.now() - 180_000).toISOString() }] });
+    if (url.endsWith("/api/v1/cloud-save-profiles/default/download")) return json({ downloadUrl: "https://mock-download.test/profile", manifest: { profileId: "default", name: "Default", currentRevision: "11111111-1111-4111-8111-111111111111", byteLength: remoteBytes.byteLength, sha256: await sha256Hex(remoteBytes), updatedAt: new Date(Date.now() - 180_000).toISOString() } });
+    if (url.endsWith("/api/v1/cloud-save-profiles/default/prepare-upload")) return json({ uploadId: "22222222-2222-4222-8222-222222222222", uploadUrl: "https://mock-upload.test/profile", expiresAt: new Date(Date.now() + 600_000).toISOString() }, 201);
+    if (url.endsWith("/api/v1/cloud-save-profiles/default/finalize")) return json({ error: "Cloud-profile conflict: current revision changed." }, 409);
     return json({ error: `Unhandled mock request: ${method} ${url}` }, 404);
   };
 
@@ -88,14 +92,15 @@
       await window.WLAccountEntitlements.openAccount();
     });
     document.getElementById("open-saves").addEventListener("click", async () => {
-      status().textContent = "Opening cloud-save list with one device/cloud slot…";
+      status().textContent = "Opening the whole-profile cloud-save manager…";
       await window.WLAccountEntitlements.refresh();
       await window.WLAccountEntitlements.openCloudSaves();
     });
     document.getElementById("open-conflict").addEventListener("click", async () => {
       status().textContent = "Simulating HTTP 409 after upload. No real save is touched.";
       await window.WLAccountEntitlements.refresh();
-      await window.WLAccountEntitlements.uploadSlot(1);
+      localStorage.setItem("wl-cloud-active-profile-v1:ui_test_user", "default");
+      await window.WLAccountEntitlements.uploadActiveProfile();
     });
   });
 })();

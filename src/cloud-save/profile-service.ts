@@ -1,16 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
 import { z } from "zod";
 import type { EntitlementStore } from "../infrastructure/entitlement-store.js";
-import { sha256 } from "../infrastructure/ids.js";
 import { HttpError } from "../http/auth.js";
-import {
-  cloudObjectMatches,
-  cloudRevisionConflicts,
-  retainedCloudRevisionPlan,
-  type CloudRevisionPointer
-} from "./service.js";
 import { isSafeCloudRevisionObjectPath } from "./cleanup-service.js";
 
 const MAX_PROFILES = 6;
@@ -18,6 +11,7 @@ const MAX_PROFILE_BYTES = 32 * 1024 * 1024;
 const URL_TTL_MS = 10 * 60 * 1000;
 const PROFILE_ID_PATTERN = /^(?:default|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 const SAVE_OBJECT_NAME = /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/;
+const RETAINED_PRIOR_REVISIONS = 3;
 
 export const cloudSaveProfileIdSchema = z.string().regex(PROFILE_ID_PATTERN, "Invalid cloud-save profile ID.");
 export const cloudSaveProfileNameSchema = z.string().trim().min(1).max(40);
@@ -28,6 +22,39 @@ export const prepareProfileUploadSchema = z.object({
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   baseRevision: z.string().uuid().nullable().optional()
 });
+export const finalizeProfileUploadSchema = z.object({ uploadId: z.string().uuid() });
+
+export interface CloudRevisionPointer {
+  revision: string;
+  objectPath: string;
+  updatedAt: string;
+}
+
+export function retainedCloudRevisionPlan(current: {
+  currentRevision: string;
+  objectPath: string;
+  updatedAt: string;
+  previousRevisions: CloudRevisionPointer[];
+} | undefined): { retained: CloudRevisionPointer[]; prunedObjectPaths: string[] } {
+  if (!current) return { retained: [], prunedObjectPaths: [] };
+  const candidates: CloudRevisionPointer[] = [
+    { revision: current.currentRevision, objectPath: current.objectPath, updatedAt: current.updatedAt },
+    ...(current.previousRevisions ?? [])
+  ];
+  return {
+    retained: candidates.slice(0, RETAINED_PRIOR_REVISIONS),
+    prunedObjectPaths: candidates.slice(RETAINED_PRIOR_REVISIONS).map((revision) => revision.objectPath)
+  };
+}
+
+export function cloudObjectMatches(contents: Buffer, expected: { byteLength: number; sha256: string }): boolean {
+  return contents.byteLength === expected.byteLength &&
+    createHash("sha256").update(contents).digest("hex") === expected.sha256;
+}
+
+export function cloudRevisionConflicts(baseRevision: string | null, currentRevision: string | null): boolean {
+  return baseRevision !== currentRevision;
+}
 
 export interface CloudSaveProfileManifest {
   uid: string;
@@ -302,12 +329,8 @@ export class CloudSaveProfileService {
         return { conflictRevision: actual };
       }
       const retention = retainedCloudRevisionPlan(current.currentRevision && current.objectPath ? {
-        uid,
-        slot: current.profileId,
         currentRevision: current.currentRevision,
         objectPath: current.objectPath,
-        byteLength: current.byteLength,
-        sha256: current.sha256 ?? "",
         updatedAt: current.updatedAt,
         previousRevisions: current.previousRevisions
       } : undefined);

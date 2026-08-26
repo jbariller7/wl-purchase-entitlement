@@ -44,18 +44,14 @@ const demoCustomer = {
   subscription: { provider: "stripe", phase: "active", providerStatus: "active", startsAt: "2026-08-01T00:00:00Z", renewsAt: "2026-09-23T00:00:00Z", endsAt: null, graceEndsAt: null, trialEndsAt: null, cancelAtPeriodEnd: false },
   grants: [{ id: "grant_demo", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "sub_demo", providerSubscriptionId: "sub_demo", product: "mobile_full_monthly", state: "active", startsAt: "2026-08-01T00:00:00Z" }, { id: "grant_demo_premium", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "pi_demo_premium", product: "premium_lifetime_pass", state: "active", startsAt: "2026-08-20T00:00:00Z", metadata: { primaryMobilePlatform: "android" } }],
   providerIdentities: [{ provider: "stripe", product: "mobile_full_monthly", customerId: "cus_demo", transactionId: "sub_demo", subscriptionId: "sub_demo", state: "active" }],
-  legacyDiscount: null, stripeCustomerId: "cus_demo", cloudSaves: [{
-    id: "save1", slot: "save1", currentRevision: "4acb303f-18d2-4b98-b665-058c332271df", byteLength: 48213,
-    sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", updatedAt: new Date().toISOString(), retainedRevisionCount: 3,
-    revisions: [
-      { revision: "4acb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date().toISOString(), current: true },
-      { revision: "5bcb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date(Date.now() - 86_400_000).toISOString(), current: false },
-      { revision: "6ccb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date(Date.now() - 172_800_000).toISOString(), current: false }
-    ]
-  }], cloudSaveProfiles: [{
+  legacyDiscount: null, stripeCustomerId: "cus_demo", cloudSaveProfiles: [{
     profileId: "default", name: "Default", currentRevision: "7dcb303f-18d2-4b98-b665-058c332271df", byteLength: 88642,
-    sha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", createdAt: "2026-08-26T10:00:00.000Z", updatedAt: new Date().toISOString(), retainedRevisionCount: 1,
-    revisions: [{ revision: "7dcb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date().toISOString(), current: true }]
+    sha256: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", createdAt: "2026-08-26T10:00:00.000Z", updatedAt: new Date().toISOString(), retainedRevisionCount: 3,
+    revisions: [
+      { revision: "7dcb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date().toISOString(), current: true },
+      { revision: "8ecb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date(Date.now() - 86_400_000).toISOString(), current: false },
+      { revision: "9fcb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date(Date.now() - 172_800_000).toISOString(), current: false }
+    ]
   }],
   payments: [{ id: "pi_demo", amount: 699, amountReceived: 699, amountRefunded: 0, refundableAmount: 699, currency: "USD", status: "succeeded", createdAt: new Date().toISOString(), refunds: [] }],
   deletionRequest: demoProfile === "deletion" ? {
@@ -213,18 +209,10 @@ function renderCustomers() {
   const requestQueue = `<section class="panel"><header><div><p class="section-kicker">PREMIUM BENEFIT REQUESTS</p><h3>Other mobile platform</h3></div><span class="state-pill">${openRequestRows.length} open</span></header><p class="panel-copy">Premium Lifetime customers may request permanent access on their other mobile platform. Approval creates one audited, idempotent grant; no payment is taken.</p>${table(["Customer", "Requested", "Submitted", "State", "Action"], openRequestRows)}</section>`;
   const paymentRows = (c?.payments || []).map((p) => [formatDate(p.createdAt), p.id, formatMoney(p.amountReceived || p.amount, p.currency), formatMoney(p.amountRefunded || 0, p.currency), p.status, p.refundableAmount > 0 ? htmlCell(`<button class="text-button" data-refund="${escapeHtml(p.id)}" data-amount="${Number(p.refundableAmount)}" data-currency="${escapeHtml(p.currency)}">Refund</button>`) : "—"]);
   const providerRows = (c?.providerIdentities || []).map((p) => [p.provider, p.product, p.customerId || "—", p.transactionId, p.subscriptionId || "—", p.state]);
-  const cloudRows = (c?.cloudSaves || []).map((s) => {
-    const slot = s.slot || s.id;
-    const revisions = Array.isArray(s.revisions) ? s.revisions : [];
-    const history = revisions.length
-      ? htmlCell(`<details class="revision-history"><summary>${revisions.length} retained version${revisions.length === 1 ? "" : "s"}</summary><ol>${revisions.map((revision) => `<li><strong>${revision.current ? "Current" : "Previous"}</strong><span>${escapeHtml(formatDate(revision.updatedAt))}</span><code>${escapeHtml(String(revision.revision || "").slice(0, 12))}</code></li>`).join("")}</ol></details>`)
-      : "No valid revision metadata";
-    return [slot, formatDate(s.updatedAt), s.byteLength ?? "—", String(s.sha256 || "").slice(0, 12) || "—", history, htmlCell(`<button class="text-button" data-download-save="${escapeHtml(slot)}">Download current</button>`)];
-  });
   const cloudProfileRows = (c?.cloudSaveProfiles || []).map((profile) => {
     const revisions = Array.isArray(profile.revisions) ? profile.revisions : [];
     const history = revisions.length
-      ? htmlCell(`<details class="revision-history"><summary>${revisions.length} retained version${revisions.length === 1 ? "" : "s"}</summary><ol>${revisions.map((revision) => `<li><strong>${revision.current ? "Current" : "Previous"}</strong><span>${escapeHtml(formatDate(revision.updatedAt))}</span><code>${escapeHtml(String(revision.revision || "").slice(0, 12))}</code></li>`).join("")}</ol></details>`)
+      ? htmlCell(`<details class="revision-history"><summary>${revisions.length} retained version${revisions.length === 1 ? "" : "s"}</summary><ol>${revisions.map((revision) => `<li><strong>${revision.current ? "Current" : "Previous"}</strong><span>${escapeHtml(formatDate(revision.updatedAt))}</span><code>${escapeHtml(String(revision.revision || "").slice(0, 12))}</code>${revision.current ? "" : `<button class="text-button" data-restore-profile="${escapeHtml(profile.profileId)}" data-restore-revision="${escapeHtml(revision.revision)}">Restore</button>`}</li>`).join("")}</ol></details>`)
       : "No cloud upload yet";
     const action = profile.currentRevision
       ? htmlCell(`<button class="text-button" data-download-profile="${escapeHtml(profile.profileId)}">Download complete profile</button>`)
@@ -242,8 +230,7 @@ function renderCustomers() {
     <article class="panel"><header><div><p class="section-kicker">GRANTS</p><h3>Access ledger</h3></div></header>${table(["Product", "Source", "State", "Started", "Action"], (c.grants || []).map((g) => [g.product, g.provider, g.state, formatDate(g.startsAt), g.provider === "admin" && g.state === "active" && !g.metadata?.migration ? htmlCell(`<button class="text-button" data-revoke-grant="${escapeHtml(g.id)}">Revoke</button>`) : "—"]))}</article></section>
     <section class="panel"><header><div><p class="section-kicker">PROVIDER IDENTITIES</p><h3>Verified purchase links</h3></div></header>${table(["Provider", "Product", "Customer", "Transaction", "Subscription", "State"], providerRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Received", "Refunded", "Status", "Action"], paymentRows)}</section>
-    <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVE PROFILES</p><h3>Complete player workspaces</h3></div></header><p class="panel-copy">Each profile is one atomic bundle containing global.rmmzsave and every save slot. Downloads require a support reason, produce a five-minute private link, and are recorded in Admin Audit.</p>${table(["Profile", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudProfileRows)}</section>
-    ${cloudRows.length ? `<section class="panel spaced"><header><div><p class="section-kicker">LEGACY CLOUD SAVES</p><h3>Pre-profile slot uploads</h3></div></header><p class="panel-copy">The current save and retained revision timeline are shown without Firebase Storage paths. These older individual uploads remain available for recovery but are no longer used by the game after profile sync begins.</p>${table(["Slot", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudRows)}</section>` : ""}` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
+    <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVE PROFILES</p><h3>Complete player workspaces</h3></div></header><p class="panel-copy">Each profile is one atomic bundle containing global.rmmzsave and every save slot. The current version plus three previous versions are retained. Download and restore actions require a support reason and are recorded in Admin Audit.</p>${table(["Profile", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudProfileRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
   return `${pageIntro("CUSTOMER SUPPORT", "Find the whole customer story.", "Access, purchases, login providers, cloud saves and manual actions are tied to one Firebase UID.")}
   ${requestQueue}<form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Email, UID, Stripe customer/payment, or store transaction" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
 }
@@ -547,15 +534,6 @@ function demoApi(path, options) {
     addDemoAudit("cloud_save_cleanup.retry", "cloudSaveCleanupJob", id, "Queued demo cleanup for retry");
     return { queued: true };
   }
-  if (method === "POST" && /\/customers\/[^/]+\/cloud-saves\/save(?:0|[1-9]|1[0-9]|20)\/download$/.test(path)) {
-    const slot = decodeURIComponent(path.split("/").at(-2) || "save1");
-    addDemoAudit("cloud_save.download", "user", demoCustomer.user.uid, `Downloaded fictional ${slot} in the safe demo`);
-    return {
-      demoPayload: { demo: true, slot },
-      filename: `wonderlang-${slot}-demo.json`,
-      expiresAt: new Date(Date.now() + 300_000).toISOString()
-    };
-  }
   if (method === "POST" && /\/customers\/[^/]+\/cloud-save-profiles\/(?:default|[0-9a-f-]{36})\/download$/i.test(path)) {
     const profileId = decodeURIComponent(path.split("/").at(-2));
     addDemoAudit("cloud_save_profile.download", "user", demoCustomer.user.uid, `Downloaded fictional profile ${profileId} in the safe demo`);
@@ -563,6 +541,24 @@ function demoApi(path, options) {
       demoPayload: { magic: "WL_CLOUD_PROFILE", version: 1, profileId, files: { global: "[]", file1: "{}" } },
       filename: "wonderlang-profile-demo.json"
     };
+  }
+  if (method === "POST" && /\/customers\/[^/]+\/cloud-save-profiles\/(?:default|[0-9a-f-]{36})\/revisions\/[0-9a-f-]{36}\/restore$/i.test(path)) {
+    const parts = path.split("/");
+    const profileId = decodeURIComponent(parts.at(-4));
+    const revision = decodeURIComponent(parts.at(-2));
+    const profile = demoCustomer.cloudSaveProfiles.find((item) => item.profileId === profileId);
+    const selected = profile?.revisions.find((item) => item.revision === revision && !item.current);
+    if (!profile || !selected) throw new Error("That demo profile version is no longer available.");
+    const formerCurrent = profile.revisions.find((item) => item.current);
+    profile.revisions = [
+      { ...selected, current: true, updatedAt: new Date().toISOString() },
+      ...(formerCurrent ? [{ ...formerCurrent, current: false }] : []),
+      ...profile.revisions.filter((item) => item !== selected && item !== formerCurrent)
+    ].slice(0, 4);
+    profile.currentRevision = revision;
+    profile.updatedAt = new Date().toISOString();
+    addDemoAudit("cloud_save_profile.restore_revision", "user", demoCustomer.user.uid, `Restored fictional profile ${profileId} revision ${revision}`);
+    return { profileId, restoredRevision: revision, replacedRevision: formerCurrent?.revision || null };
   }
   if (method === "POST" && /\/provider-events\/[^/]+\/release$/.test(path)) {
     const id = decodeURIComponent(path.split("/").at(-2) || "");
@@ -750,33 +746,6 @@ function bindView() {
   });
   document.querySelectorAll("[data-retry-job]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this terminal job be retried?"); if (r && await mutate(`/admin-api/v1/outbox/${b.dataset.retryJob}/retry`, { reason: r }, "Job queued for retry.")) loadView("operations"); }));
   document.querySelectorAll("[data-retry-cleanup]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this failed cloud-save cleanup be retried?"); if (r && await mutate(`/admin-api/v1/cloud-save-cleanup/${b.dataset.retryCleanup}/retry`, { reason: r }, "Cloud-save cleanup queued for retry.")) loadView("operations"); }));
-  document.querySelectorAll("[data-download-save]").forEach((button) => button.addEventListener("click", async () => {
-    const supportReason = await reason(`Why do you need to download this customer's ${button.dataset.downloadSave}?`);
-    if (!supportReason) return;
-    button.disabled = true;
-    try {
-      const result = await api(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-saves/${encodeURIComponent(button.dataset.downloadSave)}/download`, { method: "POST", body: { reason: supportReason } });
-      let saveBlob;
-      if (demo && result.demoPayload) {
-        saveBlob = new Blob([JSON.stringify(result.demoPayload)], { type: "application/json" });
-      } else {
-        if (!result.downloadUrl) throw new Error("The private cloud-save download URL is unavailable.");
-        const response = await fetch(result.downloadUrl);
-        if (!response.ok) throw new Error(`Cloud-save download failed (${response.status}).`);
-        saveBlob = await response.blob();
-      }
-      const objectUrl = URL.createObjectURL(saveBlob);
-      const link = document.createElement("a");
-      link.href = objectUrl;
-      link.download = result.filename || `wonderlang-${button.dataset.downloadSave}.json`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
-      toast("Cloud save downloaded and recorded in Admin Audit.");
-    } catch (error) { toast(error.message, true); }
-    finally { button.disabled = false; }
-  }));
   document.querySelectorAll("[data-download-profile]").forEach((button) => button.addEventListener("click", async () => {
     const supportReason = await reason("Why do you need to download this customer's complete cloud-save profile?");
     if (!supportReason) return;
@@ -802,6 +771,16 @@ function bindView() {
       toast("Complete cloud-save profile downloaded and recorded in Admin Audit.");
     } catch (error) { toast(error.message, true); }
     finally { button.disabled = false; }
+  }));
+  document.querySelectorAll("[data-restore-profile]").forEach((button) => button.addEventListener("click", async () => {
+    const supportReason = await reason("Why should this previous complete profile version replace the current cloud version?");
+    if (!supportReason) return;
+    const uid = state.customer.user.uid;
+    const path = `/admin-api/v1/customers/${encodeURIComponent(uid)}/cloud-save-profiles/${encodeURIComponent(button.dataset.restoreProfile)}/revisions/${encodeURIComponent(button.dataset.restoreRevision)}/restore`;
+    if (await mutate(path, { reason: supportReason }, "Previous profile version restored and recorded in Admin Audit.")) {
+      state.customer = await api(`/admin-api/v1/customers/${encodeURIComponent(uid)}`);
+      await loadView("customers");
+    }
   }));
   document.querySelectorAll("[data-release-event]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why should this event be released for provider redelivery?"); if (r && await mutate(`/admin-api/v1/provider-events/${b.dataset.releaseEvent}/release`, { reason: r }, "Event released.")) loadView("operations"); }));
 }

@@ -25,7 +25,7 @@
 2. Configure Firebase service-account, Stripe, key inventory, MailerLite and ad secrets in Netlify. Use environment UI/secrets, never checked-in files.
 3. Build and deploy the functions and static widget.
 4. Apply `storage.cors.json` to the Firebase Storage bucket. It includes both WonderLang website origins and the isolated Netlify test origin; remove the Netlify origin from the production bucket after staging is retired.
-5. Inspect any existing bucket lifecycle, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. The scoped rule deletes only abandoned `cloud-save-uploads/` and `cloud-save-profile-uploads/` objects after one day; retained revisions are excluded. Applying a lifecycle file replaces the bucket's lifecycle configuration, so merge any pre-existing rules first.
+5. Inspect any existing bucket lifecycle, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. The scoped rule deletes only abandoned `cloud-save-profile-uploads/` objects after one day; retained revisions are excluded. Applying a lifecycle file replaces the bucket's lifecycle configuration, so merge any pre-existing rules first.
 6. Smoke-test `/api/v1/config`; all other API endpoints must reject missing/revoked Firebase tokens.
 
 ## 3. Merge the current purchase automation safely
@@ -79,7 +79,7 @@ Stripe events:
 4. Test corrupt/truncated upload and download SHA-256 rejection.
 5. Lapse a subscription: local saves still work; cloud API denies access; stored objects remain. Renew and confirm they reappear.
 6. Verify that only `save0` through `save20` are accepted. The service retains the current plus three prior revisions per slot, immediately deletes pruned revisions when possible, and durably retries failures through `cloudSaveCleanupJobs`. Keep `CLOUD_SAVE_CLEANUP_ENABLED=false` until the staging bucket and Admin queue counts are verified.
-7. Verify the one-day `cloud-save-uploads/` bucket lifecycle with an intentionally old staging object. This lifecycle is for abandoned/replayed signed-upload targets; it never applies to retained `cloud-saves/` revisions.
+7. Verify the one-day `cloud-save-profile-uploads/` bucket lifecycle with an intentionally old staging object. This lifecycle is for abandoned/replayed signed-upload targets; it never applies to retained `cloud-save-profiles/` revisions.
 
 ## 8. Operational gates
 

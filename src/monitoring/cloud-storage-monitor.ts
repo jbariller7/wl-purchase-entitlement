@@ -144,14 +144,12 @@ export async function runCloudStorageMonitor(input: {
 }): Promise<CloudStorageSnapshot> {
   const now = input.now ?? new Date();
   try {
-    const [legacyRevisions, legacyStaging, profileRevisions, profileStaging] = await Promise.all([
-      input.source.list("cloud-saves/"),
-      input.source.list("cloud-save-uploads/"),
+    const [profileRevisions, profileStaging] = await Promise.all([
       input.source.list("cloud-save-profiles/"),
       input.source.list("cloud-save-profile-uploads/")
     ]);
-    const revisions = [...legacyRevisions, ...profileRevisions];
-    const staging = [...legacyStaging, ...profileStaging];
+    const revisions = profileRevisions;
+    const staging = profileStaging;
     const date = now.toISOString().slice(0, 10);
     const previous = await input.repository.previous(date);
     const snapshot = summarizeCloudStorage({

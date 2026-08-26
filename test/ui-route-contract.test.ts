@@ -131,7 +131,7 @@ describe("administrator interface route contract", () => {
       "[data-revoke-grant]",
       "[data-retry-job]",
       "[data-retry-cleanup]",
-      "[data-download-save]",
+      "[data-download-profile]",
       "[data-release-event]",
       "[data-run-stripe-diagnostic]",
       "[data-run-google-play-diagnostic]",
@@ -144,7 +144,7 @@ describe("administrator interface route contract", () => {
   });
 
   it("routes audited cloud-save downloads through the authenticated admin API client", () => {
-    expect(admin).toContain('const result = await api(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-saves/');
+    expect(admin).toContain('const result = await api(`/admin-api/v1/customers/${encodeURIComponent(state.customer.user.uid)}/cloud-save-profiles/');
     expect(admin).not.toContain("const result = await request(`/admin-api/v1/customers/");
     expect(admin).toContain('if (method === "GET" && path.includes("customers")) return demoCustomer;');
     expect(admin).not.toContain('if (path.includes("customers")) return demoCustomer;');
@@ -156,7 +156,8 @@ describe("administrator interface route contract", () => {
   it("renders a sanitized retained cloud-save revision timeline", () => {
     expect(admin).toContain('class="revision-history"');
     expect(admin).toContain('"Revision history"');
-    expect(admin).toContain("The current save and retained revision timeline are shown without Firebase Storage paths.");
+    expect(admin).toContain("Each profile is one atomic bundle containing global.rmmzsave and every save slot.");
+    expect(admin).not.toContain("LEGACY CLOUD SAVES");
     expect(api).toContain("operations.customerDetail");
   });
 
@@ -194,7 +195,8 @@ describe("administrator interface route contract", () => {
       "revokeGrantMatch",
       "retryMatch",
       "cleanupRetryMatch",
-      "cloudSaveDownloadMatch",
+      "cloudProfileDownloadMatch",
+      "cloudProfileRestoreMatch",
       "releaseMatch"
     ]) expect(api).toContain(dynamicRoute);
   });

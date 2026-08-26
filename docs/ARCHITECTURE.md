@@ -44,7 +44,7 @@ An active monthly grant ends at the provider period end unless a newer provider 
 - `legacyKeys`, `legacyFulfillments`: exclusive key inventory and durable fulfillment result.
 - `checkoutContexts`, `subscriptionContexts`: browser attribution captured before Stripe redirect.
 - `outbox/{hash}`: leased, retrying external side effects; successful payloads are immediately replaced by a redaction marker.
-- `cloudSaves/{uid}/slots/{save0..save20}` and `cloudSaveUploads`: bounded manifests and upload transactions.
+- `cloudSaves/{uid}/profiles/{profileId}` and `cloudSaveProfileUploads`: up to six whole-profile manifests and conflict-safe upload transactions. Each immutable bundle contains `global.rmmzsave` plus every occupied RPG Maker save slot.
 - `cloudSaveCleanupJobs/{uploadId}`: server-only, leased deletion queue for immutable revisions pruned from the retained current-plus-three history. Admin receives counts by state, never UIDs or object paths.
 - `cloudStorageSnapshots/{YYYY-MM-DD}` and `operationalMetrics/cloudStorage*`: aggregate bucket counts, bytes and monitor health. They contain no UIDs, object paths or customer identifiers.
 

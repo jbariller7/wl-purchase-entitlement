@@ -4,11 +4,11 @@ import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-
 import { z } from "zod";
 import { CatalogService, type PublicCatalogConfiguration } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
-import { CloudSaveService, cloudSaveSlotSchema, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
 import {
   CloudSaveProfileService,
   cloudSaveProfileIdSchema,
   createCloudSaveProfileSchema,
+  finalizeProfileUploadSchema,
   prepareProfileUploadSchema,
   renameCloudSaveProfileSchema
 } from "../../src/cloud-save/profile-service.js";
@@ -145,7 +145,7 @@ function userRateLimitPolicy(method: string, path: string): RateLimitPolicy {
   if (path === "/v1/me/revoke-sessions" || path.startsWith("/v1/me/deletion-")) return { action: "account-security", limit: 10, windowSeconds: 10 * 60 };
   if (path === "/v1/admin-bootstrap") return { action: "admin-bootstrap", limit: 3, windowSeconds: 60 * 60 };
   if (path.startsWith("/v1/me/second-platform-request")) return { action: "second-platform-request", limit: 6, windowSeconds: 60 * 60 };
-  if (path.includes("/cloud-saves") || path.includes("/cloud-save-profiles")) {
+  if (path.includes("/cloud-save-profiles")) {
     return method === "GET"
       ? { action: "cloud-read", limit: 120, windowSeconds: 60 }
       : { action: "cloud-write", limit: 60, windowSeconds: 10 * 60 };
@@ -321,16 +321,16 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     if (user.email && user.email_verified) {
       await new AdminImportService(db, firebaseAuth()).claimPendingForVerifiedUser({ uid: user.uid, email: user.email, now });
     }
-    const [entitlements, discount, grants, authUser, cloudSlots, stripeCustomerId, secondPlatformRequest] = await Promise.all([
+    const [entitlements, discount, grants, authUser, cloudProfiles, stripeCustomerId, secondPlatformRequest] = await Promise.all([
       store.effectiveEntitlements(user.uid, now),
       store.legacyDiscountClaim(user.uid),
       store.grantsForUid(user.uid),
       firebaseAuth().getUser(user.uid),
-      db.collection("cloudSaves").doc(user.uid).collection("slots").get(),
+      db.collection("cloudSaves").doc(user.uid).collection("profiles").get(),
       store.stripeCustomerId(user.uid),
       secondPlatformRequests.get(user.uid)
     ]);
-    const cloudUpdates = cloudSlots.docs
+    const cloudUpdates = cloudProfiles.docs
       .map((doc) => doc.data()?.updatedAt as string | undefined)
       .filter((value): value is string => Boolean(value))
       .sort((a, b) => Date.parse(b) - Date.parse(a));
@@ -345,7 +345,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       cloudSave: {
         enabled: entitlements.cloudSave,
         retainedWhenAccessEnds: true,
-        slotCount: cloudSlots.size,
+        profileCount: cloudProfiles.size,
         lastUpdatedAt: cloudUpdates[0] ?? null
       },
       legacyLifetimeDiscount: {
@@ -450,7 +450,6 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     });
   }
 
-  const cloudSave = new CloudSaveService(db, firebaseStorage(), store);
   const cloudProfiles = new CloudSaveProfileService(db, firebaseStorage(), store);
   if (event.httpMethod === "GET" && path === "/v1/cloud-save-profiles") {
     return json(200, { profiles: await cloudProfiles.list(user.uid, now) });
@@ -477,7 +476,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const profileFinalizeMatch = path.match(/^\/v1\/cloud-save-profiles\/([^/]+)\/finalize$/);
   if (event.httpMethod === "POST" && profileFinalizeMatch?.[1]) {
     const profileId = cloudSaveProfileIdSchema.safeParse(profileFinalizeMatch[1]);
-    const parsed = finalizeUploadSchema.safeParse(parseJsonBody(event.body));
+    const parsed = finalizeProfileUploadSchema.safeParse(parseJsonBody(event.body));
     if (!profileId.success || !parsed.success) throw new HttpError(400, "A valid profile ID and upload ID are required.");
     return json(200, await cloudProfiles.finalizeUpload(user.uid, profileId.data, parsed.data.uploadId, now));
   }
@@ -486,25 +485,6 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const profileId = cloudSaveProfileIdSchema.safeParse(profileDownloadMatch[1]);
     if (!profileId.success) throw new HttpError(400, "A valid profile ID is required.");
     return json(200, await cloudProfiles.downloadUrl(user.uid, profileId.data, now));
-  }
-  if (event.httpMethod === "GET" && path === "/v1/cloud-saves") {
-    return json(200, { saves: await cloudSave.list(user.uid, now) });
-  }
-  if (event.httpMethod === "POST" && path === "/v1/cloud-saves/prepare-upload") {
-    const parsed = prepareUploadSchema.safeParse(parseJsonBody(event.body));
-    if (!parsed.success) throw new HttpError(400, parsed.error.issues.map((issue) => issue.message).join("; "));
-    return json(201, await cloudSave.prepareUpload(user.uid, parsed.data, now));
-  }
-  if (event.httpMethod === "POST" && path === "/v1/cloud-saves/finalize") {
-    const parsed = finalizeUploadSchema.safeParse(parseJsonBody(event.body));
-    if (!parsed.success) throw new HttpError(400, "A valid upload ID is required.");
-    return json(200, await cloudSave.finalizeUpload(user.uid, parsed.data.uploadId, now));
-  }
-  const downloadMatch = path.match(/^\/v1\/cloud-saves\/([^/]+)$/);
-  if (event.httpMethod === "GET" && downloadMatch?.[1]) {
-    const slot = cloudSaveSlotSchema.safeParse(downloadMatch[1]);
-    if (!slot.success) throw new HttpError(400, slot.error.issues[0]?.message ?? "Invalid cloud-save slot.");
-    return json(200, await cloudSave.downloadUrl(user.uid, slot.data, now));
   }
   return json(404, { error: "Not found" });
 }

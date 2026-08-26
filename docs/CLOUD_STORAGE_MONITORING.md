@@ -6,8 +6,8 @@ The Admin console needs to show total cloud-save storage, daily growth, and expi
 
 The scheduled monitor inventories exactly two server-only prefixes:
 
-- `cloud-saves/`: finalized immutable save revisions.
-- `cloud-save-uploads/`: temporary signed-upload targets.
+- `cloud-save-profiles/`: finalized immutable whole-profile revisions.
+- `cloud-save-profile-uploads/`: temporary signed-upload targets.
 
 It stores only aggregate object counts and bytes. A staging object whose provider `updated` time is more than 24 hours old is counted as stale. The daily change compares the current total with the latest prior dated snapshot. No UID, bucket path, save slot, hash, or object metadata is stored in the snapshot.
 
@@ -20,12 +20,12 @@ Provider/storage errors can contain UID-bearing paths, so failure records delibe
 - `CLOUD_STORAGE_DAILY_GROWTH_ALERT_BYTES=524288000` sets a default 500 MiB daily-growth warning threshold.
 - Netlify checks once daily at 02:43 UTC.
 
-The monitor only lists Storage objects and writes aggregate Firestore metrics. It never reads save contents and never deletes an object. The separate cleanup worker accepts only exact immutable paths under `cloud-saves/{uid}/slots/save0..save20/revisions/{uuid}.json`, binds every path to the job UID, and uses leases and exponential retry. Admin receives queue counts plus sanitized terminal-failure rows; it can audit and requeue a failed job without receiving the UID or object path.
+The monitor only lists Storage objects and writes aggregate Firestore metrics. It never reads save contents and never deletes an object. The separate cleanup worker accepts only exact immutable paths under `cloud-save-profiles/{uid}/profiles/{profileId}/revisions/{uuid}.json`, binds every path to the job UID, and uses leases and exponential retry. Admin receives queue counts plus sanitized terminal-failure rows; it can audit and requeue a failed job without receiving the UID or object path.
 
 ## Staging activation
 
 1. Provision the Firebase staging bucket and deploy the deny-by-default Storage rules/CORS policy.
-2. Inspect the bucket's existing lifecycle configuration. Merge it if necessary, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. It deletes only abandoned `cloud-save-uploads/` and `cloud-save-profile-uploads/` staging objects after one day; retained profile revisions are excluded.
+2. Inspect the bucket's existing lifecycle configuration. Merge it if necessary, then apply `storage.lifecycle.json` with `gcloud storage buckets update gs://BUCKET_NAME --lifecycle-file=storage.lifecycle.json`. It deletes only abandoned `cloud-save-profile-uploads/` staging objects after one day; retained profile revisions are excluded.
 3. Confirm the Firebase Admin service account has only the bucket-list/metadata permissions needed by the monitor plus the separate cloud-save API permissions.
 4. Keep every purchase, webhook, fulfillment, advertising and account-deletion switch off.
 5. Enable only `CLOUD_STORAGE_MONITORING_ENABLED` in the test deploy.

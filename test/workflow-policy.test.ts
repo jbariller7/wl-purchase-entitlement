@@ -3,12 +3,11 @@ import { describe, expect, it } from "vitest";
 import { normalizeImportRows } from "../src/admin/import-service.js";
 import {
   cloudObjectMatches,
+  cloudProfileRevisionObjectPath,
+  cloudProfileStagingObjectPath,
   cloudRevisionConflicts,
-  cloudRevisionObjectPath,
-  cloudSaveSlotSchema,
-  cloudStagingObjectPath,
   retainedCloudRevisionPlan
-} from "../src/cloud-save/service.js";
+} from "../src/cloud-save/profile-service.js";
 import { cloudSaveCleanupRetryAt, isSafeCloudRevisionObjectPath } from "../src/cloud-save/cleanup-service.js";
 import { providerEventDecision } from "../src/domain/provider-event.js";
 import { assertWebsiteStripeCheckoutProduct, checkoutRequestSchema } from "../src/providers/stripe/checkout-service.js";
@@ -63,39 +62,26 @@ describe("cloud-save integrity and conflict policy", () => {
     expect(cloudRevisionConflicts("rev-a", "rev-b")).toBe(true);
   });
 
-  it("keeps reusable signed uploads separate from immutable revisions", () => {
+  it("keeps profile staging uploads separate from immutable revisions", () => {
     const uid = "firebase-user";
     const uploadId = "4acb303f-18d2-4b98-b665-058c332271df";
-    const staging = cloudStagingObjectPath(uid, uploadId);
-    const revision = cloudRevisionObjectPath(uid, "save1", uploadId);
-    expect(staging).toBe(`cloud-save-uploads/${uid}/${uploadId}.json`);
-    expect(revision).toBe(`cloud-saves/${uid}/slots/save1/revisions/${uploadId}.json`);
+    const staging = cloudProfileStagingObjectPath(uid, uploadId);
+    const revision = cloudProfileRevisionObjectPath(uid, "default", uploadId);
+    expect(staging).toBe(`cloud-save-profile-uploads/${uid}/${uploadId}.json`);
+    expect(revision).toBe(`cloud-save-profiles/${uid}/profiles/default/revisions/${uploadId}.json`);
     expect(staging).not.toBe(revision);
-    expect(() => cloudRevisionObjectPath(uid, "slot-1", uploadId)).toThrow(/save0 through save20/);
-  });
-
-  it("limits clients to the 21 RPG Maker save slots", () => {
-    for (const slot of ["save0", "save1", "save9", "save10", "save20"]) {
-      expect(cloudSaveSlotSchema.safeParse(slot).success).toBe(true);
-    }
-    for (const slot of ["save21", "slot-1", "autosave", "../save1", "save01"]) {
-      expect(cloudSaveSlotSchema.safeParse(slot).success).toBe(false);
-    }
+    expect(() => cloudProfileRevisionObjectPath(uid, "outside", uploadId)).toThrow(/profile ID/);
   });
 
   it("retains three predecessors for the new current revision and schedules older objects for deletion", () => {
     const pointers = [0, 1, 2, 3].map((index) => ({
       revision: `00000000-0000-4000-8000-00000000000${index}`,
-      objectPath: `cloud-saves/user/slots/save1/revisions/00000000-0000-4000-8000-00000000000${index}.json`,
+      objectPath: `cloud-save-profiles/user/profiles/default/revisions/00000000-0000-4000-8000-00000000000${index}.json`,
       updatedAt: new Date(now.getTime() - index * 1000).toISOString()
     }));
     const plan = retainedCloudRevisionPlan({
-      uid: "user",
-      slot: "save1",
       currentRevision: pointers[0]!.revision,
       objectPath: pointers[0]!.objectPath,
-      byteLength: 100,
-      sha256: "a".repeat(64),
       updatedAt: pointers[0]!.updatedAt,
       previousRevisions: pointers.slice(1)
     });
@@ -104,12 +90,12 @@ describe("cloud-save integrity and conflict policy", () => {
   });
 
   it("only deletes immutable revision paths and backs retries off", () => {
-    const revision = "cloud-saves/user/slots/save20/revisions/4acb303f-18d2-4b98-b665-058c332271df.json";
+    const revision = "cloud-save-profiles/user/profiles/default/revisions/4acb303f-18d2-4b98-b665-058c332271df.json";
     expect(isSafeCloudRevisionObjectPath(revision)).toBe(true);
     expect(isSafeCloudRevisionObjectPath(revision, "user")).toBe(true);
     expect(isSafeCloudRevisionObjectPath(revision, "another-user")).toBe(false);
-    expect(isSafeCloudRevisionObjectPath("cloud-save-uploads/user/4acb303f-18d2-4b98-b665-058c332271df.json")).toBe(false);
-    expect(isSafeCloudRevisionObjectPath("cloud-saves/user/slots/save21/revisions/4acb303f-18d2-4b98-b665-058c332271df.json")).toBe(false);
+    expect(isSafeCloudRevisionObjectPath("cloud-save-profile-uploads/user/4acb303f-18d2-4b98-b665-058c332271df.json")).toBe(false);
+    expect(isSafeCloudRevisionObjectPath("cloud-save-profiles/user/profiles/outside/revisions/4acb303f-18d2-4b98-b665-058c332271df.json")).toBe(false);
     expect(isSafeCloudRevisionObjectPath("../outside.json")).toBe(false);
     expect(cloudSaveCleanupRetryAt(1, now)).toBe("2026-08-24T12:00:30.000Z");
     expect(cloudSaveCleanupRetryAt(2, now)).toBe("2026-08-24T12:01:00.000Z");

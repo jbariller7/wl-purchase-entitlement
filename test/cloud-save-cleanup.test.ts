@@ -77,7 +77,7 @@ function fakeStorage(deleted: string[], failure?: Error): Storage {
 }
 
 const now = new Date("2026-08-25T10:00:00.000Z");
-const safePath = "cloud-saves/user-1/slots/save1/revisions/4acb303f-18d2-4b98-b665-058c332271df.json";
+const safePath = "cloud-save-profiles/user-1/profiles/default/revisions/4acb303f-18d2-4b98-b665-058c332271df.json";
 
 function job(overrides: Row = {}): Row {
   return {
