@@ -9,6 +9,7 @@ import "./admin.css";
 const appNode = document.querySelector("#app");
 const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
+const demoProfile = new URLSearchParams(location.search).get("profile");
 const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, googlePlayDiagnostic: null, firebaseAuthDiagnostic: null, appleCatalogDiagnostic: null, previews: {}, notice: null };
 
 const demoOverview = {
@@ -45,7 +46,11 @@ const demoCustomer = {
   providerIdentities: [{ provider: "stripe", product: "mobile_full_monthly", customerId: "cus_demo", transactionId: "sub_demo", subscriptionId: "sub_demo", state: "active" }],
   legacyDiscount: null, stripeCustomerId: "cus_demo", cloudSaves: [{ id: "save1", slot: "save1", byteLength: 48213, sha256: "0123456789abcdef", updatedAt: new Date().toISOString() }],
   payments: [{ id: "pi_demo", amount: 699, amountReceived: 699, amountRefunded: 0, refundableAmount: 699, currency: "USD", status: "succeeded", createdAt: new Date().toISOString(), refunds: [] }],
-  deletionRequest: null,
+  deletionRequest: demoProfile === "deletion" ? {
+    state: "scheduled",
+    requestedAt: new Date().toISOString(),
+    deleteAfter: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+  } : null,
   secondMobilePlatformRequest: demoSecondPlatformRequest
 };
 

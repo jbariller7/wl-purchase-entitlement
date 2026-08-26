@@ -538,13 +538,14 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         mailerLiteSubscribersForgotten: 1
       });
 
-      const [order, key, fulfillment, conversion, deletion, grant, providerSubscription, providerSecret, cleanupJob, secondPlatformRequest, user, accountSecurity, tombstone] = await Promise.all([
+      const [order, key, fulfillment, conversion, deletion, grant, providerTransaction, providerSubscription, providerSecret, cleanupJob, secondPlatformRequest, user, accountSecurity, tombstone] = await Promise.all([
         database.collection("legacyOrders").doc("order-delete-me").get(),
         database.collection("legacyKeys").doc("key-delete-me").get(),
         database.collection("outbox").doc("fulfillment-delete-me").get(),
         database.collection("outbox").doc("conversion-delete-me").get(),
         database.collection("outbox").doc("deletion-delete-me").get(),
         database.collection("grants").doc("grant-delete-me").get(),
+        database.collection("providerTransactions").doc("transaction-delete-me").get(),
         database.collection("providerSubscriptions").doc("subscription-delete-me").get(),
         database.collection("providerSecrets").doc("secret-delete-me").get(),
         database.collection("cloudSaveCleanupJobs").doc("cleanup-delete-me").get(),
@@ -561,6 +562,10 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
       expect(conversion.data()).not.toHaveProperty("lastError");
       expect(deletion.data()?.payload).toEqual({ uid });
       expect(grant.data()).toMatchObject({ uid: deletedUid, metadata: { accountDeleted: true } });
+      expect(providerTransaction.data()).toMatchObject({
+        uid: deletedUid,
+        attributionDisabledReason: "account_deleted"
+      });
       expect(providerSubscription.data()).toMatchObject({
         uid: deletedUid,
         nextReconciliationAt: null,

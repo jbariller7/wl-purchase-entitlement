@@ -26,7 +26,7 @@ Self-hosted replacement for RevenueCat-style functionality. Stripe, Google Play 
 - Append-only provider event inbox, replay protection, stale-claim recovery and out-of-order grant protection. Apple non-consumables are owned by the stable original transaction ID across restores, receipt claims use Apple's signed chronology, and the ledger atomically rejects a provider purchase claimed by another account.
 - Effective entitlement projector with Stripe, Play, App Store and legacy ownership sources.
 - Premium-only Stripe Checkout, Billing Portal, historical subscription lifecycle webhooks, refunds/disputes, seven-day grace and conversion policy.
-- Google Play Developer API verification, backend acknowledgment, OIDC-authenticated RTDN and token replay prevention.
+- Google Play Developer API verification, backend acknowledgment, OIDC-authenticated RTDN and token replay prevention. Subscriptions-center resubscriptions recover ownership only through the prior obfuscated account or stored purchase-token link, and final account deletion disables those links for new-purchase attribution.
 - Apple official JWS verification for StoreKit 2 and App Store Server Notifications V2.
 - Scheduled Stripe, Google Play and Apple subscription reconciliation, with an exclusive lease, per-subscription retry backoff and an operations-console run history. Provider access is read-only; Google Play bearer tokens are AES-256-GCM encrypted with a rotatable Netlify-only key ring.
 - Transactional legacy key allocation with retryable Google Sheets and MailerLite mirroring.

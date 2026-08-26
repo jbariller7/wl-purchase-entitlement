@@ -9,7 +9,7 @@ Last audited: 2026-08-26. A status of **implemented** means current source plus 
 | One server-authoritative WonderLang identity and entitlement account | Firebase ID-token verification, account summaries and provider/customer uniqueness indexes in `src`, exercised by the auth, domain and staging-handler suites. |
 | Google, Apple and passwordless-email client flows; provider linking | Website widget and Android/desktop integration code, with route/UI/error contract tests. Google has reached the real staging backend for one test account. |
 | Recovery, sign-out, all-device revocation and 30-day deletion | Account API, account-deletion service, generation-bound device sessions and customer UI; focused unit, contract and emulator coverage. |
-| Stripe, Play, Apple, historical, import and manual-grant ledger | Append-only provider inbox, normalized grants, uniqueness indexes and entitlement projector; provider, migration, refund and out-of-order-event tests. Apple restore ownership uses the stable original transaction ID, claims use Apple's signed time instead of client submission time, and an emulator test proves a second account cannot atomically claim the same provider purchase. |
+| Stripe, Play, Apple, historical, import and manual-grant ledger | Append-only provider inbox, normalized grants, uniqueness indexes and entitlement projector; provider, migration, refund and out-of-order-event tests. Apple restore ownership uses the stable original transaction ID, claims use Apple's signed time instead of client submission time, and an emulator test proves a second account cannot atomically claim the same provider purchase. Google Play subscriptions-center repurchases recover only through a verified prior account/purchase link, preserve strict identifier agreement and withhold acknowledgment after final account deletion. |
 | Monthly, platform-scoped Polyglot and website-only Premium commercial rules | Catalog/domain policy and crafted-checkout rejection tests. Historical chapter migration preserves the original Android/iOS platform. |
 | Versioned cross-platform cloud saves | Slots `save0`–`save20`, SHA-256/size checks, immutable revisions, current-plus-three retention, 409 conflict preservation, offline retry integration and cleanup queue tests. |
 | Real customer account interface | Deployed `/account/` routes and executable client-to-API contracts for every action; the safe demo and one real Google account have been exercised. |
@@ -20,7 +20,7 @@ Last audited: 2026-08-26. A status of **implemented** means current source plus 
 | iOS integration source | Reviewed StoreKit 2 adapter with `appAccountToken`, JWS claim and restore behavior. The real Xcode integration cannot be completed until the project is supplied. |
 | Security baseline | Test-key enforcement, disabled-by-default side effects, deny-by-default Firestore/Storage rules, origin/rate-limit/App Check verification, encrypted provider tokens, redacted outbox payloads, atomic provider-purchase ownership and audited admin actions. |
 
-Current verification run: 242 ordinary unit/integration/contract tests passed, 15 isolated Firestore/Storage emulator tests passed, and the production TypeScript/widget build passed.
+Current verification run: 251 ordinary unit/integration/contract tests passed, 15 isolated Firestore/Storage emulator tests passed, and the production TypeScript/widget build passed.
 
 ## Configured externally but still gated
 
@@ -42,7 +42,6 @@ Current verification run: 242 ordinary unit/integration/contract tests passed, 1
 8. Run two real installations through cloud upload, restore, corruption rejection, 409 conflict choice, lapse and recovery; then canary monitoring and cleanup before enabling their workers.
 9. Run one intentionally isolated legacy fulfillment canary and advertising test-event canary, proving exactly one key/email/Sheet/ad event, before migrating the existing automation.
 10. Integrate and compile the supplied iOS Xcode project when available, then repeat account, purchase and cloud-save acceptance tests on a physical iOS device.
-11. Resolve/restrict the historically exposed Firebase Android client key and close the GitHub secret-scanning alert.
-12. Publish the privacy/terms changes and finish store tax/account paperwork before production sales.
+11. Publish the privacy/terms changes and finish store tax/account paperwork before production sales.
 
 Production processing must remain disabled until the relevant item above has passed in staging and its result is recorded in `STAGING_PROVIDER_STATUS.md`.

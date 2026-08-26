@@ -265,6 +265,14 @@ export class EntitlementStore {
     return link.data()?.uid as string | undefined;
   }
 
+  async uidForProviderTransactionForAttribution(provider: Provider, transactionId: string): Promise<string | undefined> {
+    const link = await this.db.collection("providerTransactions").doc(
+      stableDocumentId(provider, transactionId)
+    ).get();
+    if (link.data()?.attributionDisabledReason) return undefined;
+    return link.data()?.uid as string | undefined;
+  }
+
   async uidForCheckoutSession(sessionId: string): Promise<string | undefined> {
     const context = await this.db.collection("checkoutContexts").doc(sessionId).get();
     return context.data()?.uid as string | undefined;
@@ -274,6 +282,14 @@ export class EntitlementStore {
     const link = await this.db.collection("providerSubscriptions").doc(
       stableDocumentId(provider, subscriptionId)
     ).get();
+    return link.data()?.uid as string | undefined;
+  }
+
+  async uidForProviderSubscriptionForAttribution(provider: Provider, subscriptionId: string): Promise<string | undefined> {
+    const link = await this.db.collection("providerSubscriptions").doc(
+      stableDocumentId(provider, subscriptionId)
+    ).get();
+    if (link.data()?.reconciliationDisabledReason || link.data()?.attributionDisabledReason) return undefined;
     return link.data()?.uid as string | undefined;
   }
 

@@ -64,6 +64,7 @@ describe("customer interface route contract", () => {
     expect(account).toContain('previewParam === "1"');
     expect(account).toMatch(/const demoConfig = \{\s*accountApiReady: true,/);
     expect(account).toContain("this.querySelector('[data-section=\"demo-banner\"]').hidden = false;");
+    expect(account).toContain("if (!this.deviceCode)");
   });
 
   it("restores usable sign-in controls before handling a failed redirect or email-link result", () => {
@@ -204,5 +205,11 @@ describe("administrator interface route contract", () => {
     expect(admin.match(/syncDemoCustomerEntitlements\(\);/g)).toHaveLength(3);
     expect(admin).toContain("demoCustomer.effectiveProducts = [...new Set(active.map((grant) => grant.product))]");
     expect(admin).toContain('accessKind: premiumLifetime ? "premium_lifetime" : permanent ? "permanent" : subscription ? "subscription" : "none"');
+  });
+
+  it("provides a safe recovery-state profile for testing account-deletion cancellation", () => {
+    expect(admin).toContain('demoProfile === "deletion"');
+    expect(admin).toContain('state: "scheduled"');
+    expect(admin).toContain('data-customer-action="cancel-deletion"');
   });
 });

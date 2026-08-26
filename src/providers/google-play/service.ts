@@ -11,6 +11,23 @@ import { chapterMigrationGrant } from "../../domain/legacy-chapter-migration.js"
 
 let publisher: androidpublisher_v3.Androidpublisher | undefined;
 
+type GooglePlayOutOfAppPurchaseContext = {
+  expiredExternalAccountIdentifiers?: {
+    obfuscatedExternalAccountId?: string | null;
+  } | null;
+  expiredPurchaseToken?: string | null;
+};
+
+type SubscriptionPurchaseWithOutOfAppContext = androidpublisher_v3.Schema$SubscriptionPurchaseV2 & {
+  outOfAppPurchaseContext?: GooglePlayOutOfAppPurchaseContext | null;
+};
+
+type SubscriptionAcknowledgeRequestWithAccount = androidpublisher_v3.Schema$SubscriptionPurchasesAcknowledgeRequest & {
+  externalAccountIds?: {
+    obfuscatedAccountId?: string;
+  };
+};
+
 async function androidPublisher(): Promise<androidpublisher_v3.Androidpublisher> {
   if (publisher) return publisher;
   const configuration = googlePlayEnv();
@@ -29,22 +46,85 @@ function tokenId(purchaseToken: string): string {
   return `play_${sha256(purchaseToken)}`;
 }
 
-async function resolveUid(input: {
+export function googlePlayOutOfAppPurchaseContext(
+  purchase: androidpublisher_v3.Schema$SubscriptionPurchaseV2
+): { expiredAccountToken?: string; expiredPurchaseToken?: string } | undefined {
+  const context = (purchase as SubscriptionPurchaseWithOutOfAppContext).outOfAppPurchaseContext;
+  if (!context) return undefined;
+  const expiredAccountToken = context.expiredExternalAccountIdentifiers?.obfuscatedExternalAccountId?.trim();
+  const expiredPurchaseToken = context.expiredPurchaseToken?.trim();
+  return {
+    ...(expiredAccountToken ? { expiredAccountToken } : {}),
+    ...(expiredPurchaseToken ? { expiredPurchaseToken } : {})
+  };
+}
+
+export function googlePlaySubscriptionAcknowledgeRequest(
+  accountToken?: string
+): SubscriptionAcknowledgeRequestWithAccount {
+  return accountToken
+    ? { externalAccountIds: { obfuscatedAccountId: accountToken } }
+    : {};
+}
+
+export async function resolveGooglePlayPurchaseIdentity(input: {
   store: EntitlementStore;
   authenticatedUid?: string;
   accountToken?: string | null;
+  currentProviderTransactionId?: string | null;
   linkedPurchaseToken?: string | null;
-}): Promise<string> {
-  const tokenUid = input.accountToken ? await input.store.uidForStoreAccountToken(input.accountToken) : undefined;
-  const linkedUid = input.linkedPurchaseToken
-    ? await input.store.uidForProviderSubscription("google_play", tokenId(input.linkedPurchaseToken))
-    : undefined;
-  const resolved = tokenUid ?? linkedUid ?? input.authenticatedUid;
+  expiredAccountToken?: string | null;
+  expiredPurchaseToken?: string | null;
+}): Promise<{ uid: string; attributionVerified: boolean }> {
+  const [
+    tokenUid,
+    currentTransactionUid,
+    currentTransactionAttributionUid,
+    linkedUid,
+    expiredTokenUid,
+    expiredPurchaseUid
+  ] = await Promise.all([
+    input.accountToken ? input.store.uidForStoreAccountToken(input.accountToken) : Promise.resolve(undefined),
+    input.currentProviderTransactionId
+      ? input.store.uidForProviderTransaction("google_play", input.currentProviderTransactionId)
+      : Promise.resolve(undefined),
+    input.currentProviderTransactionId
+      ? input.store.uidForProviderTransactionForAttribution("google_play", input.currentProviderTransactionId)
+      : Promise.resolve(undefined),
+    input.linkedPurchaseToken
+      ? input.store.uidForProviderSubscriptionForAttribution("google_play", tokenId(input.linkedPurchaseToken))
+      : Promise.resolve(undefined),
+    input.expiredAccountToken
+      ? input.store.uidForStoreAccountToken(input.expiredAccountToken)
+      : Promise.resolve(undefined),
+    input.expiredPurchaseToken
+      ? input.store.uidForProviderSubscriptionForAttribution("google_play", tokenId(input.expiredPurchaseToken))
+      : Promise.resolve(undefined)
+  ]);
+  const resolved = tokenUid ?? currentTransactionUid ?? linkedUid ?? expiredTokenUid ?? expiredPurchaseUid ?? input.authenticatedUid;
   if (!resolved) throw new Error("Google Play purchase is not linked to a WonderLang account.");
-  for (const candidate of [tokenUid, linkedUid, input.authenticatedUid]) {
+  for (const candidate of [
+    tokenUid,
+    currentTransactionUid,
+    currentTransactionAttributionUid,
+    linkedUid,
+    expiredTokenUid,
+    expiredPurchaseUid,
+    input.authenticatedUid
+  ]) {
     if (candidate && candidate !== resolved) throw new Error("Google Play purchase account identifiers disagree.");
   }
-  return resolved;
+  return {
+    uid: resolved,
+    attributionVerified: [
+      tokenUid,
+      currentTransactionAttributionUid,
+      linkedUid,
+      expiredTokenUid,
+      expiredPurchaseUid,
+      input.authenticatedUid
+    ].some((candidate) => candidate === resolved)
+  };
 }
 
 export function normalizeGooglePlaySubscriptionState(value: string | null | undefined): LedgerGrant["state"] {
@@ -85,15 +165,20 @@ export async function syncGooglePlaySubscription(input: {
   const purchase = response.data;
   const monthlyLine = purchase.lineItems?.find((item) => item.productId === configuration.GOOGLE_PLAY_MONTHLY_PRODUCT_ID);
   if (!monthlyLine) throw new HttpError(403, "Google Play receipt is not the WonderLang monthly product.");
-  const uid = await resolveUid({
+  const transactionId = tokenId(input.purchaseToken);
+  const outOfApp = googlePlayOutOfAppPurchaseContext(purchase);
+  const identity = await resolveGooglePlayPurchaseIdentity({
     store: input.store,
     ...(input.authenticatedUid ? { authenticatedUid: input.authenticatedUid } : {}),
+    currentProviderTransactionId: transactionId,
     ...(purchase.externalAccountIdentifiers?.obfuscatedExternalAccountId
       ? { accountToken: purchase.externalAccountIdentifiers.obfuscatedExternalAccountId }
       : {}),
-    ...(purchase.linkedPurchaseToken ? { linkedPurchaseToken: purchase.linkedPurchaseToken } : {})
+    ...(purchase.linkedPurchaseToken ? { linkedPurchaseToken: purchase.linkedPurchaseToken } : {}),
+    ...(outOfApp?.expiredAccountToken ? { expiredAccountToken: outOfApp.expiredAccountToken } : {}),
+    ...(outOfApp?.expiredPurchaseToken ? { expiredPurchaseToken: outOfApp.expiredPurchaseToken } : {})
   });
-  const transactionId = tokenId(input.purchaseToken);
+  const uid = identity.uid;
   const periodEnd = maxExpiry(purchase.lineItems);
   let state = normalizeGooglePlaySubscriptionState(purchase.subscriptionState);
   if (state === "active" && purchase.subscriptionState === "SUBSCRIPTION_STATE_CANCELED" && periodEnd && Date.parse(periodEnd) <= Date.now()) {
@@ -116,7 +201,9 @@ export async function syncGooglePlaySubscription(input: {
     metadata: {
       playSubscriptionState: purchase.subscriptionState ?? "UNKNOWN",
       autoRenewEnabled: monthlyLine.autoRenewingPlan?.autoRenewEnabled ?? false,
-      latestOrderId: purchase.lineItems?.[0]?.latestSuccessfulOrderId ?? purchase.latestOrderId ?? ""
+      latestOrderId: purchase.lineItems?.[0]?.latestSuccessfulOrderId ?? purchase.latestOrderId ?? "",
+      outOfAppResubscription: Boolean(outOfApp),
+      attributionVerified: identity.attributionVerified
     }
   }, { id: input.eventId, created: input.eventCreated });
   await input.store.saveGooglePlaySubscriptionToken({
@@ -126,12 +213,20 @@ export async function syncGooglePlaySubscription(input: {
     now: new Date(input.eventCreated * 1000)
   });
   if (input.acknowledge !== false && purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
-    await api.purchases.subscriptions.acknowledge({
-      packageName: configuration.GOOGLE_PLAY_PACKAGE_NAME,
-      subscriptionId: configuration.GOOGLE_PLAY_MONTHLY_PRODUCT_ID,
-      token: input.purchaseToken,
-      requestBody: {}
-    });
+    // After final account deletion, retained pseudonymous links may continue
+    // receiving lifecycle events but must not bind or acknowledge a new Play
+    // purchase. An unacknowledged purchase will be refunded by Google.
+    if (identity.attributionVerified) {
+      const accountToken = outOfApp
+        ? await input.store.storeAccountToken(uid, new Date(input.eventCreated * 1000))
+        : undefined;
+      await api.purchases.subscriptions.acknowledge({
+        packageName: configuration.GOOGLE_PLAY_PACKAGE_NAME,
+        subscriptionId: configuration.GOOGLE_PLAY_MONTHLY_PRODUCT_ID,
+        token: input.purchaseToken,
+        requestBody: googlePlaySubscriptionAcknowledgeRequest(accountToken)
+      });
+    }
   }
   if (purchase.linkedPurchaseToken) {
     const linkedTransaction = tokenId(purchase.linkedPurchaseToken);
@@ -193,16 +288,18 @@ export async function syncGooglePlayOneTimeProduct(input: {
   if (!purchase.productLineItem?.some((item) => item.productId === input.productId)) {
     throw new HttpError(403, "Google Play receipt product does not match the requested product.");
   }
-  const uid = await resolveUid({
+  const transactionId = purchase.orderId || tokenId(input.purchaseToken);
+  const identity = await resolveGooglePlayPurchaseIdentity({
     store: input.store,
     ...(input.authenticatedUid ? { authenticatedUid: input.authenticatedUid } : {}),
+    currentProviderTransactionId: transactionId,
     ...(purchase.obfuscatedExternalAccountId ? { accountToken: purchase.obfuscatedExternalAccountId } : {})
   });
+  const uid = identity.uid;
   const purchaseState = purchase.purchaseStateContext?.purchaseState;
   const state: LedgerGrant["state"] = purchaseState === "PURCHASED"
     ? "active"
     : purchaseState === "PENDING" ? "pending" : "revoked";
-  const transactionId = purchase.orderId || tokenId(input.purchaseToken);
   const originalGrant: LedgerGrant = {
     id: "",
     uid,
@@ -212,12 +309,20 @@ export async function syncGooglePlayOneTimeProduct(input: {
     state,
     startsAt: purchase.purchaseCompletionTime ?? new Date(input.eventCreated * 1000).toISOString(),
     ...(state === "revoked" ? { endsAt: new Date(input.eventCreated * 1000).toISOString() } : {}),
-    metadata: { productId: input.productId, purchaseTokenHash: tokenId(input.purchaseToken) }
+    metadata: {
+      productId: input.productId,
+      purchaseTokenHash: tokenId(input.purchaseToken),
+      attributionVerified: identity.attributionVerified
+    }
   };
   await input.store.upsertGrant(originalGrant, { id: input.eventId, created: input.eventCreated });
   const migration = state !== "pending" ? chapterMigrationGrant(originalGrant) : undefined;
   if (migration) await input.store.upsertGrant(migration, { id: `${input.eventId}:chapter-full-upgrade`, created: input.eventCreated });
-  if (state === "active" && purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
+  if (
+    state === "active" &&
+    identity.attributionVerified &&
+    purchase.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING"
+  ) {
     await api.purchases.products.acknowledge({
       packageName: configuration.GOOGLE_PLAY_PACKAGE_NAME,
       productId: input.productId,

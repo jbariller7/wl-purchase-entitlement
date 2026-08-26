@@ -301,7 +301,9 @@ class WonderLangAccount extends HTMLElement {
       const providerId = provider.providerId || "demo";
       if (!this.demoAccount.linkedLoginProviders.includes(providerId)) this.demoAccount.linkedLoginProviders.push(providerId);
       await this.renderUser({ email: this.demoAccount.email, providerId });
-      this.status(`Signed in with ${providerId === "apple.com" ? "Apple" : "Google"} in the safe demo.`);
+      if (!this.deviceCode) {
+        this.status(`Signed in with ${providerId === "apple.com" ? "Apple" : "Google"} in the safe demo.`);
+      }
       return;
     }
     this.status("Opening secure sign-in…");

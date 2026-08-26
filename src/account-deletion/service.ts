@@ -312,7 +312,9 @@ export class AccountDeletionService {
     ]);
     const pseudonymizedRows = await Promise.all([
       this.rewriteUid(this.db.collection("grants"), uid, deletedUid, now, true),
-      this.rewriteUid(this.db.collection("providerTransactions"), uid, deletedUid, now),
+      this.rewriteUid(this.db.collection("providerTransactions"), uid, deletedUid, now, false, {
+        attributionDisabledReason: "account_deleted"
+      }),
       this.rewriteUid(this.db.collection("providerSubscriptions"), uid, deletedUid, now, false, {
         nextReconciliationAt: null,
         reconcileUntil: null,
