@@ -24,7 +24,34 @@ export class AdminProviderDiagnosticService {
   }
 
   async googlePlayCatalog(now: Date): Promise<Record<string, unknown>> {
-    const environment = googlePlayEnv();
+    let environment: ReturnType<typeof googlePlayEnv>;
+    try {
+      environment = googlePlayEnv();
+    } catch {
+      const controls = deploymentControls();
+      return {
+        checkedAt: now.toISOString(),
+        passed: false,
+        readOnly: true,
+        packageName: process.env.GOOGLE_PLAY_PACKAGE_NAME?.trim() || "com.wonderlang.app",
+        rolloutPhase: process.env.GOOGLE_PLAY_POLYGLOT_ROLLOUT_PHASE === "compatible_update_live"
+          ? "compatible_update_live"
+          : "legacy_live_new_draft",
+        webhookProcessingEnabled: controls.GOOGLE_PLAY_WEBHOOKS_ENABLED,
+        checks: [{
+          id: "provider-credentials",
+          label: "Dedicated Google Play service account",
+          resourceId: "Netlify environment",
+          state: "failed",
+          issues: ["Dedicated Google Play credentials are not installed in this test deployment."],
+          details: {
+            configured: false,
+            requiredAccess: "View app information, financial data, orders and subscriptions",
+            webhookProcessingEnabled: controls.GOOGLE_PLAY_WEBHOOKS_ENABLED
+          }
+        }]
+      };
+    }
     return diagnoseGooglePlayCatalog({
       reader: createGooglePlayCatalogReader(environment),
       environment,
