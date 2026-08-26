@@ -7,7 +7,6 @@ describe("customer interface route contract", () => {
   const account = read("integrations/web/account-widget/wonderlang-account.js");
   const accountStyles = read("integrations/web/account-widget/wonderlang-account.css");
   const api = read("netlify/functions/api.ts");
-  const auth = read("src/http/auth.ts");
   const stripeEvents = read("src/providers/stripe/event-processor.ts");
 
   it("binds every visible customer action and form", () => {
@@ -60,11 +59,23 @@ describe("customer interface route contract", () => {
       '"auth/internal-error"',
       "The sign-in popup is unavailable. Continuing securely in this browser…",
       "this.fail(error)",
-      "Verify your WonderLang account email before approving a new device.",
+      "For security, sign out and sign in again before approving this device.",
       "button.disabled = true",
       "billingButton.disabled",
       "No login, payment, entitlement, cloud save, or account-security action on this page reaches a live service."
-    ]) expect(account + api + auth).toContain(state);
+    ]) expect(account + api).toContain(state);
+  });
+
+  it("authorizes desktop handoff from the authenticated Firebase UID without an email gate", () => {
+    const approvalRoute = api.slice(
+      api.indexOf('path === "/v1/device-sign-in/approve"'),
+      api.indexOf('throw new HttpError(405, "Method Not Allowed")', api.indexOf('path === "/v1/device-sign-in/approve"'))
+    );
+    expect(approvalRoute).toContain("uid: user.uid");
+    expect(approvalRoute).toContain("approvalSecret: approvalInput.data.approvalSecret");
+    expect(approvalRoute).toContain("user.auth_time");
+    expect(approvalRoute).not.toContain("email_verified");
+    expect(approvalRoute).not.toContain("user.email");
   });
 
   it("keeps demo and authenticated sections hidden until the controller explicitly reveals them", () => {

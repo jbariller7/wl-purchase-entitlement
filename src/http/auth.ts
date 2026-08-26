@@ -49,20 +49,3 @@ export function requireVerifiedEmail(token: DecodedIdToken): string {
   }
   return token.email.trim().toLowerCase();
 }
-
-/**
- * Firebase has already cryptographically verified the ID token before this is
- * called. Google and Apple authenticate ownership of the selected account, so
- * a federated sign-in may approve a desktop device even when Firebase omits or
- * delays the separate email_verified claim. Email/password and email-link
- * accounts must still carry that claim.
- */
-export function requireVerifiedDeviceApprovalIdentity(token: DecodedIdToken): string {
-  const email = token.email?.trim().toLowerCase();
-  const provider = token.firebase?.sign_in_provider;
-  const trustedFederatedProvider = provider === "google.com" || provider === "apple.com";
-  if (!email || (token.email_verified !== true && !trustedFederatedProvider)) {
-    throw new HttpError(403, "Verify your WonderLang account email before approving a new device.");
-  }
-  return email;
-}
