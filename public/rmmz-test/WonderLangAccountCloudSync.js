@@ -8,6 +8,13 @@
  * @type string
  * @default https://wl-purchase-entitlement.netlify.app
  *
+ * @param OpenOnPlaytest
+ * @text Open account automatically in playtest
+ * @type boolean
+ * @on Yes
+ * @off No
+ * @default false
+ *
  * @command openAccount
  * @text Open WonderLang Account
  * @desc Shows sign-in state, access, subscription, cloud saves, and account actions.
@@ -49,6 +56,7 @@
   const pluginName = "WonderLangAccountCloudSync";
   const params = PluginManager.parameters(pluginName);
   const apiBase = String(params.ApiBaseUrl || "https://wl-purchase-entitlement.netlify.app").replace(/\/$/, "");
+  const openOnPlaytest = String(params.OpenOnPlaytest || "false").toLowerCase() === "true";
   if (!/^https:\/\//i.test(apiBase)) throw new Error("WonderLang account API must use HTTPS.");
 
   const cacheKey = "wl-account-entitlements-v3";
@@ -320,6 +328,15 @@
     };
   }
 
+  function localSaveIds() {
+    const maximum = Math.max(1, Number(DataManager.maxSavefiles?.()) || 20);
+    const ids = [];
+    for (let id = 1; id <= maximum; id += 1) {
+      if (localSaveInfo(id).exists) ids.push(id);
+    }
+    return ids;
+  }
+
   function ensureStyles() {
     if (document.getElementById("wl-account-styles")) return;
     const style = document.createElement("style");
@@ -420,24 +437,23 @@
   function showDeviceSignInState(detail) {
     const state = String(detail?.state || "");
     if (state === "starting") {
-      showPanel("Sign in to WonderLang", `<p class="wl-account-muted">Preparing a secure one-time device code…</p>`, [
+      showPanel("Sign in to WonderLang", `<p class="wl-account-muted">Opening secure Google sign-in in your browser…</p>`, [
         { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() }
       ]);
       return;
     }
     if (state === "pending") {
-      showPanel("Approve this PC/Mac", `
-        <p class="wl-account-muted">Your browser has opened the WonderLang account page. Sign in there, then confirm that its code exactly matches the code shown here.</p>
-        <div class="wl-account-code" aria-label="Device code ${escapeHtml(detail.userCode)}">${escapeHtml(detail.userCode)}</div>
-        <p class="wl-account-muted">Expires ${escapeHtml(formatTime(detail.expiresAt))}. WonderLang will finish automatically after approval. Never approve a different code.</p>`, [
-        { label: "Open approval page", run: () => bridge()?.openExternalUrl?.(detail.verificationUrl) },
+      showPanel("Finish signing in with Google", `
+        <p class="wl-account-muted">Choose your Google account in the browser. WonderLang will detect the completed sign-in automatically—there is no code to enter.</p>
+        <p class="wl-account-muted">This request expires ${escapeHtml(formatTime(detail.expiresAt))}.</p>`, [
+        { label: "Open Google sign-in", run: () => bridge()?.reopenSignIn?.() },
         { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() },
         { label: "Close", kind: "secondary", run: closeOverlay }
       ]);
       return;
     }
     if (state === "authorized") {
-      showPanel("PC/Mac signed in", `<p class="wl-account-success">This WonderLang build is now linked to the account you approved. Refreshing access and cloud saves…</p>`, [
+      showPanel("Signed in to WonderLang", `<p class="wl-account-success">Google sign-in succeeded. Refreshing your access and cloud saves…</p>`, [
         { label: "Continue", run: openAccountPanel },
         { label: "Close", kind: "secondary", run: closeOverlay }
       ]);
@@ -488,7 +504,7 @@
         <div class="wl-account-card"><b>Languages</b>${access.allLanguages ? "All languages" : "Demo access"}</div>
       </div>
       <p class="wl-account-muted">Login methods are linked explicitly. Signing in with Google or Apple alone never grants administrator access.</p>`, [
-      { label: "Cloud saves", run: openCloudSavesPanel },
+      { label: "Sync saves", run: openCloudSavesPanel },
       { label: "Manage login methods", kind: "secondary", run: () => bridge()?.openAccount?.() },
       ...(access.accessKind === "subscription" ? [{ label: "Manage subscription", kind: "secondary", run: openBillingPortal }] : []),
       { label: "Refresh", kind: "secondary", run: openAccountPanel },
@@ -511,11 +527,18 @@
     ]);
     try {
       const saves = await listCloudSaves();
-      const rows = saves.length ? saves.map(save => {
-        const id = Number(String(save.slot).replace(/^save/, ""));
+      const remoteById = new Map(saves.map(save => [Number(String(save.slot).replace(/^save/, "")), save]));
+      const ids = [...new Set([...remoteById.keys(), ...localSaveIds()])].filter(Number.isFinite).sort((a, b) => a - b);
+      const rows = ids.length ? ids.map(id => {
+        const save = remoteById.get(id);
         const local = localSaveInfo(id);
-        return `<div class="wl-account-save" data-slot="${id}"><div><h3>Save ${id}</h3><div class="wl-account-muted">Cloud: ${escapeHtml(formatTime(save.updatedAt))}<br>Device: ${escapeHtml(formatTime(local.timestamp))}<br>Revision: ${escapeHtml(String(save.currentRevision).slice(0, 8))}</div></div><div class="wl-account-save-actions"><button class="wl-account-btn" data-use-cloud="${id}">Use cloud</button><button class="wl-account-btn secondary" data-keep-device="${id}" ${local.exists ? "" : "disabled"}>Keep device</button></div></div>`;
-      }).join("") : `<p class="wl-account-muted">No cloud saves yet. Your next successful local save will upload automatically when cloud saves are included in your access.</p>`;
+        const cloudLine = save ? escapeHtml(formatTime(save.updatedAt)) : "Not uploaded";
+        const revisionLine = save ? `<br>Revision: ${escapeHtml(String(save.currentRevision).slice(0, 8))}` : "";
+        const actions = save
+          ? `<button class="wl-account-btn" data-use-cloud="${id}">Use cloud</button><button class="wl-account-btn secondary" data-keep-device="${id}" ${local.exists ? "" : "disabled"}>Upload device copy</button>`
+          : `<button class="wl-account-btn" data-upload-local="${id}" ${local.exists ? "" : "disabled"}>Upload to cloud</button>`;
+        return `<div class="wl-account-save" data-slot="${id}"><div><h3>Save ${id}</h3><div class="wl-account-muted">Cloud: ${cloudLine}<br>Device: ${escapeHtml(formatTime(local.timestamp))}${revisionLine}</div></div><div class="wl-account-save-actions">${actions}</div></div>`;
+      }).join("") : `<p class="wl-account-muted">No device or cloud saves exist yet. Create a normal WonderLang save, then return here to upload it.</p>`;
       const overlay = showPanel("Cloud saves", rows, [
         { label: "Refresh", kind: "secondary", run: openCloudSavesPanel },
         { label: "Back to account", kind: "secondary", run: openAccountPanel },
@@ -523,8 +546,26 @@
       ]);
       overlay.querySelectorAll("[data-use-cloud]").forEach(button => bindReleaseTap(button, () => confirmUseCloud(Number(button.dataset.useCloud))));
       overlay.querySelectorAll("[data-keep-device]").forEach(button => bindReleaseTap(button, () => keepDeviceCopy(Number(button.dataset.keepDevice))));
+      overlay.querySelectorAll("[data-upload-local]").forEach(button => bindReleaseTap(button, () => uploadLocalCopy(Number(button.dataset.uploadLocal))));
     } catch (error) {
       showError("Cloud saves unavailable", error, openCloudSavesPanel);
+    }
+  }
+
+  async function uploadLocalCopy(savefileId) {
+    if (!effectiveCachedEntitlement()?.cloudSave) {
+      showError("Cloud save is not included", new Error("Cloud saves require Mobile Monthly or Premium Lifetime access."), openAccountPanel);
+      return;
+    }
+    try {
+      showPanel("Uploading save", `<p class="wl-account-muted">Uploading device save ${Number(savefileId)} to the WonderLang cloud…</p>`);
+      const result = await uploadSlot(savefileId, { baseRevision: null, showConflict: true });
+      if (result?.conflict) return;
+      showPanel("Save uploaded", `<p class="wl-account-success">Save ${Number(savefileId)} is now stored in the WonderLang cloud.</p>`, [
+        { label: "Done", run: openCloudSavesPanel }
+      ]);
+    } catch (error) {
+      showError("Save was not uploaded", error, () => uploadLocalCopy(savefileId));
     }
   }
 
@@ -653,4 +694,20 @@
     const savefileId = Math.max(1, Number(args.savefileId) || 1);
     uploadSlot(savefileId).catch(error => showError("Cloud upload failed", error, () => uploadSlot(savefileId)));
   });
+
+  if (openOnPlaytest && typeof Utils !== "undefined" && Utils.isOptionValid?.("test")) {
+    let openedForPlaytest = false;
+    const originalOnSceneStart = SceneManager.onSceneStart;
+    SceneManager.onSceneStart = function() {
+      const result = originalOnSceneStart.apply(this, arguments);
+      const scene = this._scene;
+      const readyScene = (typeof Scene_Title !== "undefined" && scene instanceof Scene_Title)
+        || (typeof Scene_Map !== "undefined" && scene instanceof Scene_Map);
+      if (!openedForPlaytest && readyScene) {
+        openedForPlaytest = true;
+        setTimeout(() => openAccountPanel(), 250);
+      }
+      return result;
+    };
+  }
 })();

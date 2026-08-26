@@ -1,6 +1,6 @@
 /*:
  * @target MZ
- * @plugindesc Secure PC/Mac device-code sign-in bridge for WonderLang accounts (duplicate test integration).
+ * @plugindesc Secure automatic browser sign-in bridge for WonderLang PC/Mac accounts.
  * @author WonderLang
  *
  * @param ApiBaseUrl
@@ -13,9 +13,9 @@
  * build. It is inactive in browsers, Android, and iOS, and it never embeds a
  * Firebase API key or private credential in the game files.
  *
- * Sign-in uses a short code that the player explicitly approves in their normal
- * web browser. The polling secret and one-time Firebase custom token remain in
- * memory. Only the Firebase refresh token is retained in NW.js's per-user app-data
+ * Sign-in opens Google in the player's normal browser. A high-entropy one-time
+ * browser handoff and a separate polling secret bind the result automatically.
+ * Only the Firebase refresh token is retained in NW.js's per-user app-data
  * directory with user-only file permissions where the operating system supports
  * them. Sign out and server-side session revocation invalidate the retained session.
  */
@@ -332,8 +332,6 @@
 
   function publicAttempt(attempt) {
     return {
-      userCode: attempt.userCode,
-      verificationUrl: attempt.verificationUrl,
       expiresAt: attempt.expiresAt
     };
   }
@@ -415,6 +413,7 @@
     isSignedInFromGame() { return Boolean(cachedRefreshToken || cachedIdToken); },
     openAccount() { return openExternalUrl(`${apiBase}/account/`); },
     openSignIn() { beginDeviceSignIn(); return true; },
+    reopenSignIn() { return activeAttempt ? openExternalUrl(activeAttempt.verificationUrl) : false; },
     cancelSignIn() {
       attemptSequence += 1;
       activeAttempt = null;

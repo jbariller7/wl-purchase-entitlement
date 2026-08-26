@@ -19,6 +19,13 @@ describe("customer interface route contract", () => {
     expect(boundForms).toEqual(forms);
   });
 
+  it("supports automatic desktop Google handoff without a player-entered code", () => {
+    expect(account).toContain('fragment.get("desktop_sign_in")');
+    expect(account).toContain("completeDesktopHandoff");
+    expect(account).toContain("approvalSecret: this.desktopHandoff.approvalSecret");
+    expect(account).toContain("setTimeout(() => window.close(), 350)");
+  });
+
   it("keeps each customer API call paired with a server route", () => {
     const routes = [
       ["/api/v1/config", 'path === "/v1/config"'],

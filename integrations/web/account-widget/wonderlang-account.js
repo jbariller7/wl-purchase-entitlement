@@ -21,6 +21,8 @@ import { formatLoginProviders } from "./provider-labels.js";
 import "./wonderlang-account.css";
 
 const pageParams = new URLSearchParams(location.search);
+const DESKTOP_HANDOFF_KEY = "wl-desktop-sign-in-handoff";
+const DESKTOP_REDIRECT_KEY = "wl-desktop-sign-in-redirect";
 const previewParam = pageParams.get("demo");
 const demoProfile = pageParams.get("profile");
 const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"].includes(location.hostname)
@@ -28,6 +30,33 @@ const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app
 const localEmailLinkDemo = ["localhost", "127.0.0.1"].includes(location.hostname)
   && previewParam === "email-link";
 const ACCOUNT_DELETION_RECOVERY_DAYS = 30;
+
+function desktopHandoffFromLocation() {
+  const fragment = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const incoming = fragment.get("desktop_sign_in");
+  if (incoming) {
+    const match = /^([2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4})\.([A-Za-z0-9_-]{43})$/.exec(incoming);
+    fragment.delete("desktop_sign_in");
+    history.replaceState({}, document.title, `${location.pathname}${location.search}${fragment.size ? `#${fragment}` : ""}`);
+    if (!match) {
+      sessionStorage.removeItem(DESKTOP_HANDOFF_KEY);
+      return null;
+    }
+    const handoff = { userCode: match[1], approvalSecret: match[2] };
+    sessionStorage.setItem(DESKTOP_HANDOFF_KEY, JSON.stringify(handoff));
+    return handoff;
+  }
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(DESKTOP_HANDOFF_KEY) || "null");
+    return saved
+      && /^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/.test(saved.userCode)
+      && /^[A-Za-z0-9_-]{43}$/.test(saved.approvalSecret)
+      ? saved : null;
+  } catch (_) {
+    sessionStorage.removeItem(DESKTOP_HANDOFF_KEY);
+    return null;
+  }
+}
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
@@ -47,8 +76,8 @@ const html = `
     <div class="wl-signed-out" hidden>
       <aside class="wl-device-prompt" data-section="device-prompt" hidden>
         <p class="wl-eyebrow">PC / MAC SIGN-IN</p>
-        <h3>Sign in to approve your game.</h3>
-        <p>After signing in, confirm that the code on this page exactly matches the code currently shown inside WonderLang.</p>
+        <h3>Continue in WonderLang.</h3>
+        <p>Choose the Google account you want to use. WonderLang will finish signing in automatically.</p>
       </aside>
       <div class="wl-provider-grid">
         <button type="button" data-action="google">Continue with Google</button>
@@ -211,6 +240,9 @@ class WonderLangAccount extends HTMLElement {
     this.innerHTML = html;
     this.apiBase = (this.getAttribute("api-base") || location.origin).replace(/\/$/, "");
     this.deviceCode = new URLSearchParams(location.search).get("device_code");
+    this.desktopHandoff = desktopHandoffFromLocation();
+    this.handoffReady = false;
+    this.handoffCompleting = false;
     this.bind();
     if (localEmailLinkDemo) {
       this.querySelector(".wl-signed-out").hidden = false;
@@ -244,13 +276,18 @@ class WonderLangAccount extends HTMLElement {
       onAuthStateChanged(this.auth, (user) => this.renderUser(user));
       try {
         await this.finishEmailLink();
-        await getRedirectResult(this.auth);
+        const redirectResult = await getRedirectResult(this.auth);
+        if (this.desktopHandoff && redirectResult?.user && sessionStorage.getItem(DESKTOP_REDIRECT_KEY) === "1") {
+          sessionStorage.removeItem(DESKTOP_REDIRECT_KEY);
+          this.handoffReady = true;
+          await this.renderUser(redirectResult.user);
+        }
       } catch (error) { this.fail(error); }
     } catch (error) { this.fail(error); }
   }
 
   bind() {
-    this.querySelector('[data-action="google"]').addEventListener("click", () => this.provider(new GoogleAuthProvider()));
+    this.querySelector('[data-action="google"]').addEventListener("click", () => this.provider(this.googleProvider()));
     this.querySelector('[data-action="apple"]').addEventListener("click", () => this.provider(appleProvider()));
     this.querySelector('[data-action="sign-out"]').addEventListener("click", () => this.signOutCurrent());
     this.querySelector('[data-action="premium"]').addEventListener("click", () => this.checkout(false, this.querySelector('[data-field="premium-platform"]').value, this.querySelector('[data-field="premium-desktop"]').value));
@@ -269,6 +306,12 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="bootstrap-admin"]').addEventListener("click", () => this.bootstrapAdmin());
     this.querySelector('[data-form="email"]').addEventListener("submit", (event) => this.emailLink(event));
     this.querySelector('[data-form="legacy"]').addEventListener("submit", (event) => this.claimLegacy(event));
+  }
+
+  googleProvider() {
+    const provider = new GoogleAuthProvider();
+    if (this.desktopHandoff) provider.setCustomParameters({ prompt: "select_account" });
+    return provider;
   }
 
   configureCatalog(config) {
@@ -308,11 +351,18 @@ class WonderLangAccount extends HTMLElement {
     }
     this.status("Opening secure sign-in…");
     try {
-      await signInWithPopup(this.auth, provider);
+      const result = await signInWithPopup(this.auth, provider);
+      if (this.desktopHandoff) {
+        this.handoffReady = true;
+        await this.renderUser(result.user);
+      }
     } catch (error) {
       if (["auth/popup-blocked", "auth/operation-not-supported-in-this-environment", "auth/internal-error"].includes(error?.code)) {
         this.status("The sign-in popup is unavailable. Continuing securely in this browser…");
-        try { await signInWithRedirect(this.auth, provider); }
+        try {
+          if (this.desktopHandoff) sessionStorage.setItem(DESKTOP_REDIRECT_KEY, "1");
+          await signInWithRedirect(this.auth, provider);
+        }
         catch (redirectError) { this.fail(redirectError); }
         return;
       }
@@ -449,6 +499,19 @@ class WonderLangAccount extends HTMLElement {
 
   async renderUser(user) {
     this.user = user;
+    if (this.desktopHandoff) {
+      this.querySelector(".wl-signed-out").hidden = false;
+      this.querySelector(".wl-signed-in").hidden = true;
+      this.querySelector('[data-action="sign-out"]').hidden = true;
+      this.querySelector('[data-section="device-prompt"]').hidden = false;
+      this.querySelector('[data-section="device-approval"]').hidden = true;
+      if (this.handoffReady && user) {
+        await this.completeDesktopHandoff(user);
+      } else {
+        this.status("Choose your Google account. WonderLang will continue automatically after sign-in.");
+      }
+      return;
+    }
     this.querySelector(".wl-signed-out").hidden = Boolean(user);
     this.querySelector(".wl-signed-in").hidden = !user;
     this.querySelector('[data-action="sign-out"]').hidden = !user;
@@ -562,6 +625,40 @@ class WonderLangAccount extends HTMLElement {
         : !this.config.checkoutEnabled || !this.account.stripeBillingAvailable;
       await this.loadDeviceApproval();
     } catch (error) { this.fail(error); }
+  }
+
+  async completeDesktopHandoff(user) {
+    if (this.handoffCompleting || !this.desktopHandoff || !user) return;
+    this.handoffCompleting = true;
+    this.status("Connecting this WonderLang game…");
+    try {
+      await this.request("/api/v1/device-sign-in/approve", {
+        method: "POST",
+        body: {
+          userCode: this.desktopHandoff.userCode,
+          approvalSecret: this.desktopHandoff.approvalSecret
+        }
+      });
+      sessionStorage.removeItem(DESKTOP_HANDOFF_KEY);
+      sessionStorage.removeItem(DESKTOP_REDIRECT_KEY);
+      this.desktopHandoff = null;
+      document.title = "Signed in to WonderLang";
+      this.innerHTML = `<section class="wl-card wl-desktop-complete">
+        <p class="wl-eyebrow">WONDERLANG ACCOUNT</p>
+        <h2>Signed in successfully.</h2>
+        <p class="wl-status" role="status">Return to WonderLang. The game is finishing automatically.</p>
+      </section>`;
+      setTimeout(() => window.close(), 350);
+      setTimeout(() => {
+        const status = this.querySelector(".wl-status");
+        if (status) status.textContent = "WonderLang is signed in. You can close this tab and return to the game.";
+      }, 1_200);
+    } catch (error) {
+      this.handoffCompleting = false;
+      this.handoffReady = false;
+      sessionStorage.removeItem(DESKTOP_REDIRECT_KEY);
+      this.fail(error);
+    }
   }
 
   async loadDeviceApproval() {

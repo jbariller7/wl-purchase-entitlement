@@ -51,7 +51,10 @@ const devicePollSchema = z.object({
   userCode: z.string().trim().min(8).max(9),
   pollSecret: z.string().regex(/^[A-Za-z0-9_-]{43}$/)
 });
-const deviceApprovalSchema = z.object({ userCode: z.string().trim().min(8).max(9) });
+const deviceApprovalSchema = z.object({
+  userCode: z.string().trim().min(8).max(9),
+  approvalSecret: z.string().regex(/^[A-Za-z0-9_-]{43}$/).optional()
+});
 const adminBootstrapSchema = z.object({ confirmationPhrase: z.string().trim().min(1).max(320) });
 
 function routePath(event: HandlerEvent): string {
@@ -282,9 +285,12 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (path.startsWith("/v1/device-sign-in/")) {
     if (!deploymentControls().DEVICE_SIGN_IN_ENABLED) throw new HttpError(503, "PC/Mac device sign-in is disabled in this deployment.");
     const service = new DeviceSignInService(db, firebaseAuth());
+    const approvalInput = event.httpMethod === "POST"
+      ? deviceApprovalSchema.safeParse(parseJsonBody(event.body))
+      : undefined;
     const userCode = event.httpMethod === "GET"
       ? event.queryStringParameters?.code
-      : deviceApprovalSchema.safeParse(parseJsonBody(event.body)).data?.userCode;
+      : approvalInput?.data?.userCode;
     if (!userCode) throw new HttpError(400, "Enter the device code shown by WonderLang.");
     if (event.httpMethod === "GET" && path === "/v1/device-sign-in/preview") {
       return json(200, await service.preview({ uid: user.uid, userCode, now }));
@@ -297,6 +303,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       return json(200, await service.approve({
         uid: user.uid,
         userCode,
+        ...(approvalInput?.data?.approvalSecret ? { approvalSecret: approvalInput.data.approvalSecret } : {}),
         authTimeSeconds: user.auth_time,
         now
       }));

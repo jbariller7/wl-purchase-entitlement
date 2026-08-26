@@ -15,6 +15,7 @@ export type DeviceSignInState = "pending" | "approved" | "issuing" | "consumed" 
 export interface DeviceSignInSession {
   state: DeviceSignInState;
   pollSecretHash: string;
+  browserApprovalSecretHash?: string;
   deviceLabel: string;
   createdAt: string;
   expiresAt: string;
@@ -156,6 +157,13 @@ function secureHashMatches(actualHex: string, expectedHex: string): boolean {
   return timingSafeEqual(Buffer.from(actualHex, "hex"), Buffer.from(expectedHex, "hex"));
 }
 
+export function requireBrowserApprovalSecret(session: DeviceSignInSession, approvalSecret: string): void {
+  const presentedApprovalHash = sha256(approvalSecret);
+  if (!session.browserApprovalSecretHash || !secureHashMatches(session.browserApprovalSecretHash, presentedApprovalHash)) {
+    throw new HttpError(401, "This WonderLang browser sign-in request is invalid or expired.");
+  }
+}
+
 export function normalizeDeviceUserCode(value: string): string {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (!CODE_PATTERN.test(normalized)) throw new HttpError(400, "Enter the eight-character device code shown by WonderLang.");
@@ -258,6 +266,7 @@ export class DeviceSignInService {
   }> {
     const expiresAt = new Date(input.now.getTime() + SESSION_TTL_MS).toISOString();
     const pollSecret = randomBytes(32).toString("base64url");
+    const browserApprovalSecret = randomBytes(32).toString("base64url");
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const rawCode = createUserCode();
       const userCode = formatDeviceUserCode(rawCode);
@@ -266,12 +275,18 @@ export class DeviceSignInService {
         await ref.create({
           state: "pending",
           pollSecretHash: sha256(pollSecret),
+          browserApprovalSecretHash: sha256(browserApprovalSecret),
           deviceLabel: safeDeviceLabel(input.deviceLabel),
           createdAt: input.now.toISOString(),
           expiresAt
         } satisfies DeviceSignInSession);
         const verificationUrl = new URL("/account/", input.publicAppOrigin);
-        verificationUrl.searchParams.set("device_code", userCode);
+        // Keep the automatic browser handoff secret in the URL fragment. Fragments
+        // are available to the account-page JavaScript but are not sent in HTTP
+        // requests, Netlify access logs, or referrer headers.
+        verificationUrl.hash = new URLSearchParams({
+          desktop_sign_in: `${userCode}.${browserApprovalSecret}`
+        }).toString();
         return { userCode, pollSecret, verificationUrl: verificationUrl.toString(), expiresAt, intervalSeconds: 3 };
       } catch (error) {
         if ((error as { code?: number | string }).code !== 6 && (error as { code?: number | string }).code !== "already-exists") throw error;
@@ -291,7 +306,7 @@ export class DeviceSignInService {
     return { userCode, deviceLabel: session.deviceLabel, expiresAt: session.expiresAt, state: session.state === "approved" ? "approved" : "pending" };
   }
 
-  async approve(input: { uid: string; userCode: string; authTimeSeconds: number; now: Date }): Promise<{ approved: true; userCode: string; deviceLabel: string }> {
+  async approve(input: { uid: string; userCode: string; approvalSecret?: string; authTimeSeconds: number; now: Date }): Promise<{ approved: true; userCode: string; deviceLabel: string }> {
     const userCode = formatDeviceUserCode(input.userCode);
     const ref = this.db.collection("deviceSignInSessions").doc(deviceSessionDocumentId(userCode));
     const securityRef = this.db.collection(ACCOUNT_SECURITY_COLLECTION).doc(input.uid);
@@ -301,10 +316,14 @@ export class DeviceSignInService {
         transaction.get(securityRef)
       ]);
       if (!snapshot.exists) throw new HttpError(404, "This device code was not found. Check the code shown by WonderLang.");
+      const session = snapshot.data() as DeviceSignInSession;
+      if (input.approvalSecret !== undefined) {
+        requireBrowserApprovalSecret(session, input.approvalSecret);
+      }
       const security = readDeviceSessionSecurityState(securitySnapshot.data());
       requireAuthenticationAfterSessionRevocation(security, input.authTimeSeconds);
       const next = approveDeviceSession(
-        snapshot.data() as DeviceSignInSession,
+        session,
         input.uid,
         security.deviceSessionGeneration,
         input.now

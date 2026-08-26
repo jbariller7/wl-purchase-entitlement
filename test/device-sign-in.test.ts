@@ -14,6 +14,7 @@ import {
   leaseDeviceSession,
   normalizeDeviceUserCode,
   readDeviceSessionSecurityState,
+  requireBrowserApprovalSecret,
   requireAuthenticationAfterSessionRevocation,
   requireCurrentDeviceSessionGeneration,
   rotateDeviceSessionGeneration,
@@ -55,6 +56,14 @@ describe("PC/Mac device authorization", () => {
     expect(() => leaseDeviceSession(pending(), sha256("wrong-secret"), "issue-one", now)).toThrow("code or polling secret is invalid");
   });
 
+  it("authorizes the automatic browser handoff only with its separate one-time secret", () => {
+    const browserSecret = "B".repeat(43);
+    const session = pending({ browserApprovalSecretHash: sha256(browserSecret) });
+    expect(() => requireBrowserApprovalSecret(session, browserSecret)).not.toThrow();
+    expect(() => requireBrowserApprovalSecret(session, "C".repeat(43))).toThrow("invalid or expired");
+    expect(() => requireBrowserApprovalSecret(pending(), browserSecret)).toThrow("invalid or expired");
+  });
+
   it("leases an approved session once and removes its UID after token issuance", () => {
     const approved = approveDeviceSession(pending(), "uid-one", 3, now);
     const leased = leaseDeviceSession(approved, sha256(secret), "issue-one", new Date(now.getTime() + 1_000));
@@ -86,7 +95,7 @@ describe("PC/Mac device authorization", () => {
     expect(() => leaseDeviceSession({ ...pending(), state: "consumed" }, sha256(secret), "issue", now)).toThrow("already completed");
   });
 
-  it("stores only the polling-secret hash when starting a session", async () => {
+  it("stores only hashes while placing the automatic browser secret in a non-request URL fragment", async () => {
     const writes: Array<{ id: string; data: DeviceSignInSession }> = [];
     const db = {
       collection: () => ({
@@ -99,11 +108,17 @@ describe("PC/Mac device authorization", () => {
     const result = await service.start({ deviceLabel: "  Jonathan's\nPC  ", now, publicAppOrigin: "https://wonderlang.net" });
     expect(result.userCode).toMatch(/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/);
     expect(result.pollSecret).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(result.verificationUrl).toContain("https://wonderlang.net/account/?device_code=");
+    const verificationUrl = new URL(result.verificationUrl);
+    const handoff = new URLSearchParams(verificationUrl.hash.slice(1)).get("desktop_sign_in");
+    expect(`${verificationUrl.origin}${verificationUrl.pathname}`).toBe("https://wonderlang.net/account/");
+    expect(verificationUrl.search).toBe("");
+    expect(handoff).toMatch(new RegExp(`^${result.userCode}\\.[A-Za-z0-9_-]{43}$`));
     expect(writes).toHaveLength(1);
     expect(writes[0]?.data.deviceLabel).toBe("Jonathan's PC");
     expect(writes[0]?.data.pollSecretHash).toBe(sha256(result.pollSecret));
+    expect(writes[0]?.data.browserApprovalSecretHash).toBe(sha256(handoff!.split(".")[1]!));
     expect(JSON.stringify(writes[0])).not.toContain(result.pollSecret);
+    expect(JSON.stringify(writes[0])).not.toContain(handoff!.split(".")[1]);
   });
 
   it("deletes approved account sessions and expired anonymous sessions in bounded batches", async () => {

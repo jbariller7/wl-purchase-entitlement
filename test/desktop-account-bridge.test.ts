@@ -107,7 +107,7 @@ afterEach(() => {
 });
 
 describe("WonderLang PC/Mac account bridge", () => {
-  it("completes code approval without exposing the polling secret or custom token to the UI", async () => {
+  it("completes automatic browser approval without exposing the code or secrets to the game UI", async () => {
     vi.useFakeTimers();
     const idToken = jwt("uid-desktop", Date.now() + 60 * 60 * 1000);
     const fetchMock = vi.fn(async (input: string) => {
@@ -116,7 +116,7 @@ describe("WonderLang PC/Mac account bridge", () => {
       if (url.endsWith("/api/v1/device-sign-in/start")) return response(201, {
         userCode: "ABCD-2345",
         pollSecret: "A".repeat(43),
-        verificationUrl: "https://wl-purchase-entitlement.netlify.app/account/?device_code=ABCD-2345",
+        verificationUrl: `https://wl-purchase-entitlement.netlify.app/account/#desktop_sign_in=ABCD-2345.${"B".repeat(43)}`,
         expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
         intervalSeconds: 3
       });
@@ -128,8 +128,8 @@ describe("WonderLang PC/Mac account bridge", () => {
 
     expect(result.context.WLAccountManager.openSignIn!()).toBe(true);
     await vi.advanceTimersByTimeAsync(0);
-    expect(result.events.some(event => event.detail.state === "pending" && event.detail.userCode === "ABCD-2345")).toBe(true);
-    expect(result.opened).toEqual(["https://wl-purchase-entitlement.netlify.app/account/?device_code=ABCD-2345"]);
+    expect(result.events.some(event => event.detail.state === "pending" && !("userCode" in event.detail))).toBe(true);
+    expect(result.opened).toEqual([`https://wl-purchase-entitlement.netlify.app/account/#desktop_sign_in=ABCD-2345.${"B".repeat(43)}`]);
 
     await vi.advanceTimersByTimeAsync(3_000);
     expect(result.events.some(event => event.detail.state === "authorized")).toBe(true);
@@ -138,6 +138,8 @@ describe("WonderLang PC/Mac account bridge", () => {
     expect([...result.files.values()].join("\n")).toContain(refreshToken);
     expect([...result.files.values()].join("\n")).not.toContain("custom-token-value");
     expect(JSON.stringify(result.events)).not.toContain("A".repeat(43));
+    expect(JSON.stringify(result.events)).not.toContain("B".repeat(43));
+    expect(JSON.stringify(result.events)).not.toContain("ABCD-2345");
     expect(JSON.stringify(result.events)).not.toContain("custom-token-value");
     expect(source).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
   });

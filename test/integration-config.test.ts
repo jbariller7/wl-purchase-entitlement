@@ -249,11 +249,13 @@ describe("isolated integration configuration", () => {
     expect(admin).not.toMatch(/catch \(error\) \{\s*if \(previewHosts\.has\(location\.hostname\)\)/);
   });
 
-  it("requires explicit customer approval for PC/Mac device sign-in", () => {
+  it("binds PC/Mac sign-in to an automatic high-entropy browser handoff", () => {
     const account = read("integrations/web/account-widget/wonderlang-account.js");
-    expect(account).toContain('data-action="approve-device"');
-    expect(account).toContain("code on this page exactly matches the code currently shown inside WonderLang");
-    expect(account).toContain("/api/v1/device-sign-in/preview?code=");
+    expect(account).toContain('fragment.get("desktop_sign_in")');
+    expect(account).toContain("approvalSecret: this.desktopHandoff.approvalSecret");
+    expect(account).toContain('provider.setCustomParameters({ prompt: "select_account" })');
+    expect(account).toContain("completeDesktopHandoff");
+    expect(account).toContain("setTimeout(() => window.close(), 350)");
     expect(account).toContain('this.request("/api/v1/device-sign-in/approve"');
     expect(account).toContain('data-field="future-content"');
     expect(account).toContain('data-field="second-platform"');
@@ -315,7 +317,7 @@ describe("isolated integration configuration", () => {
     expect(bridge).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
     expect(api).toContain('path === "/v1/device-sign-in/config"');
     expect(api).toContain("FIREBASE_WEB_API_KEY");
-    expect(account).toContain("Approve this PC/Mac");
+    expect(account).toContain("Finish signing in with Google");
     expect(account).toContain("wl-device-sign-in-state");
     expect(account).toContain('button.addEventListener("touchend"');
     expect(runtimeProbe).toContain("deployedPendingDeviceSignInState");
