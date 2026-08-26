@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore, type Query } from "firebase-admin/firestore";
 import type { Auth, UserRecord } from "firebase-admin/auth";
-import type { Product, Provider } from "../domain/model.js";
+import type { LedgerGrant, Product, Provider } from "../domain/model.js";
 import { summarizeSubscription } from "../domain/account-summary.js";
 import { HttpError } from "../http/auth.js";
 import { invalidateDeviceSignInsForUid } from "../device-sign-in/service.js";
@@ -13,12 +13,15 @@ import { AccountDeletionService } from "../account-deletion/service.js";
 import { chapterMigrationTransactionId, isLegacyChapterProduct } from "../domain/legacy-chapter-migration.js";
 import { assertKnownInventoryTabs, inventoryStockPolicyFromEnvironment, inventoryThresholdFor } from "../config/inventory-policy.js";
 import { SecondPlatformRequestService } from "../premium/second-platform-request-service.js";
+import { safeErrorMessage } from "../infrastructure/safe-error.js";
 
 const ADMIN_GRANT_PRODUCTS: Product[] = [
   "mobile_polyglot_permanent",
   "premium_lifetime_pass"
 ];
 const CLEANUP_JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CLOUD_SAVE_SLOT = /^save(?:0|[1-9]|1[0-9]|20)$/;
+const SHA256_HEX = /^[a-f0-9]{64}$/;
 
 function safeOperationalTimestamp(value: unknown): string | null {
   const parsed = Date.parse(String(value ?? ""));
@@ -39,6 +42,141 @@ function publicUser(user: UserRecord) {
 
 function dataRows(snapshot: FirebaseFirestore.QuerySnapshot): Array<Record<string, unknown>> {
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+}
+
+interface PublicCloudSaveRevision {
+  revision: string;
+  updatedAt: string | null;
+  current: boolean;
+}
+
+export function publicCloudSaveSummary(documentId: string, value: Record<string, unknown>): Record<string, unknown> {
+  const storedSlot = typeof value.slot === "string" && CLOUD_SAVE_SLOT.test(value.slot) ? value.slot : documentId;
+  const slot = CLOUD_SAVE_SLOT.test(storedSlot) ? storedSlot : "invalid";
+  const currentRevision = typeof value.currentRevision === "string" && CLEANUP_JOB_ID.test(value.currentRevision)
+    ? value.currentRevision
+    : null;
+  const revisions: PublicCloudSaveRevision[] = currentRevision ? [{
+    revision: currentRevision,
+    updatedAt: safeOperationalTimestamp(value.updatedAt),
+    current: true
+  }] : [];
+  if (Array.isArray(value.previousRevisions)) {
+    for (const item of value.previousRevisions) {
+      if (!item || typeof item !== "object") continue;
+      const candidate = item as Record<string, unknown>;
+      if (typeof candidate.revision !== "string" || !CLEANUP_JOB_ID.test(candidate.revision)) continue;
+      if (candidate.revision === currentRevision || revisions.some((revision) => revision.revision === candidate.revision)) continue;
+      revisions.push({
+        revision: candidate.revision,
+        updatedAt: safeOperationalTimestamp(candidate.updatedAt),
+        current: false
+      });
+    }
+  }
+  return {
+    id: documentId,
+    slot,
+    currentRevision,
+    byteLength: typeof value.byteLength === "number" && Number.isSafeInteger(value.byteLength) && value.byteLength >= 0
+      ? value.byteLength
+      : null,
+    sha256: typeof value.sha256 === "string" && SHA256_HEX.test(value.sha256) ? value.sha256 : null,
+    updatedAt: safeOperationalTimestamp(value.updatedAt),
+    retainedRevisionCount: revisions.length,
+    revisions
+  };
+}
+
+function nonNegativeInteger(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.trunc(number)) : 0;
+}
+
+function operationalLabel(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^[a-z0-9_.:-]{1,80}$/i.test(value) ? value : fallback;
+}
+
+function operationalError(value: unknown): string | null {
+  return typeof value === "string" && value ? safeErrorMessage(value) : null;
+}
+
+export function publicOutboxSummary(documentId: string, value: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: documentId,
+    kind: operationalLabel(value.kind, "unknown"),
+    state: operationalLabel(value.state, "unknown"),
+    attemptCount: nonNegativeInteger(value.attemptCount),
+    createdAt: safeOperationalTimestamp(value.createdAt),
+    notBefore: safeOperationalTimestamp(value.notBefore),
+    completedAt: safeOperationalTimestamp(value.completedAt),
+    lastError: operationalError(value.lastError)
+  };
+}
+
+export function publicProviderEventSummary(documentId: string, value: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: documentId,
+    provider: operationalLabel(value.provider, "unknown"),
+    eventType: operationalLabel(value.eventType, "unknown"),
+    status: operationalLabel(value.status, "unknown"),
+    attemptCount: nonNegativeInteger(value.attemptCount),
+    receivedAt: safeOperationalTimestamp(value.receivedAt),
+    processedAt: safeOperationalTimestamp(value.processedAt),
+    lastError: operationalError(value.lastError)
+  };
+}
+
+export function publicReconciliationRunSummary(documentId: string, value: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: documentId,
+    state: operationalLabel(value.state, "unknown"),
+    startedAt: safeOperationalTimestamp(value.startedAt),
+    finishedAt: safeOperationalTimestamp(value.finishedAt),
+    bootstrapped: nonNegativeInteger(value.bootstrapped),
+    attempted: nonNegativeInteger(value.attempted),
+    succeeded: nonNegativeInteger(value.succeeded),
+    failed: nonNegativeInteger(value.failed),
+    providerAccess: "read_only",
+    lastError: operationalError(value.lastError)
+  };
+}
+
+export function publicFulfillmentSummary(documentId: string, value: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: documentId,
+    orderId: typeof value.orderId === "string" && value.orderId.length <= 180 ? value.orderId : documentId,
+    createdAt: safeOperationalTimestamp(value.createdAt),
+    mirroredToSheetAt: safeOperationalTimestamp(value.mirroredToSheetAt),
+    syncedToMailerLiteAt: safeOperationalTimestamp(value.syncedToMailerLiteAt),
+    keyCount: Array.isArray(value.keys) ? value.keys.length : 0
+  };
+}
+
+export function publicGrantSummary(grant: LedgerGrant): Record<string, unknown> {
+  return {
+    id: grant.id,
+    provider: grant.provider,
+    product: grant.product,
+    state: grant.state,
+    startsAt: safeOperationalTimestamp(grant.startsAt),
+    currentPeriodEndsAt: safeOperationalTimestamp(grant.currentPeriodEndsAt),
+    graceEndsAt: safeOperationalTimestamp(grant.graceEndsAt),
+    endsAt: safeOperationalTimestamp(grant.endsAt),
+    refundedAt: safeOperationalTimestamp(grant.refundedAt),
+    metadata: grant.metadata?.migration === true ? { migration: true } : {}
+  };
+}
+
+export function publicDeletionRequest(value: Record<string, unknown> | undefined): Record<string, unknown> | null {
+  if (!value) return null;
+  return {
+    state: operationalLabel(value.state, "unknown"),
+    requestedAt: safeOperationalTimestamp(value.requestedAt),
+    deleteAfter: safeOperationalTimestamp(value.deleteAfter),
+    recoveryDays: nonNegativeInteger(value.recoveryDays),
+    canceledAt: safeOperationalTimestamp(value.canceledAt)
+  };
 }
 
 export class AdminOperationsService {
@@ -230,7 +368,9 @@ export class AdminOperationsService {
       entitlements,
       effectiveProducts: [...new Set(grants.filter((grant) => sourceGrantIds.has(grant.id)).map((grant) => grant.product))].sort(),
       subscription: summarizeSubscription(grants),
-      grants: grants.sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt)),
+      grants: grants
+        .sort((a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt))
+        .map(publicGrantSummary),
       providerIdentities: grants.map((grant) => ({
         provider: grant.provider,
         product: grant.product,
@@ -256,11 +396,12 @@ export class AdminOperationsService {
           createdAt: new Date(payment.created * 1000).toISOString(),
           description: payment.description,
           refunds: charge?.refunds?.data.map((refund) => ({ id: refund.id, amount: refund.amount, status: refund.status, createdAt: new Date(refund.created * 1000).toISOString() })) ?? [],
-          metadata: payment.metadata
         };
       }) ?? [],
-      cloudSaves: dataRows(cloudSlots),
-      deletionRequest: deletionRequest.exists ? deletionRequest.data() : null,
+      // Customer support needs a retained-version timeline, not Firebase
+      // Storage coordinates. Never expose manifest UIDs or object paths.
+      cloudSaves: cloudSlots.docs.map((doc) => publicCloudSaveSummary(doc.id, doc.data())),
+      deletionRequest: publicDeletionRequest(deletionRequest.exists ? deletionRequest.data() : undefined),
       secondMobilePlatformRequest
     };
   }
@@ -415,9 +556,9 @@ export class AdminOperationsService {
       lastError: cleanupMetric.state === "failed" ? "Cloud-save cleanup worker failed." : null
     } : null;
     return {
-      providerEvents: dataRows(events),
-      outbox: dataRows(outbox),
-      reconciliationRuns: dataRows(reconciliationRuns),
+      providerEvents: events.docs.map((doc) => publicProviderEventSummary(doc.id, doc.data())),
+      outbox: outbox.docs.map((doc) => publicOutboxSummary(doc.id, doc.data())),
+      reconciliationRuns: reconciliationRuns.docs.map((doc) => publicReconciliationRunSummary(doc.id, doc.data())),
       providerTokenVault: {
         encryptedTokens: providerSecrets.size,
         keys: [...tokensByKeyId.entries()].map(([keyId, tokens]) => ({ keyId, tokens })).sort((a, b) => a.keyId.localeCompare(b.keyId))
@@ -510,7 +651,10 @@ export class AdminOperationsService {
       this.inventorySummary(),
       this.db.collection("legacyFulfillments").orderBy("createdAt", "desc").limit(30).get()
     ]);
-    return { summary, recentFulfillments: dataRows(recent) };
+    return {
+      summary,
+      recentFulfillments: recent.docs.map((doc) => publicFulfillmentSummary(doc.id, doc.data()))
+    };
   }
 
   async audit(limit = 100): Promise<Record<string, unknown>> {

@@ -132,6 +132,13 @@ describe("administrator interface route contract", () => {
     expect(admin).not.toContain("downloadUrl: `data:");
   });
 
+  it("renders a sanitized retained cloud-save revision timeline", () => {
+    expect(admin).toContain('class="revision-history"');
+    expect(admin).toContain('"Revision history"');
+    expect(admin).toContain("The current save and retained revision timeline are shown without Firebase Storage paths.");
+    expect(api).toContain("operations.customerDetail");
+  });
+
   it("keeps each administrator operation paired with a protected server route", () => {
     const exactRoutes = [
       ["/admin-api/v1/overview", 'path === "/v1/overview"'],

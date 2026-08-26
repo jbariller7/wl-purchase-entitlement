@@ -44,7 +44,15 @@ const demoCustomer = {
   subscription: { provider: "stripe", phase: "active", providerStatus: "active", startsAt: "2026-08-01T00:00:00Z", renewsAt: "2026-09-23T00:00:00Z", endsAt: null, graceEndsAt: null, trialEndsAt: null, cancelAtPeriodEnd: false },
   grants: [{ id: "grant_demo", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "sub_demo", providerSubscriptionId: "sub_demo", product: "mobile_full_monthly", state: "active", startsAt: "2026-08-01T00:00:00Z" }, { id: "grant_demo_premium", provider: "stripe", providerCustomerId: "cus_demo", providerTransactionId: "pi_demo_premium", product: "premium_lifetime_pass", state: "active", startsAt: "2026-08-20T00:00:00Z", metadata: { primaryMobilePlatform: "android" } }],
   providerIdentities: [{ provider: "stripe", product: "mobile_full_monthly", customerId: "cus_demo", transactionId: "sub_demo", subscriptionId: "sub_demo", state: "active" }],
-  legacyDiscount: null, stripeCustomerId: "cus_demo", cloudSaves: [{ id: "save1", slot: "save1", byteLength: 48213, sha256: "0123456789abcdef", updatedAt: new Date().toISOString() }],
+  legacyDiscount: null, stripeCustomerId: "cus_demo", cloudSaves: [{
+    id: "save1", slot: "save1", currentRevision: "4acb303f-18d2-4b98-b665-058c332271df", byteLength: 48213,
+    sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", updatedAt: new Date().toISOString(), retainedRevisionCount: 3,
+    revisions: [
+      { revision: "4acb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date().toISOString(), current: true },
+      { revision: "5bcb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date(Date.now() - 86_400_000).toISOString(), current: false },
+      { revision: "6ccb303f-18d2-4b98-b665-058c332271df", updatedAt: new Date(Date.now() - 172_800_000).toISOString(), current: false }
+    ]
+  }],
   payments: [{ id: "pi_demo", amount: 699, amountReceived: 699, amountRefunded: 0, refundableAmount: 699, currency: "USD", status: "succeeded", createdAt: new Date().toISOString(), refunds: [] }],
   deletionRequest: demoProfile === "deletion" ? {
     state: "scheduled",
@@ -203,7 +211,11 @@ function renderCustomers() {
   const providerRows = (c?.providerIdentities || []).map((p) => [p.provider, p.product, p.customerId || "—", p.transactionId, p.subscriptionId || "—", p.state]);
   const cloudRows = (c?.cloudSaves || []).map((s) => {
     const slot = s.slot || s.id;
-    return [slot, formatDate(s.updatedAt), s.byteLength ?? "—", String(s.sha256 || "").slice(0, 12) || "—", htmlCell(`<button class="text-button" data-download-save="${escapeHtml(slot)}">Download</button>`)];
+    const revisions = Array.isArray(s.revisions) ? s.revisions : [];
+    const history = revisions.length
+      ? htmlCell(`<details class="revision-history"><summary>${revisions.length} retained version${revisions.length === 1 ? "" : "s"}</summary><ol>${revisions.map((revision) => `<li><strong>${revision.current ? "Current" : "Previous"}</strong><span>${escapeHtml(formatDate(revision.updatedAt))}</span><code>${escapeHtml(String(revision.revision || "").slice(0, 12))}</code></li>`).join("")}</ol></details>`)
+      : "No valid revision metadata";
+    return [slot, formatDate(s.updatedAt), s.byteLength ?? "—", String(s.sha256 || "").slice(0, 12) || "—", history, htmlCell(`<button class="text-button" data-download-save="${escapeHtml(slot)}">Download current</button>`)];
   });
   const sub = c?.subscription;
   const secondPlatformRequest = c?.secondMobilePlatformRequest;
@@ -215,7 +227,7 @@ function renderCustomers() {
     <article class="panel"><header><div><p class="section-kicker">GRANTS</p><h3>Access ledger</h3></div></header>${table(["Product", "Source", "State", "Started", "Action"], (c.grants || []).map((g) => [g.product, g.provider, g.state, formatDate(g.startsAt), g.provider === "admin" && g.state === "active" && !g.metadata?.migration ? htmlCell(`<button class="text-button" data-revoke-grant="${escapeHtml(g.id)}">Revoke</button>`) : "—"]))}</article></section>
     <section class="panel"><header><div><p class="section-kicker">PROVIDER IDENTITIES</p><h3>Verified purchase links</h3></div></header>${table(["Provider", "Product", "Customer", "Transaction", "Subscription", "State"], providerRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Received", "Refunded", "Status", "Action"], paymentRows)}</section>
-    <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVES</p><h3>Retained save inventory</h3></div></header><p class="panel-copy">Downloads require a support reason, produce a five-minute private link, and are recorded in Admin Audit.</p>${table(["Slot", "Updated", "Bytes", "SHA-256", "Action"], cloudRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
+    <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVES</p><h3>Retained save inventory</h3></div></header><p class="panel-copy">The current save and retained revision timeline are shown without Firebase Storage paths. Downloads require a support reason, produce a five-minute private link, and are recorded in Admin Audit.</p>${table(["Slot", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
   return `${pageIntro("CUSTOMER SUPPORT", "Find the whole customer story.", "Access, purchases, login providers, cloud saves and manual actions are tied to one Firebase UID.")}
   ${requestQueue}<form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Email, UID, Stripe customer/payment, or store transaction" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
 }
@@ -259,7 +271,7 @@ function renderOperations(data) {
 function renderInventory(data) {
   return `${pageIntro("KEY INVENTORY", "Know before stock runs out.", "Steam and Itch keys remain separate from mobile entitlements. Each sheet tab uses its configured low-stock threshold.")}
   <section class="inventory-grid">${(data.summary || []).length ? data.summary.map((r) => `<article class="inventory-card ${r.lowStock ? "low" : ""}"><p>${escapeHtml(r.sheetTab)}</p><strong>${Number(r.available).toLocaleString()}</strong><span>available</span><small>${Number(r.assigned).toLocaleString()} assigned · alert at ${Number(r.lowStockThreshold).toLocaleString()}</small></article>`).join("") : empty("No key inventory records in this environment.")}</section>
-  <section class="panel"><header><div><p class="section-kicker">RECENT FULFILLMENT</p><h3>Delivered key orders</h3></div></header>${(data.recentFulfillments || []).length ? table(["When", "Order", "Keys"], data.recentFulfillments.map((r) => [formatDate(r.createdAt), r.orderId, (r.keys || []).length])) : empty("No fulfillment records in this environment.")}</section>`;
+  <section class="panel"><header><div><p class="section-kicker">RECENT FULFILLMENT</p><h3>Delivered key orders</h3></div></header>${(data.recentFulfillments || []).length ? table(["When", "Order", "Keys"], data.recentFulfillments.map((r) => [formatDate(r.createdAt), r.orderId, Number(r.keyCount || 0)])) : empty("No fulfillment records in this environment.")}</section>`;
 }
 
 function renderAudit(data) {

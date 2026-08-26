@@ -32,6 +32,8 @@ describe("isolated integration configuration", () => {
     for (const privateField of ["userCode", "pollSecret", "deviceLabel", "approvedUid"]) expect(operationsSummary).not.toContain(privateField);
     expect(admin).toContain("Privacy-safe device-code activity");
     expect(admin).toContain("Codes, polling secrets, device labels and player identities never appear in Operations.");
+    expect(admin).toContain("Number(r.keyCount || 0)");
+    expect(admin).not.toContain("(r.keys || []).length");
     expect(admin).toContain("refundableAmount > 0");
     expect(admin).toContain("Number(options.body?.amount)");
     expect(admin).toContain("A partial refund does not revoke access automatically.");
