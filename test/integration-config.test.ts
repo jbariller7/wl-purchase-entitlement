@@ -25,6 +25,13 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("Revision cleanup queue");
     expect(admin).toContain("data-retry-cleanup");
     expect(operations).toContain("retryCloudSaveCleanup");
+    for (const state of ["pending", "approved", "issuing", "consumed", "expired"]) {
+      expect(operations).toContain(`collection("deviceSignInSessions").where("state", "==", "${state}")`);
+    }
+    const operationsSummary = operations.slice(operations.indexOf("async operations()"), operations.indexOf("async retryCloudSaveCleanup"));
+    for (const privateField of ["userCode", "pollSecret", "deviceLabel", "approvedUid"]) expect(operationsSummary).not.toContain(privateField);
+    expect(admin).toContain("Privacy-safe device-code activity");
+    expect(admin).toContain("Codes, polling secrets, device labels and player identities never appear in Operations.");
     expect(admin).toContain("refundableAmount > 0");
     expect(admin).toContain("Number(options.body?.amount)");
     expect(admin).toContain("A partial refund does not revoke access automatically.");
@@ -295,6 +302,7 @@ describe("isolated integration configuration", () => {
   it("keeps the PC/Mac custom-token exchange out of Git-hosted credentials", () => {
     const bridge = read("integrations/rmmz/WonderLangDesktopAccountBridge.js");
     const account = read("integrations/rmmz/WonderLangAccountCloudSync.js");
+    const runtimeProbe = read("integrations/rmmz/WonderLangDesktopRuntimeProbe.js");
     const api = read("netlify/functions/api.ts");
     expect(bridge).toContain("/api/v1/device-sign-in/config");
     expect(bridge).toContain("/api/v1/device-sign-in/start");
@@ -308,6 +316,12 @@ describe("isolated integration configuration", () => {
     expect(account).toContain("Approve this PC/Mac");
     expect(account).toContain("wl-device-sign-in-state");
     expect(account).toContain('button.addEventListener("touchend"');
+    expect(runtimeProbe).toContain("deployedPendingDeviceSignInState");
+    expect(runtimeProbe).toContain('/api/v1/device-sign-in/start');
+    expect(runtimeProbe).toContain('/api/v1/device-sign-in/poll');
+    expect(runtimeProbe).toContain("customTokenIssuedBeforeApproval");
+    expect(runtimeProbe).toContain("hasFirebaseApiKey");
+    expect(runtimeProbe).not.toContain('body: (await response.text()).slice');
   });
 
   it("keeps mobile admin actions at a touch-safe minimum size", () => {

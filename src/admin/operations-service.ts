@@ -380,7 +380,7 @@ export class AdminOperationsService {
   }
 
   async operations(): Promise<Record<string, unknown>> {
-    const [events, outbox, reconciliationRuns, providerSecrets, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor, cleanupPending, cleanupProcessing, cleanupFailed, cleanupFailures] = await Promise.all([
+    const [events, outbox, reconciliationRuns, providerSecrets, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor, cleanupPending, cleanupProcessing, cleanupFailed, cleanupFailures, devicePending, deviceApproved, deviceIssuing, deviceConsumed, deviceExpired] = await Promise.all([
       this.db.collection("providerEvents").orderBy("receivedAt", "desc").limit(80).get(),
       this.db.collection("outbox").orderBy("createdAt", "desc").limit(80).get(),
       this.db.collection("subscriptionReconciliationRuns").orderBy("startedAt", "desc").limit(30).get(),
@@ -391,7 +391,12 @@ export class AdminOperationsService {
       this.count(this.db.collection("cloudSaveCleanupJobs").where("state", "==", "pending")),
       this.count(this.db.collection("cloudSaveCleanupJobs").where("state", "==", "processing")),
       this.count(this.db.collection("cloudSaveCleanupJobs").where("state", "==", "failed")),
-      this.db.collection("cloudSaveCleanupJobs").where("state", "==", "failed").limit(50).get()
+      this.db.collection("cloudSaveCleanupJobs").where("state", "==", "failed").limit(50).get(),
+      this.count(this.db.collection("deviceSignInSessions").where("state", "==", "pending")),
+      this.count(this.db.collection("deviceSignInSessions").where("state", "==", "approved")),
+      this.count(this.db.collection("deviceSignInSessions").where("state", "==", "issuing")),
+      this.count(this.db.collection("deviceSignInSessions").where("state", "==", "consumed")),
+      this.count(this.db.collection("deviceSignInSessions").where("state", "==", "expired"))
     ]);
     const tokensByKeyId = new Map<string, number>();
     for (const secret of providerSecrets.docs) {
@@ -416,6 +421,13 @@ export class AdminOperationsService {
       providerTokenVault: {
         encryptedTokens: providerSecrets.size,
         keys: [...tokensByKeyId.entries()].map(([keyId, tokens]) => ({ keyId, tokens })).sort((a, b) => a.keyId.localeCompare(b.keyId))
+      },
+      deviceSignIn: {
+        pending: devicePending,
+        approved: deviceApproved,
+        issuing: deviceIssuing,
+        consumed: deviceConsumed,
+        expired: deviceExpired
       },
       cloudStorage: cloudStorage.exists ? cloudStorage.data() : null,
       cloudStorageMonitor: cloudStorageMonitor.exists ? cloudStorageMonitor.data() : null,

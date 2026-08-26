@@ -89,13 +89,72 @@
         cache: "no-store",
         credentials: "omit"
       });
+      const body = await response.json().catch(() => ({}));
       return {
         status: response.status,
         ok: response.ok,
-        body: (await response.text()).slice(0, 500)
+        firebaseProjectId: typeof body.firebaseProjectId === "string" ? body.firebaseProjectId : "",
+        hasFirebaseApiKey: typeof body.firebaseApiKey === "string" && body.firebaseApiKey.length >= 20,
+        error: response.ok ? "" : String(body.error || "Configuration request failed.").slice(0, 500)
       };
     } catch (error) {
-      return { status: 0, ok: false, body: safeText(error).slice(0, 500) };
+      return { status: 0, ok: false, firebaseProjectId: "", hasFirebaseApiKey: false, error: safeText(error).slice(0, 500) };
+    }
+  }
+
+  async function deployedPendingDeviceSignInState() {
+    try {
+      const startResponse = await fetch(`${apiBase}/api/v1/device-sign-in/start`, {
+        method: "POST",
+        cache: "no-store",
+        credentials: "omit",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ deviceLabel: "WonderLang disposable NW.js runtime probe" })
+      });
+      const start = await startResponse.json().catch(() => ({}));
+      const validCode = typeof start.userCode === "string" && /^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/.test(start.userCode);
+      const validSecret = typeof start.pollSecret === "string" && /^[A-Za-z0-9_-]{43}$/.test(start.pollSecret);
+      const validVerificationUrl = typeof start.verificationUrl === "string"
+        && start.verificationUrl.startsWith(`${apiBase}/account/`);
+      if (!startResponse.ok || !validCode || !validSecret) {
+        return {
+          startStatus: startResponse.status,
+          startContractValid: false,
+          verificationUrlValid: validVerificationUrl,
+          pollStatus: 0,
+          pollState: "",
+          customTokenIssuedBeforeApproval: false,
+          error: String(start.error || "Device sign-in start contract was invalid.").slice(0, 500)
+        };
+      }
+
+      const pollResponse = await fetch(`${apiBase}/api/v1/device-sign-in/poll`, {
+        method: "POST",
+        cache: "no-store",
+        credentials: "omit",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ userCode: start.userCode, pollSecret: start.pollSecret })
+      });
+      const poll = await pollResponse.json().catch(() => ({}));
+      return {
+        startStatus: startResponse.status,
+        startContractValid: true,
+        verificationUrlValid: validVerificationUrl,
+        pollStatus: pollResponse.status,
+        pollState: typeof poll.state === "string" ? poll.state : "",
+        customTokenIssuedBeforeApproval: typeof poll.customToken === "string" && poll.customToken.length > 0,
+        error: pollResponse.ok ? "" : String(poll.error || "Device sign-in poll failed.").slice(0, 500)
+      };
+    } catch (error) {
+      return {
+        startStatus: 0,
+        startContractValid: false,
+        verificationUrlValid: false,
+        pollStatus: 0,
+        pollState: "",
+        customTokenIssuedBeforeApproval: false,
+        error: safeText(error).slice(0, 500)
+      };
     }
   }
 
@@ -171,6 +230,8 @@
       };
       writeProgress("checking-deployed-fail-closed");
       report.deployedFailClosed = await deployedConfigurationState();
+      writeProgress("checking-deployed-pending-device-sign-in");
+      report.deployedPendingDeviceSignIn = await deployedPendingDeviceSignInState();
       writeProgress("checking-simulated-bridge-failure");
       report.simulatedBridgeFailure = await simulatedBridgeFailure();
       await delay(500);
