@@ -9,7 +9,7 @@ import { deploymentControls, firebaseAdminEnv, stripeEnv } from "../../src/confi
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { REGIONAL_PRICES } from "../../src/domain/regional-pricing.js";
 import { summarizeSubscription } from "../../src/domain/account-summary.js";
-import { HttpError, requireUser } from "../../src/http/auth.js";
+import { HttpError, requireUser, requireVerifiedDeviceApprovalIdentity } from "../../src/http/auth.js";
 import { requireAppCheck } from "../../src/http/app-check.js";
 import { apiAllowedOrigins, requestHeader, requireAllowedOrigin } from "../../src/http/origin.js";
 import { consumeRateLimit, type RateLimitPolicy } from "../../src/http/rate-limit.js";
@@ -296,7 +296,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       return json(200, await service.preview({ uid: user.uid, userCode, now }));
     }
     if (event.httpMethod === "POST" && path === "/v1/device-sign-in/approve") {
-      if (!user.email || !user.email_verified) throw new HttpError(403, "Verify your WonderLang account email before approving a new device.");
+      requireVerifiedDeviceApprovalIdentity(user);
       if (!user.auth_time || Math.floor(now.getTime() / 1000) - user.auth_time > 10 * 60) {
         throw new HttpError(401, "For security, sign out and sign in again before approving this device.");
       }

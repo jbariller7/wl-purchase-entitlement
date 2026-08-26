@@ -7,6 +7,7 @@ describe("customer interface route contract", () => {
   const account = read("integrations/web/account-widget/wonderlang-account.js");
   const accountStyles = read("integrations/web/account-widget/wonderlang-account.css");
   const api = read("netlify/functions/api.ts");
+  const auth = read("src/http/auth.ts");
   const stripeEvents = read("src/providers/stripe/event-processor.ts");
 
   it("binds every visible customer action and form", () => {
@@ -63,7 +64,7 @@ describe("customer interface route contract", () => {
       "button.disabled = true",
       "billingButton.disabled",
       "No login, payment, entitlement, cloud save, or account-security action on this page reaches a live service."
-    ]) expect(account + api).toContain(state);
+    ]) expect(account + api + auth).toContain(state);
   });
 
   it("keeps demo and authenticated sections hidden until the controller explicitly reveals them", () => {
