@@ -1431,7 +1431,10 @@ window.WL_AssetPackDebug = {
     function isProductPurchased(sku) {
         const normalizedSku = normalizeSkuForPlatform(sku);
         const bundleSku = getBundleSku();
-        const accountOwned = window.WLAccountEntitlements?.isProductPurchased?.(normalizedSku) === true;
+        // Android ownership must come from the native Billing/account bridge. The
+        // JavaScript cache is useful on desktop but is not a mobile trust boundary.
+        const accountOwned = !hasAndroidManagerBridge() &&
+            window.WLAccountEntitlements?.isProductPurchased?.(normalizedSku) === true;
         if (accountOwned) return true;
 
         // The native/account bridge owns the dated chapter-to-full migration decision.

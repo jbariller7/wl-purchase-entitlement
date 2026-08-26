@@ -38,9 +38,12 @@
  * Every selected profile contains global.rmmzsave and every file0-file20 save.
  * Local saves finish first, then the complete profile synchronizes automatically.
  * A revision conflict never overwrites either side without asking the player.
- * Verified permanent and Premium Lifetime access remains available offline on its granted platform. A cached subscription remains usable
- * through its paid period or for seven days after the last server refresh, whichever is later;
- * provider grace access ends at the server-provided grace deadline.
+ * Android offline access is authorized only by a Firebase-UID-bound AES-GCM lease in
+ * Android Keystore: Monthly lasts at most seven days and never beyond the known paid/grace
+ * deadline; permanent and Premium access require an online recheck every 30 days.
+ * Desktop verified permanent/Premium access remains available offline. Its cached Monthly
+ * snapshot remains usable through its paid period or for seven days after the last refresh,
+ * whichever is later; provider grace access ends at the server-provided grace deadline.
  */
 (() => {
   "use strict";
@@ -109,7 +112,24 @@
     if (value) localStorage.setItem(cacheKey, JSON.stringify({ ...value, _cachedAt: Date.now() }));
     else localStorage.removeItem(cacheKey);
   }
-  function accountUid() { return String(current?.uid || "signed-out"); }
+  function nativeAndroidAccount() {
+    if (runtimeMobilePlatform() !== "android") return undefined;
+    const nativeBridge = bridge();
+    if (!nativeBridge || typeof nativeBridge.getAccountSnapshot !== "function") return null;
+    try {
+      const snapshot = String(nativeBridge.getAccountSnapshot() || "");
+      return snapshot ? JSON.parse(snapshot) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function authoritativeAccount() {
+    const native = nativeAndroidAccount();
+    // On Android, localStorage is never an entitlement authority. Only the
+    // native bridge can expose an online snapshot or a keystore-validated lease.
+    return native === undefined ? current : native;
+  }
+  function accountUid() { return String(authoritativeAccount()?.uid || "signed-out"); }
   function revisionsKey() { return `${revisionsPrefix}:${accountUid()}`; }
   function revisions() { return loadJson(revisionsKey(), {}); }
   function setRevision(slot, revision) {
@@ -124,7 +144,7 @@
     if (profileId) localStorage.setItem(activeProfileKey(), String(profileId));
     else localStorage.removeItem(activeProfileKey());
   }
-  function entitlement() { return current?.entitlements || null; }
+  function entitlement() { return authoritativeAccount()?.entitlements || null; }
   function effectiveCachedEntitlement(now = Date.now()) {
     const value = restrictToGrantedPlatform(entitlement());
     if (!value?.fullGame) return value;
@@ -139,7 +159,7 @@
       ? value
       : { ...value, fullGame: false, allLanguages: false, cloudSave: false, offlineExpired: true };
   }
-  function account() { return current; }
+  function account() { return authoritativeAccount(); }
   function retryKey() { return `${retryPrefix}:${accountUid()}`; }
   function retryQueue() {
     const stored = loadJson(retryKey(), {});

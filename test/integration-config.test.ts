@@ -419,6 +419,35 @@ describe("isolated integration configuration", () => {
     }
   });
 
+  it("keeps Android offline access account-bound, encrypted, and time-limited", () => {
+    const manager = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
+    const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
+    const storefront = read("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/AndroidAssetDownloader.js");
+
+    expect(manager).toContain('KeyStore.getInstance("AndroidKeyStore")');
+    expect(manager).toContain('Cipher.getInstance("AES/GCM/NoPadding")');
+    expect(manager).toContain('lease.getString("uid") == user.uid');
+    expect(manager).toContain("cachedAccountUid != user.uid");
+    expect(manager).toContain("cachedAccountUid != auth.currentUser?.uid");
+    expect(manager).toContain('require(responseUid.isBlank() || responseUid == currentUid)');
+    expect(manager).toContain("OFFLINE_CLOCK_ROLLBACK_TOLERANCE_MS");
+    expect(manager).toContain("storedBootCount == currentBootCount()");
+    expect(manager).toContain("nowWallMs < expiresAtWallMs");
+    expect(manager).toContain("minOf(expiry, parsedProviderExpiry)");
+    expect(manager).toContain("OFFLINE_SUBSCRIPTION_MAX_AGE_MS = 7L * 24 * 60 * 60 * 1000L");
+    expect(manager).toContain("OFFLINE_PERMANENT_MAX_AGE_MS = 30L * 24 * 60 * 60 * 1000L");
+    expect(manager).toContain("entitlementLeaseExpiresAtWallMs");
+    expect(manager).toContain("entitlementVerifiedAtElapsedMs");
+    expect(manager).toContain("trustedAgeMs <= entitlementLeaseMaximumAgeMs");
+    expect(manager).toMatch(/fun getAccountSnapshot\(\): String \{[\s\S]*?hasValidEntitlementLease\(\)[\s\S]*?return cachedAccountJson/);
+    expect(manager).toMatch(/private fun hasValidEntitlementLease\(\): Boolean \{[\s\S]*?offlineExpired[\s\S]*?cachedAccountJson/);
+    expect(manager).toMatch(/fun signOut\(\): Boolean \{[\s\S]*?clearOfflineLease\(\)[\s\S]*?auth\.signOut\(\)/);
+    expect(manager).toMatch(/private fun publishSignedOut\(\) \{[\s\S]*?clearCachedAccountState\(clearLease = true\)/);
+    expect(rmmz).toContain("function authoritativeAccount()");
+    expect(rmmz).toContain("keystore-validated lease.");
+    expect(storefront).toContain("const accountOwned = !hasAndroidManagerBridge()");
+  });
+
   it("uses a narrow HTTPS WebView origin and conflict-safe cloud save UX", () => {
     const activity = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/MainActivity.kt");
     const manifest = read("integrations/android/current-app-mirror/app/src/main/AndroidManifest.xml");
