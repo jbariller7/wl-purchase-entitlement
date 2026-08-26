@@ -2,7 +2,7 @@ import type { Config } from "@netlify/functions";
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-lambda-compat";
 import { z } from "zod";
-import { CatalogService } from "../../src/catalog/service.js";
+import { CatalogService, type PublicCatalogConfiguration } from "../../src/catalog/service.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
 import { CloudSaveService, cloudSaveSlotSchema, finalizeUploadSchema, prepareUploadSchema } from "../../src/cloud-save/service.js";
 import { deploymentControls, firebaseAdminEnv, stripeEnv } from "../../src/config/env.js";
@@ -156,13 +156,22 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     try { firebaseAdminEnv(); accountApiReady = true; } catch { accountApiReady = false; }
     let runtime: ReturnType<typeof stripeEnv> | undefined;
     try { runtime = stripeEnv(); } catch { runtime = undefined; }
-    const catalog = runtime ? await new CatalogService(firestore()).get() : {
+    const fallbackCatalog: PublicCatalogConfiguration = {
       revision: 0,
       monthly: { unitAmount: MONTHLY_PRICE_USD_CENTS, currency: "USD", recurring: true },
       polyglot: { unitAmount: POLYGLOT_PERMANENT_PRICE_USD_CENTS, currency: "USD", recurring: false },
       premium: { unitAmount: PREMIUM_LIFETIME_PRICE_USD_CENTS, currency: "USD", recurring: false },
       regionalPrices: REGIONAL_PRICES
     };
+    let catalog = fallbackCatalog;
+    if (accountApiReady) {
+      try {
+        catalog = await new CatalogService(firestore()).getPublic(fallbackCatalog);
+      } catch {
+        // Authentication configuration must remain available during a Firestore or Stripe outage.
+        catalog = fallbackCatalog;
+      }
+    }
     return json(200, {
       environment: publicFirebase.environment,
       accountApiReady,

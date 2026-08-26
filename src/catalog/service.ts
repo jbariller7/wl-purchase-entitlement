@@ -26,6 +26,14 @@ export interface CatalogConfiguration {
   updatedBy?: string;
 }
 
+export interface PublicCatalogConfiguration {
+  revision: number;
+  monthly: Pick<CatalogOffer, "unitAmount" | "currency" | "recurring">;
+  polyglot: Pick<CatalogOffer, "unitAmount" | "currency" | "recurring">;
+  premium: Pick<CatalogOffer, "unitAmount" | "currency" | "recurring">;
+  regionalPrices: Record<CatalogOfferKind, Record<string, string>>;
+}
+
 function priceProductId(price: Stripe.Price): string {
   return typeof price.product === "string" ? price.product : price.product.id;
 }
@@ -50,6 +58,36 @@ export class CatalogService {
   constructor(private readonly db: Firestore) {}
 
   private ref() { return this.db.collection("configuration").doc("catalog"); }
+
+  async getPublic(fallback: PublicCatalogConfiguration): Promise<PublicCatalogConfiguration> {
+    const snapshot = await this.ref().get();
+    if (!snapshot.exists) return fallback;
+    const stored = snapshot.data() as Partial<CatalogConfiguration>;
+    const publicOffer = (
+      offer: CatalogOffer | undefined,
+      defaultOffer: PublicCatalogConfiguration[CatalogOfferKind]
+    ): PublicCatalogConfiguration[CatalogOfferKind] => {
+      if (!offer || !Number.isSafeInteger(offer.unitAmount) || offer.unitAmount < 1 || !/^[A-Za-z]{3}$/.test(offer.currency)) {
+        return defaultOffer;
+      }
+      return {
+        unitAmount: offer.unitAmount,
+        currency: offer.currency.toUpperCase(),
+        recurring: offer.recurring
+      };
+    };
+    return {
+      revision: Number.isSafeInteger(stored.revision) && Number(stored.revision) >= 0 ? Number(stored.revision) : fallback.revision,
+      monthly: publicOffer(stored.monthly, fallback.monthly),
+      polyglot: publicOffer(stored.polyglot, fallback.polyglot),
+      premium: publicOffer(stored.premium, fallback.premium),
+      regionalPrices: {
+        monthly: { ...fallback.regionalPrices.monthly, ...(stored.regionalPrices?.monthly ?? {}) },
+        polyglot: { ...fallback.regionalPrices.polyglot, ...(stored.regionalPrices?.polyglot ?? {}) },
+        premium: { ...fallback.regionalPrices.premium, ...(stored.regionalPrices?.premium ?? {}) }
+      }
+    };
+  }
 
   async get(): Promise<CatalogConfiguration> {
     const snapshot = await this.ref().get();

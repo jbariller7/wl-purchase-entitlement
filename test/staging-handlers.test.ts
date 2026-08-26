@@ -286,13 +286,61 @@ describe("staging function boundaries", () => {
       checkoutEnabled: false,
       appCheckEnforced: false
     });
-    expect(vi.mocked(firestore)).not.toHaveBeenCalled();
+    expect(vi.mocked(firestore)).toHaveBeenCalledOnce();
 
     const health = await healthHandler({ ...event(), httpMethod: "GET" }, {} as never);
     expect(JSON.parse(String(health?.body))).toMatchObject({
       status: "ready_for_account_testing",
       readiness: { accountTesting: true, stripeConfigured: false, checkoutTesting: false },
       configuration: { firebaseAdmin: true, firebaseWeb: true, stripeTest: false }
+    });
+  });
+
+  it("keeps public authentication configuration available when Stripe is enabled but unavailable", async () => {
+    Object.assign(process.env, {
+      FIREBASE_WEB_API_KEY: "public-firebase-web-test-key",
+      FIREBASE_AUTH_DOMAIN: "test-project.firebaseapp.com",
+      FIREBASE_PROJECT_ID: "test-project",
+      FIREBASE_CLIENT_EMAIL: "firebase-admin@test-project.iam.gserviceaccount.com",
+      FIREBASE_PRIVATE_KEY: "test-private-key",
+      FIREBASE_STORAGE_BUCKET: "test-project.firebasestorage.app",
+      STRIPE_SECRET_KEY: "rk_test_invalid_provider_key",
+      STRIPE_WEBHOOK_SECRET: "whsec_test",
+      STRIPE_PRICE_MOBILE_MONTHLY: "price_monthly",
+      STRIPE_PRICE_POLYGLOT_PERMANENT: "price_polyglot",
+      STRIPE_PRICE_PREMIUM_LIFETIME: "price_premium",
+      STRIPE_COUPON_LEGACY_DESKTOP_50: "coupon_legacy",
+      STRIPE_SUCCESS_URL: "https://test.example.com/account/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+      STRIPE_CANCEL_URL: "https://test.example.com/account/?checkout=cancelled",
+      STRIPE_PORTAL_RETURN_URL: "https://test.example.com/account/",
+      PUBLIC_APP_ORIGIN: "https://test.example.com",
+      STRIPE_MUTATIONS_ENABLED: "true"
+    });
+    vi.mocked(firestore).mockReturnValue({
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({
+          get: vi.fn(async () => { throw new Error("Firestore is temporarily unavailable."); })
+        }))
+      }))
+    } as never);
+
+    const response = await apiHandler({
+      ...event(),
+      rawUrl: "https://test.example.com/api/v1/config",
+      path: "/api/v1/config",
+      httpMethod: "GET",
+      headers: { origin: "https://wonderlang.net" }
+    }, {} as never);
+
+    expect(response).toMatchObject({ statusCode: 200 });
+    expect(JSON.parse(String(response?.body))).toMatchObject({
+      accountApiReady: true,
+      checkoutEnabled: true,
+      catalog: {
+        monthly: { unitAmount: 699, currency: "USD", recurring: true },
+        polyglot: { unitAmount: 3199, currency: "USD", recurring: false },
+        premium: { unitAmount: 5999, currency: "USD", recurring: false }
+      }
     });
   });
 
