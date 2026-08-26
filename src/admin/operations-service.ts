@@ -468,6 +468,36 @@ export class AdminOperationsService {
     return this.customerDetail(input.uid);
   }
 
+  async repairCustomerEmail(input: { actor: AdminActor; uid: string; email: string; reason: string; now: Date }): Promise<Record<string, unknown>> {
+    const email = input.email.trim().toLowerCase();
+    const user = await this.auth.getUser(input.uid);
+    if (!user.providerData.some((provider) => provider.providerId === "google.com" || provider.providerId === "apple.com")) {
+      throw new HttpError(409, "Identity repair is limited to Google or Apple accounts.");
+    }
+    if (user.email && user.email.toLowerCase() !== email) {
+      throw new HttpError(409, "This account already has a different email address. Link or merge accounts through the dedicated recovery workflow.");
+    }
+    try {
+      const existing = await this.auth.getUserByEmail(email);
+      if (existing.uid !== input.uid) throw new HttpError(409, "That email address already belongs to another WonderLang account.");
+    } catch (error) {
+      if ((error as { code?: string }).code !== "auth/user-not-found") throw error;
+    }
+    const updated = await this.auth.updateUser(input.uid, { email, emailVerified: false });
+    await this.auth.revokeRefreshTokens(input.uid);
+    await recordAdminAudit({
+      db: this.db,
+      actor: input.actor,
+      action: "identity.email.repair",
+      targetType: "user",
+      targetId: input.uid,
+      summary: "Repaired missing federated identity email",
+      metadata: { email, reason: input.reason.trim(), sessionsRevoked: true },
+      now: input.now
+    });
+    return { user: publicUser(updated), sessionsRevoked: true, requiresFreshProviderSignIn: true };
+  }
+
   async revokeAdminGrant(input: { actor: AdminActor; grantId: string; reason: string; now: Date }): Promise<Record<string, unknown>> {
     if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
     const snapshot = await this.db.collection("grants").doc(input.grantId).get();

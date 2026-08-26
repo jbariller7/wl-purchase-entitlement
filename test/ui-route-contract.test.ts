@@ -24,6 +24,8 @@ describe("customer interface route contract", () => {
     expect(account).toContain("completeDesktopHandoff");
     expect(account).toContain("approvalSecret: this.desktopHandoff.approvalSecret");
     expect(account).toContain("setTimeout(() => window.close(), 350)");
+    expect(account).toContain('provider.addScope("email")');
+    expect(account).toContain('provider.addScope("profile")');
   });
 
   it("keeps each customer API call paired with a server route", () => {
@@ -138,7 +140,7 @@ describe("administrator interface route contract", () => {
       "[data-provider=\"google\"]",
       "[data-provider=\"apple\"]"
     ]) expect(admin).toContain(selector);
-    for (const form of ["#customer-search", "#grant-form", "#price-form", "#import-form"]) expect(admin).toContain(form);
+    for (const form of ["#customer-search", "#email-repair-form", "#grant-form", "#price-form", "#import-form"]) expect(admin).toContain(form);
   });
 
   it("routes audited cloud-save downloads through the authenticated admin API client", () => {
@@ -185,6 +187,7 @@ describe("administrator interface route contract", () => {
     for (const dynamicRoute of [
       "grantCustomerMatch",
       "accessMatch",
+      "repairEmailMatch",
       "sessionsMatch",
       "cancelDeletionMatch",
       "secondPlatformDecisionMatch",
@@ -194,6 +197,14 @@ describe("administrator interface route contract", () => {
       "cloudSaveDownloadMatch",
       "releaseMatch"
     ]) expect(api).toContain(dynamicRoute);
+  });
+
+  it("repairs missing federated emails through an audited admin-only workflow", () => {
+    expect(admin).toContain("Restore a missing provider email");
+    expect(admin).toContain("/repair-email");
+    expect(api).toContain("repairEmailSchema");
+    expect(api).toContain("operations.repairCustomerEmail");
+    expect(read("src/admin/operations-service.ts")).toContain('action: "identity.email.repair"');
   });
 
   it("renders loading, empty, error, permission, disabled, and success feedback", () => {

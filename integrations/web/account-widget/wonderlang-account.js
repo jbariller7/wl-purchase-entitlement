@@ -300,7 +300,7 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="cancel-second-platform"]').addEventListener("click", () => this.cancelSecondPlatformRequest());
     this.querySelector('[data-action="approve-device"]').addEventListener("click", () => this.approveDevice());
     this.querySelector('[data-action="cancel-device"]').addEventListener("click", () => this.cancelDeviceApproval());
-    this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(new GoogleAuthProvider()));
+    this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(this.googleProvider()));
     this.querySelector('[data-action="link-apple"]').addEventListener("click", () => this.linkProvider(appleProvider()));
     this.querySelector('[data-action="link-email"]').addEventListener("click", () => this.linkEmail());
     this.querySelector('[data-action="bootstrap-admin"]').addEventListener("click", () => this.bootstrapAdmin());
@@ -310,6 +310,8 @@ class WonderLangAccount extends HTMLElement {
 
   googleProvider() {
     const provider = new GoogleAuthProvider();
+    provider.addScope("email");
+    provider.addScope("profile");
     if (this.desktopHandoff) provider.setCustomParameters({ prompt: "select_account" });
     return provider;
   }

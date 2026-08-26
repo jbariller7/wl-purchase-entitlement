@@ -61,6 +61,7 @@ const importRowSchema = z.object({
 const importPreviewSchema = z.object({ rows: z.array(importRowSchema).min(1).max(500) });
 const reasonSchema = z.object({ reason });
 const accessSchema = z.object({ disabled: z.boolean(), reason });
+const repairEmailSchema = z.object({ email: z.string().trim().email().max(320), reason });
 
 function routePath(event: HandlerEvent): string {
   return event.path.replace(/^\/\.netlify\/functions\/admin-api/, "").replace(/^\/admin-api/, "") || "/";
@@ -160,6 +161,15 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const accessMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/access$/);
   if (event.httpMethod === "POST" && accessMatch?.[1]) {
     return json(200, await operations.updateUserAccess({ actor, uid: accessMatch[1], ...body(accessSchema, event), now }));
+  }
+  const repairEmailMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/repair-email$/);
+  if (event.httpMethod === "POST" && repairEmailMatch?.[1]) {
+    return json(200, await operations.repairCustomerEmail({
+      actor,
+      uid: repairEmailMatch[1],
+      ...body(repairEmailSchema, event),
+      now
+    }));
   }
   const sessionsMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/revoke-sessions$/);
   if (event.httpMethod === "POST" && sessionsMatch?.[1]) {
