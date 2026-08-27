@@ -80,4 +80,33 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(restoreFlow.indexOf("await request(")).toBeGreaterThan(-1);
     expect(restoreFlow.indexOf("await restoreProfile(profile.profileId)")).toBeGreaterThan(restoreFlow.indexOf("await request("));
   });
+
+  it("never uploads a physical save workspace unless it is bound to the authenticated account and active profile", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    expect(source).toContain('const workspaceBindingKey = "wl-cloud-workspace-binding-v1"');
+    expect(source).toContain("binding.uid === accountUid() && binding.profileId === profileId");
+    expect(source).toContain("if (!workspaceMatches(profileId)) throw new Error");
+    expect(source).toContain("!workspaceMatches(activeProfileId())");
+    expect(source).toContain("WonderLang will not upload them to {ACTIVE}");
+  });
+
+  it("fingerprints the complete local profile and asks before uploading startup changes", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    expect(source).toContain("async function profileFilesFingerprint(files)");
+    expect(source).toContain("async function checkStartupProfileFreshness(force = false)");
+    expect(source).toContain("binding.fingerprint === fingerprint");
+    expect(source).toContain('CloudAccount.Startup.NewerTitle", "Newer local saves found"');
+    expect(source).toContain('CloudAccount.Action.SyncNow", "Sync now"');
+    const promptFlow = source.slice(source.indexOf("function showLocalSaveFreshnessPrompt"), source.indexOf("async function checkStartupProfileFreshness"));
+    expect(promptFlow.indexOf("startupProfileDecisionPending = false")).toBeLessThan(promptFlow.indexOf("await uploadProfile(profile.profileId"));
+  });
+
+  it("loads account UI translations from the base-language menu.json table", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    expect(source).toContain('xhr.open("GET", "texts/menu.json", false)');
+    expect(source).toContain("ConfigManager?.uiLanguage");
+    expect(source).toContain("function translateStaticTextNodes(root)");
+    expect(source).toContain('trSource("WonderLang Cloud")');
+    expect(source).toContain('tr("CloudAccount.Startup.NewerBody"');
+  });
 });
