@@ -94,7 +94,9 @@ class WonderLangAccountManager(
     )
 
     @Volatile private var cachedIdToken = ""
+    @Volatile private var cachedIdTokenUid = ""
     @Volatile private var cachedStoreAccountToken = ""
+    @Volatile private var cachedStoreAccountTokenUid = ""
     @Volatile private var cachedAccountJson = ""
     @Volatile private var cachedAccountUid = ""
     @Volatile private var fullGameEntitled = false
@@ -112,7 +114,11 @@ class WonderLangAccountManager(
         if (user == null) {
             publishSignedOut()
         } else {
-            if (cachedAccountUid.isNotBlank() && cachedAccountUid != user.uid) {
+            if (
+                (cachedAccountUid.isNotBlank() && cachedAccountUid != user.uid) ||
+                (cachedIdTokenUid.isNotBlank() && cachedIdTokenUid != user.uid) ||
+                (cachedStoreAccountTokenUid.isNotBlank() && cachedStoreAccountTokenUid != user.uid)
+            ) {
                 clearCachedAccountState(clearLease = true)
             }
             restoreOfflineLease(user)
@@ -181,12 +187,13 @@ class WonderLangAccountManager(
         currentEntitlementsSnapshot()?.optString("accessKind").orEmpty()
 
     fun ensureStoreAccountToken(onSuccess: (String) -> Unit, onFailure: (String) -> Unit) {
+        val currentUid = auth.currentUser?.uid.orEmpty()
         val cached = cachedStoreAccountToken
-        if (cached.isNotBlank()) {
+        if (currentUid.isNotBlank() && cachedStoreAccountTokenUid == currentUid && cached.isNotBlank()) {
             activity.runOnUiThread { onSuccess(cached) }
             return
         }
-        if (auth.currentUser == null) {
+        if (currentUid.isBlank()) {
             activity.runOnUiThread { onFailure("Sign in to WonderLang before purchasing.") }
             return
         }
@@ -195,7 +202,11 @@ class WonderLangAccountManager(
                 val token = api("/api/v1/store-account-token", "GET", null)
                     .getString("storeAccountToken")
                 UUID.fromString(token)
+                if (auth.currentUser?.uid != currentUid) {
+                    throw IllegalStateException("The WonderLang account changed while preparing Google Play.")
+                }
                 cachedStoreAccountToken = token
+                cachedStoreAccountTokenUid = currentUid
                 activity.runOnUiThread { onSuccess(token) }
             } catch (error: Exception) {
                 activity.runOnUiThread {
@@ -247,7 +258,10 @@ class WonderLangAccountManager(
     }
 
     @JavascriptInterface
-    fun getCachedIdToken(): String = cachedIdToken
+    fun getCachedIdToken(): String {
+        val currentUid = auth.currentUser?.uid.orEmpty()
+        return if (currentUid.isNotBlank() && cachedIdTokenUid == currentUid) cachedIdToken else ""
+    }
 
     @JavascriptInterface
     fun getAccountSnapshot(): String {
@@ -258,7 +272,14 @@ class WonderLangAccountManager(
     }
 
     @JavascriptInterface
-    fun getStoreAccountToken(): String = cachedStoreAccountToken
+    fun getStoreAccountToken(): String {
+        val currentUid = auth.currentUser?.uid.orEmpty()
+        return if (currentUid.isNotBlank() && cachedStoreAccountTokenUid == currentUid) {
+            cachedStoreAccountToken
+        } else {
+            ""
+        }
+    }
 
     @JavascriptInterface
     fun isSignedInFromGame(): Boolean = isSignedIn()
@@ -542,15 +563,24 @@ class WonderLangAccountManager(
         executor.execute {
             try {
                 val user = auth.currentUser ?: throw IllegalStateException("The account signed out.")
-                cachedIdToken = Tasks.await(user.getIdToken(forceTokenRefresh)).token.orEmpty()
-                if (cachedIdToken.isBlank()) throw IllegalStateException("Firebase did not return an ID token.")
+                val idToken = Tasks.await(user.getIdToken(forceTokenRefresh)).token.orEmpty()
+                if (idToken.isBlank()) throw IllegalStateException("Firebase did not return an ID token.")
+                if (auth.currentUser?.uid != user.uid) {
+                    throw IllegalStateException("The WonderLang account changed during refresh.")
+                }
+                cachedIdToken = idToken
+                cachedIdTokenUid = user.uid
                 val account = api("/api/v1/me", "GET", null)
                 val accountToken = api("/api/v1/store-account-token", "GET", null)
                     .getString("storeAccountToken")
                 UUID.fromString(accountToken)
+                if (auth.currentUser?.uid != user.uid) {
+                    throw IllegalStateException("The WonderLang account changed during refresh.")
+                }
                 cachedStoreAccountToken = accountToken
+                cachedStoreAccountTokenUid = user.uid
                 publishEntitlements(account.optJSONObject("entitlements"), account)
-                evaluate("window.WLAccountEntitlements?._nativeToken?.(" + JSONObject.quote(cachedIdToken) + ")")
+                evaluate("window.WLAccountEntitlements?._nativeToken?.(" + JSONObject.quote(idToken) + ")")
             } catch (error: Exception) {
                 Log.w(tag, "Account refresh failed: ${error.javaClass.simpleName}")
                 val restored = restoreOfflineLease(auth.currentUser)
@@ -841,7 +871,9 @@ class WonderLangAccountManager(
 
     private fun clearCachedAccountState(clearLease: Boolean) {
         cachedIdToken = ""
+        cachedIdTokenUid = ""
         cachedStoreAccountToken = ""
+        cachedStoreAccountTokenUid = ""
         cachedAccountJson = ""
         cachedAccountUid = ""
         fullGameEntitled = false
@@ -955,7 +987,11 @@ class WonderLangAccountManager(
         val user = auth.currentUser ?: throw IllegalStateException("Sign in to WonderLang first.")
         val token = Tasks.await(user.getIdToken(false)).token.orEmpty()
         if (token.isBlank()) throw IllegalStateException("Firebase sign-in needs to be refreshed.")
+        if (auth.currentUser?.uid != user.uid) {
+            throw IllegalStateException("The WonderLang account changed before the request started.")
+        }
         cachedIdToken = token
+        cachedIdTokenUid = user.uid
         val appCheckToken = runCatching {
             Tasks.await(appCheck.getAppCheckToken(false), 4, TimeUnit.SECONDS).token.orEmpty()
         }.getOrDefault("")

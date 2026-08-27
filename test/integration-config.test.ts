@@ -463,6 +463,15 @@ describe("isolated integration configuration", () => {
     expect(manager).toContain("offlineCloudSaveLeaseMaximumAge");
     expect(manager).toContain('host == "play.google.com"');
     expect(manager).toContain('host == "apps.apple.com"');
+    expect(manager).toContain('cachedIdTokenUid == currentUid');
+    expect(manager).toContain('cachedStoreAccountTokenUid == currentUid');
+    expect(manager).toMatch(/fun getStoreAccountToken\(\): String \{[\s\S]*?cachedStoreAccountTokenUid == currentUid/);
+    expect(manager).toContain('cachedIdTokenUid = user.uid');
+    expect(manager).toContain('cachedStoreAccountTokenUid = user.uid');
+    expect(manager).toContain('if (auth.currentUser?.uid != user.uid)');
+    expect(manager).toContain('(cachedIdTokenUid.isNotBlank() && cachedIdTokenUid != user.uid)');
+    expect(manager).toContain('(cachedStoreAccountTokenUid.isNotBlank() && cachedStoreAccountTokenUid != user.uid)');
+    expect(manager).toMatch(/private fun clearCachedAccountState\(clearLease: Boolean\) \{[\s\S]*?cachedIdTokenUid = ""[\s\S]*?cachedStoreAccountTokenUid = ""/);
     expect(manager).toMatch(/fun signOut\(\): Boolean \{[\s\S]*?clearOfflineLease\(\)[\s\S]*?auth\.signOut\(\)/);
     expect(manager).toMatch(/private fun publishSignedOut\(\) \{[\s\S]*?clearCachedAccountState\(clearLease = true\)/);
     expect(rmmz).toContain("function authoritativeAccount()");
