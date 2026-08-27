@@ -180,24 +180,24 @@
     });
     document.getElementById("open-newer-local").addEventListener("click", async () => {
       status().textContent = "Simulating newer local saves that belong to Default. No real cloud request is made.";
-      await window.WLAccountEntitlements.refresh();
       localStorage.setItem("wl-cloud-active-profile-v1:ui_test_user", "default");
       localStorage.setItem("wl-cloud-workspace-binding-v1", JSON.stringify({
         version: 1, uid: "ui_test_user", profileId: "default", profileName: "Default",
         revision: "11111111-1111-4111-8111-111111111111", fingerprint: "older-local-fingerprint",
         cloudUpdatedAt: profileRecords[0].updatedAt, localChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString()
       }));
+      await window.WLAccountEntitlements.refresh();
       await window.WLAccountEntitlements.checkStartupProfileFreshness();
     });
     document.getElementById("open-profile-mismatch").addEventListener("click", async () => {
       status().textContent = "Simulating Spanish local saves while Default is selected. Upload must stay blocked.";
-      await window.WLAccountEntitlements.refresh();
       localStorage.setItem("wl-cloud-active-profile-v1:ui_test_user", "default");
       localStorage.setItem("wl-cloud-workspace-binding-v1", JSON.stringify({
         version: 1, uid: "ui_test_user", profileId: "spanish", profileName: "Spanish",
         revision: "33333333-3333-4333-8333-333333333333", fingerprint: "spanish-local-fingerprint",
         localChangedAt: new Date().toISOString(), updatedAt: new Date().toISOString()
       }));
+      await window.WLAccountEntitlements.refresh();
       await window.WLAccountEntitlements.checkStartupProfileFreshness();
     });
   });
