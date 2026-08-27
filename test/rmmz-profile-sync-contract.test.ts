@@ -23,6 +23,12 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(managedNames).not.toContain("config");
   });
 
+  it("does not re-upload a profile while applying a cloud restore", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    const guardedWrites = source.match(/if \(!applyingProfile && \/\^\(\?:global\|file/g) ?? [];
+    expect(guardedWrites).toHaveLength(2);
+  });
+
   it("stops overlay input before RPG Maker document handlers can receive it", async () => {
     const source = await readFile(pluginUrl, "utf8");
     expect(source).toContain("function blockGameInput(overlay)");

@@ -813,7 +813,7 @@
   const originalSaveObject = StorageManager.saveObject;
   StorageManager.saveObject = function(saveName, object) {
     return originalSaveObject.call(this, saveName, object).then(result => {
-      if (/^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) scheduleProfileSync();
+      if (!applyingProfile && /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) scheduleProfileSync();
       return result;
     });
   };
