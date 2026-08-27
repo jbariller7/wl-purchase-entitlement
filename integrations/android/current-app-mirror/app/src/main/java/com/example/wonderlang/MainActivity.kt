@@ -3349,6 +3349,13 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         webView.onResume()
+        // RTDN/reconciliation may have changed a subscription while the app was
+        // backgrounded (grace, hold, cancellation, expiry, refund). Refresh the
+        // server-authoritative snapshot instead of relying only on Play's local
+        // purchase list or the bounded offline lease.
+        if (::accountManager.isInitialized && accountManager.isSignedIn()) {
+            accountManager.refreshEntitlements()
+        }
         if (::billingClient.isInitialized) {
             queryPurchases()
             if (billingClient.isReady) {

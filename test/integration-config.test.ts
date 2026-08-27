@@ -381,6 +381,7 @@ describe("isolated integration configuration", () => {
     expect(activity).toContain('"wonderlangfull" -> "polyglot_permanent"');
     expect(activity).toMatch(/accountManager\.hasActiveSubscription\(\)[\s\S]*?purchasedProducts\.contains\("wonderlangmonthly"\)[\s\S]*?accountManager\.hasFullGame\(\)/);
     expect(activity).not.toContain("acknowledgePurchase(");
+    expect(activity).toMatch(/override fun onResume\(\) \{[\s\S]*?accountManager\.isSignedIn\(\)[\s\S]*?accountManager\.refreshEntitlements\(\)[\s\S]*?queryPurchases\(\)/);
     expect(manager).toContain('api("/api/v1/google-play/claim"');
     expect(manager).toContain('OAuthProvider.newBuilder("apple.com")');
     expect(manager).toContain("FirebaseAuth.getInstance(entitlementFirebaseApp)");
