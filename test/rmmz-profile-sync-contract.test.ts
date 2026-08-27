@@ -57,4 +57,15 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(source).toContain("z-index:1000001");
     expect(source).toContain('event.target?.closest?.(".wl-account-scroll")');
   });
+
+  it("offers fast profile switching but synchronizes the current profile before downloading another", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    expect(source).toContain("data-profile-switcher");
+    expect(source).toContain("Active save profile");
+    expect(source).toContain("Sync and switch");
+    expect(source).toContain("Nothing was switched or downloaded");
+    const switchFlow = source.slice(source.indexOf("async function switchFromActiveProfile"), source.indexOf("async function selectProfile"));
+    expect(switchFlow.indexOf("await syncActiveProfileNow()")).toBeGreaterThan(-1);
+    expect(switchFlow.indexOf("return activateProfile(profile")).toBeGreaterThan(switchFlow.indexOf("await syncActiveProfileNow()"));
+  });
 });

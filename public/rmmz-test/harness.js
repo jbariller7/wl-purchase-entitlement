@@ -14,8 +14,17 @@
       chapters: [1, 2, 3, 4]
     }
   };
-  const remoteBundle = { magic: "WL_CLOUD_PROFILE", version: 1, profileId: "default", files: { global: "[]", file1: JSON.stringify({ system: { _saveCount: 42 }, party: { gold: 999 }, test: "cloud copy" }) } };
-  const remoteBytes = new TextEncoder().encode(JSON.stringify(remoteBundle));
+  const profileRecords = [
+    { profileId: "default", name: "Default", currentRevision: "11111111-1111-4111-8111-111111111111" },
+    { profileId: "spanish", name: "Spanish", currentRevision: "33333333-3333-4333-8333-333333333333" }
+  ];
+  const remoteBytes = new Map(profileRecords.map(profile => [profile.profileId, new TextEncoder().encode(JSON.stringify({
+    magic: "WL_CLOUD_PROFILE",
+    version: 1,
+    profileId: profile.profileId,
+    files: { global: "[]", file1: JSON.stringify({ system: { _saveCount: profile.profileId === "default" ? 42 : 18 }, party: { gold: profile.profileId === "default" ? 999 : 320 }, test: `${profile.name} cloud copy` }) }
+  }))]));
+  let simulateConflict = false;
   const deviceSaves = new Map([["global", []], ["file1", { system: { _saveCount: 44 }, party: { gold: 1200 }, test: "device copy" }]]);
   const status = () => document.getElementById("status");
   const json = (value, statusCode = 200) => new Response(JSON.stringify(value), {
@@ -73,13 +82,28 @@
     const url = String(input);
     const method = String(options.method || "GET").toUpperCase();
     if (url === "https://mock-upload.test/profile" && method === "PUT") return new Response("", { status: 200 });
-    if (url === "https://mock-download.test/profile") return new Response(remoteBytes, { status: 200 });
+    if (url.startsWith("https://mock-download.test/")) return new Response(remoteBytes.get(decodeURIComponent(url.split("/").pop())) || new Uint8Array(), { status: 200 });
     if (url.endsWith("/api/v1/me")) return json(account);
     if (url.endsWith("/api/v1/billing-portal")) return json({ url: "https://billing.stripe.com/p/session/test" }, 201);
-    if (url.endsWith("/api/v1/cloud-save-profiles") && method === "GET") return json({ profiles: [{ profileId: "default", name: "Default", currentRevision: "11111111-1111-4111-8111-111111111111", byteLength: remoteBytes.byteLength, sha256: await sha256Hex(remoteBytes), createdAt: new Date(Date.now() - 86_400_000).toISOString(), updatedAt: new Date(Date.now() - 180_000).toISOString() }] });
-    if (url.endsWith("/api/v1/cloud-save-profiles/default/download")) return json({ downloadUrl: "https://mock-download.test/profile", manifest: { profileId: "default", name: "Default", currentRevision: "11111111-1111-4111-8111-111111111111", byteLength: remoteBytes.byteLength, sha256: await sha256Hex(remoteBytes), updatedAt: new Date(Date.now() - 180_000).toISOString() } });
-    if (url.endsWith("/api/v1/cloud-save-profiles/default/prepare-upload")) return json({ uploadId: "22222222-2222-4222-8222-222222222222", uploadUrl: "https://mock-upload.test/profile", expiresAt: new Date(Date.now() + 600_000).toISOString() }, 201);
-    if (url.endsWith("/api/v1/cloud-save-profiles/default/finalize")) return json({ error: "Cloud-profile conflict: current revision changed." }, 409);
+    if (url.endsWith("/api/v1/cloud-save-profiles") && method === "GET") return json({ profiles: await Promise.all(profileRecords.map(async profile => {
+      const bytes = remoteBytes.get(profile.profileId);
+      return { ...profile, byteLength: bytes.byteLength, sha256: await sha256Hex(bytes), createdAt: new Date(Date.now() - 86_400_000).toISOString(), updatedAt: new Date(Date.now() - 180_000).toISOString() };
+    })) });
+    const downloadMatch = url.match(/\/api\/v1\/cloud-save-profiles\/([^/]+)\/download$/);
+    if (downloadMatch) {
+      const profileId = decodeURIComponent(downloadMatch[1]);
+      const profile = profileRecords.find(item => item.profileId === profileId);
+      const bytes = remoteBytes.get(profileId);
+      return json({ downloadUrl: `https://mock-download.test/${encodeURIComponent(profileId)}`, manifest: { ...profile, byteLength: bytes.byteLength, sha256: await sha256Hex(bytes), updatedAt: new Date(Date.now() - 180_000).toISOString() } });
+    }
+    if (/\/api\/v1\/cloud-save-profiles\/[^/]+\/prepare-upload$/.test(url)) return json({ uploadId: "22222222-2222-4222-8222-222222222222", uploadUrl: "https://mock-upload.test/profile", expiresAt: new Date(Date.now() + 600_000).toISOString() }, 201);
+    if (/\/api\/v1\/cloud-save-profiles\/[^/]+\/finalize$/.test(url)) {
+      if (simulateConflict) {
+        simulateConflict = false;
+        return json({ error: "Cloud-profile conflict: current revision changed." }, 409);
+      }
+      return json({ currentRevision: "44444444-4444-4444-8444-444444444444", updatedAt: new Date().toISOString() });
+    }
     return json({ error: `Unhandled mock request: ${method} ${url}` }, 404);
   };
 
@@ -100,6 +124,7 @@
       status().textContent = "Simulating HTTP 409 after upload. No real save is touched.";
       await window.WLAccountEntitlements.refresh();
       localStorage.setItem("wl-cloud-active-profile-v1:ui_test_user", "default");
+      simulateConflict = true;
       await window.WLAccountEntitlements.uploadActiveProfile();
     });
   });

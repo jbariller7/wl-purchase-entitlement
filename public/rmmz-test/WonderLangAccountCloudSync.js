@@ -500,7 +500,7 @@
       .wl-account-heading{min-width:0}.wl-account-kicker{margin-bottom:4px;color:var(--wl-account-highlight,#d9ff45);font-size:11px;font-weight:900;letter-spacing:.22em;text-transform:uppercase}.wl-account-panel h2{margin:0;color:var(--wl-account-text,#fff);font-size:clamp(25px,3.5vw,38px);font-weight:900;line-height:1.05;letter-spacing:-.025em}.wl-account-trust{margin-left:auto;display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(0,0,0,.18);color:rgba(255,255,255,.76);font-size:12px;font-weight:750;white-space:nowrap}.wl-account-trust-dot{width:8px;height:8px;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 12px var(--wl-account-highlight,#d9ff45)}
       .wl-account-scroll{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--wl-account-highlight,#d9ff45) rgba(0,0,0,.18);touch-action:pan-y;-webkit-overflow-scrolling:touch}.wl-account-scroll::-webkit-scrollbar{width:8px}.wl-account-scroll::-webkit-scrollbar-thumb{border-radius:999px;background:var(--wl-account-highlight,#d9ff45)}.wl-account-content{padding:clamp(20px,3vw,36px) clamp(20px,3.6vw,42px)}
       .wl-account-panel h3{margin:0;color:var(--wl-account-text,#fff);font-size:clamp(18px,2.2vw,23px);font-weight:850;line-height:1.2}.wl-account-muted{margin:0;color:rgba(238,248,241,.7);font-size:clamp(14px,1.7vw,17px);line-height:1.58}.wl-account-muted+.wl-account-muted{margin-top:10px}
-      .wl-account-identity{display:flex;align-items:center;gap:12px;width:max-content;max-width:100%;margin-bottom:20px;padding:10px 14px;border:1px solid rgba(255,255,255,.13);border-radius:14px;background:rgba(0,0,0,.16);color:rgba(255,255,255,.92);font-size:15px;font-weight:720}.wl-account-identity::before{content:"";width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 13px var(--wl-account-highlight,#d9ff45)}
+      .wl-account-identity-row{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-bottom:20px}.wl-account-identity{display:flex;align-items:center;gap:12px;min-height:46px;max-width:100%;padding:10px 14px;border:1px solid rgba(255,255,255,.13);border-radius:14px;background:rgba(0,0,0,.16);color:rgba(255,255,255,.92);font-size:15px;font-weight:720}.wl-account-identity::before{content:"";width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 13px var(--wl-account-highlight,#d9ff45)}.wl-account-profile-switcher{position:relative;min-height:46px;display:flex;align-items:center;gap:9px;padding:5px 38px 5px 13px;border:1px solid rgba(255,255,255,.16);border-radius:14px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.68);cursor:pointer}.wl-account-profile-switcher::after{content:"⌄";position:absolute;right:14px;top:50%;color:var(--wl-account-highlight,#d9ff45);font-size:20px;font-weight:900;line-height:1;transform:translateY(-58%);pointer-events:none}.wl-account-profile-label{font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.wl-account-profile-select{min-width:110px;max-width:230px;border:0;outline:0;appearance:none;-webkit-appearance:none;background:transparent;color:var(--wl-account-text,#fff);font-size:15px;font-weight:850;cursor:pointer}.wl-account-profile-select option{background:#13251f;color:#fff}.wl-account-profile-switcher:focus-within{border-color:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 0 3px rgba(217,255,69,.14)}
       .wl-account-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:22px 0}.wl-account-card{position:relative;min-height:106px;padding:18px 18px 16px;overflow:hidden;border:1px solid rgba(255,255,255,.13);border-radius:17px;background:linear-gradient(145deg,rgba(255,255,255,.105),rgba(0,0,0,.14));box-shadow:inset 0 1px rgba(255,255,255,.06)}.wl-account-card::after{content:"";position:absolute;width:74px;height:74px;right:-34px;bottom:-38px;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);filter:blur(28px);opacity:.12}.wl-account-card b{display:block;margin-bottom:10px;color:var(--wl-account-highlight,#d9ff45);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}.wl-account-card{font-size:16px;font-weight:760;line-height:1.35}
       .wl-account-actions{display:flex;flex-wrap:wrap;gap:10px;padding:16px clamp(20px,3.6vw,42px) clamp(20px,3vw,30px);border-top:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.12)}.wl-account-actions:empty{display:none}.wl-account-btn{min-height:48px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:11px 18px;background:var(--wl-account-gradient,linear-gradient(135deg,#d9ff45,#32b6a8));box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.4);color:#112016;font-size:15px;font-weight:900;letter-spacing:.01em;cursor:pointer;touch-action:manipulation;transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}.wl-account-btn:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 11px 28px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.45)}.wl-account-btn:active{transform:scale(.97)}.wl-account-btn:focus-visible{outline:3px solid var(--wl-account-highlight,#d9ff45);outline-offset:3px}.wl-account-btn:disabled{cursor:not-allowed;opacity:.45;filter:saturate(.4);transform:none}.wl-account-btn.secondary{background:rgba(255,255,255,.08);box-shadow:inset 0 1px rgba(255,255,255,.08);color:var(--wl-account-text,#fff)}.wl-account-btn.danger{border-color:rgba(255,174,185,.32);background:linear-gradient(135deg,#ff9c91,#d95b70);color:#2b0a11}
       .wl-account-input{display:block;width:100%;margin:18px 0 2px;padding:16px 17px;border:1px solid rgba(255,255,255,.2);border-radius:15px;outline:0;background:rgba(0,0,0,.22);box-shadow:inset 0 2px 8px rgba(0,0,0,.18);color:#fff;font-size:18px;font-weight:680;transition:border-color .15s ease,box-shadow .15s ease}.wl-account-input:focus{border-color:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 0 3px rgba(217,255,69,.14),inset 0 2px 8px rgba(0,0,0,.18)}
@@ -509,7 +509,7 @@
       .wl-account-error,.wl-account-success{position:relative;margin:0;padding:16px 18px 16px 48px;border-radius:16px;font-size:15px;font-weight:680;line-height:1.5}.wl-account-error::before,.wl-account-success::before{position:absolute;left:18px;top:16px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;font-size:13px;font-weight:950}.wl-account-error{border:1px solid rgba(255,155,170,.42);background:rgba(112,29,45,.48);color:#ffe9ed}.wl-account-error::before{content:"!";background:#ff8d9c;color:#351016}.wl-account-success{border:1px solid rgba(191,255,87,.38);background:rgba(45,105,62,.42);color:#efffe6}.wl-account-success::before{content:"✓";background:var(--wl-account-highlight,#d9ff45);color:#142116}
       @keyframes wl-account-backdrop-in{from{opacity:0}to{opacity:1}}@keyframes wl-account-panel-in{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
       @media(max-width:700px){.wl-account-overlay{padding:10px}.wl-account-panel{width:100%;max-height:96vh;border-radius:22px}.wl-account-header{gap:12px;padding:18px 18px 15px}.wl-account-mark{width:44px;height:44px;border-radius:13px;font-size:25px}.wl-account-trust{display:none}.wl-account-content{padding:18px}.wl-account-status{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.wl-account-card{min-height:92px;padding:14px}.wl-account-save{grid-template-columns:1fr;padding:15px}.wl-account-save-actions{justify-content:stretch}.wl-account-save-actions .wl-account-btn{flex:1}.wl-account-actions{padding:14px 18px 18px}.wl-account-actions>.wl-account-btn{flex:1 1 145px}}
-      @media(max-width:430px){.wl-account-status{grid-template-columns:1fr}.wl-account-header{align-items:flex-start}.wl-account-panel h2{font-size:24px}.wl-account-kicker{font-size:9px}.wl-account-actions>.wl-account-btn{flex-basis:100%}}
+      @media(max-width:430px){.wl-account-status{grid-template-columns:1fr}.wl-account-header{align-items:flex-start}.wl-account-panel h2{font-size:24px}.wl-account-kicker{font-size:9px}.wl-account-identity,.wl-account-profile-switcher{width:100%}.wl-account-profile-select{max-width:none;flex:1}.wl-account-actions>.wl-account-btn{flex-basis:100%}}
       @media(max-height:620px){.wl-account-overlay{padding:8px}.wl-account-panel{max-height:97vh}.wl-account-header{padding-top:14px;padding-bottom:12px}.wl-account-mark{width:40px;height:40px;font-size:23px}.wl-account-content{padding-top:15px;padding-bottom:15px}.wl-account-actions{padding-top:11px;padding-bottom:12px}.wl-account-card{min-height:84px}}
       @media(prefers-reduced-motion:reduce){.wl-account-overlay,.wl-account-panel,.wl-account-btn,.wl-account-save{animation:none!important;transition:none!important}}
     `;
@@ -698,8 +698,10 @@
       return;
     }
     const activeProfile = profiles.find(profile => profile.profileId === activeProfileId());
-    showPanel("WonderLang account", `
-      <div class="wl-account-identity">${escapeHtml(current?.email || "Signed-in account")}</div>
+    const profileOptions = profiles.map(profile => `<option value="${escapeHtml(profile.profileId)}" ${profile.profileId === activeProfileId() ? "selected" : ""}>${escapeHtml(profile.name)}</option>`).join("");
+    const profileSwitcher = access.cloudSave && activeProfile ? `<label class="wl-account-profile-switcher"><span class="wl-account-profile-label">Profile</span><select class="wl-account-profile-select" data-profile-switcher aria-label="Active save profile">${profileOptions}</select></label>` : "";
+    const overlay = showPanel("WonderLang account", `
+      <div class="wl-account-identity-row"><div class="wl-account-identity">${escapeHtml(current?.email || "Signed-in account")}</div>${profileSwitcher}</div>
       <div class="wl-account-status">
         <div class="wl-account-card"><b>Access</b>${escapeHtml(accessLabel)}</div>
         <div class="wl-account-card"><b>Subscription</b>${escapeHtml(subscription)}</div>
@@ -714,6 +716,12 @@
       { label: "Refresh", kind: "secondary", run: openAccountPanel },
       { label: "Close", kind: "secondary", run: closeOverlay }
     ]);
+    const switcher = overlay.querySelector("[data-profile-switcher]");
+    switcher?.addEventListener("change", () => {
+      const profile = profiles.find(item => item.profileId === switcher.value);
+      if (!profile || profile.profileId === activeProfileId()) return;
+      selectProfile(profile, { profiles, onCancel: openAccountPanel });
+    });
   }
 
   async function openBillingPortal() {
@@ -764,7 +772,7 @@
         ...(!forcePick || active ? [{ label: "Back to account", kind: "secondary", run: openAccountPanel }] : []),
         ...(!forcePick || active ? [{ label: "Close", kind: "secondary", run: closeOverlay }] : [])
       ]);
-      overlay.querySelectorAll("[data-select-profile]").forEach(button => bindReleaseTap(button, () => selectProfile(profiles.find(profile => profile.profileId === button.dataset.selectProfile))));
+      overlay.querySelectorAll("[data-select-profile]").forEach(button => bindReleaseTap(button, () => selectProfile(profiles.find(profile => profile.profileId === button.dataset.selectProfile), { profiles, onCancel: openCloudSavesPanel })));
       overlay.querySelectorAll("[data-rename-profile]").forEach(button => bindReleaseTap(button, () => showRenameProfile(profiles.find(profile => profile.profileId === button.dataset.renameProfile))));
     } catch (error) {
       showError("Save profiles unavailable", error, openCloudSavesPanel);
@@ -834,19 +842,29 @@
     } catch (error) { showError("Could not switch profile", error, () => selectProfile(profile)); }
   }
 
-  async function selectProfile(profile) {
-    if (!profile || profile.profileId === activeProfileId()) return openCloudSavesPanel();
+  async function switchFromActiveProfile(profile) {
+    try {
+      showPanel("Saving current profile", `<p class="wl-account-muted">Uploading and finalizing every save in the current profile before switching…</p>`);
+      const result = await syncActiveProfileNow();
+      if (result?.conflict) return;
+      return activateProfile(profile, profile.currentRevision ? "cloud" : "empty");
+    } catch (error) {
+      showError("Profile switch paused", new Error(`WonderLang could not safely upload the current profile. Nothing was switched or downloaded. Connect to the internet and try again. ${safeMessage(error)}`), () => switchFromActiveProfile(profile));
+    }
+  }
+
+  async function selectProfile(profile, options = {}) {
+    const onCancel = typeof options.onCancel === "function" ? options.onCancel : openCloudSavesPanel;
+    if (!profile || profile.profileId === activeProfileId()) return onCancel();
     const previous = activeProfileId();
     if (previous) {
-      try {
-        showPanel("Saving current profile", `<p class="wl-account-muted">Finishing the current profile sync before switching…</p>`);
-        const result = await syncActiveProfileNow();
-        if (result?.conflict) return;
-      } catch (error) {
-        showError("Profile switch paused", new Error(`WonderLang could not safely upload the current profile. Connect to the internet and try again. ${safeMessage(error)}`), () => selectProfile(profile));
-        return;
-      }
-      return activateProfile(profile, profile.currentRevision ? "cloud" : "empty");
+      const currentProfile = Array.isArray(options.profiles) ? options.profiles.find(item => item.profileId === previous) : null;
+      const currentName = currentProfile?.name || "the current profile";
+      showPanel(`Switch to ${profile.name}?`, `<p class="wl-account-muted">WonderLang will first upload and finalize <strong>${escapeHtml(currentName)}</strong>, including global.rmmzsave and every save slot. Only after that succeeds will it download and activate <strong>${escapeHtml(profile.name)}</strong>. If the upload fails, this device stays on ${escapeHtml(currentName)}.</p>`, [
+        { label: "Sync and switch", run: () => switchFromActiveProfile(profile) },
+        { label: "Cancel", kind: "secondary", run: onCancel }
+      ]);
+      return;
     }
     if (hasLocalPlayerSaves() && profile.currentRevision) {
       showPanel(`Use ${profile.name} on this device?`, `<p class="wl-account-muted">This device already has WonderLang saves, and this profile also has cloud saves. Choose which complete set should become this profile. No individual slots will be mixed.</p>`, [
