@@ -370,6 +370,8 @@ describe("isolated integration configuration", () => {
     expect(activity).toContain("BillingClient.ProductType.SUBS");
     expect(activity).toContain("setObfuscatedAccountId(storeAccountToken)");
     expect(activity).toContain("preferredSubscriptionOffer");
+    expect(activity).toContain("fun hasThreeDayTrial(sku: String): Boolean");
+    expect(activity).toContain("hasThreeDayTrial = hasThreeDayTrial");
     expect(activity).toContain("LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF_MS = 1_787_615_999_999L");
     expect(activity).toContain("historicalFullUpgradeProducts");
     expect(activity).toContain('purchasedProducts.any { it in CHAPTER_SKUS } -> "chapter"');
@@ -419,6 +421,9 @@ describe("isolated integration configuration", () => {
     expect(storefront).toContain("JavaScript must not infer permanent full access from an undated chapter receipt");
     expect(storefront).toContain('normalizedSku !== "wonderlangmonthly"');
     expect(storefront).toContain("const ownsBundle = bundleCanSatisfyProduct &&");
+    expect(storefront).toContain("const hasThreeDayTrial = monthlyPrice.hasTrial === true");
+    expect(storefront).toContain("hasThreeDayTrial ? t_startTrial : t_buy");
+    expect(storefront).toContain('hasThreeDayTrial ? `<div class="hero-ribbon">');
     expect(storefront).not.toContain("const historicalChapterOwned");
     expect(plugins).toContain('{"name":"WonderLangAccountCloudSync","status":true');
     expect(plugins).toContain("Polyglot Permanent Access");

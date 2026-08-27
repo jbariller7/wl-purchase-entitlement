@@ -203,7 +203,11 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var productPrices: Map<String, String> = emptyMap()
     @Volatile private var subscriptionOfferTokens: Map<String, String> = emptyMap()
     private val purchaseClaimsInFlight = ConcurrentHashMap.newKeySet<String>()
-    private data class StoreProductPrice(val amountMicros: Long, val currencyCode: String)
+    private data class StoreProductPrice(
+        val amountMicros: Long,
+        val currencyCode: String,
+        val hasThreeDayTrial: Boolean = false
+    )
     @Volatile private var storeProductPrices: Map<String, StoreProductPrice> = emptyMap()
     private enum class ProductDetailsState {
         IDLE,
@@ -2603,11 +2607,15 @@ class MainActivity : AppCompatActivity() {
             val recurringPrice = phases.lastOrNull { it.priceAmountMicros > 0L }
                 ?: phases.lastOrNull()
                 ?: return null
+            val hasThreeDayTrial = phases.any { phase ->
+                phase.priceAmountMicros == 0L && phase.billingPeriod.equals("P3D", ignoreCase = true)
+            }
             return CachedStoreProductDetails(
                 formattedPrice = recurringPrice.formattedPrice,
                 storePrice = StoreProductPrice(
                     amountMicros = recurringPrice.priceAmountMicros,
-                    currencyCode = recurringPrice.priceCurrencyCode
+                    currencyCode = recurringPrice.priceCurrencyCode,
+                    hasThreeDayTrial = hasThreeDayTrial
                 ),
                 offerToken = offer.offerToken
             )
@@ -3734,6 +3742,11 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun getPrice(sku: String): String {
             return productPrices[normalizeSku(sku)] ?: ""
+        }
+
+        @JavascriptInterface
+        fun hasThreeDayTrial(sku: String): Boolean {
+            return storeProductPrices[normalizeSku(sku)]?.hasThreeDayTrial == true
         }
 
         @JavascriptInterface

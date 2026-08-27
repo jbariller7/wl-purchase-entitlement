@@ -1520,19 +1520,29 @@ window.WL_AssetPackDebug = {
             if (bridge && typeof bridge.getPrice === "function") {
                 try {
                     const nativePrice = String(bridge.getPrice(normalizedSku) || "").trim();
-                    if (nativePrice) return { text: nativePrice, live: true };
+                    if (nativePrice) {
+                        const hasTrial = typeof bridge.hasThreeDayTrial === "function" &&
+                            bridge.hasThreeDayTrial(normalizedSku) === true;
+                        return { text: nativePrice, live: true, hasTrial };
+                    }
                 } catch (_) {}
             }
-            return FORCE_IOS ? { text: String(fallback || "$?.??"), live: true } : { text: "", live: false };
+            return FORCE_IOS ? { text: String(fallback || "$?.??"), live: true, hasTrial: false } : { text: "", live: false, hasTrial: false };
         }
 
         if (hasAndroidManagerBridge() && typeof window.AndroidManager.getPrice === "function") {
             try {
                 const nativePrice = String(window.AndroidManager.getPrice(normalizedSku) || "").trim();
-                if (nativePrice) return { text: nativePrice, live: true };
+                if (nativePrice) {
+                    const hasTrial = typeof window.AndroidManager.hasThreeDayTrial === "function" &&
+                        window.AndroidManager.hasThreeDayTrial(normalizedSku) === true;
+                    return { text: nativePrice, live: true, hasTrial };
+                }
             } catch (_) {}
         }
-        return FORCE_ANDROID ? { text: String(fallback || "$?.??"), live: true } : { text: "", live: false };
+        return FORCE_ANDROID
+            ? { text: String(fallback || "$?.??"), live: true, hasTrial: normalizedSku === "wonderlangmonthly" }
+            : { text: "", live: false, hasTrial: false };
     }
 
     function parseLocalizedPrice(priceText) {
@@ -2941,11 +2951,12 @@ executeDownload(alreadyStarted = false) {
                 const monthlyPrice = priceDetails.get(normalizeSkuForPlatform(monthly.sku)) || { text: "", live: false };
                 const isReady = isProductPurchased(monthly.sku);
                 const canPurchase = !isReady && monthlyPrice.live && purchaseBridgeReady;
+                const hasThreeDayTrial = monthlyPrice.hasTrial === true;
                 const statusText = productDetailsStatusText(monthly, monthlyPrice);
                 const btnHtml = isReady
                     ? `<button class="price-btn owned" disabled><span>${t_unlocked}</span></button>`
                     : canPurchase
-                        ? `<button class="price-btn"><span>${t_startTrial}</span><span class="price-tag">${monthlyPrice.text}/month</span></button>`
+                        ? `<button class="price-btn"><span>${hasThreeDayTrial ? t_startTrial : t_buy}</span><span class="price-tag">${monthlyPrice.text}/month</span></button>`
                         : `<div class="price-loading">${statusText}</div>`;
                 const accountNote = isAccountSignedIn()
                     ? translatedValue("Paywall_AccountReady", "Signed in — access and saves will follow you across platforms.")
@@ -2953,7 +2964,7 @@ executeDownload(alreadyStarted = false) {
                 const monthlyDiv = document.createElement("div");
                 monthlyDiv.className = "hero-bundle monthly-offer";
                 monthlyDiv.innerHTML = `
-                    <div class="hero-ribbon">${translatedValue("Paywall_TrialRibbon", "3 DAYS FREE")}</div>
+                    ${hasThreeDayTrial ? `<div class="hero-ribbon">${translatedValue("Paywall_TrialRibbon", "3 DAYS FREE")}</div>` : ""}
                     <div class="hero-info">
                         <div class="hero-title">${productDisplayName(monthly)}</div>
                         <div class="hero-desc">${productDisplayDescription(monthly)}</div>

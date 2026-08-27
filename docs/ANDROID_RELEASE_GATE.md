@@ -9,6 +9,7 @@ Use a real Google Play internal-track install with production-equivalent product
 - New mobile storefront renders Mobile Monthly and Polyglot Permanent; chapter purchase cards and the website-only Premium Lifetime Pass are absent by explicit product decision.
 - Polyglot Permanent ownership does not mark Monthly as owned: a permanent owner can still subscribe later to add cloud saves. Premium Lifetime continues to satisfy both products because it already includes cloud saves.
 - Every `SUBS` purchase path selects a valid offer token and attaches the server account token.
+- The Monthly CTA and `3 DAYS FREE` ribbon appear as a trial offer only when the exact Play-eligible offer contains a zero-price `P3D` phase. Trial-ineligible accounts see the normal purchase label and Play-localized recurring price instead of a false free-trial promise.
 - The Polyglot path selects `wonderlangfull` purchase option `buy-polyglot-permanent`, uses its live localized price and offer token, and fails closed instead of falling back to legacy option `buy`.
 - Subscription access is granted only after `/api/v1/google-play/claim` succeeds.
 - Account authentication uses the named `wonderlang-accounts` secondary Firebase app; the existing default Firebase app remains dedicated to WonderLang Analytics and Crashlytics.
