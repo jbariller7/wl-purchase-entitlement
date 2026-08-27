@@ -573,6 +573,9 @@ function demoApi(path, options) {
     const profile = demoCustomer.cloudSaveProfiles.find((item) => item.profileId === profileId);
     const selected = profile?.revisions.find((item) => item.revision === revision && !item.current);
     if (!profile || !selected) throw new Error("That demo profile version is no longer available.");
+    if (options.body?.confirmationPhrase !== `RESTORE ${profileId} ${revision}`) {
+      throw new Error("The cloud-profile restoration confirmation phrase does not match.");
+    }
     const formerCurrent = profile.revisions.find((item) => item.current);
     profile.revisions = [
       { ...selected, current: true, updatedAt: new Date().toISOString() },
@@ -821,11 +824,22 @@ function bindView() {
     finally { button.disabled = false; }
   }));
   document.querySelectorAll("[data-restore-profile]").forEach((button) => button.addEventListener("click", async () => {
-    const supportReason = await reason("Why should this previous complete profile version replace the current cloud version?");
-    if (!supportReason) return;
     const uid = state.customer.user.uid;
-    const path = `/admin-api/v1/customers/${encodeURIComponent(uid)}/cloud-save-profiles/${encodeURIComponent(button.dataset.restoreProfile)}/revisions/${encodeURIComponent(button.dataset.restoreRevision)}/restore`;
-    if (await mutate(path, { reason: supportReason }, "Previous profile version restored and recorded in Admin Audit.")) {
+    const profileId = String(button.dataset.restoreProfile || "");
+    const revision = String(button.dataset.restoreRevision || "");
+    const confirmationPhrase = `RESTORE ${profileId} ${revision}`;
+    const data = await formDialog({
+      title: "Restore a previous complete profile",
+      copy: "This changes the active cloud version. The current version is retained so the operation can be reversed.",
+      fields: `<label>Support reason<textarea name="reason" minlength="10" maxlength="500" required placeholder="Explain why this restoration is authorized."></textarea></label><p>Type <code>${escapeHtml(confirmationPhrase)}</code> to confirm.</p><label>Confirmation phrase<input name="confirmationPhrase" required autocomplete="off"></label>`,
+      confirmText: "Restore previous profile",
+      danger: true
+    });
+    if (!data) return;
+    const supportReason = String(data.get("reason") || "").trim();
+    const typedPhrase = String(data.get("confirmationPhrase") || "").trim();
+    const path = `/admin-api/v1/customers/${encodeURIComponent(uid)}/cloud-save-profiles/${encodeURIComponent(profileId)}/revisions/${encodeURIComponent(revision)}/restore`;
+    if (await mutate(path, { reason: supportReason, confirmationPhrase: typedPhrase }, "Previous profile version restored and recorded in Admin Audit.")) {
       state.customer = await api(`/admin-api/v1/customers/${encodeURIComponent(uid)}`);
       await loadView("customers");
     }

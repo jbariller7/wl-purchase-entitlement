@@ -8,6 +8,10 @@ import { recordAdminAudit, type AdminActor } from "./audit.js";
 
 const ADMIN_DOWNLOAD_TTL_MS = 5 * 60 * 1000;
 
+export function restoreProfileConfirmationPhrase(profileId: string, revision: string): string {
+  return `RESTORE ${profileId} ${revision}`;
+}
+
 export class AdminCloudSaveService {
   constructor(private readonly db: Firestore, private readonly storage: Storage) {}
 
@@ -75,11 +79,15 @@ export class AdminCloudSaveService {
     profileId: string;
     revision: string;
     reason: string;
+    confirmationPhrase: string;
     now: Date;
   }): Promise<{ profileId: string; restoredRevision: string; replacedRevision: string }> {
     const profileId = cloudSaveProfileIdSchema.safeParse(input.profileId);
     if (!profileId.success || !/^[0-9a-f-]{36}$/i.test(input.revision)) {
       throw new HttpError(400, "Invalid cloud-profile revision selection.");
+    }
+    if (input.confirmationPhrase.trim() !== restoreProfileConfirmationPhrase(profileId.data, input.revision)) {
+      throw new HttpError(400, "The cloud-profile restoration confirmation phrase does not match.");
     }
     const ref = this.db.collection("cloudSaves").doc(input.uid).collection("profiles").doc(profileId.data);
     const initial = await ref.get();
@@ -92,6 +100,7 @@ export class AdminCloudSaveService {
     const [contents] = await this.storage.bucket().file(selected.objectPath).download();
     validateCloudProfileBundle(contents, profileId.data);
     const digest = createHash("sha256").update(contents).digest("hex");
+    const auditRef = this.db.collection("adminAudit").doc();
     const result = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) throw new HttpError(404, "Cloud-save profile was not found.");
@@ -126,23 +135,24 @@ export class AdminCloudSaveService {
           attemptCount: 0
         });
       }
+      transaction.create(auditRef, {
+        id: auditRef.id,
+        actorUid: input.actor.uid,
+        actorEmail: input.actor.email,
+        action: "cloud_save_profile.restore_revision",
+        targetType: "user",
+        targetId: input.uid,
+        summary: `Restored a previous version of cloud profile ${current.name}: ${input.reason}`,
+        metadata: {
+          profileId: profileId.data,
+          restoredRevision: input.revision,
+          replacedRevision: current.currentRevision,
+          byteLength: contents.byteLength,
+          sha256: digest
+        },
+        createdAt: input.now.toISOString()
+      });
       return { replacedRevision: current.currentRevision };
-    });
-    await recordAdminAudit({
-      db: this.db,
-      actor: input.actor,
-      action: "cloud_save_profile.restore_revision",
-      targetType: "user",
-      targetId: input.uid,
-      summary: `Restored a previous version of cloud profile ${initialManifest.name}: ${input.reason}`,
-      metadata: {
-        profileId: profileId.data,
-        restoredRevision: input.revision,
-        replacedRevision: result.replacedRevision,
-        byteLength: contents.byteLength,
-        sha256: digest
-      },
-      now: input.now
     });
     return { profileId: profileId.data, restoredRevision: input.revision, replacedRevision: result.replacedRevision };
   }

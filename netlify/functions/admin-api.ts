@@ -61,6 +61,7 @@ const importRowSchema = z.object({
 });
 const importPreviewSchema = z.object({ rows: z.array(importRowSchema).min(1).max(500) });
 const reasonSchema = z.object({ reason });
+const restoreProfileSchema = z.object({ reason, confirmationPhrase: confirmation });
 const accessSchema = z.object({ disabled: z.boolean(), reason });
 const repairEmailSchema = z.object({ email: z.string().trim().email().max(320), reason });
 
@@ -199,7 +200,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       uid: cloudProfileRestoreMatch[1],
       profileId: cloudProfileRestoreMatch[2],
       revision: cloudProfileRestoreMatch[3],
-      ...body(reasonSchema, event),
+      ...body(restoreProfileSchema, event),
       now
     }));
   }

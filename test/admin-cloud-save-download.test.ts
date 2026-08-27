@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Firestore } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
-import { AdminCloudSaveService } from "../src/admin/cloud-save-service.js";
+import { AdminCloudSaveService, restoreProfileConfirmationPhrase } from "../src/admin/cloud-save-service.js";
 
 const now = new Date("2026-08-25T12:00:00.000Z");
 const uid = "customer-1";
@@ -51,9 +51,11 @@ function fakeFirestore(value: Record<string, unknown>, auditRows: Record<string,
     runTransaction: async (callback: (transaction: {
       get: (ref: { get: () => Promise<unknown> }) => Promise<unknown>;
       set: (ref: { _set: (value: Record<string, unknown>) => void }, value: Record<string, unknown>) => void;
+      create: (ref: { create: (value: Record<string, unknown>) => Promise<void> }, value: Record<string, unknown>) => Promise<void>;
     }) => Promise<unknown>) => callback({
       get: (ref) => ref.get(),
-      set: (ref, next) => ref._set(next)
+      set: (ref, next) => ref._set(next),
+      create: (ref, next) => ref.create(next)
     })
   };
   return database as unknown as Firestore;
@@ -134,6 +136,7 @@ describe("audited administrator cloud-profile downloads", () => {
       profileId: "default",
       revision: previousRevision,
       reason: "Player asked support to recover yesterday's complete profile.",
+      confirmationPhrase: restoreProfileConfirmationPhrase("default", previousRevision),
       now
     });
     expect(result).toEqual({
@@ -143,5 +146,33 @@ describe("audited administrator cloud-profile downloads", () => {
     });
     expect(audits[0]).toMatchObject({ action: "cloud_save_profile.restore_revision", targetId: uid });
     expect(JSON.stringify(audits[0])).not.toContain(previousPath);
+  });
+
+  it("rejects a profile restoration when the typed confirmation phrase does not match", async () => {
+    const previousRevision = "5bcb303f-18d2-4b98-b665-058c332271df";
+    const previousPath = `cloud-save-profiles/${uid}/profiles/default/revisions/${previousRevision}.json`;
+    const contents = Buffer.from(JSON.stringify({
+      magic: "WL_CLOUD_PROFILE",
+      version: 1,
+      profileId: "default",
+      files: { global: "[]", file1: "{}" }
+    }));
+    const audits: Record<string, unknown>[] = [];
+    const database = fakeFirestore({
+      ...profileManifest(),
+      previousRevisions: [{ revision: previousRevision, objectPath: previousPath, updatedAt: "2026-08-24T11:45:00.000Z" }]
+    }, audits);
+
+    await expect(new AdminCloudSaveService(database, fakeStorage([], true, contents)).restoreProfileRevision({
+      actor: { uid: "admin-1", email: "owner@example.com" },
+      uid,
+      profileId: "default",
+      revision: previousRevision,
+      reason: "Player asked support to recover yesterday's complete profile.",
+      confirmationPhrase: "RESTORE default wrong-revision",
+      now
+    })).rejects.toMatchObject({ status: 400 });
+
+    expect(audits).toEqual([]);
   });
 });

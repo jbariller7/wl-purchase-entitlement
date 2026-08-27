@@ -162,6 +162,12 @@ describe("administrator interface route contract", () => {
     expect(api).toContain("operations.customerDetail");
   });
 
+  it("requires a typed server-checked phrase before restoring a cloud profile", () => {
+    expect(admin).toContain("const confirmationPhrase = `RESTORE ${profileId} ${revision}`");
+    expect(admin).toContain("confirmationPhrase: typedPhrase");
+    expect(api).toContain("restoreProfileSchema");
+  });
+
   it("keeps each administrator operation paired with a protected server route", () => {
     const exactRoutes = [
       ["/admin-api/v1/overview", 'path === "/v1/overview"'],
