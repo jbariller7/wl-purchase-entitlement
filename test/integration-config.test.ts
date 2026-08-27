@@ -153,6 +153,7 @@ describe("isolated integration configuration", () => {
     const account = read("integrations/web/account-widget/wonderlang-account.js");
     const admin = read("integrations/web/admin-console/admin.js");
     const android = read("integrations/android/current-app-mirror/app/src/main/java/com/example/wonderlang/WonderLangAccountManager.kt");
+    const rmmzCloudSync = read("integrations/rmmz/WonderLangAccountCloudSync.js");
     const androidGradle = read("integrations/android/current-app-mirror/app/build.gradle.kts");
     const api = read("netlify/functions/api.ts");
     for (const webClient of [account, admin]) {
@@ -164,7 +165,11 @@ describe("isolated integration configuration", () => {
     expect(api).toContain("recaptchaEnterpriseSiteKey");
     expect(androidGradle).toContain('firebase-appcheck-playintegrity');
     expect(android).toContain("PlayIntegrityAppCheckProviderFactory");
+    expect(android).toContain("addAppCheckListener(appCheckListener)");
+    expect(android).toContain("fun getCachedAppCheckToken(): String = cachedAppCheckToken");
     expect(android).toContain('setRequestProperty("X-Firebase-AppCheck", appCheckToken)');
+    expect(rmmzCloudSync).toContain('bridge()?.getCachedAppCheckToken?.()');
+    expect(rmmzCloudSync).toContain('"x-firebase-appcheck": appCheckToken');
   });
 
   it("allows Firebase Google Auth to load its helper script on account and admin pages", () => {

@@ -95,6 +95,7 @@ class WonderLangAccountManager(
 
     @Volatile private var cachedIdToken = ""
     @Volatile private var cachedIdTokenUid = ""
+    @Volatile private var cachedAppCheckToken = ""
     @Volatile private var cachedStoreAccountToken = ""
     @Volatile private var cachedStoreAccountTokenUid = ""
     @Volatile private var cachedAccountJson = ""
@@ -125,13 +126,18 @@ class WonderLangAccountManager(
             refreshAccount(forceTokenRefresh = false)
         }
     }
+    private val appCheckListener = FirebaseAppCheck.AppCheckListener { token ->
+        cachedAppCheckToken = token.token.orEmpty()
+    }
 
     init {
+        appCheck.addAppCheckListener(appCheckListener)
         auth.addAuthStateListener(authListener)
         resumePendingAppleFlow()
     }
 
     fun destroy() {
+        appCheck.removeAppCheckListener(appCheckListener)
         auth.removeAuthStateListener(authListener)
         executor.shutdownNow()
     }
@@ -262,6 +268,9 @@ class WonderLangAccountManager(
         val currentUid = auth.currentUser?.uid.orEmpty()
         return if (currentUid.isNotBlank() && cachedIdTokenUid == currentUid) cachedIdToken else ""
     }
+
+    @JavascriptInterface
+    fun getCachedAppCheckToken(): String = cachedAppCheckToken
 
     @JavascriptInterface
     fun getAccountSnapshot(): String {
@@ -995,6 +1004,7 @@ class WonderLangAccountManager(
         val appCheckToken = runCatching {
             Tasks.await(appCheck.getAppCheckToken(false), 4, TimeUnit.SECONDS).token.orEmpty()
         }.getOrDefault("")
+        if (appCheckToken.isNotBlank()) cachedAppCheckToken = appCheckToken
         val connection = URL(apiBase + path).openConnection() as HttpURLConnection
         return try {
             connection.requestMethod = method

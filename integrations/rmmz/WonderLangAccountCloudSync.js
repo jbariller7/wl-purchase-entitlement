@@ -32,7 +32,7 @@
  * this copy has passed the Android release gate and real-device testing.
  *
  * Native bridge name: WLAccountManager
- *   getCachedIdToken(), refreshIdToken(), openSignIn(), openAccount(),
+ *   getCachedIdToken(), getCachedAppCheckToken(), refreshIdToken(), openSignIn(), openAccount(),
  *   openExternalUrl(url), and Firebase-auth callbacks documented below.
  *
  * Every selected profile contains global.rmmzsave and every file0-file20 save.
@@ -200,11 +200,18 @@
 
   async function request(path, options = {}) {
     const body = options.body ? JSON.stringify(options.body) : undefined;
-    const send = token => fetch(`${apiBase}${path}`, {
-      method: options.method || "GET",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      ...(body ? { body } : {})
-    });
+    const send = token => {
+      const appCheckToken = String(bridge()?.getCachedAppCheckToken?.() || "");
+      return fetch(`${apiBase}${path}`, {
+        method: options.method || "GET",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+          ...(appCheckToken ? { "x-firebase-appcheck": appCheckToken } : {})
+        },
+        ...(body ? { body } : {})
+      });
+    };
     let response = await send(await idToken());
     if (response.status === 401) response = await send(await idToken(true));
     const result = await response.json().catch(() => ({}));

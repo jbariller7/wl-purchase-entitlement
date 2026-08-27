@@ -29,6 +29,13 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(guardedWrites).toHaveLength(2);
   });
 
+  it("passes the native Android App Check token with cloud-save requests", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    expect(source).toContain("getCachedAppCheckToken()");
+    expect(source).toContain('bridge()?.getCachedAppCheckToken?.()');
+    expect(source).toContain('"x-firebase-appcheck": appCheckToken');
+  });
+
   it("stops overlay input before RPG Maker document handlers can receive it", async () => {
     const source = await readFile(pluginUrl, "utf8");
     expect(source).toContain("function blockGameInput(overlay)");
