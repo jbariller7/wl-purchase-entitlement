@@ -23,6 +23,7 @@ export const prepareProfileUploadSchema = z.object({
   baseRevision: z.string().uuid().nullable().optional()
 });
 export const finalizeProfileUploadSchema = z.object({ uploadId: z.string().uuid() });
+export const restoreProfileRevisionSchema = z.object({ expectedCurrentRevision: z.string().uuid() });
 
 export interface CloudRevisionPointer {
   revision: string;
@@ -69,6 +70,10 @@ export interface CloudSaveProfileManifest {
   sha256: string | null;
   previousRevisions: CloudRevisionPointer[];
 }
+
+export type PublicCloudSaveProfile = Omit<CloudSaveProfileManifest, "uid" | "objectPath" | "previousRevisions"> & {
+  backups: Array<Pick<CloudRevisionPointer, "revision" | "updatedAt">>;
+};
 
 interface PendingProfileUpload {
   uid: string;
@@ -121,7 +126,7 @@ function isPreconditionFailure(error: unknown): boolean {
   return candidate.code === 412 || candidate.code === "412" || candidate.statusCode === 412;
 }
 
-function publicProfile(manifest: CloudSaveProfileManifest): Omit<CloudSaveProfileManifest, "uid" | "objectPath" | "previousRevisions"> {
+function publicProfile(manifest: CloudSaveProfileManifest): PublicCloudSaveProfile {
   return {
     profileId: manifest.profileId,
     name: manifest.name,
@@ -129,7 +134,8 @@ function publicProfile(manifest: CloudSaveProfileManifest): Omit<CloudSaveProfil
     updatedAt: manifest.updatedAt,
     currentRevision: manifest.currentRevision,
     byteLength: manifest.byteLength,
-    sha256: manifest.sha256
+    sha256: manifest.sha256,
+    backups: (manifest.previousRevisions ?? []).map(({ revision, updatedAt }) => ({ revision, updatedAt }))
   };
 }
 
@@ -360,6 +366,74 @@ export class CloudSaveProfileService {
     }
     await staging.delete({ ignoreNotFound: true }).catch(() => undefined);
     await this.cleanup(uid, uploadId, result.cleanupObjectPaths, now);
+    return publicProfile(result.manifest);
+  }
+
+  async restoreRevision(
+    uid: string,
+    profileId: string,
+    revision: string,
+    expectedCurrentRevision: string,
+    now: Date
+  ): Promise<PublicCloudSaveProfile> {
+    await this.requireCloudSave(uid, now);
+    if (!/^[0-9a-f-]{36}$/i.test(revision)) throw new HttpError(400, "A valid cloud-profile backup revision is required.");
+    const profileRef = this.profiles(uid).doc(profileId);
+    const initialSnapshot = await profileRef.get();
+    if (!initialSnapshot.exists) throw new HttpError(404, "Cloud-save profile was not found.");
+    const initial = initialSnapshot.data() as CloudSaveProfileManifest;
+    if (initial.currentRevision !== expectedCurrentRevision) throw new HttpError(409, "The cloud profile changed. Refresh its backup history before restoring.");
+    const selected = initial.previousRevisions.find((item) => item.revision === revision);
+    if (!selected || !isSafeCloudRevisionObjectPath(selected.objectPath, uid)) {
+      throw new HttpError(404, "That retained profile backup is no longer available.");
+    }
+    const [contents] = await this.storage.bucket().file(selected.objectPath).download();
+    validateCloudProfileBundle(contents, profileId);
+    const digest = createHash("sha256").update(contents).digest("hex");
+    const cleanupJobId = randomUUID();
+    const result = await this.db.runTransaction(async (transaction): Promise<{
+      manifest: CloudSaveProfileManifest;
+      cleanupObjectPaths: string[];
+    }> => {
+      const snapshot = await transaction.get(profileRef);
+      if (!snapshot.exists) throw new HttpError(404, "Cloud-save profile was not found.");
+      const current = snapshot.data() as CloudSaveProfileManifest;
+      if (current.currentRevision !== expectedCurrentRevision) {
+        throw new HttpError(409, "The cloud profile changed. Refresh its backup history before restoring.");
+      }
+      const retained = current.previousRevisions.find((item) =>
+        item.revision === revision && item.objectPath === selected.objectPath
+      );
+      if (!retained || !current.currentRevision || !current.objectPath ||
+          !isSafeCloudRevisionObjectPath(retained.objectPath, uid) ||
+          !isSafeCloudRevisionObjectPath(current.objectPath, uid)) {
+        throw new HttpError(409, "The selected profile backup changed while it was being restored.");
+      }
+      const candidates = [
+        { revision: current.currentRevision, objectPath: current.objectPath, updatedAt: current.updatedAt },
+        ...current.previousRevisions.filter((item) => item.revision !== retained.revision)
+      ];
+      const previousRevisions = candidates.slice(0, RETAINED_PRIOR_REVISIONS);
+      const cleanupObjectPaths = candidates.slice(RETAINED_PRIOR_REVISIONS).map((item) => item.objectPath);
+      const manifest: CloudSaveProfileManifest = {
+        ...current,
+        currentRevision: retained.revision,
+        objectPath: retained.objectPath,
+        byteLength: contents.byteLength,
+        sha256: digest,
+        updatedAt: now.toISOString(),
+        previousRevisions
+      };
+      transaction.set(profileRef, manifest);
+      if (cleanupObjectPaths.length) {
+        transaction.set(this.db.collection("cloudSaveCleanupJobs").doc(cleanupJobId), {
+          state: "pending", uid, objectPaths: cleanupObjectPaths,
+          createdAt: now.toISOString(), attemptCount: 0
+        });
+      }
+      return { manifest, cleanupObjectPaths };
+    });
+    await this.cleanup(uid, cleanupJobId, result.cleanupObjectPaths, now);
     return publicProfile(result.manifest);
   }
 

@@ -14,16 +14,42 @@
       chapters: [1, 2, 3, 4]
     }
   };
-  const profileRecords = [
-    { profileId: "default", name: "Default", currentRevision: "11111111-1111-4111-8111-111111111111" },
-    { profileId: "spanish", name: "Spanish", currentRevision: "33333333-3333-4333-8333-333333333333" }
-  ];
-  const remoteBytes = new Map(profileRecords.map(profile => [profile.profileId, new TextEncoder().encode(JSON.stringify({
+  const bundleBytes = (profileId, label, saveCount, gold) => new TextEncoder().encode(JSON.stringify({
     magic: "WL_CLOUD_PROFILE",
     version: 1,
-    profileId: profile.profileId,
-    files: { global: "[]", file1: JSON.stringify({ system: { _saveCount: profile.profileId === "default" ? 42 : 18 }, party: { gold: profile.profileId === "default" ? 999 : 320 }, test: `${profile.name} cloud copy` }) }
-  }))]));
+    profileId,
+    files: { global: "[]", file1: JSON.stringify({ system: { _saveCount: saveCount }, party: { gold }, test: label }) }
+  }));
+  const profileRecords = [
+    {
+      profileId: "default", name: "Default", currentRevision: "11111111-1111-4111-8111-111111111111",
+      createdAt: new Date(Date.now() - 86_400_000).toISOString(), updatedAt: new Date(Date.now() - 180_000).toISOString(),
+      backups: [
+        { revision: "55555555-5555-4555-8555-555555555555", updatedAt: new Date(Date.now() - 3_600_000).toISOString() },
+        { revision: "66666666-6666-4666-8666-666666666666", updatedAt: new Date(Date.now() - 7_200_000).toISOString() },
+        { revision: "77777777-7777-4777-8777-777777777777", updatedAt: new Date(Date.now() - 10_800_000).toISOString() }
+      ]
+    },
+    {
+      profileId: "spanish", name: "Spanish", currentRevision: "33333333-3333-4333-8333-333333333333",
+      createdAt: new Date(Date.now() - 43_200_000).toISOString(), updatedAt: new Date(Date.now() - 240_000).toISOString(),
+      backups: [
+        { revision: "88888888-8888-4888-8888-888888888888", updatedAt: new Date(Date.now() - 5_400_000).toISOString() },
+        { revision: "99999999-9999-4999-8999-999999999999", updatedAt: new Date(Date.now() - 9_000_000).toISOString() }
+      ]
+    }
+  ];
+  const remoteBytes = new Map([
+    ["default", bundleBytes("default", "Default cloud copy", 42, 999)],
+    ["spanish", bundleBytes("spanish", "Spanish cloud copy", 18, 320)]
+  ]);
+  const revisionBytes = new Map([
+    ["55555555-5555-4555-8555-555555555555", bundleBytes("default", "Default backup 1", 39, 870)],
+    ["66666666-6666-4666-8666-666666666666", bundleBytes("default", "Default backup 2", 34, 760)],
+    ["77777777-7777-4777-8777-777777777777", bundleBytes("default", "Default backup 3", 28, 610)],
+    ["88888888-8888-4888-8888-888888888888", bundleBytes("spanish", "Spanish backup 1", 14, 240)],
+    ["99999999-9999-4999-8999-999999999999", bundleBytes("spanish", "Spanish backup 2", 9, 120)]
+  ]);
   let simulateConflict = false;
   const deviceSaves = new Map([["global", []], ["file1", { system: { _saveCount: 44 }, party: { gold: 1200 }, test: "device copy" }]]);
   const status = () => document.getElementById("status");
@@ -87,14 +113,34 @@
     if (url.endsWith("/api/v1/billing-portal")) return json({ url: "https://billing.stripe.com/p/session/test" }, 201);
     if (url.endsWith("/api/v1/cloud-save-profiles") && method === "GET") return json({ profiles: await Promise.all(profileRecords.map(async profile => {
       const bytes = remoteBytes.get(profile.profileId);
-      return { ...profile, byteLength: bytes.byteLength, sha256: await sha256Hex(bytes), createdAt: new Date(Date.now() - 86_400_000).toISOString(), updatedAt: new Date(Date.now() - 180_000).toISOString() };
+      return { ...profile, byteLength: bytes.byteLength, sha256: await sha256Hex(bytes) };
     })) });
+    const restoreMatch = url.match(/\/api\/v1\/cloud-save-profiles\/([^/]+)\/revisions\/([^/]+)\/restore$/);
+    if (restoreMatch && method === "POST") {
+      const profileId = decodeURIComponent(restoreMatch[1]);
+      const revision = decodeURIComponent(restoreMatch[2]);
+      const profile = profileRecords.find(item => item.profileId === profileId);
+      const body = JSON.parse(String(options.body || "{}"));
+      const backup = profile?.backups.find(item => item.revision === revision);
+      const bytes = revisionBytes.get(revision);
+      if (!profile || !backup || !bytes) return json({ error: "That retained profile backup is no longer available." }, 404);
+      if (profile.currentRevision !== body.expectedCurrentRevision) return json({ error: "The cloud profile changed. Refresh its backup history before restoring." }, 409);
+      revisionBytes.set(profile.currentRevision, remoteBytes.get(profileId));
+      profile.backups = [
+        { revision: profile.currentRevision, updatedAt: profile.updatedAt },
+        ...profile.backups.filter(item => item.revision !== revision)
+      ].slice(0, 3);
+      profile.currentRevision = revision;
+      profile.updatedAt = new Date().toISOString();
+      remoteBytes.set(profileId, bytes);
+      return json({ ...profile, byteLength: bytes.byteLength, sha256: await sha256Hex(bytes) });
+    }
     const downloadMatch = url.match(/\/api\/v1\/cloud-save-profiles\/([^/]+)\/download$/);
     if (downloadMatch) {
       const profileId = decodeURIComponent(downloadMatch[1]);
       const profile = profileRecords.find(item => item.profileId === profileId);
       const bytes = remoteBytes.get(profileId);
-      return json({ downloadUrl: `https://mock-download.test/${encodeURIComponent(profileId)}`, manifest: { ...profile, byteLength: bytes.byteLength, sha256: await sha256Hex(bytes), updatedAt: new Date(Date.now() - 180_000).toISOString() } });
+      return json({ downloadUrl: `https://mock-download.test/${encodeURIComponent(profileId)}`, manifest: { ...profile, byteLength: bytes.byteLength, sha256: await sha256Hex(bytes) } });
     }
     if (/\/api\/v1\/cloud-save-profiles\/[^/]+\/prepare-upload$/.test(url)) return json({ uploadId: "22222222-2222-4222-8222-222222222222", uploadUrl: "https://mock-upload.test/profile", expiresAt: new Date(Date.now() + 600_000).toISOString() }, 201);
     if (/\/api\/v1\/cloud-save-profiles\/[^/]+\/finalize$/.test(url)) {

@@ -68,4 +68,16 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(switchFlow.indexOf("await syncActiveProfileNow()")).toBeGreaterThan(-1);
     expect(switchFlow.indexOf("return activateProfile(profile")).toBeGreaterThan(switchFlow.indexOf("await syncActiveProfileNow()"));
   });
+
+  it("shows retained profile backups and applies a restored active version only after the server accepts it", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    expect(source).toContain("data-profile-backups");
+    expect(source).toContain("data-restore-backup");
+    expect(source).toContain("Restore this version");
+    expect(source).toContain("expectedCurrentRevision: profile.currentRevision");
+    const restoreFlow = source.slice(source.indexOf("async function restoreProfileBackup"), source.indexOf("async function clearWorkspaceForProfile"));
+    expect(restoreFlow).toContain("/revisions/${encodeURIComponent(backup.revision)}/restore");
+    expect(restoreFlow.indexOf("await request(")).toBeGreaterThan(-1);
+    expect(restoreFlow.indexOf("await restoreProfile(profile.profileId)")).toBeGreaterThan(restoreFlow.indexOf("await request("));
+  });
 });

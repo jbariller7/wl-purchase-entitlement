@@ -764,7 +764,7 @@
         : `<p class="wl-account-muted">All saves and global.rmmzsave synchronize automatically inside the selected profile. Up to six people or learning paths can share one WonderLang account without mixing progress.</p>`;
       const rows = profiles.map(profile => `<div class="wl-account-save ${profile.profileId === active ? "active" : ""}">
         <div><h3>${escapeHtml(profile.name)}${profile.profileId === active ? `<span class="wl-account-active-pill">Active</span>` : ""}</h3><div class="wl-account-muted">${profile.currentRevision ? `Cloud updated ${escapeHtml(formatTime(profile.updatedAt))}` : "No cloud saves yet"}</div></div>
-        <div class="wl-account-save-actions"><button class="wl-account-btn" data-select-profile="${escapeHtml(profile.profileId)}" ${profile.profileId === active ? "disabled" : ""}>${profile.profileId === active ? "Selected" : "Use profile"}</button><button class="wl-account-btn secondary" data-rename-profile="${escapeHtml(profile.profileId)}">Rename</button></div>
+        <div class="wl-account-save-actions"><button class="wl-account-btn" data-select-profile="${escapeHtml(profile.profileId)}" ${profile.profileId === active ? "disabled" : ""}>${profile.profileId === active ? "Selected" : "Use profile"}</button>${Array.isArray(profile.backups) && profile.backups.length ? `<button class="wl-account-btn secondary" data-profile-backups="${escapeHtml(profile.profileId)}">Restore backup (${profile.backups.length})</button>` : ""}<button class="wl-account-btn secondary" data-rename-profile="${escapeHtml(profile.profileId)}">Rename</button></div>
       </div>`).join("");
       const overlay = showPanel("Save profiles", intro + rows, [
         ...(profiles.length < 6 ? [{ label: "Create profile", run: showCreateProfile }] : []),
@@ -773,6 +773,7 @@
         ...(!forcePick || active ? [{ label: "Close", kind: "secondary", run: closeOverlay }] : [])
       ]);
       overlay.querySelectorAll("[data-select-profile]").forEach(button => bindReleaseTap(button, () => selectProfile(profiles.find(profile => profile.profileId === button.dataset.selectProfile), { profiles, onCancel: openCloudSavesPanel })));
+      overlay.querySelectorAll("[data-profile-backups]").forEach(button => bindReleaseTap(button, () => openProfileBackups(profiles.find(profile => profile.profileId === button.dataset.profileBackups))));
       overlay.querySelectorAll("[data-rename-profile]").forEach(button => bindReleaseTap(button, () => showRenameProfile(profiles.find(profile => profile.profileId === button.dataset.renameProfile))));
     } catch (error) {
       showError("Save profiles unavailable", error, openCloudSavesPanel);
@@ -810,6 +811,78 @@
         await openCloudSavesPanel();
       } catch (error) { showError("Profile was not renamed", error, () => showRenameProfile(profile)); }
     });
+  }
+
+  async function openProfileBackups(profile) {
+    if (!profile) return openCloudSavesPanel();
+    showPanel("Loading profile backups", `<p class="wl-account-muted">Checking the retained versions for ${escapeHtml(profile.name)}…</p>`, [
+      { label: "Cancel", kind: "secondary", run: openCloudSavesPanel }
+    ]);
+    try {
+      if (profile.profileId === activeProfileId()) {
+        clearTimeout(profileSyncTimer);
+        if (profileSyncInFlight) await profileSyncInFlight.catch(() => undefined);
+        if (retryQueue()[profile.profileId]) {
+          showPanel("Saving current profile", `<p class="wl-account-muted">Finishing the latest profile upload before showing versions that can be restored…</p>`);
+          const result = await syncActiveProfileNow();
+          if (result?.conflict) return;
+        }
+      }
+      const profiles = await listProfiles();
+      const refreshed = profiles.find(item => item.profileId === profile.profileId);
+      if (!refreshed) throw new Error("The save profile no longer exists.");
+      const backups = Array.isArray(refreshed.backups) ? refreshed.backups : [];
+      if (!backups.length) {
+        showPanel(`Backups for ${refreshed.name}`, `<p class="wl-account-muted">No older version is available yet. WonderLang keeps the three previous successful profile syncs.</p>`, [
+          { label: "Back to profiles", run: openCloudSavesPanel },
+          { label: "Close", kind: "secondary", run: closeOverlay }
+        ]);
+        return;
+      }
+      const rows = backups.map((backup, index) => `<div class="wl-account-save">
+        <div><h3>Backup ${index + 1}</h3><div class="wl-account-muted">Saved ${escapeHtml(formatTime(backup.updatedAt))}</div></div>
+        <div class="wl-account-save-actions"><button class="wl-account-btn secondary" data-restore-backup="${escapeHtml(backup.revision)}">Restore this version</button></div>
+      </div>`).join("");
+      const overlay = showPanel(`Backups for ${refreshed.name}`, `<p class="wl-account-muted">WonderLang keeps three previous complete versions. Each contains global.rmmzsave and every save slot.</p>${rows}`, [
+        { label: "Back to profiles", kind: "secondary", run: openCloudSavesPanel },
+        { label: "Close", kind: "secondary", run: closeOverlay }
+      ]);
+      overlay.querySelectorAll("[data-restore-backup]").forEach(button => bindReleaseTap(button, () => {
+        const backup = backups.find(item => item.revision === button.dataset.restoreBackup);
+        if (backup) confirmProfileBackupRestore(refreshed, backup);
+      }));
+    } catch (error) {
+      showError("Profile backups unavailable", error, () => openProfileBackups(profile));
+    }
+  }
+
+  function confirmProfileBackupRestore(profile, backup) {
+    const savedAt = formatTime(backup.updatedAt);
+    showPanel(`Restore ${profile.name} backup?`, `<p class="wl-account-muted">Restore the complete version saved ${escapeHtml(savedAt)}? The current cloud version will remain available as one of the three backups. No save slots will be mixed.</p>`, [
+      { label: "Restore backup", kind: "danger", run: () => restoreProfileBackup(profile, backup) },
+      { label: "Cancel", kind: "secondary", run: () => openProfileBackups(profile) }
+    ]);
+  }
+
+  async function restoreProfileBackup(profile, backup) {
+    try {
+      showPanel("Restoring profile backup", `<p class="wl-account-muted">Restoring ${escapeHtml(profile.name)} from ${escapeHtml(formatTime(backup.updatedAt))}…</p>`);
+      await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profile.profileId)}/revisions/${encodeURIComponent(backup.revision)}/restore`, {
+        method: "POST",
+        body: { expectedCurrentRevision: profile.currentRevision }
+      });
+      const isActive = profile.profileId === activeProfileId();
+      if (isActive) await restoreProfile(profile.profileId);
+      showPanel("Backup restored", `<p class="wl-account-success">${escapeHtml(profile.name)} now uses the complete backup from ${escapeHtml(formatTime(backup.updatedAt))}.${isActive ? " This device has downloaded and applied it." : " It will download when this device switches to that profile."}</p>`, [
+        { label: "Continue", run: () => {
+          closeOverlay();
+          if (isActive && typeof Scene_Map !== "undefined" && SceneManager._scene instanceof Scene_Map) SceneManager.goto(Scene_Title);
+        } },
+        { label: "Back to profiles", kind: "secondary", run: openCloudSavesPanel }
+      ]);
+    } catch (error) {
+      showError("Backup was not restored", error, () => openProfileBackups(profile));
+    }
   }
 
   async function clearWorkspaceForProfile(profileId) {

@@ -10,7 +10,8 @@ import {
   createCloudSaveProfileSchema,
   finalizeProfileUploadSchema,
   prepareProfileUploadSchema,
-  renameCloudSaveProfileSchema
+  renameCloudSaveProfileSchema,
+  restoreProfileRevisionSchema
 } from "../../src/cloud-save/profile-service.js";
 import { deploymentControls, firebaseAdminEnv, stripeEnv } from "../../src/config/env.js";
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
@@ -479,6 +480,22 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const parsed = finalizeProfileUploadSchema.safeParse(parseJsonBody(event.body));
     if (!profileId.success || !parsed.success) throw new HttpError(400, "A valid profile ID and upload ID are required.");
     return json(200, await cloudProfiles.finalizeUpload(user.uid, profileId.data, parsed.data.uploadId, now));
+  }
+  const profileRestoreMatch = path.match(/^\/v1\/cloud-save-profiles\/([^/]+)\/revisions\/([^/]+)\/restore$/);
+  if (event.httpMethod === "POST" && profileRestoreMatch?.[1] && profileRestoreMatch[2]) {
+    const profileId = cloudSaveProfileIdSchema.safeParse(profileRestoreMatch[1]);
+    const revision = z.string().uuid().safeParse(profileRestoreMatch[2]);
+    const body = restoreProfileRevisionSchema.safeParse(parseJsonBody(event.body));
+    if (!profileId.success || !revision.success || !body.success) {
+      throw new HttpError(400, "A valid profile, retained backup, and current revision are required.");
+    }
+    return json(200, await cloudProfiles.restoreRevision(
+      user.uid,
+      profileId.data,
+      revision.data,
+      body.data.expectedCurrentRevision,
+      now
+    ));
   }
   const profileDownloadMatch = path.match(/^\/v1\/cloud-save-profiles\/([^/]+)\/download$/);
   if (event.httpMethod === "GET" && profileDownloadMatch?.[1]) {
