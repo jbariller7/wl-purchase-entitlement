@@ -7,6 +7,7 @@ Use a real Google Play internal-track install with production-equivalent product
 - Current duplicate `MainActivity.kt`, packaged `AndroidAssetDownloader.js`, `plugins.js` and Gradle dependencies all contain `wonderlangmonthly` consistently.
 - Legacy `wonderlangch1`…`wonderlangch4` and `wonderlangfull` remain in restore/query and ownership code.
 - New mobile storefront renders Mobile Monthly and Polyglot Permanent; chapter purchase cards and the website-only Premium Lifetime Pass are absent by explicit product decision.
+- Polyglot Permanent ownership does not mark Monthly as owned: a permanent owner can still subscribe later to add cloud saves. Premium Lifetime continues to satisfy both products because it already includes cloud saves.
 - Every `SUBS` purchase path selects a valid offer token and attaches the server account token.
 - The Polyglot path selects `wonderlangfull` purchase option `buy-polyglot-permanent`, uses its live localized price and offer token, and fails closed instead of falling back to legacy option `buy`.
 - Subscription access is granted only after `/api/v1/google-play/claim` succeeds.

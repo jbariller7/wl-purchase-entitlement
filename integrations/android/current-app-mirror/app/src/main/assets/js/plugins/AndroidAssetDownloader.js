@@ -1440,7 +1440,12 @@ window.WL_AssetPackDebug = {
         // The native/account bridge owns the dated chapter-to-full migration decision.
         // JavaScript must not infer permanent full access from an undated chapter receipt.
 
-        const ownsBundle = normalizedSku !== bundleSku && (
+        // Full-game ownership subsumes the historical chapter products, but it must
+        // never subsume Monthly. Polyglot owners are deliberately allowed to add the
+        // subscription later when they want cloud saves.
+        const bundleCanSatisfyProduct = normalizedSku !== bundleSku &&
+            normalizedSku !== "wonderlangmonthly";
+        const ownsBundle = bundleCanSatisfyProduct && (
             isIOSRuntime()
                 ? (() => {
                     const bridge = getIOSManagerBridge();

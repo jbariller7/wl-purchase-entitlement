@@ -417,6 +417,8 @@ describe("isolated integration configuration", () => {
     expect(storefront).toMatch(/function shouldShowChapterOffers\(\)\s*\{\s*return false;\s*\}/);
     expect(storefront).toContain("RESTORE_PRODUCTS");
     expect(storefront).toContain("JavaScript must not infer permanent full access from an undated chapter receipt");
+    expect(storefront).toContain('normalizedSku !== "wonderlangmonthly"');
+    expect(storefront).toContain("const ownsBundle = bundleCanSatisfyProduct &&");
     expect(storefront).not.toContain("const historicalChapterOwned");
     expect(plugins).toContain('{"name":"WonderLangAccountCloudSync","status":true');
     expect(plugins).toContain("Polyglot Permanent Access");
