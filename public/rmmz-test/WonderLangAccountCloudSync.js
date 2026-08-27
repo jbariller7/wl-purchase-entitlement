@@ -451,14 +451,67 @@
     return uploadProfile(profileId);
   }
 
+  function accountTheme() {
+    let theme = {};
+    try {
+      theme = globalThis.ColorThemeUtils?.computeThemeFromConfig?.() || {};
+    } catch (_) {}
+    const buttonGradient = String(theme.buttonGradient || "linear-gradient(135deg, #d9ff45 0%, #77df66 48%, #32b6a8 100%)");
+    const gradientColor = buttonGradient.match(/(#[0-9a-f]{6}|#[0-9a-f]{3}|rgba?\([^)]+\))/i)?.[1];
+    let fontFamily = "NotoSans";
+    try {
+      const fonts = globalThis.TextManager?.optionsCoreFonts || [];
+      const configured = String(fonts[Number(globalThis.ConfigManager?.textFont)] || "").trim();
+      if (configured && !/^(?:default|gamefont)$/i.test(configured)) fontFamily = configured;
+    } catch (_) {}
+    return {
+      panel: String(theme.primaryBg || "rgba(9, 24, 24, .96)"),
+      panelAlt: String(theme.secondaryBg || "rgba(28, 62, 51, .96)"),
+      gradient: buttonGradient,
+      text: String(theme.textColor || "#f8fff4"),
+      highlight: String(theme.highlightColor || theme.accentColor || gradientColor || "#d9ff45"),
+      fontFamily
+    };
+  }
+
+  function applyAccountTheme(overlay) {
+    const theme = accountTheme();
+    overlay.style.setProperty("--wl-account-panel", theme.panel);
+    overlay.style.setProperty("--wl-account-panel-alt", theme.panelAlt);
+    overlay.style.setProperty("--wl-account-gradient", theme.gradient);
+    overlay.style.setProperty("--wl-account-text", theme.text);
+    overlay.style.setProperty("--wl-account-highlight", theme.highlight);
+    overlay.style.setProperty("--wl-account-font", `'${theme.fontFamily.replace(/'/g, "\\'")}'`);
+  }
+
   function ensureStyles() {
     if (document.getElementById("wl-account-styles")) return;
     const style = document.createElement("style");
     style.id = "wl-account-styles";
     style.textContent = `
-      .wl-account-overlay{position:fixed;inset:0;z-index:999999;background:rgba(4,9,18,.88);display:flex;align-items:center;justify-content:center;padding:4vh 4vw;box-sizing:border-box;color:#f6f8ff;font-family:Arial,sans-serif}
-      .wl-account-panel{width:min(900px,92vw);max-height:88vh;overflow:auto;background:#101827;border:1px solid #31405c;border-radius:18px;box-shadow:0 30px 90px #000;padding:28px;box-sizing:border-box}
-      .wl-account-panel h2{font-size:30px;margin:0 0 8px}.wl-account-panel h3{font-size:21px;margin:24px 0 8px}.wl-account-muted{color:#aab6cb;line-height:1.5}.wl-account-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:20px 0}.wl-account-card{background:#172238;border:1px solid #2b3b59;border-radius:12px;padding:16px}.wl-account-card b{display:block;color:#8fd5ff;font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}.wl-account-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:22px}.wl-account-btn{min-height:48px;border:0;border-radius:11px;padding:12px 18px;background:#2c78ff;color:white;font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation}.wl-account-btn:disabled{cursor:not-allowed;opacity:.5}.wl-account-btn.secondary{background:#263550}.wl-account-btn.danger{background:#9d3947}.wl-account-input{display:block;width:100%;box-sizing:border-box;margin:16px 0;padding:14px 16px;border-radius:10px;border:1px solid #536b93;background:#091221;color:#fff;font-size:18px}.wl-account-code{display:inline-block;margin:12px 0;padding:14px 18px;border:1px solid #536b93;border-radius:12px;background:#0a1220;color:#fff;font:700 30px/1.1 monospace;letter-spacing:.12em}.wl-account-save{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;border-top:1px solid #2b3b59;padding:16px 0}.wl-account-save.active{background:#14283a;margin:0 -12px;padding:16px 12px;border-radius:10px}.wl-account-save-actions{display:flex;flex-wrap:wrap;gap:9px}.wl-account-error{background:#4a1f2a;border:1px solid #9d3947;padding:14px;border-radius:10px;color:#ffdce2}.wl-account-success{background:#173f32;border:1px solid #27795b;padding:14px;border-radius:10px;color:#d8ffed}@media(max-width:650px){.wl-account-panel{padding:20px}.wl-account-save{grid-template-columns:1fr}.wl-account-btn{width:100%}}
+      html.wl-account-ui-open #titleListUI .panel{opacity:0!important;pointer-events:none!important;transform:translateY(-50%) translateX(2rem) scale(.97)!important}
+      .wl-account-overlay,.wl-account-overlay *{box-sizing:border-box;font-family:var(--wl-account-font,'NotoSans'),sans-serif!important;-webkit-text-stroke:0!important}
+      .wl-account-overlay{position:fixed;inset:0;z-index:1000001;display:grid;place-items:center;padding:clamp(14px,3.5vh,42px) clamp(14px,3.5vw,54px);color:var(--wl-account-text,#f8fff4);background:radial-gradient(circle at 18% 12%,rgba(191,255,87,.14),transparent 34%),radial-gradient(circle at 84% 88%,rgba(50,182,168,.14),transparent 32%),rgba(2,10,12,.72);backdrop-filter:blur(16px) saturate(1.15);-webkit-backdrop-filter:blur(16px) saturate(1.15);animation:wl-account-backdrop-in .2s ease-out both}
+      .wl-account-panel{position:relative;isolation:isolate;width:min(1040px,94vw);max-height:min(900px,92vh);display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;border:1px solid rgba(255,255,255,.2);border-radius:clamp(18px,2.2vw,30px);background:linear-gradient(145deg,var(--wl-account-panel,rgba(9,24,24,.96)),var(--wl-account-panel-alt,rgba(28,62,51,.96)));box-shadow:0 2rem 6rem rgba(0,0,0,.56),inset 0 1px rgba(255,255,255,.12);animation:wl-account-panel-in .26s cubic-bezier(.2,.8,.2,1) both}
+      .wl-account-panel::before{content:"";position:absolute;z-index:2;inset:0 0 auto;height:4px;background:var(--wl-account-gradient,linear-gradient(135deg,#d9ff45,#32b6a8))}
+      .wl-account-panel::after{content:"";position:absolute;z-index:-1;width:360px;height:360px;right:-150px;top:-180px;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);filter:blur(90px);opacity:.12;pointer-events:none}
+      .wl-account-header{display:flex;align-items:center;gap:16px;padding:clamp(20px,3vw,34px) clamp(20px,3.6vw,42px) 18px;border-bottom:1px solid rgba(255,255,255,.1)}
+      .wl-account-mark{width:52px;height:52px;display:grid;place-items:center;flex:0 0 auto;border-radius:16px;background:var(--wl-account-gradient,linear-gradient(135deg,#d9ff45,#32b6a8));color:#102015;font-size:30px;font-weight:950;line-height:1;transform:rotate(-3deg);box-shadow:0 10px 24px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.45)}
+      .wl-account-heading{min-width:0}.wl-account-kicker{margin-bottom:4px;color:var(--wl-account-highlight,#d9ff45);font-size:11px;font-weight:900;letter-spacing:.22em;text-transform:uppercase}.wl-account-panel h2{margin:0;color:var(--wl-account-text,#fff);font-size:clamp(25px,3.5vw,38px);font-weight:900;line-height:1.05;letter-spacing:-.025em}.wl-account-trust{margin-left:auto;display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid rgba(255,255,255,.14);border-radius:999px;background:rgba(0,0,0,.18);color:rgba(255,255,255,.76);font-size:12px;font-weight:750;white-space:nowrap}.wl-account-trust-dot{width:8px;height:8px;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 12px var(--wl-account-highlight,#d9ff45)}
+      .wl-account-scroll{min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--wl-account-highlight,#d9ff45) rgba(0,0,0,.18);touch-action:pan-y;-webkit-overflow-scrolling:touch}.wl-account-scroll::-webkit-scrollbar{width:8px}.wl-account-scroll::-webkit-scrollbar-thumb{border-radius:999px;background:var(--wl-account-highlight,#d9ff45)}.wl-account-content{padding:clamp(20px,3vw,36px) clamp(20px,3.6vw,42px)}
+      .wl-account-panel h3{margin:0;color:var(--wl-account-text,#fff);font-size:clamp(18px,2.2vw,23px);font-weight:850;line-height:1.2}.wl-account-muted{margin:0;color:rgba(238,248,241,.7);font-size:clamp(14px,1.7vw,17px);line-height:1.58}.wl-account-muted+.wl-account-muted{margin-top:10px}
+      .wl-account-identity{display:flex;align-items:center;gap:12px;width:max-content;max-width:100%;margin-bottom:20px;padding:10px 14px;border:1px solid rgba(255,255,255,.13);border-radius:14px;background:rgba(0,0,0,.16);color:rgba(255,255,255,.92);font-size:15px;font-weight:720}.wl-account-identity::before{content:"";width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 13px var(--wl-account-highlight,#d9ff45)}
+      .wl-account-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:22px 0}.wl-account-card{position:relative;min-height:106px;padding:18px 18px 16px;overflow:hidden;border:1px solid rgba(255,255,255,.13);border-radius:17px;background:linear-gradient(145deg,rgba(255,255,255,.105),rgba(0,0,0,.14));box-shadow:inset 0 1px rgba(255,255,255,.06)}.wl-account-card::after{content:"";position:absolute;width:74px;height:74px;right:-34px;bottom:-38px;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);filter:blur(28px);opacity:.12}.wl-account-card b{display:block;margin-bottom:10px;color:var(--wl-account-highlight,#d9ff45);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}.wl-account-card{font-size:16px;font-weight:760;line-height:1.35}
+      .wl-account-actions{display:flex;flex-wrap:wrap;gap:10px;padding:16px clamp(20px,3.6vw,42px) clamp(20px,3vw,30px);border-top:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.12)}.wl-account-actions:empty{display:none}.wl-account-btn{min-height:48px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:11px 18px;background:var(--wl-account-gradient,linear-gradient(135deg,#d9ff45,#32b6a8));box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.4);color:#112016;font-size:15px;font-weight:900;letter-spacing:.01em;cursor:pointer;touch-action:manipulation;transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}.wl-account-btn:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 11px 28px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.45)}.wl-account-btn:active{transform:scale(.97)}.wl-account-btn:focus-visible{outline:3px solid var(--wl-account-highlight,#d9ff45);outline-offset:3px}.wl-account-btn:disabled{cursor:not-allowed;opacity:.45;filter:saturate(.4);transform:none}.wl-account-btn.secondary{background:rgba(255,255,255,.08);box-shadow:inset 0 1px rgba(255,255,255,.08);color:var(--wl-account-text,#fff)}.wl-account-btn.danger{border-color:rgba(255,174,185,.32);background:linear-gradient(135deg,#ff9c91,#d95b70);color:#2b0a11}
+      .wl-account-input{display:block;width:100%;margin:18px 0 2px;padding:16px 17px;border:1px solid rgba(255,255,255,.2);border-radius:15px;outline:0;background:rgba(0,0,0,.22);box-shadow:inset 0 2px 8px rgba(0,0,0,.18);color:#fff;font-size:18px;font-weight:680;transition:border-color .15s ease,box-shadow .15s ease}.wl-account-input:focus{border-color:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 0 3px rgba(217,255,69,.14),inset 0 2px 8px rgba(0,0,0,.18)}
+      .wl-account-code{display:inline-block;margin:16px 0;padding:15px 19px;border:1px solid rgba(255,255,255,.2);border-radius:15px;background:rgba(0,0,0,.24);color:#fff;font:800 28px/1.1 monospace;letter-spacing:.14em}
+      .wl-account-save{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;margin-top:12px;padding:17px 18px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(0,0,0,.13);transition:border-color .14s ease,background .14s ease,transform .14s ease}.wl-account-save:hover{border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.07)}.wl-account-save.active{border-color:var(--wl-account-highlight,#d9ff45);background:linear-gradient(120deg,rgba(255,255,255,.12),rgba(0,0,0,.12));box-shadow:0 0 0 1px var(--wl-account-highlight,#d9ff45),0 12px 30px rgba(0,0,0,.18)}.wl-account-save h3{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-bottom:7px}.wl-account-active-pill{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--wl-account-highlight,#d9ff45);color:#142116;font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.wl-account-save-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.wl-account-save-actions .wl-account-btn{min-height:42px;padding:9px 13px;font-size:13px}
+      .wl-account-error,.wl-account-success{position:relative;margin:0;padding:16px 18px 16px 48px;border-radius:16px;font-size:15px;font-weight:680;line-height:1.5}.wl-account-error::before,.wl-account-success::before{position:absolute;left:18px;top:16px;width:20px;height:20px;display:grid;place-items:center;border-radius:50%;font-size:13px;font-weight:950}.wl-account-error{border:1px solid rgba(255,155,170,.42);background:rgba(112,29,45,.48);color:#ffe9ed}.wl-account-error::before{content:"!";background:#ff8d9c;color:#351016}.wl-account-success{border:1px solid rgba(191,255,87,.38);background:rgba(45,105,62,.42);color:#efffe6}.wl-account-success::before{content:"✓";background:var(--wl-account-highlight,#d9ff45);color:#142116}
+      @keyframes wl-account-backdrop-in{from{opacity:0}to{opacity:1}}@keyframes wl-account-panel-in{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
+      @media(max-width:700px){.wl-account-overlay{padding:10px}.wl-account-panel{width:100%;max-height:96vh;border-radius:22px}.wl-account-header{gap:12px;padding:18px 18px 15px}.wl-account-mark{width:44px;height:44px;border-radius:13px;font-size:25px}.wl-account-trust{display:none}.wl-account-content{padding:18px}.wl-account-status{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.wl-account-card{min-height:92px;padding:14px}.wl-account-save{grid-template-columns:1fr;padding:15px}.wl-account-save-actions{justify-content:stretch}.wl-account-save-actions .wl-account-btn{flex:1}.wl-account-actions{padding:14px 18px 18px}.wl-account-actions>.wl-account-btn{flex:1 1 145px}}
+      @media(max-width:430px){.wl-account-status{grid-template-columns:1fr}.wl-account-header{align-items:flex-start}.wl-account-panel h2{font-size:24px}.wl-account-kicker{font-size:9px}.wl-account-actions>.wl-account-btn{flex-basis:100%}}
+      @media(max-height:620px){.wl-account-overlay{padding:8px}.wl-account-panel{max-height:97vh}.wl-account-header{padding-top:14px;padding-bottom:12px}.wl-account-mark{width:40px;height:40px;font-size:23px}.wl-account-content{padding-top:15px;padding-bottom:15px}.wl-account-actions{padding-top:11px;padding-bottom:12px}.wl-account-card{min-height:84px}}
+      @media(prefers-reduced-motion:reduce){.wl-account-overlay,.wl-account-panel,.wl-account-btn,.wl-account-save{animation:none!important;transition:none!important}}
     `;
     document.head.appendChild(style);
   }
@@ -466,6 +519,7 @@
   function closeOverlay() {
     activeOverlay?.remove();
     activeOverlay = null;
+    document.documentElement.classList.remove("wl-account-ui-open");
     clearGameInputState();
   }
 
@@ -484,7 +538,8 @@
     for (const type of blockedEvents) {
       overlay.addEventListener(type, event => {
         event.stopPropagation();
-        if (type === "wheel" || type === "touchmove" || type === "contextmenu") event.preventDefault();
+        const canScroll = event.target?.closest?.(".wl-account-scroll");
+        if (type === "contextmenu" || ((type === "wheel" || type === "touchmove") && !canScroll)) event.preventDefault();
       }, { passive: false });
     }
   }
@@ -536,7 +591,11 @@
     overlay.className = "wl-account-overlay";
     blockGameInput(overlay);
     clearGameInputState();
-    overlay.innerHTML = `<section class="wl-account-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}"><h2>${escapeHtml(title)}</h2>${bodyHtml}<div class="wl-account-actions"></div></section>`;
+    applyAccountTheme(overlay);
+    overlay.innerHTML = `<section class="wl-account-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(title)}">
+      <header class="wl-account-header"><div class="wl-account-mark" aria-hidden="true">W</div><div class="wl-account-heading"><div class="wl-account-kicker">WonderLang Cloud</div><h2>${escapeHtml(title)}</h2></div><div class="wl-account-trust"><span class="wl-account-trust-dot"></span>Secure sync</div></header>
+      <div class="wl-account-scroll"><div class="wl-account-content">${bodyHtml}</div></div><div class="wl-account-actions"></div>
+    </section>`;
     const actionsHost = overlay.querySelector(".wl-account-actions");
     actions.forEach(action => {
       const button = document.createElement("button");
@@ -546,6 +605,7 @@
       bindReleaseTap(button, () => action.run?.());
       actionsHost.appendChild(button);
     });
+    document.documentElement.classList.add("wl-account-ui-open");
     document.body.appendChild(overlay);
     activeOverlay = overlay;
     return overlay;
@@ -639,7 +699,7 @@
     }
     const activeProfile = profiles.find(profile => profile.profileId === activeProfileId());
     showPanel("WonderLang account", `
-      <p class="wl-account-muted">${escapeHtml(current?.email || "Signed-in account")}</p>
+      <div class="wl-account-identity">${escapeHtml(current?.email || "Signed-in account")}</div>
       <div class="wl-account-status">
         <div class="wl-account-card"><b>Access</b>${escapeHtml(accessLabel)}</div>
         <div class="wl-account-card"><b>Subscription</b>${escapeHtml(subscription)}</div>
@@ -695,7 +755,7 @@
         ? `<p class="wl-account-success">Choose which profile this device will use. Your current local saves can become that profile's starting saves.</p>`
         : `<p class="wl-account-muted">All saves and global.rmmzsave synchronize automatically inside the selected profile. Up to six people or learning paths can share one WonderLang account without mixing progress.</p>`;
       const rows = profiles.map(profile => `<div class="wl-account-save ${profile.profileId === active ? "active" : ""}">
-        <div><h3>${escapeHtml(profile.name)}${profile.profileId === active ? " · Active" : ""}</h3><div class="wl-account-muted">${profile.currentRevision ? `Cloud updated ${escapeHtml(formatTime(profile.updatedAt))}` : "No cloud saves yet"}</div></div>
+        <div><h3>${escapeHtml(profile.name)}${profile.profileId === active ? `<span class="wl-account-active-pill">Active</span>` : ""}</h3><div class="wl-account-muted">${profile.currentRevision ? `Cloud updated ${escapeHtml(formatTime(profile.updatedAt))}` : "No cloud saves yet"}</div></div>
         <div class="wl-account-save-actions"><button class="wl-account-btn" data-select-profile="${escapeHtml(profile.profileId)}" ${profile.profileId === active ? "disabled" : ""}>${profile.profileId === active ? "Selected" : "Use profile"}</button><button class="wl-account-btn secondary" data-rename-profile="${escapeHtml(profile.profileId)}">Rename</button></div>
       </div>`).join("");
       const overlay = showPanel("Save profiles", intro + rows, [

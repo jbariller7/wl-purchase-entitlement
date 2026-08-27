@@ -47,4 +47,14 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(source).toContain("globalThis.Input.clear()");
     expect(source.indexOf("blockGameInput(overlay)")).toBeLessThan(source.indexOf("document.body.appendChild(overlay)"));
   });
+
+  it("uses the active title theme and gives the account dialog exclusive focus", async () => {
+    const source = await readFile(pluginUrl, "utf8");
+    expect(source).toContain("ColorThemeUtils?.computeThemeFromConfig?.()");
+    expect(source).toContain('document.documentElement.classList.add("wl-account-ui-open")');
+    expect(source).toContain('document.documentElement.classList.remove("wl-account-ui-open")');
+    expect(source).toContain("html.wl-account-ui-open #titleListUI .panel");
+    expect(source).toContain("z-index:1000001");
+    expect(source).toContain('event.target?.closest?.(".wl-account-scroll")');
+  });
 });
