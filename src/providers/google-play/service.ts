@@ -153,6 +153,17 @@ export function normalizeGooglePlaySubscriptionState(value: string | null | unde
   }
 }
 
+export function googlePlaySubscriptionGrantState(
+  providerState: string | null | undefined,
+  periodEnd: string | undefined,
+  now = new Date()
+): LedgerGrant["state"] {
+  const state = normalizeGooglePlaySubscriptionState(providerState);
+  if (state === "pending" || state === "expired") return state;
+  const periodEndMs = periodEnd ? Date.parse(periodEnd) : Number.NaN;
+  return Number.isFinite(periodEndMs) && now.getTime() < periodEndMs ? state : "expired";
+}
+
 function maxExpiry(lineItems: androidpublisher_v3.Schema$SubscriptionPurchaseLineItem[] | null | undefined): string | undefined {
   const values = (lineItems ?? [])
     .map((item) => item.expiryTime)
@@ -196,10 +207,7 @@ export async function syncGooglePlaySubscription(input: {
   const trialEndsAt = googlePlayLineItemIsFreeTrial(monthlyLine)
     ? monthlyLine.expiryTime ?? periodEnd
     : undefined;
-  let state = normalizeGooglePlaySubscriptionState(purchase.subscriptionState);
-  if (state === "active" && purchase.subscriptionState === "SUBSCRIPTION_STATE_CANCELED" && periodEnd && Date.parse(periodEnd) <= Date.now()) {
-    state = "expired";
-  }
+  const state = googlePlaySubscriptionGrantState(purchase.subscriptionState, periodEnd);
   const start = purchase.startTime ?? new Date(input.eventCreated * 1000).toISOString();
   await input.store.upsertGrant({
     id: "",

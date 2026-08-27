@@ -29,7 +29,10 @@ import {
   normalizeAppleSubscriptionState,
   processAppleNotification
 } from "../src/providers/apple/service.js";
-import { normalizeGooglePlaySubscriptionState } from "../src/providers/google-play/service.js";
+import {
+  googlePlaySubscriptionGrantState,
+  normalizeGooglePlaySubscriptionState
+} from "../src/providers/google-play/service.js";
 import { parseRtdn, processRtdn } from "../src/providers/google-play/rtdn.js";
 
 const original = { ...process.env };
@@ -86,6 +89,22 @@ describe("provider subscription state normalization", () => {
     [undefined, "expired"]
   ])("maps Google Play %s to %s", (providerState, ledgerState) => {
     expect(normalizeGooglePlaySubscriptionState(providerState)).toBe(ledgerState);
+  });
+
+  it("requires a valid future period end for every access-bearing Google Play state", () => {
+    const now = new Date("2026-08-27T12:00:00.000Z");
+    const future = "2026-09-27T12:00:00.000Z";
+    const past = "2026-08-26T12:00:00.000Z";
+
+    expect(googlePlaySubscriptionGrantState("SUBSCRIPTION_STATE_ACTIVE", future, now)).toBe("active");
+    expect(googlePlaySubscriptionGrantState("SUBSCRIPTION_STATE_IN_GRACE_PERIOD", future, now)).toBe("grace");
+    expect(googlePlaySubscriptionGrantState("SUBSCRIPTION_STATE_CANCELED", future, now)).toBe("active");
+    for (const periodEnd of [undefined, "not-a-date", past]) {
+      expect(googlePlaySubscriptionGrantState("SUBSCRIPTION_STATE_ACTIVE", periodEnd, now)).toBe("expired");
+      expect(googlePlaySubscriptionGrantState("SUBSCRIPTION_STATE_IN_GRACE_PERIOD", periodEnd, now)).toBe("expired");
+      expect(googlePlaySubscriptionGrantState("SUBSCRIPTION_STATE_CANCELED", periodEnd, now)).toBe("expired");
+    }
+    expect(googlePlaySubscriptionGrantState("SUBSCRIPTION_STATE_PENDING", undefined, now)).toBe("pending");
   });
 
   it("maps Apple active, grace, expired, retry, and revoked states", () => {

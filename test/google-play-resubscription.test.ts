@@ -72,6 +72,8 @@ function playStore(input: { deleted?: boolean } = {}) {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-08-27T12:00:00.000Z"));
   vi.clearAllMocks();
   Object.assign(process.env, {
     GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL: "play-test@example.iam.gserviceaccount.com",
@@ -104,6 +106,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   process.env = { ...original };
   resetEnvironmentForTests();
 });
