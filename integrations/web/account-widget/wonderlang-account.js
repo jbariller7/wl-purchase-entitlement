@@ -18,6 +18,7 @@ import {
 } from "firebase/auth";
 import { friendlyAccountError } from "./auth-errors.js";
 import { formatLoginProviders } from "./provider-labels.js";
+import { installAccountLanguagePicker } from "./account-languages.js";
 import "./wonderlang-account.css";
 
 const pageParams = new URLSearchParams(location.search);
@@ -67,7 +68,7 @@ function escapeHtml(value) {
 const html = `
   <section class="wl-card">
     <div class="wl-header">
-      <div><p class="wl-eyebrow">WONDERLANG ACCOUNT</p><h2>Play anywhere. Keep your progress.</h2></div>
+      <div class="wl-brand"><img class="wl-logo" src="/wonderlang-logo.png" alt="WonderLang" width="140" height="122"><div><p class="wl-eyebrow">WONDERLANG ACCOUNT</p><h2>Play anywhere. Keep your progress.</h2></div></div>
       <button type="button" data-action="sign-out" class="wl-link" hidden>Sign out</button>
     </div>
     <p class="wl-status" role="status" aria-live="polite">Loading account…</p>
@@ -115,15 +116,20 @@ const html = `
         <div><span>Mobile platforms</span><strong data-field="mobile-platforms">—</strong></div>
         <div><span>PC / Mac</span><strong data-field="desktop-access">—</strong></div>
         <div><span>Future content</span><strong data-field="future-content">—</strong></div>
-        <div><span>Second mobile platform</span><strong data-field="second-platform">—</strong></div>
+        <div><span>Second mobile access</span><strong data-field="second-platform">—</strong></div>
       </div>
       <section class="wl-second-platform-request" data-section="second-platform-request" hidden>
-        <div><p class="wl-eyebrow">PREMIUM INCLUDED BENEFIT</p><h3>Request your other mobile platform</h3></div>
-        <p data-field="second-platform-request-status">Premium Lifetime includes one reviewed request for the other mobile platform.</p>
+        <div><p class="wl-eyebrow">PREMIUM INCLUDED BENEFIT</p><h3>Request your second mobile access</h3></div>
+        <p data-field="second-platform-request-status">Your two mobile accesses can be two Android accesses, two iOS accesses, or one of each. Contact support to arrange your included second access.</p>
         <div class="wl-second-platform-actions">
           <button type="button" data-action="request-second-platform">Request access</button>
           <button type="button" data-action="cancel-second-platform" class="wl-secondary" hidden>Cancel request</button>
         </div>
+      </section>
+      <section class="wl-profiles" data-section="profiles" aria-label="Save profiles">
+        <div class="wl-profiles-header"><div><p class="wl-eyebrow">WONDERLANG CLOUD</p><h3>Save profiles</h3></div><button type="button" data-action="refresh-profiles" class="wl-secondary">Refresh profiles</button></div>
+        <p>These are your cloud backups, not the saves currently on this device. Sync from the game to update them.</p>
+        <div data-field="profiles-list" aria-live="polite"></div>
       </section>
       <div class="wl-offers">
         <article>
@@ -138,7 +144,7 @@ const html = `
         </article>
         <article>
           <p class="wl-eyebrow">EVERYTHING, FOREVER</p><h3>Premium Lifetime Pass</h3>
-          <p><strong data-field="premium-price">Loading price…</strong> · One permanent mobile platform · One PC/Mac access · Cross-platform cloud save · Future sequels and additional content · A second mobile platform available on request</p>
+          <p><strong data-field="premium-price">Loading price…</strong> · Permanent mobile access · One PC/Mac access · Cross-platform cloud save · Future sequels and additional content · A second mobile access on request: Android or iOS, including the same platform</p>
           <label><span>First mobile platform</span><select data-field="premium-platform"><option value="android">Android</option><option value="ios">iOS</option></select></label>
           <label><span>Included PC/Mac access</span><select data-field="premium-desktop"><option value="steam">Steam key</option><option value="direct">Direct download</option></select></label>
           <label class="wl-confirm" data-field="cancel-confirm" hidden>
@@ -159,17 +165,10 @@ const html = `
         <button type="button" data-action="link-email" class="wl-secondary">Link email login</button>
       </div>
       <details>
-        <summary>Already bought a Steam or Itch key on wonderlang.net?</summary>
-        <p>Link the paid Stripe checkout from your receipt. It does not unlock mobile by itself; it enables one private, single-use Premium Lifetime offer.</p>
-        <form data-form="legacy" class="wl-row">
-          <label><span>Checkout Session ID</span><input name="checkoutSessionId" placeholder="cs_…" required></label>
-          <button type="submit">Verify purchase</button>
-        </form>
-      </details>
-      <details>
         <summary>Account recovery and security</summary>
         <p>You can recover this same account with any linked Google, Apple, or email method. Linking is always explicit; WonderLang never merges unrelated accounts merely because an unverified email matches.</p>
         <button type="button" data-action="delete-account" class="wl-danger">Request account deletion</button>
+        <p data-field="deletion-help">If automatic deletion is unavailable, this opens an email to support. Send the email to submit your request. Deleting your account does not automatically cancel app-store subscriptions.</p>
       </details>
     </div>
   </section>`;
@@ -224,7 +223,7 @@ function createDemoAccount() {
     stripeBillingAvailable: !premium,
     secondMobilePlatformRequest: null,
     cloudSave: {
-      slotCount: 2,
+      profileCount: 2,
       lastUpdatedAt: new Date().toISOString()
     },
     legacyLifetimeDiscount: { eligible: true }
@@ -238,6 +237,8 @@ function hasEffectiveSubscription(account) {
 class WonderLangAccount extends HTMLElement {
   async connectedCallback() {
     this.innerHTML = html;
+    this.disposeLanguagePicker?.();
+    this.disposeLanguagePicker = installAccountLanguagePicker(this);
     this.apiBase = (this.getAttribute("api-base") || location.origin).replace(/\/$/, "");
     this.deviceCode = new URLSearchParams(location.search).get("device_code");
     this.desktopHandoff = desktopHandoffFromLocation();
@@ -297,6 +298,7 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="revoke-sessions"]').addEventListener("click", () => this.revokeSessions());
     this.querySelector('[data-action="delete-account"]').addEventListener("click", () => this.deleteAccount());
     this.querySelector('[data-action="request-second-platform"]').addEventListener("click", () => this.requestSecondPlatform());
+    this.querySelector('[data-action="refresh-profiles"]').addEventListener("click", () => this.loadCloudProfiles());
     this.querySelector('[data-action="cancel-second-platform"]').addEventListener("click", () => this.cancelSecondPlatformRequest());
     this.querySelector('[data-action="approve-device"]').addEventListener("click", () => this.approveDevice());
     this.querySelector('[data-action="cancel-device"]').addEventListener("click", () => this.cancelDeviceApproval());
@@ -305,7 +307,6 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="link-email"]').addEventListener("click", () => this.linkEmail());
     this.querySelector('[data-action="bootstrap-admin"]').addEventListener("click", () => this.bootstrapAdmin());
     this.querySelector('[data-form="email"]').addEventListener("submit", (event) => this.emailLink(event));
-    this.querySelector('[data-form="legacy"]').addEventListener("submit", (event) => this.claimLegacy(event));
   }
 
   googleProvider() {
@@ -329,7 +330,6 @@ class WonderLangAccount extends HTMLElement {
     for (const action of ["restore", "revoke-sessions", "delete-account", "request-second-platform", "cancel-second-platform", "approve-device"]) {
       this.querySelector(`[data-action="${action}"]`).disabled = !config.accountApiReady;
     }
-    this.querySelector('[data-form="legacy"] button').disabled = !config.accountApiReady;
   }
 
   async signOutCurrent() {
@@ -548,6 +548,7 @@ class WonderLangAccount extends HTMLElement {
     try {
       this.account = await this.request("/api/v1/me");
       const ent = this.account.entitlements;
+      void this.loadCloudProfiles();
       const access = ent.accessKind === "premium_lifetime" ? "Premium Lifetime Pass"
         : ent.accessKind === "permanent" ? "Polyglot Permanent Access"
         : ent.accessKind === "subscription" ? `Monthly full access${ent.subscriptionState === "grace" ? " · payment grace" : ""}`
@@ -559,9 +560,11 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="providers"]').textContent = formatLoginProviders(this.account.linkedLoginProviders);
       const sub = this.account.subscription;
       const date = (value) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value)) : null;
-      this.querySelector('[data-field="subscription"]').textContent = !sub ? "None" : `${sub.phase}${sub.trialEndsAt ? ` · trial ends ${date(sub.trialEndsAt)}` : sub.graceEndsAt ? ` · grace ends ${date(sub.graceEndsAt)}` : sub.renewsAt ? ` · renews ${date(sub.renewsAt)}` : sub.endsAt ? ` · ends ${date(sub.endsAt)}` : ""}`;
+      this.querySelector('[data-field="subscription"]').textContent = ent.premiumLifetime || ent.accessKind === "premium_lifetime" ? "Lifetime pass"
+        : ent.accessKind === "permanent" ? "Permanent mobile"
+        : !sub ? "None" : `${sub.phase}${sub.trialEndsAt ? ` · trial ends ${date(sub.trialEndsAt)}` : sub.graceEndsAt ? ` · grace ends ${date(sub.graceEndsAt)}` : sub.renewsAt ? ` · renews ${date(sub.renewsAt)}` : sub.endsAt ? ` · ends ${date(sub.endsAt)}` : ""}`;
       const cloud = this.account.cloudSave;
-      this.querySelector('[data-field="cloud-status"]').textContent = `${cloud.slotCount} saved slot${cloud.slotCount === 1 ? "" : "s"}${cloud.lastUpdatedAt ? ` · last sync ${date(cloud.lastUpdatedAt)}` : ""}`;
+      this.querySelector('[data-field="cloud-status"]').innerHTML = `<span class="wl-fact-value-label">Save profiles</span>: ${Number.isInteger(cloud.profileCount) ? cloud.profileCount : 0}${cloud.lastUpdatedAt ? ` · <span class="wl-fact-value-label">Last cloud sync</span>: ${escapeHtml(date(cloud.lastUpdatedAt))}` : ""}`;
       const permanentPlatforms = ent.permanentMobilePlatforms || [];
       this.querySelector('[data-field="mobile-platforms"]').textContent = (ent.mobilePlatforms || []).map((platform) => {
         const label = platform === "ios" ? "iOS" : "Android";
@@ -578,35 +581,12 @@ class WonderLangAccount extends HTMLElement {
       const requestButton = this.querySelector('[data-action="request-second-platform"]');
       const cancelRequestButton = this.querySelector('[data-action="cancel-second-platform"]');
       const secondPlatformRequest = this.account.secondMobilePlatformRequest;
-      const targetPlatform = permanentPlatforms[0] === "android" ? "iOS" : permanentPlatforms[0] === "ios" ? "Android" : "the other mobile platform";
       requestSection.hidden = !ent.secondMobilePlatformEligible;
       if (ent.secondMobilePlatformEligible) {
-        requestButton.textContent = `Request ${targetPlatform} access`;
-        if (permanentPlatforms.length > 1) {
-          requestStatus.textContent = "Android and iOS permanent access are both granted on this WonderLang account.";
-          requestButton.hidden = true;
-          cancelRequestButton.hidden = true;
-        } else if (secondPlatformRequest?.state === "pending") {
-          requestStatus.textContent = `${targetPlatform} access was requested and is waiting for WonderLang support review. No purchase is required.`;
-          requestButton.hidden = true;
-          cancelRequestButton.hidden = false;
-        } else if (secondPlatformRequest?.state === "approving") {
-          requestStatus.textContent = `${targetPlatform} access is currently being approved. Refresh this page shortly.`;
-          requestButton.hidden = true;
-          cancelRequestButton.hidden = true;
-        } else if (secondPlatformRequest?.state === "approved") {
-          requestStatus.textContent = `${targetPlatform} access was approved. Refresh your purchases if it is not visible yet.`;
-          requestButton.hidden = true;
-          cancelRequestButton.hidden = true;
-        } else if (secondPlatformRequest?.state === "declined") {
-          requestStatus.textContent = `${targetPlatform} access was not approved. You may submit a fresh request or contact WonderLang support.`;
-          requestButton.hidden = false;
-          cancelRequestButton.hidden = true;
-        } else {
-          requestStatus.textContent = `Premium Lifetime includes ${targetPlatform} permanent access on request. WonderLang support reviews the request; no purchase is required.`;
-          requestButton.hidden = false;
-          cancelRequestButton.hidden = true;
-        }
+        requestStatus.textContent = "Your two mobile accesses can be two Android accesses, two iOS accesses, or one of each. Contact support to arrange your included second access.";
+        requestButton.textContent = "Email support for second mobile access";
+        requestButton.hidden = false;
+        cancelRequestButton.hidden = secondPlatformRequest?.state !== "pending";
       }
       const subscribed = hasEffectiveSubscription(this.account);
       const billingButton = this.querySelector('[data-action="portal"]');
@@ -761,13 +741,69 @@ class WonderLangAccount extends HTMLElement {
     catch (error) { this.fail(error); }
   }
 
-  async requestSecondPlatform() {
+  async loadCloudProfiles() {
+    const user = this.user;
+    const run = this.profileLoadRun = (this.profileLoadRun || 0) + 1;
+    const list = this.querySelector('[data-field="profiles-list"]');
+    const button = this.querySelector('[data-action="refresh-profiles"]');
+    const valid = () => this.user === user && this.profileLoadRun === run;
+    list.textContent = "Loading profiles…";
+    button.disabled = true;
+    if (!this.account?.entitlements?.cloudSave) {
+      list.textContent = "Cloud save requires Mobile Monthly or Premium Lifetime";
+      button.disabled = false;
+      return;
+    }
     try {
-      const result = await this.request("/api/v1/me/second-platform-request", { method: "POST", body: {} });
-      this.account.secondMobilePlatformRequest = result;
-      await this.renderUser(this.user);
-      this.status(`Your ${result.requestedPlatform === "ios" ? "iOS" : "Android"} access request was submitted for review. No purchase is required.`);
-    } catch (error) { this.fail(error); }
+      const response = await this.request("/api/v1/cloud-save-profiles");
+      if (!valid()) return;
+      const profiles = response.profiles || [];
+      list.innerHTML = profiles.length ? profiles.map((profile) => `
+        <article class="wl-profile" data-profile-id="${escapeHtml(profile.profileId)}">
+          <h4 data-user-content>${escapeHtml(profile.name)}</h4>
+          <p><span>Last cloud sync</span>: <time>${profile.currentRevision ? escapeHtml(this.profileDate(profile.updatedAt)) : "<span>Not synced yet</span>"}</time></p>
+          <div data-profile-saves><span>Loading saves…</span></div>
+        </article>`).join("") : "<p>No profiles yet</p>";
+      // Bound storage reads for pre-summary backups. New backups include metadata
+      // in their manifest and do not require downloading their save bundles.
+      let index = 0;
+      const worker = async () => {
+        while (index < profiles.length && valid()) {
+          const profile = profiles[index++];
+          const card = [...list.querySelectorAll("[data-profile-id]")].find(node => node.dataset.profileId === profile.profileId);
+          const content = card.querySelector("[data-profile-saves]");
+          try {
+            const summary = !profile.currentRevision ? { ...profile, saves: [] }
+              : Array.isArray(profile.saves) ? profile
+                : await this.request("/api/v1/cloud-save-profiles/" + encodeURIComponent(profile.profileId) + "/summary");
+            if (!valid()) return;
+            card.querySelector("time").textContent = summary.currentRevision ? this.profileDate(summary.updatedAt) : "Not synced yet";
+            const saves = summary.saves || [];
+            content.innerHTML = saves.length ? `<div class="wl-save-table-wrap"><table class="wl-save-table"><thead><tr><th>Save</th><th>Saved in game</th><th>Play time</th></tr></thead><tbody>${saves.map(save => `<tr><td>${save.slot === 0 ? "<span>Autosave</span>" : "<span>Save</span> " + Number(save.slot)}</td><td>${save.savedAt ? escapeHtml(this.profileDate(save.savedAt)) : "<span>Unavailable</span>"}</td><td>${escapeHtml(save.playtime || "—")}</td></tr>`).join("")}</tbody></table></div>`
+              : "<p>No saved games in this profile yet</p>";
+          } catch {
+            if (valid()) content.innerHTML = "<p>Could not load saves. Use Refresh profiles to try again.</p>";
+          }
+        }
+      };
+      await Promise.all([worker(), worker()]);
+    } catch {
+      if (valid()) list.textContent = "Could not load profiles. Use Refresh profiles to try again.";
+    } finally {
+      if (valid()) button.disabled = false;
+    }
+  }
+
+  profileDate(value) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(this.lang || undefined, { dateStyle: "medium", timeStyle: "short" }).format(date) : "—";
+  }
+
+  async requestSecondPlatform() {
+    const subject = "WonderLang — second mobile access";
+    const body = `Hello WonderLang,\n\nI would like to request my included second mobile access.\nWonderLang account: ${this.account?.email || this.user?.email || ""}\nRequested platform (Android or iOS):\nAccount that should receive access:\n\nThank you!`;
+    location.href = `mailto:wonderlang.thegame@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    this.status("Send the email from your email app to complete your request. If it does not open, email wonderlang.thegame@gmail.com.");
   }
 
   async cancelSecondPlatformRequest() {
@@ -827,6 +863,13 @@ class WonderLangAccount extends HTMLElement {
   }
 
   async deleteAccount() {
+    if (!demoMode && !this.config.accountDeletionEnabled) {
+      const subject = "WonderLang account deletion request";
+      const body = `Hello WonderLang,\n\nI would like to request deletion of my WonderLang account: ${this.account?.email || this.user?.email || ""}\nPlease confirm the next steps.\n`;
+      location.href = `mailto:wonderlang.thegame@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      this.status("Send the email to submit your deletion request. Your account has not been deleted. If your email app does not open, contact wonderlang.thegame@gmail.com.");
+      return;
+    }
     try {
       const preview = await this.request("/api/v1/me/deletion-preview", { method: "POST", body: {} });
       const phrase = await this.confirmPhrase(
@@ -846,7 +889,7 @@ class WonderLangAccount extends HTMLElement {
       const holder = document.createElement("div");
       const titleId = `wl-confirm-dialog-${crypto.randomUUID()}`;
       holder.className = "wl-modal-backdrop";
-      holder.innerHTML = `<section class="wl-modal" role="dialog" aria-modal="true" aria-labelledby="${titleId}"><p class="wl-eyebrow">ACCOUNT SECURITY</p><h3 id="${titleId}">${title}</h3><p>${copy}</p><form class="wl-modal-form"><label><span>Type ${phrase}</span><input name="phrase" autocomplete="off" required></label><div><button type="button" class="wl-secondary" data-close>Cancel</button><button type="submit" class="wl-danger">Confirm</button></div></form></section>`;
+      holder.innerHTML = `<section class="wl-modal" role="dialog" aria-modal="true" aria-labelledby="${titleId}"><p class="wl-eyebrow">ACCOUNT SECURITY</p><h3 id="${titleId}">${escapeHtml(title)}</h3><p>${escapeHtml(copy)}</p><form class="wl-modal-form"><label><span>Type ${escapeHtml(phrase)}</span><input name="phrase" autocomplete="off" required></label><div><button type="button" class="wl-secondary" data-close>Cancel</button><button type="submit" class="wl-danger">Confirm</button></div></form></section>`;
       let settled = false;
       const close = (value) => { if (settled) return; settled = true; document.removeEventListener("keydown", onKeydown); holder.remove(); resolve(value); };
       const onKeydown = (event) => { if (event.key === "Escape") close(null); };
@@ -901,11 +944,15 @@ class WonderLangAccount extends HTMLElement {
   }
 
   demoRequest(path) {
+    if (path === "/api/v1/cloud-save-profiles") return { profiles: [
+      { profileId: "default", name: "French", currentRevision: "demo", updatedAt: "2026-09-15T12:21:43Z", saves: [{ slot: 0, savedAt: "2026-09-15T12:19:00Z", playtime: "01:23:45" }, { slot: 1, savedAt: "2026-09-15T12:20:00Z", playtime: "01:25:10" }] },
+      { profileId: "demo-second", name: "Japanese", currentRevision: null, saves: [] }
+    ] };
     if (path === "/api/v1/config") return demoConfig;
     if (path === "/api/v1/me/deletion-preview") {
       return {
         previewId: "demo-deletion-preview",
-        confirmationPhrase: "DELETE WONDERLANG ACCOUNT",
+        confirmationPhrase: "DELETE MY WONDERLANG ACCOUNT",
         recoveryDays: ACCOUNT_DELETION_RECOVERY_DAYS,
         consequences: ["Login sessions will be revoked.", "Cloud saves will be queued for deletion.", "Purchase records remain for accounting and restore fraud prevention."]
       };

@@ -69,6 +69,33 @@ export interface CloudSaveProfileManifest {
   byteLength: number;
   sha256: string | null;
   previousRevisions: CloudRevisionPointer[];
+  saves?: ProfileSaveSummary[];
+}
+
+export interface ProfileSaveSummary {
+  slot: number;
+  savedAt: string | null;
+  playtime: string | null;
+}
+
+export function summarizeProfileSaves(contents: Buffer, profileId: string): ProfileSaveSummary[] {
+  validateCloudProfileBundle(contents, profileId);
+  const bundle = JSON.parse(contents.toString("utf8")) as { files: Record<string, string> };
+  let info: unknown;
+  try { info = JSON.parse(bundle.files.global ?? "[]"); } catch { info = []; }
+  return Object.keys(bundle.files)
+    .filter((name) => /^file(?:0|[1-9]|1[0-9]|20)$/.test(name))
+    .map((name) => {
+      const slot = Number(name.slice(4));
+      const entry = Array.isArray(info) ? info[slot] : null;
+      const timestamp = typeof entry?.timestamp === "number" ? entry.timestamp : NaN;
+      return {
+        slot,
+        savedAt: Number.isFinite(timestamp) && timestamp > 0 && timestamp <= 8640000000000000
+          ? new Date(timestamp).toISOString() : null,
+        playtime: typeof entry?.playtime === "string" && /^\d{1,6}:\d{2}(?::\d{2})?$/.test(entry.playtime) ? entry.playtime : null
+      };
+    }).sort((a, b) => a.slot - b.slot);
 }
 
 export type PublicCloudSaveProfile = Omit<CloudSaveProfileManifest, "uid" | "objectPath" | "previousRevisions"> & {
@@ -135,6 +162,7 @@ function publicProfile(manifest: CloudSaveProfileManifest): PublicCloudSaveProfi
     currentRevision: manifest.currentRevision,
     byteLength: manifest.byteLength,
     sha256: manifest.sha256,
+    ...(manifest.saves ? { saves: manifest.saves } : {}),
     backups: (manifest.previousRevisions ?? []).map(({ revision, updatedAt }) => ({ revision, updatedAt }))
   };
 }
@@ -347,6 +375,7 @@ export class CloudSaveProfileService {
         objectPath: revisionPath,
         byteLength: fresh.byteLength,
         sha256: fresh.sha256,
+        saves: summarizeProfileSaves(contents, pending.profileId),
         previousRevisions: retention.retained
       };
       transaction.set(profileRef, manifest);
@@ -421,6 +450,7 @@ export class CloudSaveProfileService {
         objectPath: retained.objectPath,
         byteLength: contents.byteLength,
         sha256: digest,
+        saves: summarizeProfileSaves(contents, profileId),
         updatedAt: now.toISOString(),
         previousRevisions
       };
@@ -435,6 +465,28 @@ export class CloudSaveProfileService {
     });
     await this.cleanup(uid, cleanupJobId, result.cleanupObjectPaths, now);
     return publicProfile(result.manifest);
+  }
+
+  async summary(uid: string, profileId: string, now: Date): Promise<PublicCloudSaveProfile & { saves: ProfileSaveSummary[] }> {
+    await this.requireCloudSave(uid, now);
+    const snapshot = await this.profiles(uid).doc(profileId).get();
+    if (!snapshot.exists) throw new HttpError(404, "Cloud-save profile was not found.");
+    const manifest = snapshot.data() as CloudSaveProfileManifest;
+    if (!manifest.currentRevision) return { ...publicProfile(manifest), saves: [] };
+    if (manifest.saves) return { ...publicProfile(manifest), saves: manifest.saves };
+    if (!manifest.objectPath || !isSafeCloudRevisionObjectPath(manifest.objectPath, uid)) {
+      throw new HttpError(409, "Cloud-save profile storage is invalid.");
+    }
+    // Old revisions have no stored summary. Read their immutable bundle without
+    // changing any save, profile selection, or revision.
+    const file = this.storage.bucket().file(manifest.objectPath);
+    const [metadata] = await file.getMetadata();
+    if (Number(metadata.size) > MAX_PROFILE_BYTES) throw new HttpError(422, "Cloud-save profile exceeds the size limit.");
+    const [contents] = await file.download();
+    if (!manifest.sha256 || !cloudObjectMatches(contents, { byteLength: manifest.byteLength, sha256: manifest.sha256 })) {
+      throw new HttpError(422, "Cloud-save profile integrity check failed.");
+    }
+    return { ...publicProfile(manifest), saves: summarizeProfileSaves(contents, profileId) };
   }
 
   async downloadUrl(uid: string, profileId: string, now: Date): Promise<{

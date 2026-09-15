@@ -1,4 +1,4 @@
-:root { --wl-ink: #18212f; --wl-accent: #e98b2a; --wl-panel: #fffaf1; }
+:root { --wl-ink: #fff; --wl-accent: #ffd400; --wl-panel: #21102f; color-scheme: dark; }
 wonderlang-account { display: block; color: var(--wl-ink); font: 16px/1.5 system-ui, sans-serif; }
 wonderlang-account [hidden] { display: none !important; }
 .wl-card { max-width: 920px; margin: 24px auto; padding: clamp(20px, 4vw, 42px); border: 1px solid #eadfce; border-radius: 24px; background: var(--wl-panel); box-shadow: 0 16px 50px #442b1415; }
@@ -20,6 +20,7 @@ wonderlang-account [hidden] { display: none !important; }
 .wl-account-facts > div { display: grid; gap: 4px; min-width: 0; padding: 16px; background: #fff; }
 .wl-account-facts span { color: #6f665b; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .wl-account-facts strong { overflow-wrap: anywhere; }
+.wl-account-facts .wl-fact-value-label { font: inherit; color: inherit; text-transform: none; letter-spacing: normal; }
 .wl-second-platform-request { display: grid; gap: 10px; margin: 16px 0; border-color: #c2a76e; background: #fff9e9; }
 .wl-second-platform-request[hidden] { display: none; }
 .wl-second-platform-request h3 { margin: 0; font-size: 22px; }
@@ -52,4 +53,49 @@ wonderlang-account details { margin-top: 18px; } wonderlang-account summary { cu
 .wl-modal-form { display: grid; gap: 18px; }
 .wl-modal-form label { display: grid; gap: 7px; color: #5f6670; font-size: 12px; font-weight: 800; }
 .wl-modal-form > div { display: flex; justify-content: flex-end; gap: 10px; }
+.wl-profiles { margin-block: 24px; }
+.wl-profiles-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.wl-profiles h3 { margin: 0; font-size: 24px; }
+.wl-profile { margin-block: 14px; padding: 20px; border: 1px solid #ffffff30; border-radius: 16px; background: #ffffff09; }
+.wl-profile h4 { margin: 0; font-size: 21px; overflow-wrap: anywhere; }
+.wl-profile p { color: #e3d5ed; }
+.wl-save-table-wrap { overflow-x: auto; }
+.wl-save-table { width: 100%; border-collapse: collapse; text-align: start; }
+.wl-save-table th, .wl-save-table td { padding: 10px 12px; text-align: start; border-bottom: 1px solid #ffffff20; }
+.wl-save-table th { font-size: 12px; color: #ffe38c; }
 @media (max-width: 680px) { .wl-row, .wl-provider-grid, .wl-offers, .wl-device-actions, .wl-second-platform-actions { flex-direction: column; align-items: stretch; } .wl-account-facts { grid-template-columns: 1fr; } .wl-device-code strong { letter-spacing: .06em; } .wl-demo-banner { grid-template-columns: 1fr; } .wl-demo-banner span, .wl-demo-banner a { grid-column: 1; grid-row: auto; } }
+
+/* WonderLang account theme: scoped so embedded widgets do not restyle their host. */
+body:has(> wonderlang-account) { margin: 0; background: radial-gradient(ellipse at top right, #51266a, #100d1b 70%); min-height: 100vh; }
+.wl-card { position: relative; background: linear-gradient(125deg, #120e1c, #351449 75%, #491a65); border-color: #ffffff30; box-shadow: 0 24px 80px #0006; border-top: 4px solid #ffbd00; }
+.wl-brand { display: flex; align-items: center; gap: 24px; }
+.wl-logo { width: 140px; height: auto; object-fit: contain; filter: drop-shadow(0 6px 16px #0005); }
+.wl-header { gap: 24px; margin-bottom: 26px; }
+.wl-language { display: flex; align-items: center; gap: 6px; margin-inline-start: auto; }
+.wl-language select { width: 145px; font-size: 13px; }
+.wl-language > span { margin: 0; }
+.wl-header { flex-wrap: wrap; }
+.wl-brand { flex: 1 1 65%; }
+.wl-header h2 { font-size: clamp(25px, 3.5vw, 38px); }
+.wl-eyebrow, .wl-account-facts span { color: #fff; }
+.wl-status, .wl-account-facts > div { background: #ffffff09; }
+.wl-account-facts { background: #ffffff18; border-color: #ffffff24; }
+.wl-offers article, .wl-entitlement, .wl-second-platform-request, wonderlang-account details,
+.wl-device-prompt, .wl-device-approval { background: #ffffff09; border-color: #ffffff26; }
+.wl-entitlement { border-inline-start: 4px solid #ffd400; padding: 22px; }
+.wl-entitlement > strong { font-size: 23px; }
+.wl-entitlement > span { color: #e2d6ed; }
+.wl-second-platform-request { background: linear-gradient(120deg, #ffd4000d, #ff8a000b); border-color: #ffc94070; gap: 16px; }
+wonderlang-account button { background: linear-gradient(115deg, #ffe100, #ff8b00); color: #1b1025; border: 1px solid #ffd74780; }
+wonderlang-account button.wl-secondary, wonderlang-account button.wl-dark { background: #ffffff10; color: #fff; border-color: #ffffff30; }
+wonderlang-account button.wl-link { background: transparent; color: #ffdf6d; border-color: transparent; }
+wonderlang-account button.wl-danger { color: #fff; background: #832d4e; border-color: #ff96b260; }
+wonderlang-account button:hover:not(:disabled) { filter: brightness(1.12); }
+wonderlang-account :focus-visible { outline: 3px solid #ffdf6d; outline-offset: 4px; }
+wonderlang-account input, wonderlang-account select { background: #21142e; border-color: #ffffff50; color: #fff; }
+.wl-modal { background: #251331; border: 1px solid #ffffff30; }
+.wl-modal > p:not(.wl-eyebrow), .wl-modal-form label { color: #e5d8ee; }
+.wl-device-approval.approved { background: #143a35; }
+.wl-demo-banner { color: #fff; background: #533728; border-color: #ffcb66; }
+.wl-demo-banner a { color: #ffe38c; }
+@media (max-width: 680px) { .wl-brand { align-items: flex-start; gap: 14px; } .wl-logo { width: 76px; } .wl-card { margin: 12px; padding: 20px; } .wl-header { flex-wrap: wrap; } }
