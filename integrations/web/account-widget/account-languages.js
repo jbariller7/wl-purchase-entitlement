@@ -70,6 +70,33 @@ for (const [locale, values] of Object.entries(profileRows)) {
   if (values.length !== profileSource.length) throw new Error("Profile translation length mismatch: " + locale);
   profileSource.forEach((key, index) => { dictionaries[locale][key] = values[index]; });
 }
+const signInSource = ["Sign-in methods","Add another way to sign in to this same account. Your purchases, profiles and saves stay together.","Connected","Add Google sign-in","Add Apple sign-in","Add email sign-in","Email"];
+const signInRows = {
+  en: signInSource,
+  fr: ["Méthodes de connexion","Ajoutez une autre façon de vous connecter à ce même compte. Vos achats, profils et sauvegardes restent regroupés.","Associé","Ajouter la connexion Google","Ajouter la connexion Apple","Ajouter la connexion par e-mail","E-mail"],
+  de: ["Anmeldemethoden","Füge eine weitere Anmeldemöglichkeit für dasselbe Konto hinzu. Deine Käufe, Profile und Spielstände bleiben zusammen.","Verknüpft","Google-Anmeldung hinzufügen","Apple-Anmeldung hinzufügen","E-Mail-Anmeldung hinzufügen","E-Mail"],
+  es: ["Métodos de inicio de sesión","Añade otra forma de iniciar sesión en esta misma cuenta. Tus compras, perfiles y partidas guardadas permanecen juntos.","Vinculado","Añadir inicio de sesión con Google","Añadir inicio de sesión con Apple","Añadir inicio de sesión por correo","Correo electrónico"],
+  "es-MX": ["Métodos de inicio de sesión","Agrega otra forma de iniciar sesión en esta misma cuenta. Tus compras, perfiles y partidas guardadas permanecen juntos.","Vinculado","Agregar inicio de sesión con Google","Agregar inicio de sesión con Apple","Agregar inicio de sesión por correo","Correo electrónico"],
+  "pt-BR": ["Métodos de login","Adicione outra forma de entrar nesta mesma conta. Suas compras, perfis e jogos salvos continuam juntos.","Vinculado","Adicionar login com Google","Adicionar login com Apple","Adicionar login por e-mail","E-mail"],
+  "pt-PT": ["Métodos de início de sessão","Adiciona outra forma de entrar nesta mesma conta. As tuas compras, perfis e jogos guardados continuam juntos.","Associado","Adicionar início de sessão com Google","Adicionar início de sessão com Apple","Adicionar início de sessão por e-mail","E-mail"],
+  it: ["Metodi di accesso","Aggiungi un altro modo per accedere a questo stesso account. Acquisti, profili e salvataggi rimangono insieme.","Collegato","Aggiungi accesso con Google","Aggiungi accesso con Apple","Aggiungi accesso tramite e-mail","E-mail"],
+  nl: ["Inlogmethoden","Voeg een andere manier toe om in te loggen op hetzelfde account. Je aankopen, profielen en opgeslagen spellen blijven bij elkaar.","Gekoppeld","Inloggen met Google toevoegen","Inloggen met Apple toevoegen","Inloggen via e-mail toevoegen","E-mail"],
+  sv: ["Inloggningsmetoder","Lägg till ett annat sätt att logga in på samma konto. Dina köp, profiler och sparade spel hålls samlade.","Länkat","Lägg till Google-inloggning","Lägg till Apple-inloggning","Lägg till e-postinloggning","E-post"],
+  pl: ["Metody logowania","Dodaj inny sposób logowania do tego samego konta. Twoje zakupy, profile i zapisy pozostaną razem.","Połączono","Dodaj logowanie przez Google","Dodaj logowanie przez Apple","Dodaj logowanie e-mailem","E-mail"],
+  uk: ["Способи входу","Додайте інший спосіб входу до цього самого облікового запису. Ваші покупки, профілі та збереження залишаться разом.","Пов’язано","Додати вхід через Google","Додати вхід через Apple","Додати вхід електронною поштою","Електронна пошта"],
+  ru: ["Способы входа","Добавьте другой способ входа в эту же учётную запись. Ваши покупки, профили и сохранения останутся вместе.","Привязано","Добавить вход через Google","Добавить вход через Apple","Добавить вход по электронной почте","Электронная почта"],
+  id: ["Metode masuk","Tambahkan cara lain untuk masuk ke akun yang sama ini. Pembelian, profil, dan simpananmu tetap bersama.","Terhubung","Tambahkan masuk dengan Google","Tambahkan masuk dengan Apple","Tambahkan masuk lewat email","Email"],
+  ko: ["로그인 방법","같은 계정에 로그인하는 다른 방법을 추가하세요. 구매 내역, 프로필, 저장 데이터는 그대로 유지됩니다.","연결됨","Google 로그인 추가","Apple 로그인 추가","이메일 로그인 추가","이메일"],
+  ja: ["ログイン方法","この同じアカウントにログインする別の方法を追加できます。購入内容、プロフィール、セーブはそのまま引き継がれます。","連携済み","Googleログインを追加","Appleログインを追加","メールでのログインを追加","メール"],
+  "zh-CN": ["登录方式","为同一个账户添加其他登录方式。你的购买内容、档案和存档仍保留在一起。","已关联","添加 Google 登录","添加 Apple 登录","添加邮箱登录","电子邮箱"],
+  "zh-TW": ["登入方式","為同一個帳戶新增其他登入方式。你的購買內容、設定檔和存檔仍保留在一起。","已連結","新增 Google 登入","新增 Apple 登入","新增電子郵件登入","電子郵件"],
+  ar: ["طرق تسجيل الدخول","أضف طريقة أخرى لتسجيل الدخول إلى الحساب نفسه. ستبقى مشترياتك وملفات تعريفك وملفات حفظك معًا.","مرتبط","إضافة تسجيل الدخول عبر Google","إضافة تسجيل الدخول عبر Apple","إضافة تسجيل الدخول بالبريد الإلكتروني","البريد الإلكتروني"],
+  hy: ["Մուտքի եղանակներ","Ավելացրեք նույն հաշիվ մուտք գործելու մեկ այլ եղանակ։ Ձեր գնումները, պրոֆիլներն ու պահպանումները կմնան միասին։","Կապակցված է","Ավելացնել մուտք Google-ով","Ավելացնել մուտք Apple-ով","Ավելացնել մուտք էլեկտրոնային փոստով","Էլեկտրոնային փոստ"]
+};
+for (const [locale, values] of Object.entries(signInRows)) {
+  if (values.length !== signInSource.length) throw new Error("Sign-in translation length mismatch: " + locale);
+  signInSource.forEach((key, index) => { dictionaries[locale][key] = values[index]; });
+}
 export function translateSummary(value, language) {
   return dictionaries[language]?.[value] ?? value;
 }

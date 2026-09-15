@@ -17,7 +17,7 @@ import {
   signOut
 } from "firebase/auth";
 import { friendlyAccountError } from "./auth-errors.js";
-import { formatLoginProviders } from "./provider-labels.js";
+import { formatLoginProviders, friendlyLoginProvider } from "./provider-labels.js";
 import { installAccountLanguagePicker } from "./account-languages.js";
 import "./wonderlang-account.css";
 
@@ -137,11 +137,13 @@ const html = `
         <button type="button" data-action="restore" class="wl-secondary">Restore mobile purchases</button>
         <button type="button" data-action="revoke-sessions" class="wl-danger">Sign out all devices</button>
       </div>
-      <div class="wl-provider-grid wl-link-providers">
-        <button type="button" data-action="link-google" class="wl-secondary">Link Google login</button>
-        <button type="button" data-action="link-apple" class="wl-dark">Link Apple login</button>
-        <button type="button" data-action="link-email" class="wl-secondary">Link email login</button>
-      </div>
+      <section class="wl-sign-in-methods">
+        <h3>Sign-in methods</h3>
+        <p>Add another way to sign in to this same account. Your purchases, profiles and saves stay together.</p>
+        <div class="wl-sign-in-method"><strong>Google</strong><span data-linked-method="Google" hidden>Connected</span><button type="button" data-action="link-google" class="wl-secondary">Add Google sign-in</button></div>
+        <div class="wl-sign-in-method"><strong>Apple</strong><span data-linked-method="Apple" hidden>Connected</span><button type="button" data-action="link-apple" class="wl-secondary">Add Apple sign-in</button></div>
+        <div class="wl-sign-in-method"><strong>Email</strong><span data-linked-method="Email" hidden>Connected</span><button type="button" data-action="link-email" class="wl-secondary">Add email sign-in</button></div>
+      </section>
       <details>
         <summary>Account recovery and security</summary>
         <p>You can recover this same account with any linked Google, Apple, or email method. Linking is always explicit; WonderLang never merges unrelated accounts merely because an unverified email matches.</p>
@@ -461,6 +463,7 @@ class WonderLangAccount extends HTMLElement {
 
   async renderUser(user) {
     this.user = user;
+    this.renderSignInMethods((user?.providerData || []).map(provider => provider.providerId));
     if (this.desktopHandoff) {
       this.querySelector(".wl-signed-out").hidden = false;
       this.querySelector(".wl-signed-in").hidden = true;
@@ -518,6 +521,7 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="cloud"]').textContent = ent.cloudSave ? "Cloud save enabled" : "Cloud save requires Mobile Monthly or Premium Lifetime";
       this.querySelector('[data-field="email"]').textContent = this.account.email || "No email available";
       this.querySelector('[data-field="providers"]').textContent = formatLoginProviders(this.account.linkedLoginProviders);
+      this.renderSignInMethods(this.account.linkedLoginProviders);
       const sub = this.account.subscription;
       const date = (value) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value)) : null;
       this.querySelector('[data-field="subscription"]').textContent = ent.premiumLifetime || ent.accessKind === "premium_lifetime" ? "Lifetime pass"
@@ -557,6 +561,14 @@ class WonderLangAccount extends HTMLElement {
         : !this.config.checkoutEnabled || !this.account.stripeBillingAvailable;
       await this.loadDeviceApproval();
     } catch (error) { this.fail(error); }
+  }
+
+  renderSignInMethods(providers) {
+    const connected = new Set((providers || []).map(friendlyLoginProvider));
+    for (const [label, action] of [["Google", "link-google"], ["Apple", "link-apple"], ["Email", "link-email"]]) {
+      this.querySelector('[data-linked-method="' + label + '"]').hidden = !connected.has(label);
+      this.querySelector('[data-action="' + action + '"]').hidden = connected.has(label);
+    }
   }
 
   async completeDesktopHandoff(user) {

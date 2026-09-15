@@ -2,9 +2,10 @@ import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { describe, expect, it } from "vitest";
 import { dictionaries, languages, translateSummary } from "../integrations/web/account-widget/account-languages.js";
+import { friendlyLoginProvider } from "../integrations/web/account-widget/provider-labels.js";
 const source = readFileSync(new URL("../integrations/web/account-widget/wonderlang-account.js", import.meta.url), "utf8");
 function widget() {
-  const context = vm.createContext({HTMLElement: class {}, location: {href:""}, encodeURIComponent, demoMode: false});
+  const context = vm.createContext({HTMLElement: class {}, location: {href:""}, encodeURIComponent, demoMode: false, friendlyLoginProvider});
   vm.runInContext(source.slice(source.indexOf("class WonderLangAccount extends"), source.indexOf('customElements.define("wonderlang-account"')) + "\nglobalThis.Widget = WonderLangAccount;", context);
   const page = new context.Widget();
   let status;
@@ -13,6 +14,24 @@ function widget() {
   return {page, context, status:()=>status};
 }
 describe("account page refresh", () => {
+  it("shows connected methods and only offers missing methods, including email aliases", () => {
+    const {page} = widget();
+    const nodes = {};
+    page.querySelector = selector => nodes[selector] ||= {};
+    for (const email of ["password", "email", "email-link", "passwordless-email"]) {
+      page.renderSignInMethods(["google.com", email]);
+      expect(nodes['[data-action="link-google"]'].hidden).toBe(true);
+      expect(nodes['[data-linked-method="Google"]'].hidden).toBe(false);
+      expect(nodes['[data-action="link-apple"]'].hidden).toBe(false);
+      expect(nodes['[data-action="link-email"]'].hidden).toBe(true);
+    }
+    page.renderSignInMethods([]);
+    expect(nodes['[data-action="link-google"]'].hidden).toBe(false);
+    expect(nodes['[data-linked-method="Email"]'].hidden).toBe(true);
+    for (const [locale] of languages) {
+      for (const key of ["Sign-in methods", "Connected", "Add Google sign-in", "Add Apple sign-in", "Add email sign-in"]) expect(dictionaries[locale][key]).toBeTruthy();
+    }
+  });
   it("replaces purchase cards with the website and loads configuration without the removed controls", () => {
     expect(source).toContain('href="https://wonderlang.net/"');
     for (const removed of ['class="wl-offers"', 'data-action="premium"', 'data-action="discounted-premium"', 'data-field="monthly-price"', 'data-field="premium-platform"', 'data-field="cancel-confirm"']) {

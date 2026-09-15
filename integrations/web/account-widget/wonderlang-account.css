@@ -54,6 +54,11 @@ wonderlang-account details { margin-top: 18px; } wonderlang-account summary { cu
 .wl-modal-form label { display: grid; gap: 7px; color: #5f6670; font-size: 12px; font-weight: 800; }
 .wl-modal-form > div { display: flex; justify-content: flex-end; gap: 10px; }
 .wl-profiles { margin-block: 24px; }
+.wl-sign-in-methods { margin-block: 24px; padding: 22px; border: 1px solid #ffffff30; border-radius: 16px; background: #ffffff09; }
+.wl-sign-in-methods h3 { margin: 0; font-size: 23px; }
+.wl-sign-in-methods > p { color: #e3d5ed; }
+.wl-sign-in-method { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px; border-top: 1px solid #ffffff20; }
+.wl-sign-in-method > span { color: #fff; border: 1px solid #ffffff40; border-radius: 20px; padding: 5px 14px; }
 .wl-website-link { margin-block: 24px; }
 .wl-website-link a { display: inline-flex; align-items: center; gap: 16px; padding: 14px 22px; border-radius: 12px; background: linear-gradient(115deg, #ffe100, #ff8b00); color: #1b1025; font-weight: 800; text-decoration: none; }
 .wl-website-link a:hover { filter: brightness(1.12); }
