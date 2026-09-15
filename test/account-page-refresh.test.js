@@ -13,6 +13,18 @@ function widget() {
   return {page, context, status:()=>status};
 }
 describe("account page refresh", () => {
+  it("replaces purchase cards with the website and loads configuration without the removed controls", () => {
+    expect(source).toContain('href="https://wonderlang.net/"');
+    for (const removed of ['class="wl-offers"', 'data-action="premium"', 'data-action="discounted-premium"', 'data-field="monthly-price"', 'data-field="premium-platform"', 'data-field="cancel-confirm"']) {
+      expect(source).not.toContain(removed);
+    }
+    const {page} = widget();
+    const controls = {};
+    page.querySelector = selector => controls[selector] ||= {};
+    page.configureCatalog({checkoutEnabled:false,accountApiReady:true});
+    expect(controls['[data-action="portal"]'].disabled).toBe(true);
+    expect(controls['[data-action="delete-account"]'].disabled).toBe(false);
+  });
   it("opens an email for either mobile platform without granting access or posting a request", async () => {
     const {page,context,status} = widget();
     page.request = () => {throw new Error("No backend mutation is allowed");};

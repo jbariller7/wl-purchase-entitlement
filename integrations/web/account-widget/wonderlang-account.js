@@ -131,29 +131,7 @@ const html = `
         <p>These are your cloud backups, not the saves currently on this device. Sync from the game to update them.</p>
         <div data-field="profiles-list" aria-live="polite"></div>
       </section>
-      <div class="wl-offers">
-        <article>
-          <p class="wl-eyebrow">FLEXIBLE</p><h3>Mobile Monthly</h3>
-          <p><strong data-field="monthly-price">Loading price…</strong> · <span data-field="monthly-trial">3 days free</span> · Full mobile game · Cloud save</p>
-          <p class="wl-store-purchase">Available inside WonderLang for Android and iOS through that device's app store.</p>
-        </article>
-        <article>
-          <p class="wl-eyebrow">ONE MOBILE PLATFORM</p><h3>Polyglot Permanent Access</h3>
-          <p><strong data-field="polyglot-price">Loading price…</strong> · Full game forever on Android or iOS · No cloud save</p>
-          <p class="wl-store-purchase">Available inside WonderLang for Android and iOS through that device's app store.</p>
-        </article>
-        <article>
-          <p class="wl-eyebrow">EVERYTHING, FOREVER</p><h3>Premium Lifetime Pass</h3>
-          <p><strong data-field="premium-price">Loading price…</strong> · Permanent mobile access · One PC/Mac access · Cross-platform cloud save · Future sequels and additional content · A second mobile access on request: Android or iOS, including the same platform</p>
-          <label><span>First mobile platform</span><select data-field="premium-platform"><option value="android">Android</option><option value="ios">iOS</option></select></label>
-          <label><span>Included PC/Mac access</span><select data-field="premium-desktop"><option value="steam">Steam key</option><option value="direct">Direct download</option></select></label>
-          <label class="wl-confirm" data-field="cancel-confirm" hidden>
-            <input type="checkbox"> <span data-field="cancel-confirm-copy">Cancel my current Stripe subscription after the Premium payment succeeds.</span>
-          </label>
-          <button type="button" data-action="premium">Buy Premium Lifetime</button>
-          <button type="button" data-action="discounted-premium" hidden>Use my 50% desktop-customer offer</button>
-        </article>
-      </div>
+      <div class="wl-website-link"><a href="https://wonderlang.net/" target="_blank" rel="noopener noreferrer">wonderlang.net <span aria-hidden="true">↗</span></a></div>
       <button type="button" data-action="portal" class="wl-secondary">Manage Stripe subscription</button>
       <div class="wl-provider-grid wl-security-actions">
         <button type="button" data-action="restore" class="wl-secondary">Restore mobile purchases</button>
@@ -172,11 +150,6 @@ const html = `
       </details>
     </div>
   </section>`;
-
-function cookie(name) {
-  const match = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name}=`));
-  return match ? decodeURIComponent(match.slice(name.length + 1)) : undefined;
-}
 
 function appleProvider() {
   const provider = new OAuthProvider("apple.com");
@@ -228,10 +201,6 @@ function createDemoAccount() {
     },
     legacyLifetimeDiscount: { eligible: true }
   };
-}
-
-function hasEffectiveSubscription(account) {
-  return ["trial", "active", "grace", "cancelled"].includes(account?.subscription?.phase);
 }
 
 class WonderLangAccount extends HTMLElement {
@@ -291,8 +260,6 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="google"]').addEventListener("click", () => this.provider(this.googleProvider()));
     this.querySelector('[data-action="apple"]').addEventListener("click", () => this.provider(appleProvider()));
     this.querySelector('[data-action="sign-out"]').addEventListener("click", () => this.signOutCurrent());
-    this.querySelector('[data-action="premium"]').addEventListener("click", () => this.checkout(false, this.querySelector('[data-field="premium-platform"]').value, this.querySelector('[data-field="premium-desktop"]').value));
-    this.querySelector('[data-action="discounted-premium"]').addEventListener("click", () => this.checkout(true, this.querySelector('[data-field="premium-platform"]').value, this.querySelector('[data-field="premium-desktop"]').value));
     this.querySelector('[data-action="portal"]').addEventListener("click", () => this.openPortal());
     this.querySelector('[data-action="restore"]').addEventListener("click", () => this.restorePurchases());
     this.querySelector('[data-action="revoke-sessions"]').addEventListener("click", () => this.revokeSessions());
@@ -319,14 +286,7 @@ class WonderLangAccount extends HTMLElement {
 
   configureCatalog(config) {
     this.config = config;
-    const price = (offer, suffix = "") => `${new Intl.NumberFormat(undefined, { style: "currency", currency: offer.currency }).format(offer.unitAmount / 100)}${suffix}`;
-    this.querySelector('[data-field="monthly-price"]').textContent = price(config.catalog.monthly, "/month");
-    this.querySelector('[data-field="monthly-trial"]').textContent = `${Number(config.catalog.trialDays || 3)} days free`;
-    this.querySelector('[data-field="polyglot-price"]').textContent = price(config.catalog.polyglot);
-    this.querySelector('[data-field="premium-price"]').textContent = price(config.catalog.premium);
-    for (const action of ["premium", "discounted-premium", "portal"]) {
-      this.querySelector(`[data-action="${action}"]`).disabled = !config.checkoutEnabled;
-    }
+    this.querySelector('[data-action="portal"]').disabled = !config.checkoutEnabled;
     for (const action of ["restore", "revoke-sessions", "delete-account", "request-second-platform", "cancel-second-platform", "approve-device"]) {
       this.querySelector(`[data-action="${action}"]`).disabled = !config.accountApiReady;
     }
@@ -588,20 +548,10 @@ class WonderLangAccount extends HTMLElement {
         requestButton.hidden = false;
         cancelRequestButton.hidden = secondPlatformRequest?.state !== "pending";
       }
-      const subscribed = hasEffectiveSubscription(this.account);
       const billingButton = this.querySelector('[data-action="portal"]');
       billingButton.textContent = sub?.provider === "google_play" ? "Manage Google Play subscription"
         : sub?.provider === "apple" ? "Manage Apple subscription"
           : sub?.provider === "stripe" ? "Manage Stripe subscription" : "Manage Stripe billing";
-      this.querySelector('[data-field="cancel-confirm-copy"]').textContent = sub?.provider === "google_play"
-        ? "I understand that I must cancel my Google Play subscription separately after the Premium payment succeeds."
-        : sub?.provider === "apple"
-          ? "I understand that I must cancel my Apple subscription separately after the Premium payment succeeds."
-          : "Cancel my current Stripe subscription after the Premium payment succeeds.";
-      this.querySelector('[data-field="cancel-confirm"]').hidden = !subscribed;
-      this.querySelector('[data-action="premium"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime;
-      this.querySelector('[data-action="discounted-premium"]').hidden = !this.account.legacyLifetimeDiscount.eligible || ent.premiumLifetime;
-      this.querySelector('[data-action="discounted-premium"]').disabled = !this.config.checkoutEnabled || ent.premiumLifetime;
       billingButton.disabled = sub?.provider === "google_play" || sub?.provider === "apple"
         ? false
         : !this.config.checkoutEnabled || !this.account.stripeBillingAvailable;
@@ -689,38 +639,6 @@ class WonderLangAccount extends HTMLElement {
     const next = new URL(location.href);
     next.searchParams.delete("device_code");
     history.replaceState({}, document.title, `${next.pathname}${next.search}${next.hash}`);
-  }
-
-  async checkout(useDiscount, mobilePlatform, desktopDelivery) {
-    const subscribed = hasEffectiveSubscription(this.account);
-    const confirmation = this.querySelector('[data-field="cancel-confirm"] input');
-    if (subscribed && !confirmation.checked) {
-      this.status("Confirm subscription cancellation before starting the Premium Lifetime checkout.");
-      confirmation.focus();
-      return;
-    }
-    if (demoMode) {
-      const offer = useDiscount ? "discounted Premium Lifetime purchase" : "Premium Lifetime purchase";
-      this.status(`Safe demo: ${offer} checkout validated. No payment page was opened.`);
-      return;
-    }
-    try {
-      const result = await this.request("/api/v1/checkout", {
-        method: "POST",
-        body: {
-          product: "premium_lifetime_pass",
-          ...(mobilePlatform ? { mobilePlatform } : {}),
-          ...(desktopDelivery ? { desktopDelivery } : {}),
-          useLegacyDesktopDiscount: useDiscount,
-          confirmCancelExistingSubscription: Boolean(subscribed && confirmation.checked),
-          attribution: {
-            fbp: cookie("_fbp"), fbc: cookie("_fbc"), ttp: cookie("_ttp"),
-            ttclid: new URLSearchParams(location.search).get("ttclid") || undefined
-          }
-        }
-      });
-      location.assign(result.url);
-    } catch (error) { this.fail(error); }
   }
 
   async openPortal() {
