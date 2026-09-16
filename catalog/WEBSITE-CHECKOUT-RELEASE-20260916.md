@@ -19,7 +19,10 @@
 - 347 regression tests passed; 15 Firebase-emulator tests skipped because no emulator was running.
 - Six additional checkout-runtime tests passed, including no duplicate checkout after payment and no second key allocator.
 - Four original-automation routing tests passed. Existing payment-link routing is unchanged.
-- Production publication and browser-to-Stripe verification are in progress; they are not yet verified.
+- Published and verified: entitlement backend b2ee91c (Netlify deploy 6aaab803ec790e0008db540b), existing automation 9ce4edc.
+- Actual MailerLite page https://wonderlang.net/jsizvg: all five Buy links opened live Stripe checkout. Verified French/EUR: single EUR19.59, desktop Polyglot EUR30.99, Premium EUR59.99, mobile monthly EUR6.49 with three free days, mobile permanent EUR30.99. No payment submitted.
+- Existing Stripe destination we_1RzfGfBFbQoDa6p0BsVxPiqZ now listens to the original two checkout events plus five subscription lifecycle events, invoice.paid, invoice.payment_failed, charge.refunded and charge.dispute.created (11 total). URL and signing secret unchanged.
+- Deployed checkout readiness returned HTTP200 with enabled:true. Temporary local catalog helper stopped and its in-memory credential cleared.
 - No real payment has been made. Paid purchase, receipt, account activation, refund and subscription-lifecycle testing still require an owner-supervised transaction.
 
 ## Remaining beyond opening checkout
