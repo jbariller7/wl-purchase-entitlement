@@ -180,7 +180,7 @@ function createDemoAccount() {
     entitlements: {
       accessKind: premium ? "premium_lifetime" : "subscription",
       subscriptionState: premium ? "inactive" : "active",
-      cloudSave: true,
+      cloudSave: premium,
       mobilePlatforms: premium ? ["android"] : ["android", "ios"],
       permanentMobilePlatforms: premium ? ["android"] : [],
       pcMacAccess: premium,
@@ -518,7 +518,7 @@ class WonderLangAccount extends HTMLElement {
         : ent.accessKind === "legacy" ? `Legacy mobile access${ent.chapters.length ? ` · chapter ${ent.chapters.join(", ")}` : ""}`
         : "Free access";
       this.querySelector('[data-field="access"]').textContent = access;
-      this.querySelector('[data-field="cloud"]').textContent = ent.cloudSave ? "Cloud save enabled" : "Cloud save requires Mobile Monthly or Premium Lifetime";
+      this.querySelector('[data-field="cloud"]').textContent = ent.cloudSave && ent.premiumLifetime ? "Cloud save enabled" : "Cloud save requires a Premium Lifetime Pass.";
       this.querySelector('[data-field="email"]').textContent = this.account.email || "No email available";
       this.querySelector('[data-field="providers"]').textContent = formatLoginProviders(this.account.linkedLoginProviders);
       this.renderSignInMethods(this.account.linkedLoginProviders);
@@ -679,8 +679,8 @@ class WonderLangAccount extends HTMLElement {
     const valid = () => this.user === user && this.profileLoadRun === run;
     list.textContent = "Loading profiles…";
     button.disabled = true;
-    if (!this.account?.entitlements?.cloudSave) {
-      list.textContent = "Cloud save requires Mobile Monthly or Premium Lifetime";
+    if (!this.account?.entitlements?.cloudSave || !this.account?.entitlements?.premiumLifetime) {
+      list.textContent = "Cloud save requires a Premium Lifetime Pass.";
       button.disabled = false;
       return;
     }

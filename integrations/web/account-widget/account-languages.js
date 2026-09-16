@@ -97,6 +97,31 @@ for (const [locale, values] of Object.entries(signInRows)) {
   if (values.length !== signInSource.length) throw new Error("Sign-in translation length mismatch: " + locale);
   signInSource.forEach((key, index) => { dictionaries[locale][key] = values[index]; });
 }
+const premiumCloudRequirement = {
+  "en": "Cloud save requires a Premium Lifetime Pass.",
+  "fr": "Les sauvegardes cloud nécessitent un Premium Lifetime Pass.",
+  "es": "El guardado en la nube requiere un Premium Lifetime Pass.",
+  "es-MX": "El guardado en la nube requiere un Premium Lifetime Pass.",
+  "de": "Cloud-Spielstände erfordern einen Premium Lifetime Pass.",
+  "pt-BR": "Os salvamentos na nuvem exigem um Premium Lifetime Pass.",
+  "pt-PT": "Os ficheiros guardados na nuvem requerem um Premium Lifetime Pass.",
+  "it": "I salvataggi nel cloud richiedono un Premium Lifetime Pass.",
+  "nl": "Cloudopslag vereist een Premium Lifetime Pass.",
+  "sv": "Molnsparningar kräver ett Premium Lifetime Pass.",
+  "ru": "Для облачных сохранений нужен Premium Lifetime Pass.",
+  "uk": "Для хмарних збережень потрібен Premium Lifetime Pass.",
+  "pl": "Zapisy w chmurze wymagają Premium Lifetime Pass.",
+  "id": "Penyimpanan cloud memerlukan Premium Lifetime Pass.",
+  "ko": "클라우드 저장을 이용하려면 Premium Lifetime Pass가 필요합니다.",
+  "ja": "クラウドセーブにはPremium Lifetime Passが必要です。",
+  "zh-CN": "云存档需要 Premium Lifetime Pass。",
+  "zh-TW": "雲端存檔需要 Premium Lifetime Pass。",
+  "ar": "الحفظ السحابي يتطلب Premium Lifetime Pass.",
+  "hy": "Ամպային պահպանման համար անհրաժեշտ է Premium Lifetime Pass։"
+};
+for (const [locale, value] of Object.entries(premiumCloudRequirement)) {
+  if (dictionaries[locale]) dictionaries[locale]["Cloud save requires a Premium Lifetime Pass."] = value;
+}
 export function translateSummary(value, language) {
   return dictionaries[language]?.[value] ?? value;
 }

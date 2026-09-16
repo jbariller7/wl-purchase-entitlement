@@ -246,7 +246,8 @@
   }
   function entitlement() { return authoritativeAccount()?.entitlements || null; }
   function effectiveCachedEntitlement(now = Date.now()) {
-    const value = restrictToGrantedPlatform(entitlement());
+    const granted = restrictToGrantedPlatform(entitlement());
+    const value = granted ? { ...granted, cloudSave: Boolean(granted.cloudSave && granted.premiumLifetime) } : granted;
     if (!value?.fullGame) return value;
     if (value.accessKind === "premium_lifetime" || value.accessKind === "permanent" || value.accessKind === "legacy") return value;
     if (value.accessKind !== "subscription") return value;

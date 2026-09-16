@@ -36,12 +36,12 @@ function grant(overrides: Partial<LedgerGrant>): LedgerGrant {
 }
 
 describe("effective entitlement projection", () => {
-  it("grants all content and cloud saves for an active monthly subscription", () => {
+  it("grants the game but not cloud saves for an active monthly subscription", () => {
     const value = projectEntitlements("user-1", [grant({})], now);
     expect(value).toMatchObject({
       fullGame: true,
       allLanguages: true,
-      cloudSave: true,
+      cloudSave: false,
       accessKind: "subscription",
       subscriptionState: "active"
     });
@@ -86,7 +86,8 @@ describe("effective entitlement projection", () => {
       [grant({ state: "grace", graceEndsAt: "2026-08-25T12:00:00.000Z" })],
       now
     );
-    expect(value.cloudSave).toBe(true);
+    expect(value.fullGame).toBe(true);
+    expect(value.cloudSave).toBe(false);
     expect(value.subscriptionState).toBe("grace");
   });
 

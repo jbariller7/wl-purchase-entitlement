@@ -307,7 +307,7 @@
         isBundle: true,
         isSubscription: false,
         text: "Polyglot Permanent Access",
-        description: "Own the full game forever on this mobile platform. Cloud save is not included.",
+        description: "Own the full game forever on this mobile platform.",
         fallbackPrice: "$31.99"
     };
     POLYGLOT_PRODUCT.sku = "wonderlangfull";
@@ -319,7 +319,7 @@
         isBundle: false,
         isSubscription: true,
         text: "WonderLang Monthly",
-        description: "Every chapter, every language, and cloud saves. Cancel anytime.",
+        description: "Full game while your subscription is active. Cancel anytime.",
         fallbackPrice: "$6.99"
     };
     MONTHLY_PRODUCT.sku = "wonderlangmonthly";
@@ -1442,7 +1442,7 @@ window.WL_AssetPackDebug = {
 
         // Full-game ownership subsumes the historical chapter products, but it must
         // never subsume Monthly. Polyglot owners are deliberately allowed to add the
-        // subscription later when they want cloud saves.
+        // subscription later if they want temporary game access.
         const bundleCanSatisfyProduct = normalizedSku !== bundleSku &&
             normalizedSku !== "wonderlangmonthly";
         const ownsBundle = bundleCanSatisfyProduct && (
@@ -2356,10 +2356,10 @@ executeDownload(alreadyStarted = false) {
 
     function productDisplayDescription(product) {
         if (isSubscriptionProduct(product)) {
-            return translatedValue("Paywall_Product_Monthly_Description", "Every chapter, every language, and cloud saves. Cancel anytime.");
+            return translatedValue("Paywall_Product_Monthly_Description", "Full game while your subscription is active. Cancel anytime.");
         }
         if (isBundleProduct(product)) {
-            return translatedValue("Paywall_Product_Polyglot_Description", "Own the full game forever on this mobile platform. Cloud save is not included.");
+            return translatedValue("Paywall_OneMobilePlatform", "Full game on this mobile platform");
         }
         return translatedValue("Paywall_Product_Chapter_Description", product?.description || "Approximately 15 hours of learning and adventure.");
     }
@@ -2958,9 +2958,6 @@ executeDownload(alreadyStarted = false) {
                     : canPurchase
                         ? `<button class="price-btn"><span>${hasThreeDayTrial ? t_startTrial : t_buy}</span><span class="price-tag">${monthlyPrice.text}/month</span></button>`
                         : `<div class="price-loading">${statusText}</div>`;
-                const accountNote = isAccountSignedIn()
-                    ? translatedValue("Paywall_AccountReady", "Signed in — access and saves will follow you across platforms.")
-                    : translatedValue("Paywall_SignInRequired", "A free WonderLang account is required so your purchase and saves can follow you.");
                 const monthlyDiv = document.createElement("div");
                 monthlyDiv.className = "hero-bundle monthly-offer";
                 monthlyDiv.innerHTML = `
@@ -2970,10 +2967,8 @@ executeDownload(alreadyStarted = false) {
                         <div class="hero-desc">${productDisplayDescription(monthly)}</div>
                         <div class="hero-benefits">
                             <span class="hero-benefit">${translatedValue("Paywall_AllContent", "All chapters + all languages")}</span>
-                            <span class="hero-benefit">${translatedValue("Paywall_CloudSaves", "Cross-platform cloud saves")}</span>
                             <span class="hero-benefit">${translatedValue("Paywall_CancelAnytime", "Cancel anytime")}</span>
                         </div>
-                        <div class="hero-saving">${accountNote}</div>
                     </div>
                     <div class="hero-action">${btnHtml}</div>`;
                 if (canPurchase) {
@@ -3015,7 +3010,6 @@ executeDownload(alreadyStarted = false) {
                         <div class="hero-benefits">
                             <span class="hero-benefit">${translatedValue("Paywall_OneTimePurchase", "One-time permanent purchase")}</span>
                             <span class="hero-benefit">${translatedValue("Paywall_OneMobilePlatform", "Full game on this mobile platform")}</span>
-                            <span class="hero-benefit">${translatedValue("Paywall_NoCloudSaves", "Cloud save not included")}</span>
                             <span class="hero-benefit">${translatedValue("Paywall_ProgressImmediate", "Your progress is saved. Continue immediately.")}</span>
                         </div>
                         ${savingHtml}

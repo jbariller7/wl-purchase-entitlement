@@ -172,9 +172,9 @@ class WonderLangAccountManager(
                 permanentPlatforms.optString(it).equals("android", ignoreCase = true)
             }
         return when (normalizedProductId) {
-            // Premium already contains both benefits. Otherwise Monthly and Polyglot
-            // remain independently purchasable so a permanent owner can add cloud
-            // saves and a subscriber can secure permanent mobile ownership.
+            // Premium includes permanent game access. Monthly remains a native
+            // game subscription; it never grants cloud-save access. A subscriber
+            // can still purchase permanent mobile ownership separately.
             "wonderlangmonthly" -> premiumLifetime || subscriptionState in setOf("active", "grace")
             "wonderlangfull" -> premiumLifetime || hasAndroidPermanent || accessKind == "legacy"
             "wonderlangch1", "wonderlangch2", "wonderlangch3", "wonderlangch4" -> true
@@ -186,7 +186,7 @@ class WonderLangAccountManager(
 
     fun hasActiveSubscription(): Boolean {
         val entitlements = currentEntitlementsSnapshot() ?: return false
-        return cloudSaveEntitled && entitlements.optString("subscriptionState") in setOf("active", "grace")
+        return fullGameEntitled && entitlements.optString("subscriptionState") in setOf("active", "grace")
     }
 
     fun currentAccessKind(): String =
@@ -622,7 +622,8 @@ class WonderLangAccountManager(
             platforms.optString(it).equals("android", ignoreCase = true)
         }
         fullGameEntitled = entitlements.optBoolean("fullGame", false) && androidGranted
-        cloudSaveEntitled = entitlements.optBoolean("cloudSave", false) && androidGranted
+        cloudSaveEntitled = entitlements.optBoolean("cloudSave", false) &&
+            entitlements.optBoolean("premiumLifetime", false) && androidGranted
         val verifiedAtWallMs = parseIsoTimestamp(entitlements.optString("computedAt"))
             ?: System.currentTimeMillis()
         entitlementVerifiedAtWallMs = verifiedAtWallMs

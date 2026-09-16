@@ -34,7 +34,7 @@ describe("account profile save summaries", () => {
     chain.doc.mockReturnValue(chain);chain.collection.mockReturnValue(chain);
     const file = {getMetadata:vi.fn(async()=>[{size:bytes.length}]),download:vi.fn(async()=>[bytes])};
     const storage = {bucket:()=>({file:vi.fn(()=>file)})};
-    const entitlements = {effectiveEntitlements:vi.fn(async()=>({cloudSave:true}))};
+    const entitlements = {effectiveEntitlements:vi.fn(async()=>({cloudSave:true,premiumLifetime:true}))};
     const service = new CloudSaveProfileService(chain as never,storage as never,entitlements as never);
     const result = await service.summary("owner","default",new Date());
     expect(chain.doc.mock.calls).toEqual([["owner"],["default"]]);
@@ -43,7 +43,7 @@ describe("account profile save summaries", () => {
     expect(result).not.toHaveProperty("uid");
     manifest.objectPath = manifest.objectPath.replace("/owner/","/other/");
     await expect(service.summary("owner","default",new Date())).rejects.toThrow();
-    entitlements.effectiveEntitlements.mockResolvedValue({cloudSave:false});
+    entitlements.effectiveEntitlements.mockResolvedValue({cloudSave:false,premiumLifetime:false});
     await expect(service.summary("owner","default",new Date())).rejects.toThrow();
   });
 });

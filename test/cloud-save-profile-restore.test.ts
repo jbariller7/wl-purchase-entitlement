@@ -56,7 +56,7 @@ function fakeFirestore(initial: CloudSaveProfileManifest): { database: Firestore
 }
 
 function entitledStore(): EntitlementStore {
-  return { effectiveEntitlements: async () => ({ cloudSave: true }) } as unknown as EntitlementStore;
+  return { effectiveEntitlements: async () => ({ cloudSave: true, premiumLifetime: true }) } as unknown as EntitlementStore;
 }
 
 function backupContents(): Buffer {

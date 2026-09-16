@@ -35,7 +35,6 @@ describe("customer interface route contract", () => {
       ["/api/v1/device-sign-in/preview", 'path === "/v1/device-sign-in/preview"'],
       ["/api/v1/device-sign-in/approve", 'path === "/v1/device-sign-in/approve"'],
       ["/api/v1/admin-bootstrap", 'path === "/v1/admin-bootstrap"'],
-      ["/api/v1/checkout", 'path === "/v1/checkout"'],
       ["/api/v1/billing-portal", 'path === "/v1/billing-portal"'],
       ["/api/v1/legacy/claim", 'path === "/v1/legacy/claim"'],
       ["/api/v1/me/second-platform-request", 'path === "/v1/me/second-platform-request"'],
@@ -102,14 +101,15 @@ describe("customer interface route contract", () => {
     expect(account.match(/await send\(true\)/g)).toHaveLength(1);
   });
 
-  it("offers only Premium through website Stripe checkout while retaining native and historical support", () => {
-    expect(account).toContain("Available inside WonderLang for Android and iOS through that device's app store.");
+  it("links to the main website instead of offering account-page checkout while retaining provider support", () => {
+    expect(account).toContain('href="https://wonderlang.net/"');
+    expect(account).not.toContain('data-action="premium"');
     expect(account).not.toContain('data-action="monthly"');
     expect(account).not.toContain('data-action="polyglot"');
     expect(account).not.toContain('["monthly", "polyglot", "premium"');
     expect(account).not.toContain('checkout("mobile_full_monthly"');
     expect(account).not.toContain('checkout("mobile_polyglot_permanent"');
-    expect(account).toContain('product: "premium_lifetime_pass"');
+    expect(api).toContain('path === "/v1/checkout"');
     expect(stripeEvents).toContain('metadata.wl_product === "mobile_full_monthly"');
     expect(stripeEvents).toContain('metadata.wl_product === "mobile_polyglot_permanent"');
   });
