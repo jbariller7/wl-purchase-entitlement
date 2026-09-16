@@ -113,6 +113,9 @@ export class EntitlementStore {
       const subscriptionUid = subscriptionLink?.data()?.uid as string | undefined;
       if (subscriptionUid && subscriptionUid !== grant.uid) throw new Error("Provider subscription is already linked to another account.");
       const data = current.data() as StoredGrant | undefined;
+      // A one-time Stripe refund/dispute may arrive before the customer claims
+      // the purchase. Read its tombstone in the same transaction as the grant.
+      if (grant.provider === "stripe" && !grant.providerSubscriptionId && transactionLink.data()?.blockedState) return false;
       if (data && data.sourceEventCreated > sourceEvent.created) return false;
       transaction.set(ref, {
         ...grant,
@@ -174,17 +177,24 @@ export class EntitlementStore {
     sourceEvent: { id: string; created: number };
     at: Date;
   }): Promise<boolean> {
-    const link = await this.db.collection("providerTransactions").doc(
+    const linkRef = this.db.collection("providerTransactions").doc(
       stableDocumentId(input.provider, input.providerTransactionId)
-    ).get();
-    if (!link.exists) return false;
-    const { grantId, uid } = link.data() as { grantId: string; uid: string };
-    const grantRef = this.db.collection("grants").doc(grantId);
+    );
+    let affectedUid: string | undefined;
     const changed = await this.db.runTransaction(async (transaction) => {
+      const link = await transaction.get(linkRef);
+      const { grantId, uid } = (link.data() ?? {}) as { grantId?: string; uid?: string };
+      if (!grantId || !uid) {
+        if(input.provider === "stripe") transaction.set(linkRef,{provider:input.provider,providerTransactionId:input.providerTransactionId,blockedState:input.state,blockedAt:input.at.toISOString(),blockedEventId:input.sourceEvent.id},{merge:true});
+        return false;
+      }
+      affectedUid = uid;
+      const grantRef = this.db.collection("grants").doc(grantId);
       const current = await transaction.get(grantRef);
       if (!current.exists) return false;
       const data = current.data() as StoredGrant;
-      if (data.sourceEventCreated > input.sourceEvent.created) return false;
+      if(input.provider === "stripe" && !data.providerSubscriptionId) transaction.set(linkRef,{blockedState:input.state,blockedAt:input.at.toISOString(),blockedEventId:input.sourceEvent.id},{merge:true});
+      if (data.sourceEventCreated > input.sourceEvent.created && !(input.provider==='stripe'&&!data.providerSubscriptionId)) return false;
       transaction.update(grantRef, {
         state: input.state,
         endsAt: input.at.toISOString(),
@@ -195,7 +205,7 @@ export class EntitlementStore {
       });
       return true;
     });
-    if (changed) await this.recomputeEntitlements(uid, input.at);
+    if (changed && affectedUid) await this.recomputeEntitlements(affectedUid, input.at);
     return changed;
   }
 

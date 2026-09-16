@@ -8,7 +8,9 @@ import { stripeMajorValue } from "../../domain/regional-pricing.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import { sha256 } from "../../infrastructure/ids.js";
 import { paymentLinkId, routeLegacyOrder, routePremiumDesktopAccess, type PremiumDesktopDelivery } from "../../legacy/catalog.js";
-import { stripeClient } from "./client.js";
+import { stripeClient, withStripeClient } from "./client.js";
+import {websiteStripeClient} from './website-config.js';
+import { recordWebsitePayment } from "./website-commerce.js";
 
 type Expandable = string | { id: string } | null | undefined;
 
@@ -78,6 +80,7 @@ async function syncSubscription(input: {
   const subscription = await stripeClient().subscriptions.retrieve(input.subscriptionId);
   if (!await subscriptionContainsMonthlyProduct(input.store, subscription)) return {};
   const uid = await uidForSubscription(input.store, subscription);
+  if (!uid && metadataOf(subscription).wl_checkout_flow === "website-session-v1") return { subscription };
   if (!uid) throw new Error(`Stripe subscription ${subscription.id} is not linked to a Firebase UID.`);
   const existing = await input.store.getGrant("stripe", subscription.id, "mobile_full_monthly");
   const now = new Date(input.event.created * 1000);
@@ -108,6 +111,9 @@ async function syncSubscription(input: {
     ...(state === "expired" ? { endsAt: periodEnd ?? now.toISOString() } : {}),
     metadata: {
       stripeStatus: subscription.status,
+      ...(metadataOf(subscription).wl_checkout_flow==='website-session-v1'?{websiteCheckout:true}:{}),
+      ...(typeof existing?.metadata?.stripeCheckoutSessionId === 'string' ? {stripeCheckoutSessionId:existing.metadata.stripeCheckoutSessionId} : {}),
+      ...(["android", "ios"].includes(metadataOf(subscription).wl_mobile_platform ?? "") ? {mobilePlatform: metadataOf(subscription).wl_mobile_platform!} : {}),
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
       ...(subscription.trial_end ? { trialEndsAt: new Date(subscription.trial_end * 1000).toISOString() } : {}),
       ...(subscription.canceled_at ? { canceledAt: new Date(subscription.canceled_at * 1000).toISOString() } : {}),
@@ -126,6 +132,8 @@ export async function reconcileStripeSubscription(input: {
   // Only id and created are consumed by syncSubscription. Provider state is
   // always retrieved fresh from Stripe before the local ledger is updated.
   const event = { id: input.eventId, created: input.eventCreated } as Stripe.Event;
+  const grant=await input.store.getGrant('stripe',input.providerSubscriptionId,'mobile_full_monthly');
+  if(grant?.metadata?.websiteCheckout===true)return withStripeClient(websiteStripeClient(),()=>syncSubscription({store:input.store,subscriptionId:input.providerSubscriptionId,event}));
   return syncSubscription({ store: input.store, subscriptionId: input.providerSubscriptionId, event });
 }
 
@@ -173,6 +181,14 @@ async function enqueueAdConversion(input: {
 
 async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checkout.Session, event: Stripe.Event): Promise<void> {
   const metadata = metadataOf(session);
+  if (metadata.wl_checkout_flow === "website-session-v1") {
+    const purchase = await recordWebsitePayment(store, session, event);
+    const decision = checkoutAdDecision({ mode: session.mode, paymentStatus: session.payment_status });
+    // Desktop website purchases retain the existing automation's one ad event
+    // and one key allocation. Do not enqueue a second conversion here.
+    if (purchase?.offer.startsWith('mobile_') && decision.send && decision.eventName) await enqueueAdConversion({store,event,eventName:decision.eventName,eventSourceId:session.id,email:session.customer_details?.email??null,value:stripeMajorValue(session.currency??"usd",session.amount_total??0),currency:session.currency??"usd",product:purchase.offer});
+    return;
+  }
   const uid = metadata.wl_uid || session.client_reference_id || undefined;
   const subscriptionId = objectId(session.subscription as Expandable);
   if (subscriptionId) await store.linkCheckoutContextToSubscription(session.id, subscriptionId, new Date(event.created * 1000));

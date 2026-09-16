@@ -66,7 +66,7 @@ export function projectEntitlements(
         mobilePlatforms.add(platform);
         permanentMobilePlatforms.add(platform);
       }
-      else {
+      else if (grant.metadata?.mobileSelectionPending !== true) {
         // Backward-compatible fallback for a pre-split lifetime grant whose
         // original checkout did not record a primary mobile platform.
         mobilePlatforms.add("android");
@@ -91,8 +91,12 @@ export function projectEntitlements(
       hasSubscription = true;
       // The account-linked subscription is cross-mobile while active. It does
       // not include PC/Mac or future-content ownership.
-      mobilePlatforms.add("android");
-      mobilePlatforms.add("ios");
+      const purchasedPlatform = platformFromGrant(grant);
+      if (purchasedPlatform) mobilePlatforms.add(purchasedPlatform);
+      else {
+        mobilePlatforms.add("android");
+        mobilePlatforms.add("ios");
+      }
       if (grant.state === "grace") inGrace = true;
       subscriptionEndsAt = laterIso(subscriptionEndsAt, grant.currentPeriodEndsAt ?? grant.endsAt);
       graceEndsAt = laterIso(graceEndsAt, grant.graceEndsAt);

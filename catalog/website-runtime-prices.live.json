@@ -1,0 +1,13 @@
+{
+  "stripeAccount": "acct_1OWG2XBFbQoDa6p0",
+  "livemode": true,
+  "verifiedAt": "2026-09-16T15:13:57.358Z",
+  "currencyCount": 37,
+  "prices": {
+    "single": "price_1UGIXqBFbQoDa6p0JhSXTA1P",
+    "polyglot": "price_1UGIXsBFbQoDa6p0e8Ib4dWK",
+    "premium": "price_1UGIXuBFbQoDa6p0yddDbjvG",
+    "mobile_monthly": "price_1UGKX1BFbQoDa6p0otUVjXqz",
+    "mobile_permanent": "price_1UGKX2BFbQoDa6p0pqPiIU15"
+  }
+}

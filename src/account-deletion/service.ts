@@ -264,6 +264,17 @@ export class AccountDeletionService {
     return count;
   }
 
+  private async scrubWebsiteOrders(uid:string,deletedUid:string,now:Date):Promise<void>{
+    const orders=await this.db.collection('websiteOrders').where('claimedByUid','==',uid).get();
+    for(const doc of orders.docs){
+      const data=doc.data(),batch=this.db.batch();
+      batch.set(doc.ref,{claimedByUid:deletedUid,buyerEmail:FieldValue.delete(),claimHash:FieldValue.delete(),personalDataErasedAt:now.toISOString()},{merge:true});
+      if(typeof data.request?.requestId==='string')batch.delete(this.db.collection('websiteCheckoutRequests').doc(data.request.requestId));
+      batch.set(this.db.collection('legacyFulfillments').doc(doc.id),{keys:FieldValue.delete(),personalDataErasedAt:now.toISOString()},{merge:true});
+      await batch.commit();
+    }
+  }
+
   async purge(uid: string, now: Date): Promise<Record<string, unknown>> {
     if (!this.storage) throw new Error("Account deletion storage is not configured.");
     const requestRef = this.db.collection("accountDeletionRequests").doc(uid);
@@ -271,6 +282,7 @@ export class AccountDeletionService {
     if (!request.exists || request.data()?.state !== "scheduled") return { skipped: true, reason: "not_scheduled" };
     if (Date.parse(String(request.data()?.deleteAfter)) > now.getTime()) return { skipped: true, reason: "recovery_window_active" };
     const deletedUid = `deleted_${sha256(uid)}`;
+    await this.scrubWebsiteOrders(uid,deletedUid,now);
     const user = await this.db.collection("users").doc(uid).get();
     const storeAccountToken = user.data()?.storeAccountToken as string | undefined;
 

@@ -509,6 +509,20 @@ class WonderLangAccount extends HTMLElement {
       return;
     }
     try {
+      let purchaseError;
+      const pendingPurchase = sessionStorage.getItem('wl-purchase-pending');
+      if (pendingPurchase && !demoMode) {
+       try {
+        const recovery = JSON.parse(sessionStorage.getItem('wl-purchase:' + pendingPurchase) || '{}');
+        await this.request('/api/v1/website/claim', {method:'POST',body:{sessionId:pendingPurchase,...(recovery.claimSecret?{claimSecret:recovery.claimSecret}:{})}});
+        sessionStorage.removeItem('wl-purchase-pending');
+        sessionStorage.removeItem('wl-purchase:' + pendingPurchase);
+       } catch(error) {purchaseError=error;}
+      }
+      // Email recovery also works when the buyer closed Stripe's return tab.
+      // A delivery/claim retry must not prevent account sign-in from rendering.
+      this.websitePurchases=[];
+      if(!demoMode){try{this.websitePurchases=(await this.request('/api/v1/website/purchases',{method:'POST',body:{}})).purchases||[];}catch(error){purchaseError=error;}}
       this.account = await this.request("/api/v1/me");
       const ent = this.account.entitlements;
       void this.loadCloudProfiles();
@@ -536,6 +550,16 @@ class WonderLangAccount extends HTMLElement {
         return ent.accessKind === "subscription" ? `${label} · subscription` : label;
       }).join(" / ") || "None";
       this.querySelector('[data-field="desktop-access"]').textContent = ent.pcMacAccess ? "Included" : "Not included";
+      const desktopField=this.querySelector('[data-field="desktop-access"]');
+      for(const purchase of this.websitePurchases){
+        for(const key of purchase.keys||[]){
+          const row=document.createElement('p');
+          const label=document.createElement('span');label.textContent=purchase.delivery==='steam'?'Steam':'itch.io';row.append(label,document.createTextNode(': '));
+          const value=document.createElement(purchase.delivery==='direct'&&/^https:\/\//i.test(key)?'a':'code');value.dataset.userContent='';value.textContent=key;
+          if(value.tagName==='A'){value.href=key;value.target='_blank';value.rel='noopener noreferrer';}
+          row.append(value);desktopField.append(row);
+        }
+      }
       this.querySelector('[data-field="future-content"]').textContent = ent.futureContent ? "Included" : "Not included";
       this.querySelector('[data-field="second-platform"]').textContent = ent.secondMobilePlatformEligible
         ? permanentPlatforms.length > 1 ? "Granted" : "Eligible on request"
@@ -559,7 +583,9 @@ class WonderLangAccount extends HTMLElement {
       billingButton.disabled = sub?.provider === "google_play" || sub?.provider === "apple"
         ? false
         : !this.config.checkoutEnabled || !this.account.stripeBillingAvailable;
+      if(this.websitePurchases.some(p=>p.subscriptionId))billingButton.disabled=false;
       await this.loadDeviceApproval();
+      if(purchaseError)this.fail(purchaseError);
     } catch (error) { this.fail(error); }
   }
 
@@ -656,6 +682,11 @@ class WonderLangAccount extends HTMLElement {
   async openPortal() {
     if (demoMode) {
       this.status("Safe demo: the Stripe customer portal would open here.");
+      return;
+    }
+    const websiteSubscription=this.websitePurchases?.find(p=>p.subscriptionId&&['active','grace'].includes(p.state))||this.websitePurchases?.find(p=>p.subscriptionId);
+    if(websiteSubscription){
+      try{location.assign((await this.request('/api/v1/website/subscription-portal',{method:'POST',body:{subscriptionId:websiteSubscription.subscriptionId}})).url);}catch(error){this.fail(error);}
       return;
     }
     const provider = this.account?.subscription?.provider;

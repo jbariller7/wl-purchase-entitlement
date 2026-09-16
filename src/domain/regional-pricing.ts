@@ -37,21 +37,22 @@ export const REGIONAL_PRICES: Record<OfferPriceKind, Readonly<Record<string, str
 
 export const ZERO_DECIMAL_CURRENCIES = new Set(["CLP", "JPY", "KRW", "VND"]);
 
-export function currencyFractionDigits(currency: string): 0 | 2 {
-  return ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 0 : 2;
+export function currencyFractionDigits(currency: string): 0 | 2 | 3 {
+  const code = currency.toUpperCase();
+  return ZERO_DECIMAL_CURRENCIES.has(code) ? 0 : code === "KWD" ? 3 : 2;
 }
 
 export function stripeMinorAmount(currency: string, majorAmount: string): number {
   const normalizedCurrency = currency.toUpperCase();
   const value = Number(majorAmount);
   if (!Number.isFinite(value) || value <= 0) throw new Error(`Invalid ${normalizedCurrency} price.`);
-  return ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? Math.round(value) : Math.round(value * 100);
+  return Math.round(value * 10 ** currencyFractionDigits(normalizedCurrency));
 }
 
 export function stripeMajorAmount(currency: string, minorAmount: number): string {
   if (!Number.isSafeInteger(minorAmount) || minorAmount < 0) throw new Error("Invalid Stripe minor-unit amount.");
   const digits = currencyFractionDigits(currency);
-  return (minorAmount / (digits === 0 ? 1 : 100)).toFixed(digits);
+  return (minorAmount / 10 ** digits).toFixed(digits);
 }
 
 export function stripeMajorValue(currency: string, minorAmount: number): number {
