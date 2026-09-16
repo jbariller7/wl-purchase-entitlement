@@ -255,7 +255,7 @@
     if (!Number.isFinite(computedAt) || computedAt > now + 5 * 60 * 1000) return { ...value, fullGame: false, allLanguages: false, cloudSave: false, offlineExpired: true };
     const deadline = value.subscriptionState === "grace"
       ? Date.parse(value.graceEndsAt || "")
-      : Math.max(Date.parse(value.subscriptionEndsAt || "") || 0, computedAt + OFFLINE_SUBSCRIPTION_GRACE_MS);
+      : Math.min(Date.parse(value.subscriptionEndsAt || "") || computedAt, computedAt + OFFLINE_SUBSCRIPTION_GRACE_MS);
     return Number.isFinite(deadline) && now < deadline
       ? value
       : { ...value, fullGame: false, allLanguages: false, cloudSave: false, offlineExpired: true };
@@ -841,7 +841,10 @@
       <p class="wl-account-muted">Login methods are linked explicitly. Signing in with Google or Apple alone never grants administrator access.</p>`, [
       { label: "Manage profiles", run: openCloudSavesPanel },
       { label: "Manage login methods", kind: "secondary", run: () => bridge()?.openAccount?.() },
-      ...(current?.subscription?.provider ? [{ label: "Manage subscription", kind: "secondary", run: openBillingPortal }] : []),
+      ...((current?.subscriptions?.length ? current.subscriptions : current?.subscription ? [current.subscription] : []).map(subscription => ({
+        label: tr("CloudAccount.UI.Cancelsubscription", "Cancel subscription") + " — " + ({google_play:"Google Play",apple:"Apple",stripe:"Stripe"}[subscription.provider] || subscription.provider),
+        kind: "secondary", run: () => openBillingPortal(subscription)
+      }))),
       { label: "Refresh", kind: "secondary", run: openAccountPanel },
       { label: "Close", kind: "secondary", run: closeOverlay }
     ]);
@@ -853,22 +856,22 @@
     });
   }
 
-  async function openBillingPortal() {
+  async function openBillingPortal(subscription = authoritativeAccount()?.subscription) {
     try {
-      const provider = authoritativeAccount()?.subscription?.provider;
+      const provider = subscription?.provider;
       if (provider === "google_play") {
         const url = "https://play.google.com/store/account/subscriptions?sku=wonderlangmonthly&package=com.wonderlang.app";
-        if (bridge()?.openExternalUrl?.(url) === false) throw new Error("Could not open Google Play subscriptions.");
+        if (typeof bridge()?.openExternalUrl !== "function" || bridge().openExternalUrl(url) === false) throw new Error("Could not open Google Play subscriptions.");
         return;
       }
       if (provider === "apple") {
         const url = "https://apps.apple.com/account/subscriptions";
-        if (bridge()?.openExternalUrl?.(url) === false) throw new Error("Could not open Apple subscriptions.");
+        if (typeof bridge()?.openExternalUrl !== "function" || bridge().openExternalUrl(url) === false) throw new Error("Could not open Apple subscriptions.");
         return;
       }
       if (provider !== "stripe") throw new Error("This subscription does not have a supported management provider.");
-      const { url } = await request("/api/v1/billing-portal", { method: "POST" });
-      if (!url || bridge()?.openExternalUrl?.(url) === false) throw new Error("Could not open the secure billing portal.");
+      const { url } = await request("/api/v1/billing-portal", { method: "POST", body: subscription?.id ? {subscriptionId:subscription.id} : {} });
+      if (!url || typeof bridge()?.openExternalUrl !== "function" || bridge().openExternalUrl(url) === false) throw new Error("Could not open the secure billing portal.");
     } catch (error) {
       showError("Billing portal unavailable", error, openAccountPanel);
     }

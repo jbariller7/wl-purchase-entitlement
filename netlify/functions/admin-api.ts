@@ -40,6 +40,7 @@ const pricePreviewSchema = z.object({
 });
 const commitSchema = z.object({ previewId: z.string().uuid(), confirmationPhrase: confirmation });
 const refundPreviewSchema = z.object({
+  websitePayment: z.boolean().optional(),
   uid: z.string().min(1).max(128),
   paymentIntentId: z.string().startsWith("pi_").max(255),
   amount: z.number().int().positive().optional(),
@@ -233,6 +234,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       actor,
       uid: input.uid,
       paymentIntentId: input.paymentIntentId,
+      websitePayment: input.websitePayment === true,
       reason: input.reason,
       note: input.note,
       ...(input.amount ? { amount: input.amount } : {}),

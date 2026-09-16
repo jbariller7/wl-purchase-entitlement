@@ -8,6 +8,7 @@ import { invalidateDeviceSignInsForUid } from "../device-sign-in/service.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { SHEET_TAB_BY_PRODUCT } from "../legacy/catalog.js";
 import { stripeClient } from "../providers/stripe/client.js";
+import { websitePaymentsForUid } from '../providers/stripe/website-admin-payments.js';
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { AccountDeletionService } from "../account-deletion/service.js";
 import { chapterMigrationTransactionId, isLegacyChapterProduct } from "../domain/legacy-chapter-migration.js";
@@ -363,6 +364,7 @@ export class AdminOperationsService {
     const paymentIntents = stripeCustomerId
       ? await stripeClient().paymentIntents.list({ customer: stripeCustomerId, limit: 20, expand: ["data.latest_charge"] })
       : undefined;
+    const websitePayments=await websitePaymentsForUid(this.db,uid);
     const sourceGrantIds = new Set(entitlements.sourceGrantIds);
     return {
       user: publicUser(user),
@@ -382,12 +384,14 @@ export class AdminOperationsService {
       })),
       legacyDiscount: discount ?? null,
       stripeCustomerId: stripeCustomerId ?? null,
-      payments: paymentIntents?.data.map((payment) => {
+      payments: [...(paymentIntents?.data??[]),...websitePayments].map((payment) => {
         const charge = typeof payment.latest_charge === "object" && payment.latest_charge && !("deleted" in payment.latest_charge)
           ? payment.latest_charge
           : undefined;
         return {
           id: payment.id,
+          websitePayment: websitePayments.some(p=>p.id===payment.id),
+          livemode: payment.livemode,
           amount: payment.amount,
           amountReceived: payment.amount_received,
           amountRefunded: charge?.amount_refunded ?? 0,
@@ -398,7 +402,7 @@ export class AdminOperationsService {
           description: payment.description,
           refunds: charge?.refunds?.data.map((refund) => ({ id: refund.id, amount: refund.amount, status: refund.status, createdAt: new Date(refund.created * 1000).toISOString() })) ?? [],
         };
-      }) ?? [],
+      }),
       // Customer support needs a retained-version timeline, not Firebase
       // Storage coordinates. Never expose manifest UIDs or object paths.
       cloudSaveProfiles: cloudProfiles.docs.map((doc) => publicCloudProfileSummary(doc.id, doc.data())),

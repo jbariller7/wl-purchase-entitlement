@@ -18,7 +18,7 @@ import {
 } from "firebase/auth";
 import { friendlyAccountError } from "./auth-errors.js";
 import { formatLoginProviders, friendlyLoginProvider } from "./provider-labels.js";
-import { installAccountLanguagePicker } from "./account-languages.js";
+import { installAccountLanguagePicker, translateSummary } from "./account-languages.js";
 import "./wonderlang-account.css";
 
 const pageParams = new URLSearchParams(location.search);
@@ -118,6 +118,7 @@ const html = `
         <div><span>Future content</span><strong data-field="future-content">—</strong></div>
         <div><span>Second mobile access</span><strong data-field="second-platform">—</strong></div>
       </div>
+      <section class="wl-second-platform-request" data-section="first-mobile-selection" hidden></section>
       <section class="wl-second-platform-request" data-section="second-platform-request" hidden>
         <div><p class="wl-eyebrow">PREMIUM INCLUDED BENEFIT</p><h3>Request your second mobile access</h3></div>
         <p data-field="second-platform-request-status">Your two mobile accesses can be two Android accesses, two iOS accesses, or one of each. Contact support to arrange your included second access.</p>
@@ -173,7 +174,7 @@ const demoConfig = {
 };
 
 function createDemoAccount() {
-  const premium = demoProfile === "premium";
+  const premium = demoProfile === "premium" || demoProfile === "premium-pending";
   return {
     email: "demo-player@example.com",
     linkedLoginProviders: ["google.com", "apple.com"],
@@ -522,6 +523,7 @@ class WonderLangAccount extends HTMLElement {
       // Email recovery also works when the buyer closed Stripe's return tab.
       // A delivery/claim retry must not prevent account sign-in from rendering.
       this.websitePurchases=[];
+      if(demoMode&&demoProfile==='premium-pending')this.websitePurchases=[{sessionId:'cs_demo_pending',offer:'premium',state:'active',mobileSelectionPending:!this.demoMobilePlatform,keys:[],mobilePlatform:this.demoMobilePlatform??'later'}];
       if(!demoMode){try{this.websitePurchases=(await this.request('/api/v1/website/purchases',{method:'POST',body:{}})).purchases||[];}catch(error){purchaseError=error;}}
       this.account = await this.request("/api/v1/me");
       const ent = this.account.entitlements;
@@ -564,6 +566,21 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="second-platform"]').textContent = ent.secondMobilePlatformEligible
         ? permanentPlatforms.length > 1 ? "Granted" : "Eligible on request"
         : "Not included";
+      const firstMobile=this.querySelector('[data-section="first-mobile-selection"]');
+      firstMobile.replaceChildren();
+      const pendingMobile=this.websitePurchases.filter(p=>p.mobileSelectionPending);
+      firstMobile.hidden=!pendingMobile.length;
+      for(const purchase of pendingMobile){
+        const heading=document.createElement('h3');heading.textContent='Choose your included mobile access';firstMobile.append(heading);
+        for(const platform of ['android','ios']){
+          const button=document.createElement('button');button.type='button';button.textContent=platform==='ios'?'iOS':'Android';firstMobile.append(button);
+          button.addEventListener('click',async()=>{
+            for(const b of firstMobile.querySelectorAll('button'))b.disabled=true;
+            try{await this.request('/api/v1/website/mobile-platform',{method:'POST',body:{sessionId:purchase.sessionId,platform}});await this.renderUser(this.user);}
+            catch(error){this.fail(error);for(const b of firstMobile.querySelectorAll('button'))b.disabled=false;}
+          });
+        }
+      }
       const requestSection = this.querySelector('[data-section="second-platform-request"]');
       const requestStatus = this.querySelector('[data-field="second-platform-request-status"]');
       const requestButton = this.querySelector('[data-action="request-second-platform"]');
@@ -584,6 +601,18 @@ class WonderLangAccount extends HTMLElement {
         ? false
         : !this.config.checkoutEnabled || !this.account.stripeBillingAvailable;
       if(this.websitePurchases.some(p=>p.subscriptionId))billingButton.disabled=false;
+      this.querySelector('[data-subscription-actions]')?.remove();
+      const subscriptions=this.account.subscriptions?.length?this.account.subscriptions:(sub?[sub]:[]);
+      if(subscriptions.length){
+        billingButton.hidden=true;
+        const actions=document.createElement('div');actions.dataset.subscriptionActions='';billingButton.after(actions);
+        for(const subscription of subscriptions){
+          const button=document.createElement('button');button.type='button';button.className='wl-secondary';
+          const label=document.createElement('span');label.textContent='Cancel subscription';button.append(label);
+          button.append(document.createTextNode(' — '+({google_play:'Google Play',apple:'Apple',stripe:'Stripe'}[subscription.provider]||subscription.provider)));
+          button.addEventListener('click',()=>this.openPortal(subscription));actions.append(button);
+        }
+      }else billingButton.hidden=true;
       await this.loadDeviceApproval();
       if(purchaseError)this.fail(purchaseError);
     } catch (error) { this.fail(error); }
@@ -679,17 +708,17 @@ class WonderLangAccount extends HTMLElement {
     history.replaceState({}, document.title, `${next.pathname}${next.search}${next.hash}`);
   }
 
-  async openPortal() {
+  async openPortal(selected) {
     if (demoMode) {
       this.status("Safe demo: the Stripe customer portal would open here.");
       return;
     }
-    const websiteSubscription=this.websitePurchases?.find(p=>p.subscriptionId&&['active','grace'].includes(p.state))||this.websitePurchases?.find(p=>p.subscriptionId);
+    const websiteSubscription=selected?this.websitePurchases?.find(p=>p.subscriptionId===selected.id):(this.websitePurchases?.find(p=>p.subscriptionId&&['active','grace'].includes(p.state))||this.websitePurchases?.find(p=>p.subscriptionId));
     if(websiteSubscription){
       try{location.assign((await this.request('/api/v1/website/subscription-portal',{method:'POST',body:{subscriptionId:websiteSubscription.subscriptionId}})).url);}catch(error){this.fail(error);}
       return;
     }
-    const provider = this.account?.subscription?.provider;
+    const provider = selected?.provider??this.account?.subscription?.provider;
     if (provider === "google_play") {
       location.assign("https://play.google.com/store/account/subscriptions");
       return;
@@ -904,7 +933,13 @@ class WonderLangAccount extends HTMLElement {
     return attempt.result;
   }
 
-  demoRequest(path) {
+  demoRequest(path, options = {}) {
+    if(path==='/api/v1/website/mobile-platform'){
+      this.demoMobilePlatform=options.body.platform;
+      this.demoAccount.entitlements.mobilePlatforms=[this.demoMobilePlatform];
+      this.demoAccount.entitlements.permanentMobilePlatforms=[this.demoMobilePlatform];
+      return {mobilePlatform:this.demoMobilePlatform};
+    }
     if (path === "/api/v1/cloud-save-profiles") return { profiles: [
       { profileId: "default", name: "French", currentRevision: "demo", updatedAt: "2026-09-15T12:21:43Z", saves: [{ slot: 0, savedAt: "2026-09-15T12:19:00Z", playtime: "01:23:45" }, { slot: 1, savedAt: "2026-09-15T12:20:00Z", playtime: "01:25:10" }] },
       { profileId: "demo-second", name: "Japanese", currentRevision: null, saves: [] }

@@ -26,7 +26,7 @@ import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js"
 import { firebaseAppCheck, firebaseAuth, firebaseStorage, firestore } from "../../src/infrastructure/firebase.js";
 import { checkoutRequestSchema, createBillingPortal, createCheckout } from "../../src/providers/stripe/checkout-service.js";
 import { claimHistoricalDesktopOrder } from "../../src/providers/stripe/legacy-claim-service.js";
-import { claimWebsiteOrder, discoverWebsitePurchases, websiteSubscriptionPortal } from "../../src/providers/stripe/website-commerce.js";
+import { claimWebsiteOrder, discoverWebsitePurchases, websiteSubscriptionPortal, selectWebsiteMobilePlatform } from "../../src/providers/stripe/website-commerce.js";
 import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "../../src/providers/google-play/service.js";
 import { sha256 } from "../../src/infrastructure/ids.js";
 import { claimAppleTransaction } from "../../src/providers/apple/service.js";
@@ -344,6 +344,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       linkedLoginProviders: authUser.providerData.map((provider) => provider.providerId).filter((provider) => provider !== "firebase"),
       entitlements,
       subscription: summarizeSubscription(grants),
+      subscriptions: grants.filter(g=>g.product==='mobile_full_monthly').map(g=>({...summarizeSubscription([g]),id:g.providerSubscriptionId??g.providerTransactionId,websiteCheckout:g.metadata?.websiteCheckout===true})),
       stripeBillingAvailable: Boolean(stripeCustomerId),
       secondMobilePlatformRequest: secondPlatformRequest,
       cloudSave: {
@@ -417,6 +418,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   }
 
   if (event.httpMethod === "POST" && path === "/v1/billing-portal") {
+    const input=z.object({subscriptionId:z.string().max(255).optional()}).strict().parse(parseJsonBody(event.body)||{});
+    const grants=await store.grantsForUid(user.uid);
+    const website=grants.find(g=>g.product==='mobile_full_monthly'&&g.metadata?.websiteCheckout===true&&g.providerSubscriptionId&&(!input.subscriptionId||g.providerSubscriptionId===input.subscriptionId));
+    if(website?.providerSubscriptionId)return json(201,{url:await websiteSubscriptionPortal(store,user,website.providerSubscriptionId)});
+    if(input.subscriptionId)throw new HttpError(404,'Website subscription not found.');
     return json(201, { url: await createBillingPortal(store, user) });
   }
 
@@ -438,6 +444,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   }
 
   if(event.httpMethod === "POST" && path === "/v1/website/purchases")return json(200,{purchases:await discoverWebsitePurchases(store,user)});
+  if(event.httpMethod === 'POST' && path === '/v1/website/mobile-platform'){
+    const input=z.object({sessionId:z.string().regex(/^cs_[A-Za-z0-9_]+$/),platform:z.enum(['android','ios'])}).strict().parse(parseJsonBody(event.body));
+    return json(200,await selectWebsiteMobilePlatform(store,user,input.sessionId,input.platform));
+  }
   if(event.httpMethod === "POST" && path === "/v1/website/subscription-portal"){
     const parsed=z.object({subscriptionId:z.string().regex(/^sub_[A-Za-z0-9]+$/)}).strict().safeParse(parseJsonBody(event.body));
     if(!parsed.success)throw new HttpError(400,'Invalid subscription reference.');

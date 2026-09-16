@@ -191,9 +191,9 @@ describe("legacy desktop routing", () => {
     });
   });
 
-  it("keeps the original chapter audit record from unlocking new post-cutoff purchases", () => {
+  it("upgrades retired chapter owners even after the former provisional cutoff", () => {
     expect(projectEntitlements("user-1", [grant({ product: "legacy_chapter_1" })], now)).toMatchObject({ accessKind: "legacy", chapters: [1], fullGame: false, cloudSave: false });
-    expect(chapterMigrationGrant(grant({ product: "legacy_chapter_1", startsAt: "2026-08-25T00:00:00.000Z" }))).toBeUndefined();
+    expect(chapterMigrationGrant(grant({ product: "legacy_chapter_1", startsAt: "2026-08-25T00:00:00.000Z" }))).toMatchObject({product:'mobile_polyglot_permanent'});
     expect(projectEntitlements("user-1", [grant({ provider: "google_play", product: "legacy_mobile_full" })], now)).toMatchObject({ accessKind: "permanent", fullGame: true, allLanguages: true, cloudSave: false, mobilePlatforms: ["android"] });
   });
 

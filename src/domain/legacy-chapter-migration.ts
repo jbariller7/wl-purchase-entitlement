@@ -18,7 +18,9 @@ export function isEligibleHistoricalChapterPurchase(startsAt: string, cutoff = L
 }
 
 export function chapterMigrationGrant(original: LedgerGrant): LedgerGrant | undefined {
-  if (!isLegacyChapterProduct(original.product) || !isEligibleHistoricalChapterPurchase(original.startsAt)) return undefined;
+  // Chapter SKUs are retired. Every verified existing owner is grandfathered,
+  // including purchases after the earlier provisional migration cutoff.
+  if (!isLegacyChapterProduct(original.product) || !Number.isFinite(Date.parse(original.startsAt))) return undefined;
   const originalPlatform = original.metadata?.mobilePlatform ?? original.metadata?.primaryMobilePlatform;
   return {
     id: "",
@@ -35,7 +37,7 @@ export function chapterMigrationGrant(original: LedgerGrant): LedgerGrant | unde
       migration: "historical_chapter_to_polyglot_permanent",
       originalProduct: original.product,
       originalTransactionId: original.providerTransactionId,
-      cutoff: LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF,
+      policy: 'all_retired_chapter_owners',
       ...(originalPlatform === "android" || originalPlatform === "ios" ? { mobilePlatform: originalPlatform } : {})
     }
   };

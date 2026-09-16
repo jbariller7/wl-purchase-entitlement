@@ -119,6 +119,9 @@ export class EntitlementStore {
       if (data && data.sourceEventCreated > sourceEvent.created) return false;
       transaction.set(ref, {
         ...grant,
+        // Replayed payment claims must not undo a customer's later platform choice.
+        ...(grant.metadata?.websiteCheckout===true && grant.product==='premium_lifetime_pass' && data?.metadata?.primaryMobilePlatform
+          ? {metadata:{...grant.metadata,primaryMobilePlatform:data.metadata.primaryMobilePlatform,mobileSelectionPending:false}} : {}),
         id: ref.id,
         sourceEventId: sourceEvent.id,
         sourceEventCreated: sourceEvent.created,

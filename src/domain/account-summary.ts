@@ -30,7 +30,6 @@ function providerStatus(grant: LedgerGrant): string {
 function phase(grant: LedgerGrant): SubscriptionSummary["phase"] {
   const metadata = grant.metadata ?? {};
   const status = providerStatus(grant).toLowerCase();
-  if (status === "trialing" || text(metadata.trialEndsAt)) return "trial";
   if (grant.state === "grace") return "grace";
   if (grant.state === "pending") return "pending";
   if (status.includes("pause")) return "paused";
@@ -39,6 +38,9 @@ function phase(grant: LedgerGrant): SubscriptionSummary["phase"] {
     || Number(metadata.autoRenewStatus) === 0
     || status.includes("cancel");
   if (grant.state === "active" && cancelAtPeriodEnd) return "cancelled";
+  const trialEnd=Date.parse(text(metadata.trialEndsAt)??'');
+  const periodEnd=Date.parse(grant.currentPeriodEndsAt??grant.endsAt??'');
+  if (grant.state === "active" && (status === "trialing" || (Number.isFinite(trialEnd)&&Number.isFinite(periodEnd)&&trialEnd>=periodEnd))) return "trial";
   if (grant.state === "active") return "active";
   return "expired";
 }

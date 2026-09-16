@@ -5,6 +5,8 @@ import { CatalogService, type CatalogOfferKind } from "../catalog/service.js";
 import { deploymentControls } from "../config/env.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { stripeClient } from "../providers/stripe/client.js";
+import { websiteStripeClient } from '../providers/stripe/website-config.js';
+import { ownedWebsitePayment } from '../providers/stripe/website-admin-payments.js';
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
 import { LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF } from "../domain/catalog.js";
@@ -27,10 +29,10 @@ export function assertWebsiteStripePriceKind(kind: CatalogOfferKind): asserts ki
   }
 }
 
-async function chargeForPaymentIntent(payment: Stripe.PaymentIntent): Promise<Stripe.Charge> {
+async function chargeForPaymentIntent(payment: Stripe.PaymentIntent, client:Stripe = stripeClient()): Promise<Stripe.Charge> {
   const charge = payment.latest_charge;
   if (!charge) throw new HttpError(409, "This PaymentIntent has no completed charge to refund.");
-  return typeof charge === "string" ? stripeClient().charges.retrieve(charge) : charge;
+  return typeof charge === "string" ? client.charges.retrieve(charge) : charge;
 }
 
 export class AdminBillingService {
@@ -138,6 +140,7 @@ export class AdminBillingService {
   }
 
   async previewRefund(input: {
+    websitePayment?: boolean;
     actor: AdminActor;
     uid: string;
     paymentIntentId: string;
@@ -147,25 +150,28 @@ export class AdminBillingService {
     now: Date;
   }): Promise<Record<string, unknown>> {
     if (input.note.trim().length < 10) throw new HttpError(400, "A clear refund note of at least ten characters is required.");
-    const customerId = await this.store.stripeCustomerId(input.uid);
-    if (!customerId) throw new HttpError(404, "This account has no linked Stripe customer.");
-    const payment = await stripeClient().paymentIntents.retrieve(input.paymentIntentId, { expand: ["latest_charge"] }).catch(() => {
+    const liveWebsite=input.websitePayment===true;
+    const client=liveWebsite?websiteStripeClient():stripeClient();
+    const customerId = liveWebsite?undefined:await this.store.stripeCustomerId(input.uid);
+    if (!liveWebsite&&!customerId) throw new HttpError(404, "This account has no linked Stripe customer.");
+    const payment = liveWebsite?await ownedWebsitePayment(this.db,input.uid,input.paymentIntentId):await client.paymentIntents.retrieve(input.paymentIntentId, { expand: ["latest_charge"] }).catch(() => {
       throw new HttpError(404, "Stripe payment was not found in this environment.");
     });
     const paymentCustomer = typeof payment.customer === "string" ? payment.customer : payment.customer?.id;
-    if (paymentCustomer !== customerId) throw new HttpError(403, "The payment does not belong to this WonderLang account.");
-    const charge = await chargeForPaymentIntent(payment);
+    if (!liveWebsite&&paymentCustomer !== customerId) throw new HttpError(403, "The payment does not belong to this WonderLang account.");
+    const charge = await chargeForPaymentIntent(payment,client);
     const refundable = Math.max(0, charge.amount - charge.amount_refunded);
     const amount = input.amount ?? refundable;
     if (!Number.isSafeInteger(amount) || amount < 1 || amount > refundable) throw new HttpError(400, `Refund amount must be between 1 and ${refundable} minor currency units.`);
     const id = randomUUID();
-    const confirmationPhrase = `REFUND ${phraseAmount(amount, payment.currency)}`;
+    const confirmationPhrase = `${liveWebsite?'LIVE ':''}REFUND ${phraseAmount(amount, payment.currency)}`;
     const expiresAt = new Date(input.now.getTime() + 15 * 60 * 1000);
     await this.db.collection("adminRefundPreviews").doc(id).create({
       id,
       actorUid: input.actor.uid,
       uid: input.uid,
-      stripeCustomerId: customerId,
+      stripeCustomerId: paymentCustomer??null,
+      websitePayment: liveWebsite,
       paymentIntentId: payment.id,
       chargeId: charge.id,
       amount,
@@ -189,20 +195,21 @@ export class AdminBillingService {
       expiresAt: expiresAt.toISOString(),
       warnings: [
         "A refund does not cancel an active subscription.",
-        amount === charge.amount ? "A full lifetime-payment refund revokes its entitlement when Stripe delivers the webhook." : "A partial refund does not revoke the entitlement automatically.",
+        liveWebsite ? "LIVE PAYMENT: this returns real money to the customer." : "Refund uses the original Stripe environment.",
+        amount === refundable ? "A fully refunded one-time purchase loses access after Stripe's webhook. A subscription refund does not cancel the subscription." : "A partial refund does not revoke the entitlement automatically.",
         "Delivered Steam/Itch keys are never returned to inventory automatically."
       ]
     };
   }
 
   async commitRefund(input: { actor: AdminActor; previewId: string; confirmationPhrase: string; now: Date }): Promise<Record<string, unknown>> {
-    if (!deploymentControls().STRIPE_MUTATIONS_ENABLED) throw new HttpError(409, "Stripe mutations are disabled for this deployment.");
     const ref = this.db.collection("adminRefundPreviews").doc(input.previewId);
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) throw new HttpError(404, "Refund preview not found.");
       const data = snapshot.data() as Record<string, unknown>;
       if (data.actorUid !== input.actor.uid) throw new HttpError(403, "This preview belongs to another administrator.");
+      if(data.websitePayment!==true&&!deploymentControls().STRIPE_MUTATIONS_ENABLED)throw new HttpError(409,'Stripe mutations are disabled for this deployment.');
       if (data.state === "complete") return data;
       if (data.state !== "preview") throw new HttpError(409, "This refund is already processing.");
       if (Date.parse(String(data.expiresAt)) <= input.now.getTime()) throw new HttpError(410, "Refund preview expired. Create a fresh preview.");
@@ -212,7 +219,9 @@ export class AdminBillingService {
     });
     if (preview.state === "complete") return preview.result as Record<string, unknown>;
     try {
-      const refund = await stripeClient().refunds.create({
+      const client=preview.websitePayment===true?websiteStripeClient():stripeClient();
+      if(preview.websitePayment===true)await ownedWebsitePayment(this.db,String(preview.uid),String(preview.paymentIntentId));
+      const refund = await client.refunds.create({
         payment_intent: String(preview.paymentIntentId),
         amount: Number(preview.amount),
         reason: preview.reason as RefundReason,

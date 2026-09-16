@@ -31,7 +31,7 @@ export async function discoverWebsitePurchases(store:EntitlementStore,user:Decod
     const allowed=grant && ['active','grace'].includes(grant.state);
     const route=websiteDesktopRoute(order.request);
     const keys=allowed&&route?(await websiteDelivery(store.firestore(),doc.id,order.buyerEmail,route.sheetTab)).map(k=>k.key):[];
-    return {sessionId:doc.id,offer:order.request.offer,delivery:order.request.delivery??null,mobilePlatform:order.request.mobilePlatform??'later',state:grant?.state??'pending',keys,subscriptionId:grant?.providerSubscriptionId??null};
+    return {sessionId:doc.id,offer:order.request.offer,delivery:order.request.delivery??null,mobilePlatform:grant?.metadata?.primaryMobilePlatform??order.request.mobilePlatform??'later',mobileSelectionPending:Boolean(allowed&&grant?.metadata?.mobileSelectionPending),state:grant?.state??'pending',keys,subscriptionId:grant?.providerSubscriptionId??null};
   }));
 }
 export async function websiteSubscriptionPortal(store:EntitlementStore,user:DecodedIdToken,subscriptionId:string){
@@ -45,7 +45,38 @@ export async function websiteSubscriptionPortal(store:EntitlementStore,user:Deco
   const subscriptions=await stripeClient().subscriptions.list({customer,status:'all',limit:100});
   if(subscriptions.has_more)throw new HttpError(409,'Contact support to manage this billing account.');
   for(const entry of subscriptions.data)if(await store.uidForProviderSubscription('stripe',entry.id)!==user.uid)throw new HttpError(403,'Billing account ownership could not be verified.');
-  return (await stripeClient().billingPortal.sessions.create({customer,return_url:websiteStripeConfiguration().origin+'/account/'})).url;
+  const stripe=stripeClient();
+  const configurations=await stripe.billingPortal.configurations.list({active:true,limit:100});
+  let configuration=configurations.data.find(c=>c.metadata?.wl_purpose==='website-subscription-cancellation-v1');
+  if(!configuration)configuration=await stripe.billingPortal.configurations.create({
+    business_profile:{headline:'WonderLang'},
+    features:{subscription_cancel:{enabled:true,mode:'at_period_end'},payment_method_update:{enabled:true},invoice_history:{enabled:true}},
+    metadata:{wl_purpose:'website-subscription-cancellation-v1'}
+  },{idempotencyKey:'wl-website-subscription-cancellation-config-v1'});
+  return (await stripe.billingPortal.sessions.create({customer,configuration:configuration.id,return_url:websiteStripeConfiguration().origin+'/account/'})).url;
+}
+export async function selectWebsiteMobilePlatform(store:EntitlementStore,user:DecodedIdToken,sessionId:string,platform:'android'|'ios'){
+ requireVerifiedEmail(user);
+ if(!/^cs_[A-Za-z0-9_]+$/.test(sessionId)||!['android','ios'].includes(platform))throw new HttpError(400,'Invalid mobile selection.');
+ const db=store.firestore(),orderRef=db.collection('websiteOrders').doc(sessionId);
+ const selected=await db.runTransaction(async tx=>{
+  const order=await tx.get(orderRef);
+  if(!order.exists||order.data()?.claimedByUid!==user.uid)throw new HttpError(404,'Purchase not found.');
+  if(order.data()?.request.offer!=='premium')throw new HttpError(403,'Premium Lifetime is required.');
+  const grants=await tx.get(db.collection('grants').where('uid','==',user.uid));
+  const grant=grants.docs.find(g=>g.data().metadata?.stripeCheckoutSessionId===sessionId&&g.data().product==='premium_lifetime_pass');
+  if(!grant||!['active','grace'].includes(grant.data().state))throw new HttpError(409,'This Premium purchase is not active.');
+  const metadata=grant.data().metadata??{};
+  if(metadata.primaryMobilePlatform===platform&&!metadata.mobileSelectionPending)return platform;
+  if(metadata.mobileSelectionPending!==true)throw new HttpError(409,'The first mobile platform has already been selected. Contact support to change it.');
+  const now=new Date().toISOString();
+  tx.update(grant.ref,{metadata:{...metadata,primaryMobilePlatform:platform,mobileSelectionPending:false},updatedAt:now});
+  tx.update(orderRef,{selectedMobilePlatform:platform,mobilePlatformSelectedAt:now});
+  tx.set(db.collection('websiteMobileSelections').doc(sessionId),{uid:user.uid,sessionId,platform,selectedAt:now});
+  return platform;
+ });
+ await store.recomputeEntitlements(user.uid,new Date());
+ return {mobilePlatform:selected};
 }
 export async function startWebsiteCheckout(store:EntitlementStore,request:WebsiteSessionRequest,claimSecret:string){
   if(!/^[A-Za-z0-9_-]{43}$/.test(claimSecret))throw new HttpError(400,'Invalid purchase recovery secret.');
@@ -131,6 +162,7 @@ export async function claimWebsiteOrder(store:EntitlementStore,user:DecodedIdTok
   const route=websiteDesktopRoute(request);
   // Do not let the pre-split legacy fallback unlock both mobile platforms.
   const metadata:NonNullable<LedgerGrant['metadata']>={websiteCheckout:true,stripeCheckoutSessionId:session.id,...(route?{productCode:route.productCode}:{}),...(request.learningLanguage?{learningLanguage:request.learningLanguage}:{})};
+  if(subscription)Object.assign(metadata,{stripeStatus:subscription.status,cancelAtPeriodEnd:subscription.cancel_at_period_end,...(subscription.trial_end?{trialEndsAt:new Date(subscription.trial_end*1000).toISOString()}: {})});
   if(request.mobilePlatform&&request.mobilePlatform!=='later')metadata[request.offer==='premium'?'primaryMobilePlatform':'mobilePlatform']=request.mobilePlatform;
   else if(request.offer==='premium')metadata.mobileSelectionPending=true;
   await store.upsertGrant({id:'',uid:user.uid,provider:'stripe',providerTransactionId:transactionId,...(id(session.customer)?{providerCustomerId:id(session.customer)!}:{}),...(subscription?{providerSubscriptionId:subscription.id}:{}),product,state,startsAt:new Date(order.sourceEventCreated*1000).toISOString(),...(periodEnd?{currentPeriodEndsAt:new Date(periodEnd*1000).toISOString(),endsAt:new Date(periodEnd*1000).toISOString()}:{}),metadata}, {id:order.sourceEventId,created:order.sourceEventCreated});
