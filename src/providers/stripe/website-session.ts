@@ -33,10 +33,19 @@ export function websiteSessionParams(request: WebsiteSessionRequest, priceId: st
     wl_desktop_delivery:request.delivery??"",wl_learning_language:request.learningLanguage??"",wl_mobile_platform:request.mobilePlatform??"later"};
   const m=mobileText[request.locale as keyof typeof mobileText];
   const summary=request.offer==="mobile_monthly" ? `${m[2]} ${m[7]}` : request.offer==="mobile_permanent" ? m[3] : l[`${request.offer as "single"|"polyglot"|"premium"}Description`];
+  // Render the same allowlisted selections carried in metadata; no extra questions.
+  const selections:string[]=[];
+  if(request.delivery)selections.push(`${l.delivery}: ${l[request.delivery]}`);
+  if(request.offer==="single" && request.learningLanguage)selections.push(`${l.language}: ${l.languages[languageValues.indexOf(request.learningLanguage)]}`);
+  if(request.offer==="premium" || request.offer.startsWith("mobile_")){
+    const platform=request.mobilePlatform??"later";
+    selections.push(`${request.offer==="premium"?l.mobile:m[4]}: ${platform==="later"?l.later:platform==="ios"?"iOS":"Android"}`);
+  }
+  const checkoutText=[...selections,summary].filter(Boolean).join("\n\n");
   return {
     mode:monthly?"subscription":"payment",line_items:[{price:priceId,quantity:1}],currency:request.currency.toLowerCase(),
     locale:l.stripeLocale as Stripe.Checkout.SessionCreateParams.Locale,
-    ...(summary?{custom_text:{submit:{message:summary}}}:{}),
+    custom_text:{submit:{message:checkoutText}},
     ...(monthly?{subscription_data:{trial_period_days:3,metadata:{...metadata,wl_product:"mobile_full_monthly"}},payment_method_collection:"always" as const}:{}),
     ...(!monthly?{payment_intent_data:{metadata}}:{}),
     automatic_tax:{enabled:true},allow_promotion_codes:true,
