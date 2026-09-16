@@ -1,17 +1,21 @@
 import {describe,it,expect} from 'vitest';
 import {websiteSessionSchema,websiteSessionParams} from '../src/providers/stripe/website-session.js';
-import locales from '../catalog/website-checkout-locales.json';
+import locales from '../catalog/website-checkout-locales.json' with {type:'json'};
+const checkoutMessage=(result:ReturnType<typeof websiteSessionParams>)=>{
+ const submit=result.custom_text?.submit;
+ return submit && typeof submit==='object'?submit.message:'';
+};
 const common={locale:'en',currency:'USD',requestId:'550e8400-e29b-41d4-a716-446655440000'};
 describe('guest website selections',()=>{
  it('displays the selected options in French without extra checkout fields',()=>{
   const params=(options:object)=>websiteSessionParams(websiteSessionSchema.parse({...common,locale:'fr',...options}),'price_approved','https://example.com');
   const premium=params({offer:'premium',delivery:'steam',mobilePlatform:'android'});
-  expect(premium.custom_text?.submit?.message).toContain('Version PC/Mac souhaitée: Clé Steam');
-  expect(premium.custom_text?.submit?.message).toContain('Première plateforme mobile (incluse): Android');
+  expect(checkoutMessage(premium)).toContain('Version PC/Mac souhaitée: Clé Steam');
+  expect(checkoutMessage(premium)).toContain('Première plateforme mobile (incluse): Android');
   expect(premium.custom_fields).toBeUndefined();
   const single=params({offer:'single',delivery:'direct',learningLanguage:'french'});
-  expect(single.custom_text?.submit?.message).toContain('Version PC/Mac souhaitée: Téléchargement direct');
-  expect(single.custom_text?.submit?.message).toContain('Langue que vous souhaitez apprendre: Français');
+  expect(checkoutMessage(single)).toContain('Version PC/Mac souhaitée: Téléchargement direct');
+  expect(checkoutMessage(single)).toContain('Langue que vous souhaitez apprendre: Français');
  });
  it('includes applicable options across every locale within Stripe text limits',()=>{
   for(const [locale,l] of Object.entries(locales)){
@@ -19,7 +23,7 @@ describe('guest website selections',()=>{
     const mobile=offer.startsWith('mobile_');
     const input=websiteSessionSchema.parse({...common,locale,offer,...(!mobile?{delivery:'direct'}:{}),...(offer==='single'?{learningLanguage:'mandarin'}:{}),...((mobile||offer==='premium')?{mobilePlatform:mobile?'ios':'later'}:{})});
     const result=websiteSessionParams(input,'price_approved','https://example.com');
-    const message=result.custom_text!.submit!.message;
+    const message=checkoutMessage(result);
     expect(message.length).toBeLessThanOrEqual(1200);
     expect(message).not.toMatch(/undefined|\[object Object\]/);
     if(!mobile)expect(message).toContain(`${l.delivery}: ${l.direct}`);
