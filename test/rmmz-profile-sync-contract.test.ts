@@ -96,7 +96,7 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(source).toContain("async function checkStartupProfileFreshness(force = false)");
     expect(source).toContain("binding.fingerprint === fingerprint");
     expect(source).toContain('CloudAccount.Startup.NewerTitle", "Newer local saves found"');
-    expect(source).toContain('CloudAccount.Action.SyncNow", "Sync now"');
+    expect(source).toContain('CloudAccount.Action.SyncNow", "Cloud sync now"');
     const promptFlow = source.slice(source.indexOf("function showLocalSaveFreshnessPrompt"), source.indexOf("async function checkStartupProfileFreshness"));
     expect(promptFlow.indexOf("startupProfileDecisionPending = false")).toBeLessThan(promptFlow.indexOf("await uploadProfile(profile.profileId"));
   });

@@ -788,7 +788,7 @@ html(){
 
   <div class="mid-actions">
     <button class="cloud-sync-btn mid-btn" type="button" hidden>
-      <span data-k="CloudAccount.Action.SyncNow">${tdb("Sync now")}</span>
+      <span data-k="CloudAccount.Action.SyncNow">${tdb("Cloud sync now")}</span>
     </button>
     <button class="import-btn mid-btn" type="button">
       <span data-k="SaveBackup.ImportButton">${tdb("Import")}</span>
