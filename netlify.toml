@@ -5,6 +5,9 @@
 
 [build.environment]
   NODE_VERSION = "24.19.0"
+  # Public browser pixel identifiers also exist in the native asset mirror.
+  # Access tokens and all other secrets remain scanned.
+  SECRETS_SCAN_OMIT_KEYS = "META_PIXEL_ID,TIKTOK_PIXEL_ID"
 
 [functions]
   node_bundler = "esbuild"
