@@ -73,6 +73,11 @@
   let applyingProfile = false;
   let profileSyncTimer = null;
   let profileSyncInFlight = null;
+  let profileOperationTail = Promise.resolve();
+  let conflictProfileId = "";
+  let manualSyncInFlight = null;
+  const pendingSaveWrites = new Set();
+  let saveWriteGeneration = 0;
   let profileSelectionInFlight = false;
   let startupProfileCheckInFlight = null;
   let startupProfileCheckTimer = null;
@@ -145,6 +150,7 @@
       const profileId = activeProfileId();
       if (!profileId || !effectiveCachedEntitlement()?.cloudSave) return;
       if (!workspaceMatches(profileId)) { scheduleStartupProfileCheck(50, true); return; }
+      if (conflictProfileId === profileId) return;
       if (retryQueue()[profileId]) {
         startupProfileDecisionPending = false;
         checkedStartupWorkspace = `${accountUid()}:${profileId}`;
@@ -462,6 +468,7 @@
       : { ...value, fullGame: false, allLanguages: false, cloudSave: false, offlineExpired: true };
   }
   function account() { return authoritativeAccount(); }
+  function canSyncCloud() { return accountUid() !== "signed-out" && Boolean(effectiveCachedEntitlement()?.cloudSave); }
   function retryKey() { return `${retryPrefix}:${accountUid()}`; }
   function retryQueue() {
     const stored = loadJson(retryKey(), {});
@@ -565,7 +572,8 @@
         if (Date.parse(item.notBefore || "") > Date.now()) continue;
         if (!item.profileId || item.profileId !== activeProfileId()) continue;
         try {
-          await uploadProfile(item.profileId);
+          const result = await uploadProfile(item.profileId);
+          if (result?.conflict) break;
         } catch (error) {
           queueProfileUpload(item.profileId, error);
         }
@@ -648,13 +656,19 @@
     throw new Error("Downloaded cloud profile is invalid.");
   }
 
-  async function buildProfileBundle(profileId) {
+  async function buildProfileBundle(profileId, attempt = 0) {
+    await Promise.all([...pendingSaveWrites]);
+    const generation = saveWriteGeneration;
     const files = {};
     for (const saveName of managedSaveNames()) {
       if (saveName !== "global" && !StorageManager.exists(saveName)) continue;
       files[saveName] = await objectJson(saveName);
     }
     if (!files.global) files.global = await StorageManager.objectToJson(DataManager._globalInfo || []);
+    if (pendingSaveWrites.size || generation !== saveWriteGeneration) {
+      if (attempt >= 3) throw new Error("Local saves are still being written. Try syncing again shortly.");
+      return buildProfileBundle(profileId, attempt + 1);
+    }
     return {
       magic: "WL_CLOUD_PROFILE",
       version: 1,
@@ -729,17 +743,49 @@
     return (await request("/api/v1/cloud-save-profiles")).profiles || [];
   }
 
-  async function uploadProfile(profileId, options = {}) {
+  function serializeProfileOperation(action) {
+    const next = profileOperationTail.catch(() => undefined).then(action);
+    profileOperationTail = next;
+    return next;
+  }
+
+  function uploadProfile(profileId, options = {}) {
+    const uid = accountUid();
+    return serializeProfileOperation(async () => {
+      if (uid !== accountUid()) return { skipped: "account_changed" };
+      if (conflictProfileId === profileId && !Object.prototype.hasOwnProperty.call(options, "baseRevision")) return { conflict: true };
+      try { return await performProfileUpload(profileId, options); }
+      catch (error) {
+        if (error?.status === 409 && options.showConflict !== false) {
+          const resolved = await presentProfileConflict(profileId);
+          return resolved || { conflict: true };
+        }
+        throw error;
+      }
+    });
+  }
+
+  async function performProfileUpload(profileId, options = {}) {
     if (!effectiveCachedEntitlement()?.cloudSave) return { skipped: "not_entitled" };
     if (!profileId || profileId !== activeProfileId()) return { skipped: "not_active" };
     if (!workspaceMatches(profileId)) throw new Error(tr("CloudAccount.Error.WorkspaceMismatch", "These local saves are not verified as belonging to the selected profile."));
     const queuedChangeToken = retryQueue()[profileId]?.changeToken || null;
     const bundle = await buildProfileBundle(profileId);
     const fingerprint = await profileFilesFingerprint(bundle.files);
+    const binding = workspaceBinding();
+    // Metadata writes and retry timers can mark an unchanged profile dirty.
+    // Do not create another cloud revision for identical saved content.
+    if (!Object.prototype.hasOwnProperty.call(options, "baseRevision") && binding?.revision && binding.fingerprint === fingerprint) {
+      if ((retryQueue()[profileId]?.changeToken || null) === queuedChangeToken) {
+        clearQueuedProfile(profileId);
+        saveWorkspaceBinding(profileId, { localChangedAt: null });
+      }
+      return { unchanged: true, currentRevision: binding.revision };
+    }
     const bytes = textEncoder.encode(JSON.stringify(bundle));
     const baseRevision = Object.prototype.hasOwnProperty.call(options, "baseRevision")
       ? options.baseRevision
-      : (revisions()[profileId] || null);
+      : (binding?.revision || revisions()[profileId] || null);
     const prepare = await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profileId)}/prepare-upload`, {
       method: "POST",
       body: {
@@ -773,8 +819,8 @@
       return manifest;
     } catch (error) {
       if (error?.status === 409 && options.showConflict !== false) {
-        await presentProfileConflict(profileId);
-        return { conflict: true };
+        const resolved = await presentProfileConflict(profileId);
+        return resolved || { conflict: true };
       }
       throw error;
     }
@@ -807,7 +853,15 @@
     return { remote, bundle };
   }
 
-  async function restoreProfile(profileId) {
+  function restoreProfile(profileId) {
+    const uid = accountUid();
+    return serializeProfileOperation(() => {
+      if (uid !== accountUid()) throw new Error("The active account or save profile changed. Try again.");
+      return performProfileRestore(profileId);
+    });
+  }
+
+  async function performProfileRestore(profileId) {
     const { remote, bundle } = await downloadProfile(profileId);
     await applyProfileBundle(bundle, profileId);
     setRevision(profileId, remote.manifest.currentRevision);
@@ -859,6 +913,42 @@
     clearTimeout(profileSyncTimer);
     if (profileSyncInFlight) await profileSyncInFlight.catch(() => undefined);
     return uploadProfile(profileId);
+  }
+
+  function syncFromUi() {
+    if (manualSyncInFlight) return manualSyncInFlight;
+    manualSyncInFlight = (async () => {
+      if (accountUid() === "signed-out") return showSignInIntro();
+      if (deviceOffline()) {
+        noteOffline();
+        return showPanel(tr("CloudAccount.Offline.Title", "Offline — sync paused"), "<p class='wl-account-muted'>" + escapeHtml(offlineMessage()) + "</p>", [{ label: "Continue", run: closeOverlay }]);
+      }
+      if (!effectiveCachedEntitlement()?.cloudSave) return openAccountPanel();
+      const profileId = activeProfileId();
+      if (!profileId || !workspaceMatches(profileId)) return openCloudSavesPanel(true);
+      try {
+        showPanel(tr("CloudAccount.Startup.SyncingTitle", "Syncing newer saves"), `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Startup.SyncingBody", "Uploading {PROFILE}'s saves to the cloud…", { PROFILE: workspaceBinding()?.profileName || profileId }))}</p>`);
+        if (profileSyncInFlight) await profileSyncInFlight.catch(() => undefined);
+        const profile = (await listProfiles()).find(item => item.profileId === profileId);
+        if (!profile) return openCloudSavesPanel(true);
+        if (profile.currentRevision && profile.currentRevision !== workspaceBinding()?.revision) {
+          return presentProfileConflict(profileId);
+        }
+        conflictProfileId = "";
+        startupProfileDecisionPending = false;
+        const result = await syncActiveProfileNow();
+        if (result?.conflict) return;
+        if (result?.skipped) return openAccountPanel();
+        finishStartupProfileDecision();
+        showPanel(tr("CloudAccount.Startup.SyncedTitle", "Cloud backup updated"), `<p class="wl-account-success">${escapeHtml(tr("CloudAccount.Startup.SyncedBody", "The latest local saves for {PROFILE} are safely stored in the WonderLang cloud.", { PROFILE: profile.name }))}</p>`, [
+          { label: "Continue", run: closeOverlay }
+        ]);
+      } catch (error) {
+        queueProfileUpload(profileId, error);
+        showError(tr("CloudAccount.Error.UploadTitle", "Newer saves were not uploaded"), error, syncFromUi);
+      }
+    })().finally(() => { manualSyncInFlight = null; });
+    return manualSyncInFlight;
   }
 
   function accountTheme() {
@@ -962,42 +1052,67 @@
   }
 
   function bindReleaseTap(button, action) {
-    let touch = null;
-    let suppressClickUntil = 0;
+    let touch = null, pointer = null, lastTouchAt = 0, suppressClickUntil = 0, busy = false;
+    const stop = event => { event.stopPropagation(); if (event.cancelable) event.preventDefault(); };
+    const activate = event => {
+      stop(event);
+      if (button.disabled || busy) return;
+      busy = true;
+      suppressClickUntil = Date.now() + 750;
+      let result;
+      try { result = action(); } catch (error) { busy = false; throw error; }
+      if (result && typeof result.then === "function") {
+        button.disabled = true;
+        button.setAttribute("aria-busy", "true");
+        Promise.resolve(result).catch(error => console.warn("[WonderLang Cloud Save] Action failed.", safeMessage(error))).finally(() => {
+          busy = false; button.disabled = false; button.removeAttribute("aria-busy");
+        });
+      } else busy = false;
+    };
     button.addEventListener("touchstart", event => {
-      if (button.disabled || event.touches.length !== 1) return;
+      lastTouchAt = Date.now(); pointer = null;
+      if (button.disabled || event.touches.length !== 1) { touch = null; return; }
       const point = event.touches[0];
       touch = { x: point.clientX, y: point.clientY, moved: false };
       event.stopPropagation();
-      event.preventDefault();
-    }, { passive: false });
+    }, { passive: true });
     button.addEventListener("touchmove", event => {
-      if (!touch || event.touches.length !== 1) return;
-      const point = event.touches[0];
-      if (Math.hypot(point.clientX - touch.x, point.clientY - touch.y) > 12) touch.moved = true;
-      event.stopPropagation();
-    }, { passive: true });
-    button.addEventListener("touchcancel", event => {
-      touch = null;
-      event.stopPropagation();
-    }, { passive: true });
-    button.addEventListener("touchend", event => {
-      if (!touch) return;
-      const activate = !touch.moved && !button.disabled;
-      touch = null;
-      suppressClickUntil = Date.now() + 750;
-      event.stopPropagation();
-      event.preventDefault();
-      if (activate) action();
-    }, { passive: false });
-    button.addEventListener("click", event => {
-      if (button.disabled || Date.now() < suppressClickUntil) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
+      if (event.touches.length !== 1) touch = null;
+      if (touch) {
+        const point = event.touches[0];
+        if (Math.hypot(point.clientX - touch.x, point.clientY - touch.y) > 12) touch.moved = true;
       }
       event.stopPropagation();
-      action();
+    }, { passive: true });
+    button.addEventListener("touchcancel", event => { touch = null; suppressClickUntil = Date.now() + 750; stop(event); }, { passive: false });
+    button.addEventListener("touchend", event => {
+      const point = event.changedTouches?.[0];
+      const valid = touch && !touch.moved && point && Math.hypot(point.clientX-touch.x,point.clientY-touch.y) <= 12;
+      touch = null; lastTouchAt = Date.now(); suppressClickUntil = Date.now() + 750;
+      stop(event); if (valid) activate(event);
+    }, { passive: false });
+    // Some Android WebViews deliver pointer events without a synthetic click.
+    button.addEventListener("pointerdown", event => {
+      if (button.disabled || event.isPrimary === false || (event.button != null && event.button !== 0)) return;
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
+      event.stopPropagation();
+    });
+    button.addEventListener("pointermove", event => {
+      if (pointer?.id === event.pointerId && Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)>12) pointer.moved=true;
+      event.stopPropagation();
+    });
+    button.addEventListener("pointercancel", () => { pointer = null; });
+    button.addEventListener("pointerup", event => {
+      const valid = pointer?.id === event.pointerId && !pointer.moved && Math.hypot(event.clientX-pointer.x,event.clientY-pointer.y)<=12;
+      pointer = null;
+      event.stopPropagation();
+      if (event.pointerType === "touch" && Date.now()-lastTouchAt < 900) return;
+      suppressClickUntil = Date.now() + 750;
+      if (valid) activate(event);
+    }, { passive: false });
+    button.addEventListener("click", event => {
+      stop(event);
+      if (Date.now() >= suppressClickUntil) activate(event);
     });
   }
 
@@ -1207,6 +1322,7 @@
       </div>
       `, [
       { label: "Manage profiles", run: openCloudSavesPanel },
+      ...(access.cloudSave ? [{ label: tr("CloudAccount.Action.SyncNow", "Sync now"), run: syncFromUi }] : []),
       { label: "Manage login methods", kind: "secondary", run: () => bridge()?.openAccount?.() },
       ...((current?.subscriptions?.length ? current.subscriptions : current?.subscription ? [current.subscription] : []).map(subscription => ({
         label: tr("CloudAccount.UI.Cancelsubscription", "Cancel subscription") + " — " + ({google_play:"Google Play",apple:"Apple",stripe:"Stripe"}[subscription.provider] || subscription.provider),
@@ -1263,6 +1379,7 @@
         <div class="wl-account-save-actions"><button class="wl-account-btn" data-select-profile="${escapeHtml(profile.profileId)}" ${profile.profileId === active ? "disabled" : ""}>${trSource(profile.profileId === active ? "Selected" : "Use profile")}</button>${Array.isArray(profile.backups) && profile.backups.length ? `<button class="wl-account-btn secondary" data-profile-backups="${escapeHtml(profile.profileId)}">${escapeHtml(trSource("Restore backup ({COUNT})", { COUNT: profile.backups.length }))}</button>` : ""}<button class="wl-account-btn secondary" data-rename-profile="${escapeHtml(profile.profileId)}">${escapeHtml(trSource("Rename"))}</button></div>
       </div>`).join("");
       const overlay = showPanel("Save profiles", intro + rows, [
+        ...(active && canSyncCloud() ? [{ label: tr("CloudAccount.Action.SyncNow", "Sync now"), run: syncFromUi }] : []),
         ...(canSaveLocalAsNewProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalAsNew", "Save local files to a new profile"), run: showSaveLocalAsNewProfile }] : []),
         ...(profiles.length < 6 ? [{ label: "Create profile", run: showCreateProfile }] : []),
         { label: "Refresh", kind: "secondary", run: openCloudSavesPanel },
@@ -1506,17 +1623,57 @@
     return activateProfile(profile, hasLocalPlayerSaves() ? "device" : profile.currentRevision ? "cloud" : "empty");
   }
 
+  function hasRunningGame() {
+    const types = [globalThis.Scene_Map, globalThis.Scene_Battle].filter(type => typeof type === "function");
+    return types.some(type => globalThis.SceneManager?._scene instanceof type || globalThis.SceneManager?._stack?.includes(type));
+  }
+
   async function presentProfileConflict(profileId) {
+    conflictProfileId = profileId;
+    startupProfileDecisionPending = true;
     let remote;
-    try { remote = await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profileId)}/download`); }
+    try {
+      const downloaded = await downloadProfile(profileId);
+      remote = downloaded.remote;
+      const generation = saveWriteGeneration;
+      const localFingerprint = await profileFilesFingerprint((await buildProfileBundle(profileId)).files);
+      const cloudFingerprint = await profileFilesFingerprint(downloaded.bundle.files);
+      // A finalize response may have been lost even though the server committed.
+      // Identical content is already synced, not a two-device conflict.
+      if (workspaceMatches(profileId) && localFingerprint === cloudFingerprint) {
+        setRevision(profileId, remote.manifest.currentRevision);
+        const settled = generation === saveWriteGeneration;
+        saveWorkspaceBinding(profileId, {
+          revision: remote.manifest.currentRevision, fingerprint: cloudFingerprint,
+          cloudUpdatedAt: remote.manifest.updatedAt, ...(settled ? { localChangedAt: null } : {})
+        });
+        if (settled) clearQueuedProfile(profileId);
+        finishStartupProfileDecision();
+        showPanel(tr("CloudAccount.Startup.SyncedTitle", "Cloud backup updated"), "<p class='wl-account-success'>" + escapeHtml(tr("CloudAccount.Startup.SyncedBody", "The latest local saves for {PROFILE} are safely stored in the WonderLang cloud.", { PROFILE: workspaceBinding()?.profileName || profileId })) + "</p>", [{ label: "Continue", run: closeOverlay }]);
+        return { reconciled: true, currentRevision: remote.manifest.currentRevision };
+      }
+    }
     catch (error) { showError("Cloud-profile conflict", error, () => presentProfileConflict(profileId)); return; }
-    showPanel("This profile changed on two devices", `<p class="wl-account-muted">This device and the cloud have different saves for this profile. Nothing has been replaced yet. Choose which saves to keep. They will replace the other version.</p><div class="wl-account-status"><div class="wl-account-card"><b>This device</b>All saves on this device</div><div class="wl-account-card"><b>Cloud</b>${escapeHtml(formatTime(remote.manifest.updatedAt))}</div></div>`, [
+    showPanel("This profile changed on two devices", `<p class="wl-account-muted">This device and the cloud have different saves for this profile. Nothing has been replaced yet. Choose which saves to keep. They will replace the other version.</p><div class="wl-account-status"><div class="wl-account-card"><b>This device</b>${escapeHtml(latestLocalSaveTime(workspaceBinding()) ? formatTime(latestLocalSaveTime(workspaceBinding())) : tr("CloudAccount.Label.ChangedLocally", "Changed locally"))}</div><div class="wl-account-card"><b>Cloud</b>${escapeHtml(formatTime(remote.manifest.updatedAt))}</div></div>`, [
       { label: "Keep this device", run: async () => {
-        try { await uploadProfile(profileId, { baseRevision: remote.manifest.currentRevision, showConflict: true }); closeOverlay(); }
+        try {
+          const result = await uploadProfile(profileId, { baseRevision: remote.manifest.currentRevision, showConflict: true });
+          if (result?.conflict || result?.skipped) return;
+          conflictProfileId = "";
+          finishStartupProfileDecision();
+          closeOverlay();
+        }
         catch (error) { showError("Device profile was not uploaded", error, () => presentProfileConflict(profileId)); }
       } },
       { label: "Use cloud profile", kind: "danger", run: async () => {
-        try { await restoreProfile(profileId); closeOverlay(); }
+        try {
+          await restoreProfile(profileId);
+          conflictProfileId = "";
+          finishStartupProfileDecision();
+          closeOverlay();
+          // Do not let an already-running game overwrite the chosen cloud copy.
+          if (hasRunningGame()) SceneManager.goto(Scene_Title);
+        }
         catch (error) { showError("Cloud profile was not restored", error, () => presentProfileConflict(profileId)); }
       } },
       { label: "Not now", kind: "secondary", run: closeOverlay }
@@ -1536,6 +1693,7 @@
   }
 
   function finishStartupProfileDecision() {
+    conflictProfileId = "";
     startupProfileDecisionPending = false;
     drainUploadQueue().catch(error => console.warn("[WonderLang Cloud Save] Retry queue paused.", safeMessage(error)));
   }
@@ -1662,9 +1820,21 @@
         return "binding_required";
       }
       saveWorkspaceBinding(profileId, { profileName: profile.name });
+      const checkedGeneration = saveWriteGeneration;
       const bundle = await buildProfileBundle(profileId);
       const fingerprint = await profileFilesFingerprint(bundle.files);
-      if (binding.fingerprint === fingerprint && !binding.localChangedAt && !retryQueue()[profileId]) {
+      if (pendingSaveWrites.size || checkedGeneration !== saveWriteGeneration) return "deferred";
+      if (binding.fingerprint === fingerprint) {
+        clearQueuedProfile(profileId);
+        saveWorkspaceBinding(profileId, { localChangedAt: null });
+        if (profile.currentRevision && profile.currentRevision !== binding.revision) {
+          if (hasRunningGame()) {
+            await presentProfileConflict(profileId);
+            return "conflict";
+          }
+          await useProfileCloudCopy(profile);
+          return "downloaded";
+        }
         finishStartupProfileDecision();
         return "clean";
       }
@@ -1692,15 +1862,31 @@
 
   const originalSaveObject = StorageManager.saveObject;
   StorageManager.saveObject = function(saveName, object) {
-    return originalSaveObject.call(this, saveName, object).then(result => {
+    const managed = /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""));
+    const write = originalSaveObject.call(this, saveName, object);
+    if (managed) pendingSaveWrites.add(write);
+    return write.then(result => {
+      pendingSaveWrites.delete(write);
+      if (managed) saveWriteGeneration += 1;
       if (!applyingProfile && /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) scheduleProfileSync();
       return result;
+    }, error => {
+      pendingSaveWrites.delete(write);
+      throw error;
     });
   };
   const originalRemoveSave = StorageManager.remove;
   StorageManager.remove = function(saveName) {
     const result = originalRemoveSave.call(this, saveName);
-    if (!applyingProfile && /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) scheduleProfileSync();
+    if (!applyingProfile && /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) {
+      const removal = Promise.resolve(result);
+      pendingSaveWrites.add(removal);
+      removal.then(() => {
+        pendingSaveWrites.delete(removal);
+        saveWriteGeneration += 1;
+        scheduleProfileSync();
+      }, () => pendingSaveWrites.delete(removal));
+    }
     return result;
   };
 
@@ -1713,6 +1899,9 @@
     isProductPurchased: ownsProduct,
     listProfiles,
     uploadActiveProfile: syncActiveProfileNow,
+    syncFromUi,
+    canSyncCloud,
+    bindReleaseTap,
     restoreProfile,
     checkStartupProfileFreshness: () => checkStartupProfileFreshness(true),
     activeProfileId,
@@ -1762,6 +1951,16 @@
   };
 
   window.addEventListener("wl-device-sign-in-state", event => showDeviceSignInState(event.detail));
+
+  // The cloud dialog owns input. Pause game events/autosaves underneath it,
+  // especially while the player is choosing which complete save set to keep.
+  if (globalThis.SceneManager?.updateScene) {
+    const updateScene = SceneManager.updateScene;
+    SceneManager.updateScene = function() {
+      if (activeOverlay) return;
+      return updateScene.apply(this, arguments);
+    };
+  }
 
   window.addEventListener("offline", noteOffline);
   window.addEventListener("online", () => { resumeCloudSync(); });
