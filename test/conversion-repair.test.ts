@@ -12,12 +12,12 @@ afterEach(()=>{process.env={...original};resetEnvironmentForTests();vi.clearAllM
 it('leases only advertising jobs while all other outbox processing remains disabled',async()=>{
  Object.assign(process.env,{AD_CONVERSIONS_ENABLED:'true',OUTBOX_PROCESSING_ENABLED:'false'});resetEnvironmentForTests();
  expect(await runOutboxWorker()).toEqual({processed:0,failed:0});
- expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['meta_conversion','tiktok_conversion']);
+ expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['meta_conversion','tiktok_conversion','google_conversion']);
 });
 it('the deployed scheduled handler also permits advertising-only delivery',async()=>{
  Object.assign(process.env,{AD_CONVERSIONS_ENABLED:'true',OUTBOX_PROCESSING_ENABLED:'false'});resetEnvironmentForTests();
  await scheduledWorker({} as never,{} as never);
- expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['meta_conversion','tiktok_conversion']);
+ expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['meta_conversion','tiktok_conversion','google_conversion']);
 });
 it('includes first paid post-trial invoice but excludes a renewal and zero-value invoice',()=>{
  expect(stripeInvoiceAdDecision({paid:true,amountPaid:699,billingReason:'subscription_cycle',firstPaidInvoice:true}).send).toBe(true);

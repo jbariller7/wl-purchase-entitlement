@@ -313,6 +313,27 @@ export async function googlePlaySubscriptionAdDetails(store: EntitlementStore, u
     value:Number(order.total?.units??0)+Number(order.total?.nanos??0)/1e9,currency:order.total?.currencyCode??""}});
 }
 
+export async function googlePlayOneTimeAdDetails(store: EntitlementStore, uid: string, productId: string, purchaseToken: string, now: Date) {
+  const product = LEGACY_PLAY_PRODUCT_MAP[productId];
+  if (!product) return undefined;
+  const api = await androidPublisher();
+  const packageName = googlePlayEnv().GOOGLE_PLAY_PACKAGE_NAME;
+  const {data: purchase} = await api.purchases.productsv2.getproductpurchasev2({packageName, token: purchaseToken});
+  if (purchase.testPurchaseContext || !purchase.orderId || !purchase.purchaseCompletionTime ||
+      purchase.purchaseStateContext?.purchaseState !== "PURCHASED" ||
+      !purchase.productLineItem?.some(item => item.productId === productId)) return undefined;
+  const grant = await store.getGrant("google_play", purchase.orderId, product);
+  if (!grant || grant.uid !== uid || grant.state !== "active") return undefined;
+  const age = now.getTime() - Date.parse(purchase.purchaseCompletionTime);
+  if (!Number.isFinite(age) || age < 0 || age > 7 * 86400_000) return undefined;
+  const {data: order} = await api.orders.get({packageName, orderId: purchase.orderId});
+  if (order.purchaseToken !== purchaseToken || order.state !== "PROCESSED") return undefined;
+  const value = Number(order.total?.units ?? 0) + Number(order.total?.nanos ?? 0) / 1e9;
+  const currency = order.total?.currencyCode ?? "";
+  if (!Number.isFinite(value) || value <= 0 || !/^[A-Z]{3}$/.test(currency)) return undefined;
+  return {eventName: "Purchase" as const, eventId: `${tokenId(purchaseToken)}:paid`, value, currency};
+}
+
 export async function syncGooglePlayOneTimeProduct(input: {
   store: EntitlementStore;
   productId: string;

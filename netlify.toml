@@ -9,6 +9,9 @@
   # Access tokens and all other secrets remain scanned.
   SECRETS_SCAN_OMIT_KEYS = "META_PIXEL_ID,TIKTOK_PIXEL_ID"
 
+[context.production.environment]
+  GA4_MEASUREMENT_ID = "G-YEGW7C2JRR"
+
 [functions]
   node_bundler = "esbuild"
   included_files = ["src/**"]

@@ -379,6 +379,17 @@ async function invoicePaid(store: EntitlementStore, invoice: Stripe.Invoice, eve
     product: "mobile_full_monthly",
     ...(context ? { context } : {})
   });
+  // Immediate paid checkouts use the existing Ads browser action. This covers
+  // the first charge after a trial, when no checkout return page is open.
+  if (firstPaidInvoice && event.livemode === true && deploymentControls().AD_CONVERSIONS_ENABLED &&
+      process.env.GA4_API_SECRET && process.env.GA4_MEASUREMENT_ID) {
+    await store.enqueue("google_conversion", `google:${invoice.id ?? event.id}`, {
+      eventId:invoice.id ?? event.id, eventTime:event.created,
+      value:stripeMajorValue(invoice.currency,invoice.amount_paid),currency:invoice.currency.toUpperCase(),
+      product:"mobile_full_monthly",
+      ...(typeof context?.gaClientId === "string" ? {clientId:context.gaClientId} : {})
+    },new Date(event.created*1000));
+  }
 }
 
 export async function processStripeEvent(store: EntitlementStore, event: Stripe.Event): Promise<void> {

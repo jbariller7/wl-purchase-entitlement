@@ -78,6 +78,7 @@ export type OutboxKind =
   | "mailerlite_sync"
   | "meta_conversion"
   | "tiktok_conversion"
+  | "google_conversion"
   | "cancel_stripe_subscription"
   | "delete_account_data";
 

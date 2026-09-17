@@ -446,6 +446,7 @@ export class EntitlementStore {
     context: {
       uid?: string;
       eventSourceUrl?: string;
+      gaClientId?: string;
       ipAddress?: string;
       userAgent?: string;
       fbp?: string;

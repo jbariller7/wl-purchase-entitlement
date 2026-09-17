@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import {sendGoogleConversion} from "../ads/google-conversion.js";
 import type { OutboxJob, LegacyOrder } from "../domain/model.js";
 import { sendMetaConversion, sendTikTokConversion } from "../ads/conversion-senders.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
@@ -13,6 +14,10 @@ import { LegacyPersonalDataErasureService } from "../legacy/personal-data-erasur
 
 async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<string, unknown> | undefined> {
   switch (job.kind) {
+    case "google_conversion":
+      if (!deploymentControls().AD_CONVERSIONS_ENABLED) throw new Error("Ad conversion delivery is disabled.");
+      await sendGoogleConversion(job.payload);
+      return;
     case "meta_conversion":
       if (!deploymentControls().AD_CONVERSIONS_ENABLED) throw new Error("Ad conversion delivery is disabled.");
       await sendMetaConversion(job.payload);
@@ -71,7 +76,7 @@ export async function runOutboxWorker(limit = 20): Promise<{ processed: number; 
   const store = new EntitlementStore(firestore());
   const workerId = randomUUID();
   const jobs = await store.leaseOutboxJobs(workerId, new Date(), limit,
-    controls.OUTBOX_PROCESSING_ENABLED ? undefined : ["meta_conversion", "tiktok_conversion"]);
+    controls.OUTBOX_PROCESSING_ENABLED ? undefined : ["meta_conversion", "tiktok_conversion", "google_conversion"]);
   let processed = 0;
   let failed = 0;
   for (const job of jobs) {

@@ -5,6 +5,7 @@ import type { EffectiveEntitlements, LedgerGrant } from "../src/domain/model.js"
 import type { EntitlementStore } from "../src/infrastructure/entitlement-store.js";
 
 const playApi = vi.hoisted(() => ({
+  getOrder: vi.fn(),
   getProduct: vi.fn(),
   acknowledgeProduct: vi.fn()
 }));
@@ -13,6 +14,7 @@ vi.mock("googleapis", () => ({
   google: {
     auth: { GoogleAuth: class GoogleAuth {} },
     androidpublisher: () => ({
+      orders: { get: playApi.getOrder },
       purchases: {
         subscriptionsv2: { get: vi.fn() },
         subscriptions: { acknowledge: vi.fn() },
@@ -23,7 +25,7 @@ vi.mock("googleapis", () => ({
   }
 }));
 
-import { syncGooglePlayOneTimeProduct } from "../src/providers/google-play/service.js";
+import { syncGooglePlayOneTimeProduct, googlePlayOneTimeAdDetails } from "../src/providers/google-play/service.js";
 
 const original = { ...process.env };
 const uid = "android-player";
@@ -87,6 +89,26 @@ afterEach(() => {
 });
 
 describe("Google Play one-time purchase verification", () => {
+  it("reports the actual verified order total and rejects sandbox, pending, mismatched and old acquisitions", async () => {
+    const now = new Date("2026-08-20T13:00:00Z");
+    const store = { getGrant: vi.fn().mockResolvedValue({uid, state: "active"}) } as unknown as EntitlementStore;
+    const order = {purchaseToken, state:"PROCESSED", total:{units:"18", nanos:250000000, currencyCode:"EUR"}};
+    playApi.getOrder.mockResolvedValue({data:order});
+    const read = () => googlePlayOneTimeAdDetails(store, uid, "wonderlangfull", purchaseToken, now);
+    expect(await read()).toMatchObject({eventName:"Purchase", value:18.25, currency:"EUR"});
+    playApi.getProduct.mockResolvedValueOnce({data:{...productReceipt().data,testPurchaseContext:{fopType:"TEST"}}});
+    expect(await read()).toBeUndefined();
+    playApi.getProduct.mockResolvedValueOnce(productReceipt({purchaseState:"PENDING"}));
+    expect(await read()).toBeUndefined();
+    playApi.getProduct.mockResolvedValueOnce(productReceipt({completionTime:"2025-01-01T00:00:00Z"}));
+    expect(await read()).toBeUndefined();
+    playApi.getOrder.mockResolvedValueOnce({data:{...order,purchaseToken:"another-token"}});
+    expect(await read()).toBeUndefined();
+    playApi.getOrder.mockResolvedValueOnce({data:{...order,state:"PENDING"}});
+    expect(await read()).toBeUndefined();
+    vi.mocked(store.getGrant).mockResolvedValueOnce({uid:"another-user",state:"active"} as NonNullable<Awaited<ReturnType<EntitlementStore["getGrant"]>>>);
+    expect(await read()).toBeUndefined();
+  });
   it("verifies Polyglot, records platform-scoped permanent access, then acknowledges", async () => {
     const { store, grants } = playStore();
 

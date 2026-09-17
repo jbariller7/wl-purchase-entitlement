@@ -8,6 +8,9 @@ try{
  let attempt=JSON.parse(sessionStorage.getItem(storageKey)||'null');
  if(!attempt){
   const attribution={};
+  const gaCookie=document.cookie.split('; ').find(x=>x.startsWith('_ga='));
+  const gaMatch=gaCookie?.match(/^_ga=GA\d+\.\d+\.(\d+\.\d+)$/);
+  if(gaMatch)attribution.gaClientId=gaMatch[1];
   // Only carry identifiers already present; do not create tracking cookies.
   for(const [key,cookie] of [['fbp','_fbp'],['fbc','_fbc'],['ttp','_ttp']]){
    const raw=document.cookie.split('; ').find(x=>x.startsWith(cookie+'='))?.slice(cookie.length+1);
