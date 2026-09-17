@@ -490,10 +490,11 @@ class WonderLangAccountManager(
             positiveLabel = "Send link"
         ) { email ->
             val settings = ActionCodeSettings.newBuilder()
-                .setUrl("https://wonderlang.net/account")
+                .setUrl("https://wl-purchase-entitlement.netlify.app/account/")
                 .setHandleCodeInApp(true)
                 .setAndroidPackageName(activity.packageName, false, null)
-                .setLinkDomain("wonderlang-accounts.firebaseapp.com")
+                // Omit the custom-domain override: Firebase selects the project's
+                // default Hosting domain. setLinkDomain rejects firebaseapp.com.
                 .build()
             preferences.edit()
                 .putString("pending_email", email)

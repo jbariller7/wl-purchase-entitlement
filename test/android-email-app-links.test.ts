@@ -52,7 +52,9 @@ describe("Android passwordless-email App Links", () => {
     const manifest = read("integrations/android/current-app-mirror/app/src/main/AndroidManifest.xml");
     const gradle = read("integrations/android/current-app-mirror/app/build.gradle.kts");
 
-    expect(manager).toContain(`.setLinkDomain("${authDomain}")`);
+    expect(manager).not.toMatch(/\.setLinkDomain\s*\(/);
+    expect(manager).not.toMatch(/\.setDynamicLinkDomain\s*\(/);
+    expect(manager).toContain('.setUrl("https://wl-purchase-entitlement.netlify.app/account/")');
     expect(manager).toContain(".setAndroidPackageName(activity.packageName, false, null)");
     expect(gradle).toContain(`applicationId = "${packageName}"`);
     expect(manifest).toContain('android:autoVerify="true"');
