@@ -3,7 +3,7 @@
     "stripeLocale": "en", "single": "WonderLang — One Language (PC/Mac)", "polyglot": "WonderLang — Polyglot (PC/Mac)", "premium": "WonderLang — Premium Lifetime Pass",
     "singleDescription": "Permanent PC/Mac access to one learning language. Steam key or direct download. Mobile access and cloud saves are not included.",
     "polyglotDescription": "Permanent PC/Mac access to all current and future learning languages. Steam key or direct download. Mobile access and cloud saves are not included.",
-    "premiumDescription": "One-time payment. All learning languages, one PC/Mac access, permanent mobile access, cross-platform cloud saves, and all future sequels and additional content. A second mobile access is included on request: Android or iOS, including the same platform.",
+    "premiumDescription": "One-time payment. All learning languages, permanent access on Android and iOS, one PC/Mac access, cross-platform cloud saves, and all future sequels and additional content. Both mobile platforms are included automatically.",
     "delivery": "PC/Mac delivery", "steam": "Steam key", "direct": "Direct download", "language": "Language you want to learn", "mobile": "First mobile platform (included)", "later": "Choose later",
     "languages": ["French", "Spanish", "German", "Italian", "Portuguese", "Korean", "Japanese", "Mandarin Chinese", "English"]
   },
@@ -11,7 +11,7 @@
     "stripeLocale": "fr", "single": "WonderLang — Une langue (PC/Mac)", "polyglot": "WonderLang — Polyglotte (PC/Mac)", "premium": "WonderLang — Pass Premium à vie",
     "singleDescription": "Accès permanent sur PC/Mac à une langue à apprendre. Clé Steam ou téléchargement direct. Accès mobile et sauvegardes cloud non inclus.",
     "polyglotDescription": "Accès permanent sur PC/Mac à toutes les langues d’apprentissage actuelles et futures. Clé Steam ou téléchargement direct. Accès mobile et sauvegardes cloud non inclus.",
-    "premiumDescription": "Paiement unique. Toutes les langues, un accès PC/Mac, un accès mobile permanent, les sauvegardes cloud multiplateformes et tous les futurs contenus et suites. Un second accès mobile est inclus sur demande : Android ou iOS, y compris sur la même plateforme.",
+    "premiumDescription": "Paiement unique. Toutes les langues, un accès permanent sur Android et iOS, un accès PC/Mac, les sauvegardes cloud multiplateformes et tous les futurs contenus et suites. Les deux plateformes mobiles sont incluses automatiquement.",
     "delivery": "Version PC/Mac souhaitée", "steam": "Clé Steam", "direct": "Téléchargement direct", "language": "Langue que vous souhaitez apprendre", "mobile": "Première plateforme mobile (incluse)", "later": "Choisir plus tard",
     "languages": ["Français", "Espagnol", "Allemand", "Italien", "Portugais", "Coréen", "Japonais", "Chinois mandarin", "Anglais"]
   },
@@ -19,7 +19,7 @@
     "stripeLocale": "de", "single": "WonderLang — Eine Sprache (PC/Mac)", "polyglot": "WonderLang — Polyglott (PC/Mac)", "premium": "WonderLang — Premium-Lifetime-Pass",
     "singleDescription": "Dauerhafter PC/Mac-Zugang für eine Lernsprache. Steam-Key oder direkter Download. Mobiler Zugang und Cloud-Spielstände sind nicht enthalten.",
     "polyglotDescription": "Dauerhafter PC/Mac-Zugang für alle aktuellen und zukünftigen Lernsprachen. Steam-Key oder direkter Download. Mobiler Zugang und Cloud-Spielstände sind nicht enthalten.",
-    "premiumDescription": "Einmalzahlung. Alle Lernsprachen, ein PC/Mac-Zugang, dauerhafter mobiler Zugang, plattformübergreifende Cloud-Spielstände sowie alle zukünftigen Fortsetzungen und Zusatzinhalte. Ein zweiter mobiler Zugang ist auf Anfrage enthalten: Android oder iOS, auch für dieselbe Plattform.",
+    "premiumDescription": "Einmalzahlung. Alle Lernsprachen, dauerhafter Zugang auf Android und iOS, ein PC/Mac-Zugang, plattformübergreifende Cloud-Spielstände sowie alle zukünftigen Fortsetzungen und Zusatzinhalte. Beide mobilen Plattformen sind automatisch enthalten.",
     "delivery": "PC/Mac-Version", "steam": "Steam-Key", "direct": "Direkter Download", "language": "Sprache, die du lernen möchtest", "mobile": "Erste mobile Plattform (enthalten)", "later": "Später auswählen",
     "languages": ["Französisch", "Spanisch", "Deutsch", "Italienisch", "Portugiesisch", "Koreanisch", "Japanisch", "Mandarin-Chinesisch", "Englisch"]
   },
@@ -27,7 +27,7 @@
     "stripeLocale": "es", "single": "WonderLang — Un idioma (PC/Mac)", "polyglot": "WonderLang — Políglota (PC/Mac)", "premium": "WonderLang — Pase Premium de por vida",
     "singleDescription": "Acceso permanente en PC/Mac a un idioma de aprendizaje. Clave de Steam o descarga directa. No incluye acceso móvil ni partidas guardadas en la nube.",
     "polyglotDescription": "Acceso permanente en PC/Mac a todos los idiomas de aprendizaje actuales y futuros. Clave de Steam o descarga directa. No incluye acceso móvil ni partidas guardadas en la nube.",
-    "premiumDescription": "Pago único. Todos los idiomas, un acceso para PC/Mac, acceso móvil permanente, partidas en la nube entre plataformas y todas las futuras secuelas y contenidos adicionales. Incluye un segundo acceso móvil bajo petición: Android o iOS, incluso para la misma plataforma.",
+    "premiumDescription": "Pago único. Todos los idiomas, acceso permanente en Android e iOS, un acceso para PC/Mac, partidas en la nube entre plataformas y todas las futuras secuelas y contenidos adicionales. Ambas plataformas móviles se incluyen automáticamente.",
     "delivery": "Versión para PC/Mac", "steam": "Clave de Steam", "direct": "Descarga directa", "language": "Idioma que quieres aprender", "mobile": "Primera plataforma móvil (incluida)", "later": "Elegir más tarde",
     "languages": ["Francés", "Español", "Alemán", "Italiano", "Portugués", "Coreano", "Japonés", "Chino mandarín", "Inglés"]
   },
@@ -35,7 +35,7 @@
     "stripeLocale": "es-419", "single": "WonderLang — Un idioma (PC/Mac)", "polyglot": "WonderLang — Políglota (PC/Mac)", "premium": "WonderLang — Pase Premium de por vida",
     "singleDescription": "Acceso permanente en PC/Mac a un idioma de aprendizaje. Clave de Steam o descarga directa. No incluye acceso móvil ni partidas guardadas en la nube.",
     "polyglotDescription": "Acceso permanente en PC/Mac a todos los idiomas de aprendizaje actuales y futuros. Clave de Steam o descarga directa. No incluye acceso móvil ni partidas guardadas en la nube.",
-    "premiumDescription": "Pago único. Todos los idiomas, un acceso para PC/Mac, acceso móvil permanente, partidas en la nube entre plataformas y todas las futuras secuelas y contenidos adicionales. Incluye un segundo acceso móvil si lo solicitas: Android o iOS, incluso para la misma plataforma.",
+    "premiumDescription": "Pago único. Todos los idiomas, acceso permanente en Android e iOS, un acceso para PC/Mac, partidas en la nube entre plataformas y todas las futuras secuelas y contenidos adicionales. Ambas plataformas móviles se incluyen automáticamente.",
     "delivery": "Versión para PC/Mac", "steam": "Clave de Steam", "direct": "Descarga directa", "language": "Idioma que quieres aprender", "mobile": "Primera plataforma móvil (incluida)", "later": "Elegir después",
     "languages": ["Francés", "Español", "Alemán", "Italiano", "Portugués", "Coreano", "Japonés", "Chino mandarín", "Inglés"]
   },
@@ -43,7 +43,7 @@
     "stripeLocale": "pt-BR", "single": "WonderLang — Um idioma (PC/Mac)", "polyglot": "WonderLang — Poliglota (PC/Mac)", "premium": "WonderLang — Passe Premium Vitalício",
     "singleDescription": "Acesso permanente no PC/Mac a um idioma de aprendizagem. Chave Steam ou download direto. Não inclui acesso móvel nem salvamentos na nuvem.",
     "polyglotDescription": "Acesso permanente no PC/Mac a todos os idiomas de aprendizagem atuais e futuros. Chave Steam ou download direto. Não inclui acesso móvel nem salvamentos na nuvem.",
-    "premiumDescription": "Pagamento único. Todos os idiomas, um acesso para PC/Mac, acesso móvel permanente, salvamentos na nuvem entre plataformas e todas as futuras sequências e conteúdos adicionais. Inclui um segundo acesso móvel mediante solicitação: Android ou iOS, inclusive para a mesma plataforma.",
+    "premiumDescription": "Pagamento único. Todos os idiomas, acesso permanente no Android e no iOS, um acesso para PC/Mac, salvamentos na nuvem entre plataformas e todas as futuras sequências e conteúdos adicionais. As duas plataformas móveis estão incluídas automaticamente.",
     "delivery": "Versão para PC/Mac", "steam": "Chave Steam", "direct": "Download direto", "language": "Idioma que você quer aprender", "mobile": "Primeira plataforma móvel (incluída)", "later": "Escolher depois",
     "languages": ["Francês", "Espanhol", "Alemão", "Italiano", "Português", "Coreano", "Japonês", "Chinês mandarim", "Inglês"]
   },
@@ -51,7 +51,7 @@
     "stripeLocale": "pt", "single": "WonderLang — Uma língua (PC/Mac)", "polyglot": "WonderLang — Poliglota (PC/Mac)", "premium": "WonderLang — Passe Premium Vitalício",
     "singleDescription": "Acesso permanente no PC/Mac a uma língua de aprendizagem. Chave Steam ou transferência direta. Não inclui acesso móvel nem gravações na nuvem.",
     "polyglotDescription": "Acesso permanente no PC/Mac a todas as línguas de aprendizagem atuais e futuras. Chave Steam ou transferência direta. Não inclui acesso móvel nem gravações na nuvem.",
-    "premiumDescription": "Pagamento único. Todas as línguas, um acesso para PC/Mac, acesso móvel permanente, gravações na nuvem entre plataformas e todas as futuras sequelas e conteúdos adicionais. Inclui um segundo acesso móvel mediante pedido: Android ou iOS, incluindo a mesma plataforma.",
+    "premiumDescription": "Pagamento único. Todas as línguas, acesso permanente no Android e no iOS, um acesso para PC/Mac, gravações na nuvem entre plataformas e todas as futuras sequelas e conteúdos adicionais. As duas plataformas móveis estão incluídas automaticamente.",
     "delivery": "Versão para PC/Mac", "steam": "Chave Steam", "direct": "Transferência direta", "language": "Língua que queres aprender", "mobile": "Primeira plataforma móvel (incluída)", "later": "Escolher mais tarde",
     "languages": ["Francês", "Espanhol", "Alemão", "Italiano", "Português", "Coreano", "Japonês", "Chinês mandarim", "Inglês"]
   },
@@ -59,7 +59,7 @@
     "stripeLocale": "it", "single": "WonderLang — Una lingua (PC/Mac)", "polyglot": "WonderLang — Poliglotta (PC/Mac)", "premium": "WonderLang — Pass Premium a vita",
     "singleDescription": "Accesso permanente su PC/Mac a una lingua da imparare. Codice Steam o download diretto. Accesso mobile e salvataggi nel cloud non inclusi.",
     "polyglotDescription": "Accesso permanente su PC/Mac a tutte le lingue di apprendimento attuali e future. Codice Steam o download diretto. Accesso mobile e salvataggi nel cloud non inclusi.",
-    "premiumDescription": "Pagamento unico. Tutte le lingue, un accesso PC/Mac, accesso mobile permanente, salvataggi nel cloud tra piattaforme e tutti i futuri sequel e contenuti aggiuntivi. Include un secondo accesso mobile su richiesta: Android o iOS, anche per la stessa piattaforma.",
+    "premiumDescription": "Pagamento unico. Tutte le lingue, accesso permanente su Android e iOS, un accesso PC/Mac, salvataggi nel cloud tra piattaforme e tutti i futuri sequel e contenuti aggiuntivi. Entrambe le piattaforme mobili sono incluse automaticamente.",
     "delivery": "Versione PC/Mac", "steam": "Codice Steam", "direct": "Download diretto", "language": "Lingua che vuoi imparare", "mobile": "Prima piattaforma mobile (inclusa)", "later": "Scegli più tardi",
     "languages": ["Francese", "Spagnolo", "Tedesco", "Italiano", "Portoghese", "Coreano", "Giapponese", "Cinese mandarino", "Inglese"]
   },
@@ -67,7 +67,7 @@
     "stripeLocale": "nl", "single": "WonderLang — Eén taal (PC/Mac)", "polyglot": "WonderLang — Polyglot (PC/Mac)", "premium": "WonderLang — Premium Lifetime Pass",
     "singleDescription": "Blijvende toegang op PC/Mac tot één leertaal. Steam-sleutel of directe download. Mobiele toegang en cloudopslag voor spelvoortgang zijn niet inbegrepen.",
     "polyglotDescription": "Blijvende toegang op PC/Mac tot alle huidige en toekomstige leertalen. Steam-sleutel of directe download. Mobiele toegang en cloudopslag voor spelvoortgang zijn niet inbegrepen.",
-    "premiumDescription": "Eenmalige betaling. Alle leertalen, één PC/Mac-toegang, blijvende mobiele toegang, cloudopslag voor spelvoortgang tussen platforms en alle toekomstige vervolgen en extra content. Een tweede mobiele toegang is op aanvraag inbegrepen: Android of iOS, ook voor hetzelfde platform.",
+    "premiumDescription": "Eenmalige betaling. Alle leertalen, blijvende toegang op Android en iOS, één PC/Mac-toegang, cloudopslag voor spelvoortgang tussen platforms en alle toekomstige vervolgen en extra content. Beide mobiele platforms zijn automatisch inbegrepen.",
     "delivery": "PC/Mac-versie", "steam": "Steam-sleutel", "direct": "Directe download", "language": "Taal die je wilt leren", "mobile": "Eerste mobiele platform (inbegrepen)", "later": "Later kiezen",
     "languages": ["Frans", "Spaans", "Duits", "Italiaans", "Portugees", "Koreaans", "Japans", "Mandarijn-Chinees", "Engels"]
   },
@@ -75,7 +75,7 @@
     "stripeLocale": "sv", "single": "WonderLang — Ett språk (PC/Mac)", "polyglot": "WonderLang — Polyglott (PC/Mac)", "premium": "WonderLang — Premium Lifetime Pass",
     "singleDescription": "Permanent åtkomst på PC/Mac till ett språk att lära sig. Steam-nyckel eller direktnedladdning. Mobilåtkomst och molnsparningar ingår inte.",
     "polyglotDescription": "Permanent åtkomst på PC/Mac till alla nuvarande och framtida inlärningsspråk. Steam-nyckel eller direktnedladdning. Mobilåtkomst och molnsparningar ingår inte.",
-    "premiumDescription": "Engångsbetalning. Alla språk, en PC/Mac-åtkomst, permanent mobilåtkomst, molnsparningar mellan plattformar och alla framtida uppföljare och tillägg. En andra mobilåtkomst ingår på begäran: Android eller iOS, även för samma plattform.",
+    "premiumDescription": "Engångsbetalning. Alla språk, permanent åtkomst på Android och iOS, en PC/Mac-åtkomst, molnsparningar mellan plattformar och alla framtida uppföljare och tillägg. Båda mobilplattformarna ingår automatiskt.",
     "delivery": "PC/Mac-version", "steam": "Steam-nyckel", "direct": "Direktnedladdning", "language": "Språk du vill lära dig", "mobile": "Första mobilplattformen (ingår)", "later": "Välj senare",
     "languages": ["Franska", "Spanska", "Tyska", "Italienska", "Portugisiska", "Koreanska", "Japanska", "Mandarinkinesiska", "Engelska"]
   },
@@ -83,7 +83,7 @@
     "stripeLocale": "pl", "single": "WonderLang — Jeden język (PC/Mac)", "polyglot": "WonderLang — Poliglota (PC/Mac)", "premium": "WonderLang — Dożywotni pakiet Premium",
     "singleDescription": "Stały dostęp na PC/Mac do jednego języka do nauki. Klucz Steam lub pobranie bezpośrednie. Nie obejmuje dostępu mobilnego ani zapisów w chmurze.",
     "polyglotDescription": "Stały dostęp na PC/Mac do wszystkich obecnych i przyszłych języków do nauki. Klucz Steam lub pobranie bezpośrednie. Nie obejmuje dostępu mobilnego ani zapisów w chmurze.",
-    "premiumDescription": "Jednorazowa płatność. Wszystkie języki, jeden dostęp PC/Mac, stały dostęp mobilny, zapisy w chmurze między platformami oraz wszystkie przyszłe kontynuacje i dodatki. Drugi dostęp mobilny na życzenie jest w cenie: Android lub iOS, także na tę samą platformę.",
+    "premiumDescription": "Jednorazowa płatność. Wszystkie języki, stały dostęp na Androidzie i iOS, jeden dostęp PC/Mac, zapisy w chmurze między platformami oraz wszystkie przyszłe kontynuacje i dodatki. Obie platformy mobilne są automatycznie wliczone w cenę.",
     "delivery": "Wersja PC/Mac", "steam": "Klucz Steam", "direct": "Pobranie bezpośrednie", "language": "Język, którego chcesz się uczyć", "mobile": "Pierwsza platforma mobilna (w cenie)", "later": "Wybiorę później",
     "languages": ["Francuski", "Hiszpański", "Niemiecki", "Włoski", "Portugalski", "Koreański", "Japoński", "Chiński mandaryński", "Angielski"]
   },
@@ -91,7 +91,7 @@
     "stripeLocale": "en", "single": "WonderLang — Одна мова (PC/Mac)", "polyglot": "WonderLang — Поліглот (PC/Mac)", "premium": "WonderLang — Довічний Premium Pass",
     "singleDescription": "Постійний доступ на PC/Mac до однієї мови для вивчення. Ключ Steam або пряме завантаження. Мобільний доступ і хмарні збереження не включено.",
     "polyglotDescription": "Постійний доступ на PC/Mac до всіх наявних і майбутніх мов для вивчення. Ключ Steam або пряме завантаження. Мобільний доступ і хмарні збереження не включено.",
-    "premiumDescription": "Одноразова оплата. Усі мови, один доступ PC/Mac, постійний мобільний доступ, хмарні збереження між платформами та всі майбутні продовження й додатковий вміст. Другий мобільний доступ на запит включено: Android або iOS, зокрема для тієї самої платформи.",
+    "premiumDescription": "Одноразова оплата. Усі мови, постійний доступ на Android та iOS, один доступ PC/Mac, хмарні збереження між платформами та всі майбутні продовження й додатковий вміст. Обидві мобільні платформи включено автоматично.",
     "delivery": "Версія для PC/Mac", "steam": "Ключ Steam", "direct": "Пряме завантаження", "language": "Мова, яку ви хочете вивчати", "mobile": "Перша мобільна платформа (включено)", "later": "Вибрати пізніше",
     "languages": ["Французька", "Іспанська", "Німецька", "Італійська", "Португальська", "Корейська", "Японська", "Китайська (мандаринська)", "Англійська"]
   },
@@ -99,7 +99,7 @@
     "stripeLocale": "ru", "single": "WonderLang — Один язык (PC/Mac)", "polyglot": "WonderLang — Полиглот (PC/Mac)", "premium": "WonderLang — Пожизненный Premium Pass",
     "singleDescription": "Постоянный доступ на PC/Mac к одному языку для изучения. Ключ Steam или прямая загрузка. Мобильный доступ и облачные сохранения не включены.",
     "polyglotDescription": "Постоянный доступ на PC/Mac ко всем нынешним и будущим языкам для изучения. Ключ Steam или прямая загрузка. Мобильный доступ и облачные сохранения не включены.",
-    "premiumDescription": "Разовая оплата. Все языки, один доступ PC/Mac, постоянный мобильный доступ, облачные сохранения между платформами и все будущие продолжения и дополнения. Второй мобильный доступ включён по запросу: Android или iOS, в том числе для той же платформы.",
+    "premiumDescription": "Разовая оплата. Все языки, постоянный доступ на Android и iOS, один доступ PC/Mac, облачные сохранения между платформами и все будущие продолжения и дополнения. Обе мобильные платформы включены автоматически.",
     "delivery": "Версия для PC/Mac", "steam": "Ключ Steam", "direct": "Прямая загрузка", "language": "Язык, который вы хотите изучать", "mobile": "Первая мобильная платформа (включена)", "later": "Выбрать позже",
     "languages": ["Французский", "Испанский", "Немецкий", "Итальянский", "Португальский", "Корейский", "Японский", "Китайский (мандаринский)", "Английский"]
   },
@@ -107,7 +107,7 @@
     "stripeLocale": "id", "single": "WonderLang — Satu Bahasa (PC/Mac)", "polyglot": "WonderLang — Poliglot (PC/Mac)", "premium": "WonderLang — Premium Lifetime Pass",
     "singleDescription": "Akses permanen di PC/Mac untuk mempelajari satu bahasa. Kunci Steam atau unduhan langsung. Tidak termasuk akses seluler dan penyimpanan progres di cloud.",
     "polyglotDescription": "Akses permanen di PC/Mac untuk semua bahasa pembelajaran saat ini dan mendatang. Kunci Steam atau unduhan langsung. Tidak termasuk akses seluler dan penyimpanan progres di cloud.",
-    "premiumDescription": "Pembayaran satu kali. Semua bahasa, satu akses PC/Mac, akses seluler permanen, penyimpanan progres di cloud lintas platform, serta semua sekuel dan konten tambahan mendatang. Akses seluler kedua termasuk atas permintaan: Android atau iOS, termasuk platform yang sama.",
+    "premiumDescription": "Pembayaran satu kali. Semua bahasa, akses permanen di Android dan iOS, satu akses PC/Mac, penyimpanan progres di cloud lintas platform, serta semua sekuel dan konten tambahan mendatang. Kedua platform seluler termasuk secara otomatis.",
     "delivery": "Versi PC/Mac", "steam": "Kunci Steam", "direct": "Unduhan langsung", "language": "Bahasa yang ingin dipelajari", "mobile": "Platform seluler pertama (termasuk)", "later": "Pilih nanti",
     "languages": ["Prancis", "Spanyol", "Jerman", "Italia", "Portugis", "Korea", "Jepang", "Mandarin", "Inggris"]
   },
@@ -115,7 +115,7 @@
     "stripeLocale": "ko", "single": "WonderLang — 한 언어 (PC/Mac)", "polyglot": "WonderLang — 모든 언어 (PC/Mac)", "premium": "WonderLang — 프리미엄 평생 이용권",
     "singleDescription": "PC/Mac에서 학습 언어 하나를 영구적으로 이용할 수 있습니다. Steam 키 또는 직접 다운로드를 선택하세요. 모바일 이용권과 클라우드 저장은 포함되지 않습니다.",
     "polyglotDescription": "PC/Mac에서 현재 및 향후 추가되는 모든 학습 언어를 영구적으로 이용할 수 있습니다. Steam 키 또는 직접 다운로드를 선택하세요. 모바일 이용권과 클라우드 저장은 포함되지 않습니다.",
-    "premiumDescription": "한 번만 결제하세요. 모든 학습 언어, PC/Mac 이용권 1개, 모바일 영구 이용권, 플랫폼 간 클라우드 저장, 향후 출시되는 모든 후속작과 추가 콘텐츠가 포함됩니다. 요청 시 두 번째 모바일 이용권도 제공됩니다. Android 또는 iOS를 선택할 수 있으며 첫 번째와 같은 플랫폼도 가능합니다.",
+    "premiumDescription": "한 번만 결제하세요. 모든 학습 언어, Android와 iOS 영구 이용권, PC/Mac 이용권 1개, 플랫폼 간 클라우드 저장, 향후 출시되는 모든 후속작과 추가 콘텐츠가 포함됩니다. 두 모바일 플랫폼 모두 자동으로 포함됩니다.",
     "delivery": "PC/Mac 이용 방식", "steam": "Steam 키", "direct": "직접 다운로드", "language": "배우고 싶은 언어", "mobile": "첫 번째 모바일 플랫폼 (포함)", "later": "나중에 선택",
     "languages": ["프랑스어", "스페인어", "독일어", "이탈리아어", "포르투갈어", "한국어", "일본어", "중국어 (표준 중국어)", "영어"]
   },
@@ -123,7 +123,7 @@
     "stripeLocale": "ja", "single": "WonderLang — 1言語版 (PC/Mac)", "polyglot": "WonderLang — 全言語版 (PC/Mac)", "premium": "WonderLang — プレミアム永久パス",
     "singleDescription": "PC/Macで1つの学習言語を永久に利用できます。Steamキーまたは直接ダウンロードを選択できます。モバイル版の利用権とクラウドセーブは含まれません。",
     "polyglotDescription": "PC/Macで現在および今後追加されるすべての学習言語を永久に利用できます。Steamキーまたは直接ダウンロードを選択できます。モバイル版の利用権とクラウドセーブは含まれません。",
-    "premiumDescription": "買い切りです。全学習言語、PC/Mac版の利用権1つ、モバイル版の永久利用権、プラットフォーム間のクラウドセーブ、今後のすべての続編と追加コンテンツが含まれます。申請により2つ目のモバイル版利用権も提供します。AndroidまたはiOSを選べ、1つ目と同じプラットフォームでも構いません。",
+    "premiumDescription": "買い切りです。全学習言語、AndroidとiOSの永久利用権、PC/Mac版の利用権1つ、プラットフォーム間のクラウドセーブ、今後のすべての続編と追加コンテンツが含まれます。両方のモバイルプラットフォームが自動的に含まれます。",
     "delivery": "PC/Mac版の受け取り方法", "steam": "Steamキー", "direct": "直接ダウンロード", "language": "学びたい言語", "mobile": "1つ目のモバイルプラットフォーム（料金に含む）", "later": "後で選択",
     "languages": ["フランス語", "スペイン語", "ドイツ語", "イタリア語", "ポルトガル語", "韓国語", "日本語", "中国語（標準中国語）", "英語"]
   },
@@ -131,7 +131,7 @@
     "stripeLocale": "zh", "single": "WonderLang — 单语言版 (PC/Mac)", "polyglot": "WonderLang — 全语言版 (PC/Mac)", "premium": "WonderLang — 高级终身通行证",
     "singleDescription": "永久使用PC/Mac版的一种学习语言。可选择Steam激活码或直接下载。不包含移动版使用权和云存档。",
     "polyglotDescription": "永久使用PC/Mac版的所有现有及未来新增学习语言。可选择Steam激活码或直接下载。不包含移动版使用权和云存档。",
-    "premiumDescription": "一次性付款。包含所有学习语言、一份PC/Mac版使用权、移动版永久使用权、跨平台云存档，以及未来的所有续作和附加内容。还可申请第二份移动版使用权：Android或iOS均可，也可以与第一份选择相同的平台。",
+    "premiumDescription": "一次性付款。包含所有学习语言、Android 和 iOS 永久访问权限、一份 PC/Mac 访问权限、跨平台云存档，以及今后所有续作和追加内容。两种移动平台均自动包含。",
     "delivery": "PC/Mac版获取方式", "steam": "Steam激活码", "direct": "直接下载", "language": "想学习的语言", "mobile": "首个移动平台（已包含）", "later": "稍后选择",
     "languages": ["法语", "西班牙语", "德语", "意大利语", "葡萄牙语", "韩语", "日语", "汉语普通话", "英语"]
   },
@@ -139,7 +139,7 @@
     "stripeLocale": "zh-TW", "single": "WonderLang — 單語言版 (PC/Mac)", "polyglot": "WonderLang — 全語言版 (PC/Mac)", "premium": "WonderLang — 進階終身通行證",
     "singleDescription": "永久使用PC/Mac版的一種學習語言。可選擇Steam啟用序號或直接下載。不包含行動版使用權和雲端存檔。",
     "polyglotDescription": "永久使用PC/Mac版的所有現有及未來新增學習語言。可選擇Steam啟用序號或直接下載。不包含行動版使用權和雲端存檔。",
-    "premiumDescription": "一次性付款。包含所有學習語言、一份PC/Mac版使用權、行動版永久使用權、跨平台雲端存檔，以及未來的所有續作和附加內容。還可申請第二份行動版使用權：Android或iOS皆可，也可以與第一份選擇相同的平台。",
+    "premiumDescription": "一次性付款。包含所有學習語言、Android 和 iOS 永久存取權限、一份 PC/Mac 存取權限、跨平台雲端存檔，以及今後所有續作和追加內容。兩種行動平台均自動包含。",
     "delivery": "PC/Mac版取得方式", "steam": "Steam啟用序號", "direct": "直接下載", "language": "想學習的語言", "mobile": "首個行動平台（已包含）", "later": "稍後選擇",
     "languages": ["法文", "西班牙文", "德文", "義大利文", "葡萄牙文", "韓文", "日文", "中文（普通話）", "英文"]
   },
@@ -147,7 +147,7 @@
     "stripeLocale": "en", "single": "WonderLang — لغة واحدة (PC/Mac)", "polyglot": "WonderLang — جميع اللغات (PC/Mac)", "premium": "WonderLang — باقة Premium مدى الحياة",
     "singleDescription": "وصول دائم على PC/Mac إلى لغة واحدة للتعلم. مفتاح Steam أو تنزيل مباشر. لا يشمل الوصول على الهاتف أو حفظ التقدم في السحابة.",
     "polyglotDescription": "وصول دائم على PC/Mac إلى جميع لغات التعلم الحالية والمستقبلية. مفتاح Steam أو تنزيل مباشر. لا يشمل الوصول على الهاتف أو حفظ التقدم في السحابة.",
-    "premiumDescription": "دفعة واحدة. جميع اللغات، وترخيص واحد لـ PC/Mac، ووصول دائم على الهاتف، وحفظ التقدم في السحابة عبر المنصات، وجميع الأجزاء والمحتويات الإضافية المستقبلية. يشمل وصولًا ثانيًا على الهاتف عند الطلب: Android أو iOS، حتى على المنصة نفسها.",
+    "premiumDescription": "دفعة واحدة. جميع لغات التعلّم، ووصول دائم على Android وiOS، وصلاحية وصول واحدة على PC/Mac، وحفظ سحابي عبر المنصات، وجميع الأجزاء اللاحقة والمحتويات الإضافية المستقبلية. منصتا الجوال مشمولتان تلقائيًا.",
     "delivery": "طريقة الحصول على نسخة PC/Mac", "steam": "مفتاح Steam", "direct": "تنزيل مباشر", "language": "اللغة التي تريد تعلمها", "mobile": "منصة الهاتف الأولى (مشمولة)", "later": "الاختيار لاحقًا",
     "languages": ["الفرنسية", "الإسبانية", "الألمانية", "الإيطالية", "البرتغالية", "الكورية", "اليابانية", "الصينية المندرينية", "الإنجليزية"]
   },
@@ -155,7 +155,7 @@
     "stripeLocale": "en", "single": "WonderLang — Մեկ լեզու (PC/Mac)", "polyglot": "WonderLang — Բոլոր լեզուները (PC/Mac)", "premium": "WonderLang — Premium ցմահ անցագիր",
     "singleDescription": "Մեկ ուսուցման լեզվի մշտական հասանելիություն PC/Mac-ում։ Steam բանալի կամ ուղիղ ներբեռնում։ Բջջային հասանելիությունն ու ամպային պահպանումները ներառված չեն։",
     "polyglotDescription": "Բոլոր ներկա և ապագա ուսուցման լեզուների մշտական հասանելիություն PC/Mac-ում։ Steam բանալի կամ ուղիղ ներբեռնում։ Բջջային հասանելիությունն ու ամպային պահպանումները ներառված չեն։",
-    "premiumDescription": "Միանվագ վճարում։ Բոլոր լեզուները, մեկ PC/Mac հասանելիություն, մշտական բջջային հասանելիություն, ամպային պահպանումներ տարբեր հարթակների միջև և բոլոր ապագա շարունակություններն ու լրացուցիչ բովանդակությունը։ Հարցման դեպքում ներառված է երկրորդ բջջային հասանելիությունը՝ Android կամ iOS, նաև նույն հարթակի համար։",
+    "premiumDescription": "Մեկանգամյա վճարում։ Բոլոր ուսուցանվող լեզուները, մշտական հասանելիություն Android-ում և iOS-ում, մեկ PC/Mac հասանելիություն, միջհարթակային ամպային պահպանումներ և բոլոր ապագա շարունակություններն ու լրացուցիչ բովանդակությունը։ Երկու բջջային հարթակներն էլ ներառված են ավտոմատ կերպով։",
     "delivery": "PC/Mac տարբերակի ստացման եղանակը", "steam": "Steam բանալի", "direct": "Ուղիղ ներբեռնում", "language": "Լեզուն, որը ցանկանում եք սովորել", "mobile": "Առաջին բջջային հարթակը (ներառված)", "later": "Ընտրել ավելի ուշ",
     "languages": ["Ֆրանսերեն", "Իսպաներեն", "Գերմաներեն", "Իտալերեն", "Պորտուգալերեն", "Կորեերեն", "Ճապոներեն", "Մանդարին չինարեն", "Անգլերեն"]
   }

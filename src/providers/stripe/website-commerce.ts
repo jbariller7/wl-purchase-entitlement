@@ -36,7 +36,7 @@ export async function discoverWebsitePurchases(store:EntitlementStore,user:Decod
     const allowed=grant && ['active','grace'].includes(grant.state);
     const route=websiteDesktopRoute(order.request);
     const keys=allowed&&route?(await websiteDelivery(store.firestore(),doc.id,order.buyerEmail,route.sheetTab)).map(k=>k.key):[];
-    return {sessionId:doc.id,offer:order.request.offer,delivery:order.request.delivery??null,mobilePlatform:grant?.metadata?.primaryMobilePlatform??order.request.mobilePlatform??'later',mobileSelectionPending:Boolean(allowed&&grant?.metadata?.mobileSelectionPending),state:grant?.state??'pending',keys,subscriptionId:grant?.providerSubscriptionId??null};
+    return {sessionId:doc.id,offer:order.request.offer,delivery:order.request.delivery??null,mobilePlatform:order.request.offer==='premium'?'all':grant?.metadata?.primaryMobilePlatform??order.request.mobilePlatform??'later',mobileSelectionPending:false,state:grant?.state??'pending',keys,subscriptionId:grant?.providerSubscriptionId??null};
   }));
 }
 export async function websiteSubscriptionPortal(store:EntitlementStore,user:DecodedIdToken,subscriptionId:string){
@@ -165,11 +165,11 @@ export async function claimWebsiteOrder(store:EntitlementStore,user:DecodedIdTok
   const periodEnd=subscription?Math.max(...subscription.items.data.map(x=>x.current_period_end)):undefined;
   const state:LedgerGrant['state']=subscription&&!['active','trialing'].includes(subscription.status)?'expired':'active';
   const route=websiteDesktopRoute(request);
-  // Do not let the pre-split legacy fallback unlock both mobile platforms.
+  // Ordinary mobile purchases retain their platform; Premium includes both.
   const metadata:NonNullable<LedgerGrant['metadata']>={websiteCheckout:true,stripeCheckoutSessionId:session.id,...(route?{productCode:route.productCode}:{}),...(request.learningLanguage?{learningLanguage:request.learningLanguage}:{})};
   if(subscription)Object.assign(metadata,{stripeStatus:subscription.status,cancelAtPeriodEnd:subscription.cancel_at_period_end,...(subscription.trial_end?{trialEndsAt:new Date(subscription.trial_end*1000).toISOString()}: {})});
-  if(request.mobilePlatform&&request.mobilePlatform!=='later')metadata[request.offer==='premium'?'primaryMobilePlatform':'mobilePlatform']=request.mobilePlatform;
-  else if(request.offer==='premium')metadata.mobileSelectionPending=true;
+  if(request.offer==='premium')metadata.mobileSelectionPending=false;
+  else if(request.mobilePlatform&&request.mobilePlatform!=='later')metadata.mobilePlatform=request.mobilePlatform;
   await store.upsertGrant({id:'',uid:user.uid,provider:'stripe',providerTransactionId:transactionId,...(id(session.customer)?{providerCustomerId:id(session.customer)!}:{}),...(subscription?{providerSubscriptionId:subscription.id}:{}),product,state,startsAt:new Date(order.sourceEventCreated*1000).toISOString(),...(periodEnd?{currentPeriodEndsAt:new Date(periodEnd*1000).toISOString(),endsAt:new Date(periodEnd*1000).toISOString()}:{}),metadata}, {id:order.sourceEventId,created:order.sourceEventCreated});
   if(route)await store.firestore().collection('legacyOrders').doc(sessionId).set({firebaseUid:user.uid},{merge:true});
   return {claimed:true,offer:request.offer};

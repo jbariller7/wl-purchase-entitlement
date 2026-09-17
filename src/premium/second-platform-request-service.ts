@@ -54,9 +54,10 @@ export type SecondPlatformEligibility =
 const APPROVAL_LEASE_MS = 5 * 60 * 1000;
 
 export function secondPlatformEligibility(entitlements: EffectiveEntitlements): SecondPlatformEligibility {
-  if (!entitlements.premiumLifetime || !entitlements.secondMobilePlatformEligible) return { state: "not_premium" };
+  if (!entitlements.premiumLifetime) return { state: "not_premium" };
   const permanent = [...new Set(entitlements.permanentMobilePlatforms)];
   if (permanent.length >= 2) return { state: "already_granted" };
+  if (!entitlements.secondMobilePlatformEligible) return { state: "not_premium" };
   const sourcePlatform = permanent[0];
   if (!sourcePlatform) return { state: "missing_primary_platform" };
   return {

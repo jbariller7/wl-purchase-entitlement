@@ -29,7 +29,7 @@ export const PRODUCT_CAPABILITIES: Record<
     cloudSave: true,
     pcMacAccess: true,
     futureContent: true,
-    secondMobilePlatformEligible: true
+    secondMobilePlatformEligible: false
   },
   // Grandfather pre-split website lifetime grants as Premium, never as the
   // cheaper platform-scoped Polyglot purchase.
@@ -39,7 +39,7 @@ export const PRODUCT_CAPABILITIES: Record<
     cloudSave: true,
     pcMacAccess: true,
     futureContent: true,
-    secondMobilePlatformEligible: true
+    secondMobilePlatformEligible: false
   },
   // The 2026 migration deliberately gifts permanent full access to every
   // historical mobile purchaser, including the handful of chapter owners.

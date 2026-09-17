@@ -36,6 +36,34 @@ function grant(overrides: Partial<LedgerGrant>): LedgerGrant {
 }
 
 describe("effective entitlement projection", () => {
+  it("includes every platform for new and historical Premium selections", () => {
+    for (const product of ["premium_lifetime_pass", "mobile_full_lifetime"] as const) {
+      for (const metadata of [{}, { mobilePlatform: "android" }, { primaryMobilePlatform: "ios" }, { mobileSelectionPending: true }]) {
+        expect(projectEntitlements("user-1", [grant({ product, metadata })], now)).toMatchObject({
+          mobilePlatforms: ["android", "ios"], permanentMobilePlatforms: ["android", "ios"],
+          pcMacAccess: true, cloudSave: true, premiumLifetime: true, secondMobilePlatformEligible: false
+        });
+      }
+      for (const state of ["refunded", "revoked", "expired", "pending"] as const) {
+        expect(projectEntitlements("user-1", [grant({ product, state })], now)).toMatchObject({
+          mobilePlatforms: [], pcMacAccess: false, cloudSave: false, premiumLifetime: false
+        });
+      }
+    }
+  });
+
+  it("keeps ordinary website and store mobile purchases platform-specific", () => {
+    for (const product of ["mobile_full_monthly", "mobile_polyglot_permanent"] as const) {
+      for (const mobilePlatform of ["android", "ios"] as const) {
+        for (const provider of ["stripe", mobilePlatform === "android" ? "google_play" : "apple"] as const) {
+          expect(projectEntitlements("user-1", [grant({ product, provider, metadata: { mobilePlatform } })], now)).toMatchObject({
+            mobilePlatforms: [mobilePlatform], pcMacAccess: false, cloudSave: false, premiumLifetime: false
+          });
+        }
+      }
+    }
+  });
+
   it("grants the game but not cloud saves for an active monthly subscription", () => {
     const value = projectEntitlements("user-1", [grant({})], now);
     expect(value).toMatchObject({
@@ -77,7 +105,7 @@ describe("effective entitlement projection", () => {
 
   it("never sells an extra Polyglot platform to Premium owners who can request it", () => {
     const premium = projectEntitlements("user-1", [grant({ product: "premium_lifetime_pass", metadata: { mobilePlatform: "android" } })], now);
-    expect(() => assertCheckoutOwnershipAvailable({ product: "mobile_polyglot_permanent", mobilePlatform: "ios", useLegacyDesktopDiscount: false, confirmCancelExistingSubscription: false }, premium)).toThrow(/Contact support to request it/);
+    expect(() => assertCheckoutOwnershipAvailable({ product: "mobile_polyglot_permanent", mobilePlatform: "ios", useLegacyDesktopDiscount: false, confirmCancelExistingSubscription: false }, premium)).toThrow(/already includes permanent access/);
   });
 
   it("keeps subscription access during the seven-day payment grace period", () => {
@@ -128,7 +156,7 @@ describe("effective entitlement projection", () => {
       cloudSave: true,
       pcMacAccess: true,
       futureContent: true,
-      secondMobilePlatformEligible: true,
+      secondMobilePlatformEligible: false,
       accessKind: "premium_lifetime"
     });
     expect(value.permanentMobilePlatforms).toEqual(["android", "ios"]);

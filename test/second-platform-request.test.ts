@@ -107,7 +107,8 @@ function premiumGrant(platform: "android" | "ios" = "android"): LedgerGrant {
 }
 
 function premiumEntitlements(platform: "android" | "ios" = "android"): EffectiveEntitlements {
-  return projectEntitlements(uid, [premiumGrant(platform)], now);
+  // Historical single-platform snapshot retained to test old request records.
+  return {...projectEntitlements(uid, [premiumGrant(platform)], now), mobilePlatforms:[platform], permanentMobilePlatforms:[platform],secondMobilePlatformEligible:true};
 }
 
 describe("Premium second-mobile-platform requests", () => {
@@ -169,7 +170,7 @@ describe("Premium second-mobile-platform requests", () => {
     expect(resubmitted).toMatchObject({ state: "pending", revision: 2 });
   });
 
-  it("approves with one deterministic permanent grant and one immutable audit record", async () => {
+  it("closes an old request without issuing a redundant grant after Premium expands", async () => {
     const grant = premiumGrant();
     const { db, collections } = fakeFirestore({ grants: { [grant.id]: grant as unknown as Row } });
     const service = new SecondPlatformRequestService(db);
@@ -180,14 +181,7 @@ describe("Premium second-mobile-platform requests", () => {
     expect(approved).toMatchObject({ state: "approved", sourcePlatform: "android", requestedPlatform: "ios", revision: 1 });
 
     const permanentGrants = [...(collections.get("grants")?.values() || [])].filter((row) => row.product === "mobile_polyglot_permanent");
-    expect(permanentGrants).toHaveLength(1);
-    expect(permanentGrants[0]).toMatchObject({
-      uid,
-      provider: "admin",
-      providerTransactionId: `premium-second-platform:${uid}:ios`,
-      state: "active",
-      metadata: { mobilePlatform: "ios", premiumSecondPlatformRequest: true, requestRevision: 1, actorUid: actor.uid, reason }
-    });
+    expect(permanentGrants).toHaveLength(0);
     const audits = [...(collections.get("adminAudit")?.values() || [])];
     expect(audits).toHaveLength(1);
     expect(audits[0]).toMatchObject({
@@ -201,7 +195,7 @@ describe("Premium second-mobile-platform requests", () => {
 
     const repeated = await service.approve({ actor, uid, reason, now: new Date(now.getTime() + 2_000) });
     expect(repeated).toEqual(approved);
-    expect([...(collections.get("grants")?.values() || [])].filter((row) => row.product === "mobile_polyglot_permanent")).toHaveLength(1);
+    expect([...(collections.get("grants")?.values() || [])].filter((row) => row.product === "mobile_polyglot_permanent")).toHaveLength(0);
     expect(collections.get("adminAudit")?.size).toBe(1);
     expect(await service.listOpen()).toEqual([]);
   });

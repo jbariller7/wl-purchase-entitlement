@@ -61,19 +61,12 @@ export function projectEntitlements(
     if (capability.chapter) chapters.add(capability.chapter);
     if (grant.product === "premium_lifetime_pass" || grant.product === "mobile_full_lifetime") {
       hasPremiumLifetime = true;
-      const platform = platformFromGrant(grant);
-      if (platform) {
-        mobilePlatforms.add(platform);
-        permanentMobilePlatforms.add(platform);
-      }
-      else if (grant.metadata?.mobileSelectionPending !== true) {
-        // Backward-compatible fallback for a pre-split lifetime grant whose
-        // original checkout did not record a primary mobile platform.
-        mobilePlatforms.add("android");
-        mobilePlatforms.add("ios");
-        permanentMobilePlatforms.add("android");
-        permanentMobilePlatforms.add("ios");
-      }
+      // Premium includes both platforms, including existing grants that once
+      // recorded a first platform or an unresolved 'choose later' selection.
+      mobilePlatforms.add("android");
+      mobilePlatforms.add("ios");
+      permanentMobilePlatforms.add("android");
+      permanentMobilePlatforms.add("ios");
     } else if (grant.product === "mobile_polyglot_permanent" || grant.product === "legacy_mobile_full") {
       hasPermanent = true;
       const platform = platformFromGrant(grant);

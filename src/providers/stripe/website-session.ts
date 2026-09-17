@@ -37,9 +37,9 @@ export function websiteSessionParams(request: WebsiteSessionRequest, priceId: st
   const selections:string[]=[];
   if(request.delivery)selections.push(`${l.delivery}: ${l[request.delivery]}`);
   if(request.offer==="single" && request.learningLanguage)selections.push(`${l.language}: ${l.languages[languageValues.indexOf(request.learningLanguage)]}`);
-  if(request.offer==="premium" || request.offer.startsWith("mobile_")){
+  if(request.offer.startsWith("mobile_")){
     const platform=request.mobilePlatform??"later";
-    selections.push(`${request.offer==="premium"?l.mobile:m[4]}: ${platform==="later"?l.later:platform==="ios"?"iOS":"Android"}`);
+    selections.push(`${m[4]}: ${platform==="ios"?"iOS":"Android"}`);
   }
   const checkoutText=[...selections,summary].filter(Boolean).join("\n\n");
   return {

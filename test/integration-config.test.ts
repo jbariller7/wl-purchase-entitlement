@@ -266,7 +266,7 @@ describe("isolated integration configuration", () => {
     expect(account).toContain("setTimeout(() => window.close(), 350)");
     expect(account).toContain('this.request("/api/v1/device-sign-in/approve"');
     expect(account).toContain('data-field="future-content"');
-    expect(account).toContain('data-field="second-platform"');
+    expect(account).not.toContain('data-field="second-platform"');
     expect(account).toContain("ent.permanentMobilePlatforms || []");
     expect(account).not.toContain('data-action="premium"');
     expect(account).toContain('phase: "trial"');
@@ -279,10 +279,10 @@ describe("isolated integration configuration", () => {
     expect(account).toContain("https://play.google.com/store/account/subscriptions");
     expect(account).toContain("https://apps.apple.com/account/subscriptions");
     expect(account).toContain("Deleting your account does not automatically cancel app-store subscriptions.");
-    expect(account).toContain('data-action="request-second-platform"');
-    expect(account).toContain('data-action="cancel-second-platform"');
+    expect(account).not.toContain('data-action="request-second-platform"');
+    expect(account).not.toContain('data-action="cancel-second-platform"');
     expect(account).toContain("/api/v1/me/second-platform-request");
-    expect(account).toContain("Contact support to arrange your included second access.");
+    expect(account).not.toContain("Contact support to arrange your included second access.");
     expect(account).toContain("mailto:wonderlang.thegame@gmail.com");
     expect(account).toContain('demoProfile === "premium"');
     expect(read("src/providers/stripe/checkout-service.ts")).toContain("effective.permanentMobilePlatforms.includes(request.mobilePlatform)");

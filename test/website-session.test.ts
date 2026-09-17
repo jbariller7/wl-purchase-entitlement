@@ -11,7 +11,8 @@ describe('guest website selections',()=>{
   const params=(options:object)=>websiteSessionParams(websiteSessionSchema.parse({...common,locale:'fr',...options}),'price_approved','https://example.com');
   const premium=params({offer:'premium',delivery:'steam',mobilePlatform:'android'});
   expect(checkoutMessage(premium)).toContain('Version PC/Mac souhaitée: Clé Steam');
-  expect(checkoutMessage(premium)).toContain('Première plateforme mobile (incluse): Android');
+  expect(checkoutMessage(premium)).toContain('Android et iOS');
+  expect(checkoutMessage(premium)).not.toContain('Première plateforme mobile');
   expect(premium.custom_fields).toBeUndefined();
   const single=params({offer:'single',delivery:'direct',learningLanguage:'french'});
   expect(checkoutMessage(single)).toContain('Version PC/Mac souhaitée: Téléchargement direct');
@@ -28,7 +29,7 @@ describe('guest website selections',()=>{
     expect(message).not.toMatch(/undefined|\[object Object\]/);
     if(!mobile)expect(message).toContain(`${l.delivery}: ${l.direct}`);
     if(offer==='single')expect(message).toContain(`${l.language}: ${l.languages[7]}`);
-    if(offer==='premium')expect(message).toContain(`${l.mobile}: ${l.later}`);
+    if(offer==='premium'){expect(message).not.toContain(`${l.mobile}:`);expect(message).toContain('Android');expect(message).toContain('iOS');}
     if(mobile)expect(message).toContain('iOS');
     expect(result.custom_fields).toBeUndefined();
    }

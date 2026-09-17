@@ -29,13 +29,6 @@ export const checkoutRequestSchema = z.object({
       message: "Mobile Monthly and Polyglot Permanent are sold only inside the Android and iOS apps. Stripe website checkout is available only for Premium Lifetime."
     });
   }
-  if (value.product === "premium_lifetime_pass" && !value.mobilePlatform) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["mobilePlatform"],
-      message: "Choose Android or iOS for the first permanent mobile access."
-    });
-  }
   if (value.product === "premium_lifetime_pass" && !value.desktopDelivery) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
@@ -58,7 +51,7 @@ export function assertCheckoutOwnershipAvailable(request: CheckoutRequest, effec
     throw new HttpError(409, "This account already has the Premium Lifetime Pass.");
   }
   if (request.product === "mobile_polyglot_permanent" && effective.premiumLifetime) {
-    throw new HttpError(409, "Premium Lifetime already includes permanent mobile access and eligibility for the other mobile platform. Contact support to request it.");
+    throw new HttpError(409, "Premium Lifetime already includes permanent access on Android and iOS.");
   }
   if (request.product === "mobile_polyglot_permanent" && request.mobilePlatform && effective.permanentMobilePlatforms.includes(request.mobilePlatform)) {
     throw new HttpError(409, `This account already has permanent ${request.mobilePlatform} access.`);

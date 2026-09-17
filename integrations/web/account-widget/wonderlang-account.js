@@ -117,17 +117,7 @@ const html = `
         <div><span>Mobile platforms</span><strong data-field="mobile-platforms">—</strong></div>
         <div><span>PC / Mac</span><strong data-field="desktop-access">—</strong></div>
         <div><span>Future content</span><strong data-field="future-content">—</strong></div>
-        <div><span>Second mobile access</span><strong data-field="second-platform">—</strong></div>
       </div>
-      <section class="wl-second-platform-request" data-section="first-mobile-selection" hidden></section>
-      <section class="wl-second-platform-request" data-section="second-platform-request" hidden>
-        <div><p class="wl-eyebrow">PREMIUM INCLUDED BENEFIT</p><h3>Request your second mobile access</h3></div>
-        <p data-field="second-platform-request-status">Your two mobile accesses can be two Android accesses, two iOS accesses, or one of each. Contact support to arrange your included second access.</p>
-        <div class="wl-second-platform-actions">
-          <button type="button" data-action="request-second-platform">Request access</button>
-          <button type="button" data-action="cancel-second-platform" class="wl-secondary" hidden>Cancel request</button>
-        </div>
-      </section>
       <section class="wl-profiles" data-section="profiles" aria-label="Save profiles">
         <div class="wl-profiles-header"><div><p class="wl-eyebrow">WONDERLANG CLOUD</p><h3>Save profiles</h3></div><button type="button" data-action="refresh-profiles" class="wl-secondary">Refresh profiles</button></div>
         <p>These are your cloud backups, not the saves currently on this device. Sync from the game to update them.</p>
@@ -183,12 +173,12 @@ function createDemoAccount() {
       accessKind: premium ? "premium_lifetime" : "subscription",
       subscriptionState: premium ? "inactive" : "active",
       cloudSave: premium,
-      mobilePlatforms: premium ? ["android"] : ["android", "ios"],
-      permanentMobilePlatforms: premium ? ["android"] : [],
+      mobilePlatforms: premium ? ["android", "ios"] : ["android"],
+      permanentMobilePlatforms: premium ? ["android", "ios"] : [],
       pcMacAccess: premium,
       futureContent: premium,
       premiumLifetime: premium,
-      secondMobilePlatformEligible: premium,
+      secondMobilePlatformEligible: false,
       chapters: []
     },
     subscription: premium ? null : {
@@ -270,9 +260,7 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="restore"]').addEventListener("click", () => this.restorePurchases());
     this.querySelector('[data-action="revoke-sessions"]').addEventListener("click", () => this.revokeSessions());
     this.querySelector('[data-action="delete-account"]').addEventListener("click", () => this.deleteAccount());
-    this.querySelector('[data-action="request-second-platform"]').addEventListener("click", () => this.requestSecondPlatform());
     this.querySelector('[data-action="refresh-profiles"]').addEventListener("click", () => this.loadCloudProfiles());
-    this.querySelector('[data-action="cancel-second-platform"]').addEventListener("click", () => this.cancelSecondPlatformRequest());
     this.querySelector('[data-action="approve-device"]').addEventListener("click", () => this.approveDevice());
     this.querySelector('[data-action="cancel-device"]').addEventListener("click", () => this.cancelDeviceApproval());
     this.querySelector('[data-action="link-google"]').addEventListener("click", () => this.linkProvider(this.googleProvider()));
@@ -293,7 +281,7 @@ class WonderLangAccount extends HTMLElement {
   configureCatalog(config) {
     this.config = config;
     this.querySelector('[data-action="portal"]').disabled = !config.checkoutEnabled;
-    for (const action of ["restore", "revoke-sessions", "delete-account", "request-second-platform", "cancel-second-platform", "approve-device"]) {
+    for (const action of ["restore", "revoke-sessions", "delete-account", "approve-device"]) {
       this.querySelector(`[data-action="${action}"]`).disabled = !config.accountApiReady;
     }
   }
@@ -531,7 +519,6 @@ class WonderLangAccount extends HTMLElement {
       this.querySelector('[data-field="mobile-platforms"]').textContent = "Unavailable during server setup";
       this.querySelector('[data-field="desktop-access"]').textContent = "Unavailable during server setup";
       this.querySelector('[data-field="future-content"]').textContent = "Unavailable during server setup";
-      this.querySelector('[data-field="second-platform"]').textContent = "Unavailable during server setup";
       this.status(`Signed in with Firebase as ${user.email || "your WonderLang account"}. Account data and entitlements will become available after the test backend is configured.`);
       return;
     }
@@ -549,7 +536,6 @@ class WonderLangAccount extends HTMLElement {
       // Email recovery also works when the buyer closed Stripe's return tab.
       // A delivery/claim retry must not prevent account sign-in from rendering.
       this.websitePurchases=[];
-      if(demoMode&&demoProfile==='premium-pending')this.websitePurchases=[{sessionId:'cs_demo_pending',offer:'premium',state:'active',mobileSelectionPending:!this.demoMobilePlatform,keys:[],mobilePlatform:this.demoMobilePlatform??'later'}];
       if(!demoMode){try{this.websitePurchases=(await this.request('/api/v1/website/purchases',{method:'POST',body:{}})).purchases||[];}catch(error){purchaseError=error;}}
       this.account = await this.request("/api/v1/me");
       const ent = this.account.entitlements;
@@ -589,36 +575,6 @@ class WonderLangAccount extends HTMLElement {
         }
       }
       this.querySelector('[data-field="future-content"]').textContent = ent.futureContent ? "Included" : "Not included";
-      this.querySelector('[data-field="second-platform"]').textContent = ent.secondMobilePlatformEligible
-        ? permanentPlatforms.length > 1 ? "Granted" : "Eligible on request"
-        : "Not included";
-      const firstMobile=this.querySelector('[data-section="first-mobile-selection"]');
-      firstMobile.replaceChildren();
-      const pendingMobile=this.websitePurchases.filter(p=>p.mobileSelectionPending);
-      firstMobile.hidden=!pendingMobile.length;
-      for(const purchase of pendingMobile){
-        const heading=document.createElement('h3');heading.textContent='Choose your included mobile access';firstMobile.append(heading);
-        for(const platform of ['android','ios']){
-          const button=document.createElement('button');button.type='button';button.textContent=platform==='ios'?'iOS':'Android';firstMobile.append(button);
-          button.addEventListener('click',async()=>{
-            for(const b of firstMobile.querySelectorAll('button'))b.disabled=true;
-            try{await this.request('/api/v1/website/mobile-platform',{method:'POST',body:{sessionId:purchase.sessionId,platform}});await this.renderUser(this.user);}
-            catch(error){this.fail(error);for(const b of firstMobile.querySelectorAll('button'))b.disabled=false;}
-          });
-        }
-      }
-      const requestSection = this.querySelector('[data-section="second-platform-request"]');
-      const requestStatus = this.querySelector('[data-field="second-platform-request-status"]');
-      const requestButton = this.querySelector('[data-action="request-second-platform"]');
-      const cancelRequestButton = this.querySelector('[data-action="cancel-second-platform"]');
-      const secondPlatformRequest = this.account.secondMobilePlatformRequest;
-      requestSection.hidden = !ent.secondMobilePlatformEligible;
-      if (ent.secondMobilePlatformEligible) {
-        requestStatus.textContent = "Your two mobile accesses can be two Android accesses, two iOS accesses, or one of each. Contact support to arrange your included second access.";
-        requestButton.textContent = "Email support for second mobile access";
-        requestButton.hidden = false;
-        cancelRequestButton.hidden = secondPlatformRequest?.state !== "pending";
-      }
       const billingButton = this.querySelector('[data-action="portal"]');
       billingButton.textContent = sub?.provider === "google_play" ? "Manage Google Play subscription"
         : sub?.provider === "apple" ? "Manage Apple subscription"

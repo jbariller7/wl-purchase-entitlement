@@ -51,7 +51,7 @@ describe('shop Buy navigation',()=>{
    const button=cards[index].children.find(x=>x.className==='buy');
    const query=new URL(button.href,'https://example.com').searchParams;
    expect(query.get('offer')).toBe(offer);
-   expect(query.get('mobilePlatform')).toBe('android');
+   expect(query.get('mobilePlatform')).toBe(offer==='premium'?null:'android');
   }
  });
 });
