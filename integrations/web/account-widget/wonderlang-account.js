@@ -389,6 +389,13 @@ class WonderLangAccount extends HTMLElement {
       continueUrl.searchParams.delete("continueUrl");
       continueUrl.searchParams.delete("lang");
       continueUrl.searchParams.set("link_email", linkToCurrentUser ? "1" : "0");
+      // Email links often open a new tab/browser without this tab's sessionStorage.
+      // Carry only the browser approval secret; the game's polling secret stays private.
+      if (this.desktopHandoff && !linkToCurrentUser) {
+        continueUrl.hash = new URLSearchParams({
+          desktop_sign_in: `${this.desktopHandoff.userCode}.${this.desktopHandoff.approvalSecret}`
+        }).toString();
+      }
       await sendSignInLinkToEmail(this.auth, email, { url: continueUrl.toString(), handleCodeInApp: true });
       try { localStorage.setItem("wl-email-link", email); } catch (_) { /* Confirmation on the receiving page does not require storage. */ }
       if (linkToCurrentUser) {

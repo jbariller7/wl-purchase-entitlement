@@ -107,7 +107,7 @@ afterEach(() => {
 });
 
 describe("WonderLang PC/Mac account bridge", () => {
-  it("completes automatic browser approval without exposing the code or secrets to the game UI", async () => {
+  it.each(["automatic", "manual"])("completes %s browser approval without exposing the code or secrets to the game UI", async (mode) => {
     vi.useFakeTimers();
     const idToken = jwt("uid-desktop", Date.now() + 60 * 60 * 1000);
     const fetchMock = vi.fn(async (input: string) => {
@@ -131,7 +131,11 @@ describe("WonderLang PC/Mac account bridge", () => {
     expect(result.events.some(event => event.detail.state === "pending" && !("userCode" in event.detail))).toBe(true);
     expect(result.opened).toEqual([`https://wl-purchase-entitlement.netlify.app/account/#desktop_sign_in=ABCD-2345.${"B".repeat(43)}`]);
 
-    await vi.advanceTimersByTimeAsync(3_000);
+    if (mode === "manual") {
+      for (let i = 0; i < 5; i++) result.context.WLAccountManager.checkSignInStatus!();
+      await vi.advanceTimersByTimeAsync(0);
+    } else await vi.advanceTimersByTimeAsync(3_000);
+    expect(fetchMock.mock.calls.filter(call => String(call[0]).endsWith("/api/v1/device-sign-in/poll"))).toHaveLength(1);
     expect(result.events.some(event => event.detail.state === "authorized")).toBe(true);
     expect(result.tokens).toEqual([idToken]);
     expect(result.context.WLAccountManager.getCachedIdToken!()).toBe(idToken);

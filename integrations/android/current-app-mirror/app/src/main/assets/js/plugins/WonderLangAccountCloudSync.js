@@ -1063,6 +1063,7 @@
         <p class="wl-account-muted">Choose your Google account in the browser. WonderLang will sign you in automatically when you finish. You do not need to enter a code.</p>
         <p class="wl-account-muted">${escapeHtml(trSource("Please finish signing in before {TIME}.", { TIME: formatTime(detail.expiresAt) }))}</p>`, [
         { label: "Open Google sign-in", run: () => bridge()?.reopenSignIn?.() },
+        { label: tr("CloudAccount.SignIn.Check", "Check login status"), kind: "secondary", run: () => bridge()?.checkSignInStatus?.() },
         { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() },
         { label: "Close", kind: "secondary", run: closeOverlay }
       ]);

@@ -42,6 +42,7 @@
   let loadPromise = null;
   let refreshPromise = null;
   let activeAttempt = null;
+  let wakePoll = null;
   let attemptSequence = 0;
   let storageGeneration = 0;
 
@@ -307,8 +308,21 @@
 
   function sleep(milliseconds, sequence) {
     return new Promise((resolve, reject) => {
-      setTimeout(() => sequence === attemptSequence ? resolve() : reject(new BridgeError("Device sign-in was cancelled.", 0, "CANCELLED")), milliseconds);
+      const finish = () => {
+        clearTimeout(timer);
+        if (wakePoll === finish) wakePoll = null;
+        sequence === attemptSequence ? resolve() : reject(new BridgeError("Device sign-in was cancelled.", 0, "CANCELLED"));
+      };
+      const timer = setTimeout(finish, milliseconds);
+      wakePoll = finish;
     });
+  }
+
+  function checkSignInStatus() {
+    if (!activeAttempt) return false;
+    // Wake the existing loop; never issue concurrent one-time token exchanges.
+    wakePoll?.();
+    return true;
   }
 
   function validateDeviceSession(result) {
@@ -414,9 +428,11 @@
     openAccount() { return openExternalUrl(`${apiBase}/account/`); },
     openSignIn() { beginDeviceSignIn(); return true; },
     reopenSignIn() { return activeAttempt ? openExternalUrl(activeAttempt.verificationUrl) : false; },
+    checkSignInStatus,
     cancelSignIn() {
       attemptSequence += 1;
       activeAttempt = null;
+      wakePoll?.();
       emit("cancelled");
       return true;
     },
@@ -440,6 +456,8 @@
       return true;
     }
   };
+
+  window.addEventListener?.("focus", checkSignInStatus);
 
   loadPersistedSession().catch(error => {
     console.warn("[WonderLang Account] Saved PC/Mac session was discarded.", safeMessage(error));
