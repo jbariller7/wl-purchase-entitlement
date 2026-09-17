@@ -468,11 +468,15 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       ? await syncGooglePlaySubscription(source)
       : await syncGooglePlayOneTimeProduct({ ...source, productId: parsed.data.productId });
     let adConversion;
+    let adTimer: ReturnType<typeof setTimeout> | undefined;
     try {
-      adConversion = parsed.data.kind === "subscription"
-        ? await googlePlaySubscriptionAdDetails(store, user.uid, parsed.data.purchaseToken, now)
-        : await googlePlayOneTimeAdDetails(store, user.uid, parsed.data.productId, parsed.data.purchaseToken, now);
+      const details = parsed.data.kind === "subscription"
+        ? googlePlaySubscriptionAdDetails(store, user.uid, parsed.data.purchaseToken, now)
+        : googlePlayOneTimeAdDetails(store, user.uid, parsed.data.productId, parsed.data.purchaseToken, now);
+      adConversion = await Promise.race([details,
+        new Promise<undefined>(resolve => {adTimer = setTimeout(() => resolve(undefined), 2500);})]);
     } catch { console.warn("Google Play conversion details unavailable; purchase access remains granted."); }
+    finally { if (adTimer) clearTimeout(adTimer); }
     return json(200, { entitlements, ...(adConversion ? {adConversion} : {}) });
   }
 
