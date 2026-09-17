@@ -16,6 +16,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven {
+            url = uri("https://jitpack.io")
+            content { includeGroup("com.github.tiktok") }
+        }
     }
 }
 
@@ -34,3 +38,6 @@ include(":assetpack_zh")
 include(":assetpack_en")
 include(":assetpack_us")
 include(":assetpack_ar")
+
+include(":assetpack_ex")
+include(":assetpack_ru")

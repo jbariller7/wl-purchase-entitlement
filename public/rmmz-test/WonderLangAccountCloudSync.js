@@ -35,7 +35,7 @@
  *   getCachedIdToken(), getCachedAppCheckToken(), refreshIdToken(), openSignIn(), openAccount(),
  *   openExternalUrl(url), and Firebase-auth callbacks documented below.
  *
- * Every selected profile contains global.rmmzsave and every file0-file20 save.
+ * Every selected profile contains all saved progress.
  * Local saves finish first, then the complete profile synchronizes automatically.
  * A revision conflict never overwrites either side without asking the player.
  * Android offline access is authorized only by a Firebase-UID-bound AES-GCM lease in
@@ -78,7 +78,90 @@
   let startupProfileCheckTimer = null;
   let startupProfileDecisionPending = true;
   let checkedStartupWorkspace = "";
+  let failedStartupWorkspace = "";
   let menuTranslations = null;
+  let networkUnavailable = navigator.onLine === false;
+  let offlineNoticePending = networkUnavailable;
+  let offlineNoticeShown = false;
+  let reconnecting = false;
+  let offlineSince = 0;
+  let foregroundReadyAt = Date.now() + 5000;
+
+  function deviceOffline() {
+    try {
+      if (typeof window.AndroidManager?.isOnline === "function") return !window.AndroidManager.isOnline();
+    } catch (_) { /* Use the browser signal when the native bridge is unavailable. */ }
+    return navigator.onLine === false;
+  }
+  function isOffline() { return deviceOffline() || networkUnavailable; }
+  function noteOnline() {
+    networkUnavailable = false;
+    offlineSince = 0;
+    offlineNoticePending = false;
+    offlineNoticeShown = false;
+  }
+  function noteConnectionFailure() {
+    // An API/Storage failure is not proof that the device lost its connection.
+    networkUnavailable = true;
+    if (deviceOffline()) noteOffline();
+  }
+  function titleAccountLabel() {
+    if (accountUid() === "signed-out") return "";
+    const binding = workspaceBinding();
+    const name = binding?.uid === accountUid() && binding.profileId === activeProfileId() ? binding.profileName : "";
+    return [current?.email, name].filter(Boolean).join(" · ");
+  }
+  function refreshTitleAccount() {
+    window.dispatchEvent(new CustomEvent("wl-account-label-changed"));
+  }
+  function offlineMessage() {
+    return tr("CloudAccount.Offline.Body", "You are offline. Saves stay on this device. Keep the game open: they will sync automatically when you reconnect. No need to save again or open your profile. If you close the game, reopen it signed in. If another device changed this profile, you will be asked which saves to keep.");
+  }
+  function noteOffline() {
+    if (!deviceOffline()) return;
+    networkUnavailable = true;
+    if (!offlineSince) offlineSince = Date.now();
+    if (!offlineNoticeShown) offlineNoticePending = true;
+  }
+  function showOfflineNotice() {
+    if (document.hidden || Date.now() < foregroundReadyAt || !deviceOffline()) return;
+    noteOffline();
+    if (Date.now() - offlineSince < 5000 || !offlineNoticePending || activeOverlay || accountUid() === "signed-out" || !effectiveCachedEntitlement()?.cloudSave) return;
+    offlineNoticePending = false; offlineNoticeShown = true;
+    const panel = showPanel(tr("CloudAccount.Offline.Title", "Offline — sync paused"), `<p class="wl-account-muted">${escapeHtml(offlineMessage())}</p>`, [
+      { label: "Continue", run: closeOverlay }
+    ]);
+    panel.dataset.syncSafe = "true";
+    panel.dataset.offlineNotice = "true";
+  }
+  async function resumeCloudSync() {
+    if (document.hidden || Date.now() < foregroundReadyAt || reconnecting || deviceOffline() || accountUid() === "signed-out" || applyingProfile || (activeOverlay && activeOverlay.dataset.syncSafe !== "true")) return;
+    reconnecting = true;
+    try {
+      await refresh();
+      if (deviceOffline() || document.hidden) { noteOffline(); return; }
+      noteOnline();
+      clearTimeout(startupProfileCheckTimer);
+      const profileId = activeProfileId();
+      if (!profileId || !effectiveCachedEntitlement()?.cloudSave) return;
+      if (!workspaceMatches(profileId)) { scheduleStartupProfileCheck(50, true); return; }
+      if (retryQueue()[profileId]) {
+        startupProfileDecisionPending = false;
+        checkedStartupWorkspace = `${accountUid()}:${profileId}`;
+        const result = await syncActiveProfileNow();
+        if (result?.conflict) startupProfileDecisionPending = true;
+      } else scheduleStartupProfileCheck(50);
+      if (isOffline() || document.hidden) return;
+      if (!retryQueue()[profileId] && activeOverlay?.dataset.offlineNotice === "true") {
+        showPanel("Cloud saves ready", `<p class="wl-account-success">${escapeHtml(tr("CloudAccount.Startup.CloudReadyBody", "{PROFILE}'s cloud saves are now active on this device.", { PROFILE: workspaceBinding()?.profileName || profileId }))}</p>`, [{ label: "Continue", run: closeOverlay }]);
+      } else if (activeOverlay?.dataset.syncSafe === "true" && !retryQueue()[profileId]) {
+        openAccountPanel();
+      }
+    } catch (error) {
+      if (deviceOffline()) noteOffline();
+      console.warn("[WonderLang Cloud Save] Reconnection sync paused.", safeMessage(error));
+    } finally { reconnecting = false; }
+  }
 
   function uiLanguage() {
     let code = String(globalThis.ConfigManager?.uiLanguage || globalThis.$gameVariables?.value?.(200) || "EN").trim();
@@ -115,6 +198,122 @@
 
   function trSource(source, values = {}) {
     const aliases = {
+      "All saves in your selected profile sync automatically. Create up to six profiles to keep each player's progress or each learning language separate.": "CloudAccount.Profiles.Intro",
+      "You can restore one of the three previous backups of this profile. Each backup contains all the profile's saves.": "CloudAccount.Backups.Intro",
+      "{PROFILE} is ready. All saves in this profile will sync automatically.": "CloudAccount.Profile.ReadyBody",
+      "First, all saves for {CURRENT} on this device will be uploaded to the cloud. Then {NEXT}'s cloud saves will be downloaded to this device. If the upload fails, you will stay on {CURRENT}.": "CloudAccount.Profile.SwitchBody",
+      "All saves on this device": "CloudAccount.Conflict.Device",
+      "The saves on this device belong to {OWNER}, not {ACTIVE}. They will not be uploaded to {ACTIVE}. Choose their profile, or download {ACTIVE}'s cloud saves. Downloading replaces the saves on this device after keeping a recovery copy here. It does not change the saves in the cloud.": "CloudAccount.Startup.MismatchBody",
+      "The saves on this device do not belong to any profile on your account. Create a new profile for them? All these saves will be uploaded to the new profile. Your other profiles will not change. Enter a name to continue.": "CloudAccount.Profile.AdoptLocalBody",
+      "The saves for {PROFILE} on this device have changes that are not yet in the cloud. Upload all of this profile's saves now?": "CloudAccount.Startup.NewerBody",
+      "Do the saves on this device belong to {PROFILE}? Confirm only if you are sure. Otherwise, choose another profile or download this profile's cloud saves instead.": "CloudAccount.Startup.UnlabelledBody",
+      "Uploading {PROFILE}'s saves to the cloud…": "CloudAccount.Startup.SyncingBody",
+      "This device and the cloud have different saves for this profile. Nothing has been replaced yet. Choose which saves to keep. They will replace the other version.": "CloudAccount.Conflict.Body",
+      "This device and this profile both have saves. Keep this device's saves to upload them to the profile, or use the cloud saves to replace the saves on this device. The two versions will not be combined.": "CloudAccount.Profile.ChooseBody",
+      "Loading your save profiles…": "CloudAccount.Profiles.Loading",
+      "Choose a profile for this device. You can keep this device's existing saves in that profile or download its cloud saves.": "CloudAccount.Profiles.FirstPick",
+      "Choose a name for the player or language, such as Emma or Japanese.": "CloudAccount.Profile.NameHint",
+      "Saving your latest progress to the cloud before showing older backups…": "CloudAccount.Backups.Saving",
+      "No older backup is available yet. After each successful sync, WonderLang keeps up to three previous backups.": "CloudAccount.Backups.None",
+      "Restore the backup from {TIME}? It will replace this profile's current cloud saves. The current version will become one of the three older backups.": "CloudAccount.Backups.RestoreConfirm",
+      "{PROFILE} has been restored to the backup from {TIME}. Those saves are now on this device.": "CloudAccount.Backups.RestoredHere",
+      "{PROFILE} has been restored to the backup from {TIME} in the cloud. This device will download those saves when you switch to this profile.": "CloudAccount.Backups.RestoredLater",
+      "Saving this profile's progress to the cloud before switching…": "CloudAccount.Profile.Saving",
+      "Loading older backups for {PROFILE}…": "CloudAccount.Backups.Checking",
+      "WonderLang Cloud": "CloudAccount.UI.WonderLangCloud",
+      "Secure sync": "CloudAccount.UI.Securesync",
+      "WonderLang account": "CloudAccount.UI.WonderLangaccount",
+      "Sign in": "CloudAccount.UI.Signin",
+      "Refresh": "CloudAccount.UI.Refresh",
+      "Manage login methods": "CloudAccount.UI.Manageloginmethods",
+      "Manage subscription": "CloudAccount.UI.Managesubscription",
+      "Access": "CloudAccount.UI.Access",
+      "Subscription": "CloudAccount.UI.Subscription",
+      "Save profile": "CloudAccount.UI.Saveprofile",
+      "Uploads waiting": "CloudAccount.UI.Uploadswaiting",
+      "Languages": "CloudAccount.UI.Languages",
+      "All languages": "CloudAccount.UI.Alllanguages",
+      "No active subscription": "CloudAccount.UI.Noactivesubscription",
+      "Save profiles": "CloudAccount.UI.Saveprofiles",
+      "Active": "CloudAccount.UI.Active",
+      "Selected": "CloudAccount.UI.Selected",
+      "Use profile": "CloudAccount.UI.Useprofile",
+      "Restore backup": "CloudAccount.UI.Restorebackup",
+      "Create profile": "CloudAccount.UI.Createprofile",
+      "Back to account": "CloudAccount.UI.Backtoaccount",
+      "Profile name": "CloudAccount.UI.Profilename",
+      "Creating profile": "CloudAccount.UI.Creatingprofile",
+      "Loading profile backups": "CloudAccount.UI.Loadingprofilebackups",
+      "Saving current profile": "CloudAccount.UI.Savingcurrentprofile",
+      "Back to profiles": "CloudAccount.UI.Backtoprofiles",
+      "Restoring profile backup": "CloudAccount.UI.Restoringprofilebackup",
+      "Backup restored": "CloudAccount.UI.Backuprestored",
+      "Switching save profile": "CloudAccount.UI.Switchingsaveprofile",
+      "Profile ready": "CloudAccount.UI.Profileready",
+      "Account": "CloudAccount.UI.Account",
+      "Sync and switch": "CloudAccount.UI.Syncandswitch",
+      "Keep device saves": "CloudAccount.UI.Keepdevicesaves",
+      "Use cloud saves": "CloudAccount.UI.Usecloudsaves",
+      "This profile changed on two devices": "CloudAccount.UI.Thisprofilechangedontwodevices",
+      "Keep this device": "CloudAccount.UI.Keepthisdevice",
+      "Use cloud profile": "CloudAccount.UI.Usecloudprofile",
+      "Profile": "CloudAccount.UI.Profile",
+      "Active save profile": "CloudAccount.UI.Activesaveprofile",
+      "Close": "CloudAccount.UI.Close",
+      "Cancel": "CloudAccount.UI.Cancel",
+      "Rename": "CloudAccount.UI.Rename",
+      "Try again": "CloudAccount.UI.Tryagain",
+      "Save": "CloudAccount.UI.Save",
+      "Cloud": "CloudAccount.UI.Cloud",
+      "Opening Google sign-in in your browser…": "CloudAccount.SignIn.Opening",
+      "Choose your Google account in the browser. WonderLang will sign you in automatically when you finish. You do not need to enter a code.": "CloudAccount.SignIn.Browser",
+      "You are signed in. Loading your account and saves…": "CloudAccount.SignIn.Success",
+      "Loading your account…": "CloudAccount.Account.Loading",
+      "Please finish signing in before {TIME}.": "CloudAccount.SignIn.Expires",
+      "Sign in to WonderLang": "CloudAccount.SignIn.Title",
+      "Signed in": "CloudAccount.SignIn.Done",
+      "Open Google sign-in": "CloudAccount.SignIn.Open",
+      "Switch to {PROFILE}?": "CloudAccount.Profile.SwitchTitle",
+      "Use {PROFILE} on this device?": "CloudAccount.Profile.UseTitle",
+      "Backups for {PROFILE}": "CloudAccount.Backups.Title",
+      "Backup {NUMBER}": "CloudAccount.Backups.Number",
+      "Saved {TIME}": "CloudAccount.Backups.Time",
+      "Restore {PROFILE}'s backup?": "CloudAccount.Backups.RestoreTitle",
+      "Restoring {PROFILE}'s backup from {TIME}…": "CloudAccount.Backups.Restoring",
+      "Restore backup ({COUNT})": "CloudAccount.Backups.Count",
+      "Creating {PROFILE}…": "CloudAccount.Profile.Creating",
+      "Finish signing in with Google": "CloudAccount.SignIn.Title",
+      "Account refresh failed": "CloudAccount.Status.Accountrefreshfailed",
+      "Account unavailable": "CloudAccount.Status.Accountunavailable",
+      "Backup was not restored": "CloudAccount.Status.Backupwasnotrestored",
+      "Billing portal unavailable": "CloudAccount.Status.Billingportalunavailable",
+      "Cloud profile was not restored": "CloudAccount.Status.Cloudprofilewasnotrestored",
+      "Cloud-profile conflict": "CloudAccount.Status.Cloudprofileconflict",
+      "Could not switch profile": "CloudAccount.Status.Couldnotswitchprofile",
+      "Device profile was not uploaded": "CloudAccount.Status.Deviceprofilewasnotuploaded",
+      "PC/Mac sign-in failed": "CloudAccount.Status.PCMacsigninfailed",
+      "Profile backups unavailable": "CloudAccount.Status.Profilebackupsunavailable",
+      "Profile switch paused": "CloudAccount.Status.Profileswitchpaused",
+      "Profile was not created": "CloudAccount.Status.Profilewasnotcreated",
+      "Profile was not renamed": "CloudAccount.Status.Profilewasnotrenamed",
+      "Save profiles unavailable": "CloudAccount.Status.Saveprofilesunavailable",
+      "Sign-in unavailable": "CloudAccount.Status.Signinunavailable",
+      "Cloud updated {TIME}": "CloudAccount.Status.CloudupdatedTIME",
+      " · ends {TIME}": "CloudAccount.Status.endsTIME",
+      " · renews {TIME}": "CloudAccount.Status.renewsTIME",
+      "No cloud saves yet": "CloudAccount.Status.Nocloudsavesyet",
+      "Choose a profile": "CloudAccount.Status.Chooseaprofile",
+      "Not included": "CloudAccount.Status.Notincluded",
+      "Full game": "CloudAccount.Status.Fullgame",
+      "Free demo": "CloudAccount.Status.Freedemo",
+      "Demo access": "CloudAccount.Status.Demoaccess",
+      "Owned on another mobile platform": "CloudAccount.Status.Ownedonanothermobileplatform",
+      "Signed-in account": "CloudAccount.Status.Signedinaccount",
+      "Not available": "CloudAccount.Status.Notavailable",
+      "Create": "CloudAccount.Status.Create",
+      "Rename profile": "CloudAccount.Status.Renameprofile",
+      "Cloud saves ready": "CloudAccount.Startup.CloudReadyTitle",
+      "Your current profile could not be uploaded, so the profile was not switched. Check your internet connection and try again. {ERROR}": "CloudAccount.Error.SwitchFailedBody",
       "Continue": "CloudAccount.Action.Continue",
       "Manage profiles": "CloudAccount.Action.ManageProfiles",
       "Not now": "CloudAccount.Action.NotNow",
@@ -212,6 +411,7 @@
   function setActiveProfileId(profileId) {
     if (profileId) localStorage.setItem(activeProfileKey(), String(profileId));
     else localStorage.removeItem(activeProfileKey());
+    refreshTitleAccount();
   }
   function workspaceBinding() {
     const value = loadJson(workspaceBindingKey, null);
@@ -237,6 +437,7 @@
       updatedAt: new Date().toISOString()
     };
     localStorage.setItem(workspaceBindingKey, JSON.stringify(value));
+    refreshTitleAccount();
     return value;
   }
   function noteWorkspaceChanged(profileId) {
@@ -299,11 +500,22 @@
     });
   }
 
+  async function cloudFetch(url, options) {
+    try {
+      const response = await fetch(url, options);
+      if (!deviceOffline()) noteOnline();
+      return response;
+    } catch (error) {
+      noteConnectionFailure();
+      throw error;
+    }
+  }
+
   async function request(path, options = {}) {
     const body = options.body ? JSON.stringify(options.body) : undefined;
     const send = token => {
       const appCheckToken = String(bridge()?.getCachedAppCheckToken?.() || "");
-      return fetch(`${apiBase}${path}`, {
+      return cloudFetch(`${apiBase}${path}`, {
         method: options.method || "GET",
         headers: {
           authorization: `Bearer ${token}`,
@@ -313,7 +525,8 @@
         ...(body ? { body } : {})
       });
     };
-    let response = await send(await idToken());
+    let response;
+    response = await send(await idToken());
     if (response.status === 401) response = await send(await idToken(true));
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new AccountApiError(response.status, result.error || `Account request failed (${response.status}).`);
@@ -339,12 +552,12 @@
     const me = await request("/api/v1/me");
     cache(me);
     window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: me.entitlements }));
-    if (me.entitlements?.cloudSave && activeProfileId()) scheduleStartupProfileCheck(750);
+    if (effectiveCachedEntitlement()?.cloudSave && activeProfileId()) scheduleStartupProfileCheck(750);
     return me.entitlements;
   }
 
   async function drainUploadQueue() {
-    if (drainingRetries || startupProfileDecisionPending || navigator.onLine === false || !effectiveCachedEntitlement()?.cloudSave) return;
+    if (document.hidden || drainingRetries || startupProfileDecisionPending || isOffline() || !effectiveCachedEntitlement()?.cloudSave) return;
     drainingRetries = true;
     try {
       const queue = retryQueue();
@@ -416,6 +629,25 @@
     return StorageManager.objectToJson(object);
   }
 
+  function profileGlobalInfo(value, hasSaves) {
+    // Older exports can contain a wrapper or an indexed object. Keep slot IDs;
+    // Object.values() would shift sparse slots and attach the wrong save labels.
+    if (Array.isArray(value)) return value;
+    if (value && Array.isArray(value.globalInfo)) return value.globalInfo;
+    if (value && typeof value === "object") {
+      const keys = Object.keys(value);
+      if (keys.length && keys.every(key => /^(0|[1-9][0-9]*)$/.test(key) && Number(key) < 10000)) {
+        const result = [];
+        for (const key of keys) result[Number(key)] = value[key];
+        return result;
+      }
+      if (!keys.length && !hasSaves) return [];
+    }
+    if (value == null && !hasSaves) return [];
+    // Reject before touching local progress instead of installing an unusable index.
+    throw new Error("Downloaded cloud profile is invalid.");
+  }
+
   async function buildProfileBundle(profileId) {
     const files = {};
     for (const saveName of managedSaveNames()) {
@@ -453,17 +685,40 @@
 
   async function applyProfileBundle(bundle, profileId) {
     validateProfileBundle(bundle, profileId);
+    // Decode the entire incoming set before touching any existing save.
+    const decoded = {};
+    for (const [name, json] of Object.entries(bundle.files)) {
+      decoded[name] = await StorageManager.jsonToObject(json);
+    }
+    decoded.global = profileGlobalInfo(decoded.global, Object.keys(decoded).some(name => name !== "global"));
+    const previousBinding = workspaceBinding();
+    const previousBundle = await buildProfileBundle(previousBinding?.profileId || "unlabelled");
+    const previousGlobalInfo = DataManager._globalInfo;
+    // Keep displaced local files outside the synchronized slot names. Never
+    // relabel an unknown/different account's files as the requested profile.
+    const recoveryName = `wl-profile-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await StorageManager.saveObject(recoveryName, { binding: previousBinding, bundle: previousBundle });
     applyingProfile = true;
     try {
       for (const saveName of managedSaveNames()) {
         if (StorageManager.exists(saveName)) await Promise.resolve(StorageManager.remove(saveName));
       }
-      for (const [saveName, json] of Object.entries(bundle.files)) {
-        const object = await StorageManager.jsonToObject(json);
+      for (const [saveName, object] of Object.entries(decoded)) {
         await StorageManager.saveObject(saveName, object);
       }
-      DataManager._globalInfo = await StorageManager.loadObject("global");
+      // Use the already validated index. Never pass a null/wrapped storage result
+      // to the engine's removeInvalidGlobalInfo (which iterates an array).
+      DataManager._globalInfo = decoded.global;
       DataManager.removeInvalidGlobalInfo?.();
+    } catch (error) {
+      for (const saveName of managedSaveNames()) {
+        if (StorageManager.exists(saveName)) await Promise.resolve(StorageManager.remove(saveName));
+      }
+      for (const [name, json] of Object.entries(previousBundle.files)) {
+        await StorageManager.saveObject(name, await StorageManager.jsonToObject(json));
+      }
+      DataManager._globalInfo = previousGlobalInfo;
+      throw error;
     } finally {
       applyingProfile = false;
     }
@@ -493,7 +748,7 @@
         baseRevision
       }
     });
-    const upload = await fetch(prepare.uploadUrl, {
+    const upload = await cloudFetch(prepare.uploadUrl, {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: bytes
@@ -527,9 +782,23 @@
 
   async function downloadProfile(profileId) {
     const remote = await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profileId)}/download`);
-    const response = await fetch(remote.downloadUrl);
+    const response = await cloudFetch(remote.downloadUrl);
     if (!response.ok) throw new Error(`Cloud profile download failed (${response.status}).`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    let bytes;
+    const reader = response.body?.getReader?.();
+    if (reader) {
+      const chunks = []; let received = 0;
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        chunks.push(part.value); received += part.value.byteLength;
+        if (received > remote.manifest.byteLength) { await reader.cancel(); throw new Error("Downloaded cloud profile failed its integrity check."); }
+        updateDownloadProgress(received, remote.manifest.byteLength);
+      }
+      bytes = new Uint8Array(received); let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    } else bytes = new Uint8Array(await response.arrayBuffer());
+    updateDownloadProgress(bytes.byteLength, bytes.byteLength);
     if (bytes.byteLength !== remote.manifest.byteLength || await sha256Hex(bytes) !== remote.manifest.sha256) {
       throw new Error("Downloaded cloud profile failed its integrity check.");
     }
@@ -544,25 +813,39 @@
     setRevision(profileId, remote.manifest.currentRevision);
     saveWorkspaceBinding(profileId, {
       revision: remote.manifest.currentRevision,
-      fingerprint: await profileFilesFingerprint(bundle.files),
+      fingerprint: await profileFilesFingerprint((await buildProfileBundle(profileId)).files),
       cloudUpdatedAt: remote.manifest.updatedAt,
       localChangedAt: null
     });
     clearQueuedProfile(profileId);
+    failedStartupWorkspace = "";
     window.dispatchEvent(new CustomEvent("wl-cloud-profile-restored", { detail: { profileId, manifest: remote.manifest } }));
     return remote.manifest;
   }
 
+  function downloadPanel(profile) {
+    showPanel(tr("CloudAccount.Startup.DownloadingTitle", "Loading cloud saves"), `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Download.Body", "Downloading {PROFILE}'s profile save files…", { PROFILE: profile.name }))}</p><progress data-cloud-download max="100" style="width:100%;height:18px;accent-color:#ffcf40;margin-top:20px"></progress><p class="wl-account-muted" data-cloud-download-label aria-live="polite"></p>`);
+  }
+  function updateDownloadProgress(received, total) {
+    const progress = activeOverlay?.querySelector("[data-cloud-download]");
+    if (!progress || !total) return;
+    const percent = Math.min(100, Math.floor(received / total * 100));
+    progress.value = percent;
+    const label = activeOverlay.querySelector("[data-cloud-download-label]");
+    if (label) label.textContent = percent < 100 ? `${percent}%` : tr("CloudAccount.Download.Finishing", "Download complete. Checking and loading saves…");
+  }
+
   function scheduleProfileSync() {
-    if (applyingProfile || !activeProfileId() || !effectiveCachedEntitlement()?.cloudSave || !workspaceMatches(activeProfileId())) return;
+    if (applyingProfile || !activeProfileId() || accountUid() === "signed-out" || !workspaceMatches(activeProfileId())) return;
     noteWorkspaceChanged(activeProfileId());
     markProfileDirty(activeProfileId());
     clearTimeout(profileSyncTimer);
     profileSyncTimer = setTimeout(() => {
       const profileId = activeProfileId();
-      if (startupProfileDecisionPending) return;
+      if (startupProfileDecisionPending || isOffline()) { if (isOffline()) noteOffline(); return; }
       profileSyncInFlight = Promise.resolve(profileSyncInFlight).catch(() => undefined).then(() => uploadProfile(profileId));
       profileSyncInFlight.catch(error => {
+        if (deviceOffline()) noteOffline();
         console.warn("[WonderLang Cloud Save] Local save succeeded; complete profile upload did not.", error);
         queueProfileUpload(profileId, error);
         window.dispatchEvent(new CustomEvent("wl-cloud-save-error", { detail: { profileId, message: safeMessage(error) } }));
@@ -595,8 +878,8 @@
       panel: String(theme.primaryBg || "rgba(9, 24, 24, .96)"),
       panelAlt: String(theme.secondaryBg || "rgba(28, 62, 51, .96)"),
       gradient: buttonGradient,
-      text: String(theme.textColor || "#f8fff4"),
-      highlight: String(theme.highlightColor || theme.accentColor || gradientColor || "#d9ff45"),
+      text: "#ffffff",
+      highlight: "#ffffff",
       fontFamily
     };
   }
@@ -638,7 +921,14 @@
       @media(max-width:700px){.wl-account-overlay{padding:10px}.wl-account-panel{width:100%;max-height:96vh;border-radius:22px}.wl-account-header{gap:12px;padding:18px 18px 15px}.wl-account-mark{width:44px;height:44px;border-radius:13px;font-size:25px}.wl-account-trust{display:none}.wl-account-content{padding:18px}.wl-account-status{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.wl-account-card{min-height:92px;padding:14px}.wl-account-save{grid-template-columns:1fr;padding:15px}.wl-account-save-actions{justify-content:stretch}.wl-account-save-actions .wl-account-btn{flex:1}.wl-account-actions{padding:14px 18px 18px}.wl-account-actions>.wl-account-btn{flex:1 1 145px}}
       @media(max-width:430px){.wl-account-status{grid-template-columns:1fr}.wl-account-header{align-items:flex-start}.wl-account-panel h2{font-size:24px}.wl-account-kicker{font-size:9px}.wl-account-identity,.wl-account-profile-switcher{width:100%}.wl-account-profile-select{max-width:none;flex:1}.wl-account-actions>.wl-account-btn{flex-basis:100%}}
       @media(max-height:620px){.wl-account-overlay{padding:8px}.wl-account-panel{max-height:97vh}.wl-account-header{padding-top:14px;padding-bottom:12px}.wl-account-mark{width:40px;height:40px;font-size:23px}.wl-account-content{padding-top:15px;padding-bottom:15px}.wl-account-actions{padding-top:11px;padding-bottom:12px}.wl-account-card{min-height:84px}}
-      @media(prefers-reduced-motion:reduce){.wl-account-overlay,.wl-account-panel,.wl-account-btn,.wl-account-save{animation:none!important;transition:none!important}}
+      .wl-account-profile-picker{position:relative;z-index:5;flex:0 1 280px;min-width:0;max-width:100%}
+      .wl-profile-trigger{display:flex;align-items:center;gap:12px;width:100%;min-height:48px;padding:12px 15px;border:1px solid rgba(255,255,255,.24);border-radius:15px;background:rgba(255,255,255,.08);color:#fff;font:inherit;cursor:pointer;touch-action:manipulation;text-align:start;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+      .wl-profile-trigger strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}.wl-profile-trigger .wl-account-profile-label{color:rgba(255,255,255,.72);font-size:10px}.wl-profile-chevron{color:#ffcf40;font-size:22px;line-height:1;transition:transform .15s}.wl-profile-trigger[aria-expanded="true"]{border-color:#ffcf40;background:rgba(255,207,64,.09)}.wl-profile-trigger[aria-expanded="true"] .wl-profile-chevron{transform:rotate(180deg)}
+      .wl-profile-options{position:absolute;inset-inline:0;top:calc(100% + 9px);padding:7px;max-height:min(340px,42vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;border:1px solid rgba(255,207,64,.4);border-radius:17px;background:#21132f;box-shadow:0 16px 38px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.07);touch-action:pan-y}.wl-profile-options[hidden]{display:none}
+      .wl-profile-option{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;margin:0;padding:11px 12px;border:1px solid transparent;border-radius:11px;background:transparent;color:#fff;text-align:start;font:inherit;cursor:pointer;touch-action:pan-y}.wl-profile-option+.wl-profile-option{margin-top:3px}.wl-profile-option:hover{background:rgba(255,255,255,.08)}.wl-profile-option[aria-checked="true"]{background:rgba(255,207,64,.12);border-color:rgba(255,207,64,.32)}
+      .wl-profile-avatar{display:grid;place-items:center;flex:0 0 35px;height:35px;border-radius:10px;background:rgba(255,255,255,.09);color:#fff;font-size:17px;font-weight:850}.wl-profile-option[aria-checked="true"] .wl-profile-avatar{background:linear-gradient(135deg,#ffe25a,#ffa600);color:#22152a}.wl-profile-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.wl-profile-copy strong{font-size:15px;line-height:1.25;overflow-wrap:anywhere}.wl-profile-copy small{font-size:11px;color:rgba(255,255,255,.7)}.wl-profile-check{color:#ffdc62;font-size:20px;font-weight:900}.wl-profile-trigger:focus-visible,.wl-profile-option:focus-visible{outline:2px solid #ffe17b;outline-offset:2px}
+      @media(max-width:600px){.wl-account-profile-picker{flex:1 1 100%}.wl-profile-options{max-height:35vh}.wl-profile-option{min-height:60px}}
+      @media(prefers-reduced-motion:reduce){.wl-account-overlay,.wl-account-panel,.wl-account-btn,.wl-account-save,.wl-profile-chevron{animation:none!important;transition:none!important}}
     `;
     document.head.appendChild(style);
   }
@@ -763,15 +1053,15 @@
   function showDeviceSignInState(detail) {
     const state = String(detail?.state || "");
     if (state === "starting") {
-      showPanel("Sign in to WonderLang", `<p class="wl-account-muted">Opening secure Google sign-in in your browser…</p>`, [
+      showPanel("Sign in to WonderLang", `<p class="wl-account-muted">Opening Google sign-in in your browser…</p>`, [
         { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() }
       ]);
       return;
     }
     if (state === "pending") {
       showPanel("Finish signing in with Google", `
-        <p class="wl-account-muted">Choose your Google account in the browser. WonderLang will detect the completed sign-in automatically—there is no code to enter.</p>
-        <p class="wl-account-muted">${escapeHtml(trSource("This request expires {TIME}.", { TIME: formatTime(detail.expiresAt) }))}</p>`, [
+        <p class="wl-account-muted">Choose your Google account in the browser. WonderLang will sign you in automatically when you finish. You do not need to enter a code.</p>
+        <p class="wl-account-muted">${escapeHtml(trSource("Please finish signing in before {TIME}.", { TIME: formatTime(detail.expiresAt) }))}</p>`, [
         { label: "Open Google sign-in", run: () => bridge()?.reopenSignIn?.() },
         { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() },
         { label: "Close", kind: "secondary", run: closeOverlay }
@@ -779,7 +1069,7 @@
       return;
     }
     if (state === "authorized") {
-      const signedInOverlay = showPanel("Signed in to WonderLang", `<p class="wl-account-success">Google sign-in succeeded. Refreshing your access and cloud saves…</p>`, [
+      const signedInOverlay = showPanel("Signed in", `<p class="wl-account-success">You are signed in. Loading your account and saves…</p>`, [
         { label: "Continue", run: openAccountPanel },
         { label: "Close", kind: "secondary", run: closeOverlay }
       ]);
@@ -793,18 +1083,95 @@
     if (state === "cancelled") closeOverlay();
   }
 
+  function renderProfilePicker(profiles, selectedId) {
+    const selected = profiles.find(profile => profile.profileId === selectedId);
+    if (!selected) return "";
+    const rows = profiles.map(profile => {
+      const active = profile.profileId === selectedId;
+      return `<button type="button" class="wl-profile-option" role="menuitemradio" aria-checked="${active}" data-profile-choice="${escapeHtml(profile.profileId)}"><span class="wl-profile-avatar" aria-hidden="true">${escapeHtml(Array.from(profile.name || "?")[0].toUpperCase())}</span><span class="wl-profile-copy"><strong>${escapeHtml(profile.name)}</strong><small>${escapeHtml(trSource(active ? "Selected" : "Use profile"))}</small></span><span class="wl-profile-check" aria-hidden="true">${active ? "✓" : "›"}</span></button>`;
+    }).join("");
+    return `<div class="wl-account-profile-picker"><button type="button" class="wl-profile-trigger" data-profile-switcher aria-haspopup="menu" aria-expanded="false" aria-controls="wl-profile-options" aria-label="${escapeHtml(trSource("Active save profile"))}: ${escapeHtml(selected.name)}"><span class="wl-account-profile-label">${escapeHtml(trSource("Profile"))}</span><strong>${escapeHtml(selected.name)}</strong><span class="wl-profile-chevron" aria-hidden="true">⌄</span></button><div class="wl-profile-options" id="wl-profile-options" role="menu" aria-label="${escapeHtml(trSource("Active save profile"))}" hidden>${rows}</div></div>`;
+  }
+
+  function bindProfilePicker(overlay, profiles) {
+    const picker = overlay.querySelector(".wl-account-profile-picker");
+    if (!picker) return;
+    const trigger = picker.querySelector("[data-profile-switcher]");
+    const menu = picker.querySelector(".wl-profile-options");
+    const options = Array.from(menu.querySelectorAll("[data-profile-choice]"));
+    const close = (focus = false) => {
+      menu.hidden = true;
+      trigger.setAttribute("aria-expanded", "false");
+      if (focus) trigger.focus();
+    };
+    const open = () => {
+      menu.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      (options.find(button => button.getAttribute("aria-checked") === "true") || options[0])?.focus();
+    };
+    bindReleaseTap(trigger, () => menu.hidden ? open() : close(true));
+    options.forEach(button => bindReleaseTap(button, () => {
+      const profile = profiles.find(item => item.profileId === button.dataset.profileChoice);
+      close(true);
+      if (profile && profile.profileId !== activeProfileId()) {
+        selectProfile(profile, { profiles, onCancel: openAccountPanel });
+      }
+    }));
+    picker.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !menu.hidden) {
+        event.preventDefault(); event.stopPropagation(); close(true); return;
+      }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault(); event.stopPropagation();
+      if (menu.hidden) { open(); return; }
+      const index = options.indexOf(document.activeElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 :
+        (index + (event.key === "ArrowUp" ? -1 : 1) + options.length) % options.length;
+      options[next]?.focus();
+    });
+    picker.addEventListener("focusout", event => {
+      if (event.relatedTarget && !picker.contains(event.relatedTarget)) close();
+    });
+    // Overlay-scoped listeners disappear with the panel; no document leaks.
+    overlay.addEventListener("pointerdown", event => {
+      if (!picker.contains(event.target)) close();
+    }, true);
+    overlay.addEventListener("touchstart", event => {
+      if (!picker.contains(event.target)) close();
+    }, { capture: true, passive: true });
+  }
+
+  function showSignInIntro() {
+    showPanel("WonderLang account", `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Intro.Body", "Cloud saves are exclusive to Premium Lifetime Pass holders. Sync your progress between PC, Mac and mobile. Learn more at wonderlang.net."))}</p>`, [
+      { label: "Sign in", run: beginSignIn },
+      { label: "wonderlang.net", kind: "secondary", run: () => bridge()?.openExternalUrl?.("https://wonderlang.net/") },
+      { label: "Close", kind: "secondary", run: closeOverlay }
+    ]);
+  }
+  function confirmSignOut() {
+    showPanel(tr("CloudAccount.SignOut.Label", "Sign out"), `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.SignOut.Body", "Sign out on this device? Local saves will stay here. Any pending saves will sync only after you sign back in to this same account. Other devices will stay signed in."))}</p>`, [
+      { label: tr("CloudAccount.SignOut.Label", "Sign out"), kind: "danger", run: async () => {
+        clearTimeout(profileSyncTimer); clearTimeout(startupProfileCheckTimer);
+        if (profileSyncInFlight) await profileSyncInFlight.catch(() => undefined);
+        if (applyingProfile || reconnecting || drainingRetries) return openAccountPanel();
+        if (bridge()?.signOut?.() === false) return openAccountPanel();
+        cache(null); checkedStartupWorkspace = ""; startupProfileDecisionPending = true;
+        refreshTitleAccount(); showSignInIntro();
+      } },
+      { label: "Cancel", kind: "secondary", run: openAccountPanel }
+    ]);
+  }
+
   async function openAccountPanel() {
-    showPanel("WonderLang account", `<p class="wl-account-muted">Refreshing your secure account and access…</p>`, [
+    if (accountUid() === "signed-out") return showSignInIntro();
+    showPanel("WonderLang account", `<p class="wl-account-muted">Loading your account…</p>`, [
       { label: "Close", kind: "secondary", run: closeOverlay }
     ]);
     try {
-      await refresh();
+      if (!isOffline()) await refresh();
     } catch (error) {
       if (error?.status === 401 || !bridge()?.getCachedIdToken?.()) {
-        showPanel("Sign in to WonderLang", `<p class="wl-account-muted">One easy account links Google, Apple, email, website purchases, mobile access, and cloud saves.</p>`, [
-          { label: "Sign in", run: beginSignIn },
-          { label: "Close", kind: "secondary", run: closeOverlay }
-        ]);
+        showSignInIntro();
         return;
       }
       showError("Account unavailable", error, openAccountPanel);
@@ -820,25 +1187,24 @@
       ? `${trSource(String(current.subscription.phase))}${current.subscription.renewsAt ? trSource(" · renews {TIME}", { TIME: formatTime(current.subscription.renewsAt) }) : current.subscription.endsAt ? trSource(" · ends {TIME}", { TIME: formatTime(current.subscription.endsAt) }) : ""}`
       : access.subscriptionState && access.subscriptionState !== "inactive"
         ? trSource(String(access.subscriptionState))
-      : "No active subscription";
-    const profiles = access.cloudSave ? await listProfiles().catch(() => []) : [];
-    if (access.cloudSave && !activeProfileId()) {
+      : "";
+    const profiles = access.cloudSave && !isOffline() ? await listProfiles().catch(() => []) : [];
+    if (access.cloudSave && !activeProfileId() && !isOffline()) {
       openCloudSavesPanel(true, profiles);
       return;
     }
-    const activeProfile = profiles.find(profile => profile.profileId === activeProfileId());
-    const profileOptions = profiles.map(profile => `<option value="${escapeHtml(profile.profileId)}" ${profile.profileId === activeProfileId() ? "selected" : ""}>${escapeHtml(profile.name)}</option>`).join("");
-    const profileSwitcher = access.cloudSave && activeProfile ? `<label class="wl-account-profile-switcher"><span class="wl-account-profile-label">Profile</span><select class="wl-account-profile-select" data-profile-switcher aria-label="${escapeHtml(trSource("Active save profile"))}">${profileOptions}</select></label>` : "";
+    const activeProfile = profiles.find(profile => profile.profileId === activeProfileId()) || (workspaceMatches() ? { name: workspaceBinding()?.profileName } : null);
+    const profileSwitcher = access.cloudSave ? renderProfilePicker(profiles, activeProfileId()) : "";
     const overlay = showPanel("WonderLang account", `
       <div class="wl-account-identity-row"><div class="wl-account-identity">${escapeHtml(current?.email || "Signed-in account")}</div>${profileSwitcher}</div>
+      ${isOffline() ? `<p class="wl-account-error">${escapeHtml(offlineMessage())}</p>` : ""}
       <div class="wl-account-status">
-        <div class="wl-account-card"><b>Access</b>${escapeHtml(accessLabel)}</div>
-        <div class="wl-account-card"><b>Subscription</b>${escapeHtml(subscription)}</div>
+        <div class="wl-account-card"><b>Access</b>${escapeHtml(accessLabel)}${access.accessKind === "subscription" && subscription ? `<p class="wl-account-muted">${escapeHtml(subscription)}</p>` : ""}</div>
         <div class="wl-account-card"><b>Save profile</b>${access.cloudSave ? escapeHtml(activeProfile?.name || "Choose a profile") : "Not included"}</div>
         <div class="wl-account-card"><b>Uploads waiting</b>${retryCount()}</div>
-        <div class="wl-account-card"><b>Languages</b>${access.allLanguages ? "All languages" : "Demo access"}</div>
+        <div class="wl-account-card"><b>${escapeHtml(tr("CloudAccount.Label.CloudBackup", "Cloud backup"))}</b>${escapeHtml(workspaceMatches() && workspaceBinding()?.cloudUpdatedAt ? formatTime(workspaceBinding().cloudUpdatedAt) : tr("CloudAccount.Label.NoBackupYet", "No backup yet"))}</div>
       </div>
-      <p class="wl-account-muted">Login methods are linked explicitly. Signing in with Google or Apple alone never grants administrator access.</p>`, [
+      `, [
       { label: "Manage profiles", run: openCloudSavesPanel },
       { label: "Manage login methods", kind: "secondary", run: () => bridge()?.openAccount?.() },
       ...((current?.subscriptions?.length ? current.subscriptions : current?.subscription ? [current.subscription] : []).map(subscription => ({
@@ -846,14 +1212,11 @@
         kind: "secondary", run: () => openBillingPortal(subscription)
       }))),
       { label: "Refresh", kind: "secondary", run: openAccountPanel },
+      ...(typeof bridge()?.signOut === "function" ? [{ label: tr("CloudAccount.SignOut.Label", "Sign out"), kind: "secondary", run: confirmSignOut }] : []),
       { label: "Close", kind: "secondary", run: closeOverlay }
     ]);
-    const switcher = overlay.querySelector("[data-profile-switcher]");
-    switcher?.addEventListener("change", () => {
-      const profile = profiles.find(item => item.profileId === switcher.value);
-      if (!profile || profile.profileId === activeProfileId()) return;
-      selectProfile(profile, { profiles, onCancel: openAccountPanel });
-    });
+    overlay.dataset.syncSafe = "true";
+    bindProfilePicker(overlay, profiles);
   }
 
   async function openBillingPortal(subscription = authoritativeAccount()?.subscription) {
@@ -885,20 +1248,21 @@
   }
 
   async function openCloudSavesPanel(forcePick = false, suppliedProfiles = null) {
-    showPanel("Save profiles", `<p class="wl-account-muted">Loading your complete cloud-save profiles…</p>`, [
+    showPanel("Save profiles", `<p class="wl-account-muted">Loading your save profiles…</p>`, [
       ...(!forcePick || activeProfileId() ? [{ label: "Close", kind: "secondary", run: closeOverlay }] : [])
     ]);
     try {
       const profiles = suppliedProfiles || await listProfiles();
       const active = activeProfileId();
       const intro = forcePick && !active
-        ? `<p class="wl-account-success">Choose which profile this device will use. Your current local saves can become that profile's starting saves.</p>`
-        : `<p class="wl-account-muted">All saves and global.rmmzsave synchronize automatically inside the selected profile. Up to six people or learning paths can share one WonderLang account without mixing progress.</p>`;
+        ? `<p class="wl-account-success">Choose a profile for this device. You can keep this device's existing saves in that profile or download its cloud saves.</p>`
+        : `<p class="wl-account-muted">All saves in your selected profile sync automatically. Create up to six profiles to keep each player's progress or each learning language separate.</p>`;
       const rows = profiles.map(profile => `<div class="wl-account-save ${profile.profileId === active ? "active" : ""}">
         <div><h3>${escapeHtml(profile.name)}${profile.profileId === active ? `<span class="wl-account-active-pill">Active</span>` : ""}</h3><div class="wl-account-muted">${profile.currentRevision ? escapeHtml(trSource("Cloud updated {TIME}", { TIME: formatTime(profile.updatedAt) })) : trSource("No cloud saves yet")}</div></div>
         <div class="wl-account-save-actions"><button class="wl-account-btn" data-select-profile="${escapeHtml(profile.profileId)}" ${profile.profileId === active ? "disabled" : ""}>${trSource(profile.profileId === active ? "Selected" : "Use profile")}</button>${Array.isArray(profile.backups) && profile.backups.length ? `<button class="wl-account-btn secondary" data-profile-backups="${escapeHtml(profile.profileId)}">${escapeHtml(trSource("Restore backup ({COUNT})", { COUNT: profile.backups.length }))}</button>` : ""}<button class="wl-account-btn secondary" data-rename-profile="${escapeHtml(profile.profileId)}">${escapeHtml(trSource("Rename"))}</button></div>
       </div>`).join("");
       const overlay = showPanel("Save profiles", intro + rows, [
+        ...(canSaveLocalAsNewProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalAsNew", "Save local files to a new profile"), run: showSaveLocalAsNewProfile }] : []),
         ...(profiles.length < 6 ? [{ label: "Create profile", run: showCreateProfile }] : []),
         { label: "Refresh", kind: "secondary", run: openCloudSavesPanel },
         ...(!forcePick || active ? [{ label: "Back to account", kind: "secondary", run: openAccountPanel }] : []),
@@ -912,8 +1276,8 @@
     }
   }
 
-  function profileNameEditor(title, initialName, submitLabel, onSubmit) {
-    const overlay = showPanel(title, `<p class="wl-account-muted">Use a name such as Jonathan, Emma, Japanese, or Spanish.</p><input class="wl-account-input" maxlength="40" value="${escapeHtml(initialName || "")}" aria-label="Profile name">`, [
+  function profileNameEditor(title, initialName, submitLabel, onSubmit, explanation = "") {
+    const overlay = showPanel(title, `${explanation ? `<p class="wl-account-muted">${escapeHtml(explanation)}</p>` : ""}<p class="wl-account-muted">Choose a name for the player or language, such as Emma or Japanese.</p><input class="wl-account-input" maxlength="40" value="${escapeHtml(initialName || "")}" aria-label="${escapeHtml(trSource("Profile name"))}">`, [
       { label: submitLabel, run: async () => {
         const input = overlay.querySelector(".wl-account-input");
         const name = String(input?.value || "").trim();
@@ -935,6 +1299,39 @@
     });
   }
 
+  function canSaveLocalAsNewProfile(profiles) {
+    const binding = workspaceBinding();
+    return accountUid() !== "signed-out" && hasLocalPlayerSaves() && profiles.length < 6 &&
+      !(binding?.uid === accountUid() && profiles.some(profile => profile.profileId === binding.profileId));
+  }
+
+  function showSaveLocalAsNewProfile() {
+    const uid = accountUid();
+    let submitting = false;
+    const label = tr("CloudAccount.Action.SaveLocalAsNew", "Save local files to a new profile");
+    profileNameEditor(label, "", label, async name => {
+      if (submitting) return;
+      submitting = true;
+      try {
+        // Recheck ownership and available slots at submission, not just when
+        // the recovery prompt was opened. The server enforces the limit too.
+        const profiles = await listProfiles();
+        if (accountUid() !== uid || !canSaveLocalAsNewProfile(profiles)) return openCloudSavesPanel();
+        showPanel("Creating profile", `<p class="wl-account-muted">${escapeHtml(trSource("Creating {PROFILE}…", { PROFILE: name }))}</p>`);
+        const binding = workspaceBinding();
+        const bundle = await buildProfileBundle(binding?.profileId || "unlabelled");
+        await StorageManager.saveObject(`wl-profile-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`, { binding, bundle });
+        const profile = await request("/api/v1/cloud-save-profiles", { method: "POST", body: { name } });
+        // This is the player's explicit adoption of unmatched local files.
+        // Never route through selection, which could download an empty set.
+        if (accountUid() !== uid) return openCloudSavesPanel();
+        await activateProfile(profile, "device");
+      } catch (error) {
+        showError("Profile was not created", error, showSaveLocalAsNewProfile);
+      } finally { submitting = false; }
+    }, tr("CloudAccount.Profile.AdoptLocalBody", "The saves on this device do not belong to any profile on your account. Create a new profile for them? All these saves will be uploaded to the new profile. Your other profiles will not change. Enter a name to continue."));
+  }
+
   function showRenameProfile(profile) {
     if (!profile) return openCloudSavesPanel();
     profileNameEditor("Rename save profile", profile.name, "Rename", async name => {
@@ -947,7 +1344,7 @@
 
   async function openProfileBackups(profile) {
     if (!profile) return openCloudSavesPanel();
-    showPanel("Loading profile backups", `<p class="wl-account-muted">${escapeHtml(trSource("Checking the retained versions for {PROFILE}…", { PROFILE: profile.name }))}</p>`, [
+    showPanel("Loading profile backups", `<p class="wl-account-muted">${escapeHtml(trSource("Loading older backups for {PROFILE}…", { PROFILE: profile.name }))}</p>`, [
       { label: "Cancel", kind: "secondary", run: openCloudSavesPanel }
     ]);
     try {
@@ -955,7 +1352,7 @@
         clearTimeout(profileSyncTimer);
         if (profileSyncInFlight) await profileSyncInFlight.catch(() => undefined);
         if (retryQueue()[profile.profileId]) {
-          showPanel("Saving current profile", `<p class="wl-account-muted">Finishing the latest profile upload before showing versions that can be restored…</p>`);
+          showPanel("Saving current profile", `<p class="wl-account-muted">Saving your latest progress to the cloud before showing older backups…</p>`);
           const result = await syncActiveProfileNow();
           if (result?.conflict) return;
         }
@@ -965,7 +1362,7 @@
       if (!refreshed) throw new Error("The save profile no longer exists.");
       const backups = Array.isArray(refreshed.backups) ? refreshed.backups : [];
       if (!backups.length) {
-        showPanel(trSource("Backups for {PROFILE}", { PROFILE: refreshed.name }), `<p class="wl-account-muted">No older version is available yet. WonderLang keeps the three previous successful profile syncs.</p>`, [
+        showPanel(trSource("Backups for {PROFILE}", { PROFILE: refreshed.name }), `<p class="wl-account-muted">No older backup is available yet. After each successful sync, WonderLang keeps up to three previous backups.</p>`, [
           { label: "Back to profiles", run: openCloudSavesPanel },
           { label: "Close", kind: "secondary", run: closeOverlay }
         ]);
@@ -975,7 +1372,7 @@
         <div><h3>${escapeHtml(trSource("Backup {NUMBER}", { NUMBER: index + 1 }))}</h3><div class="wl-account-muted">${escapeHtml(trSource("Saved {TIME}", { TIME: formatTime(backup.updatedAt) }))}</div></div>
         <div class="wl-account-save-actions"><button class="wl-account-btn secondary" data-restore-backup="${escapeHtml(backup.revision)}">Restore this version</button></div>
       </div>`).join("");
-      const overlay = showPanel(trSource("Backups for {PROFILE}", { PROFILE: refreshed.name }), `<p class="wl-account-muted">WonderLang keeps three previous complete versions. Each contains global.rmmzsave and every save slot.</p>${rows}`, [
+      const overlay = showPanel(trSource("Backups for {PROFILE}", { PROFILE: refreshed.name }), `<p class="wl-account-muted">You can restore one of the three previous backups of this profile. Each backup contains all the profile's saves.</p>${rows}`, [
         { label: "Back to profiles", kind: "secondary", run: openCloudSavesPanel },
         { label: "Close", kind: "secondary", run: closeOverlay }
       ]);
@@ -990,7 +1387,7 @@
 
   function confirmProfileBackupRestore(profile, backup) {
     const savedAt = formatTime(backup.updatedAt);
-    showPanel(trSource("Restore {PROFILE} backup?", { PROFILE: profile.name }), `<p class="wl-account-muted">${escapeHtml(trSource("Restore the complete version saved {TIME}? The current cloud version will remain available as one of the three backups. No save slots will be mixed.", { TIME: savedAt }))}</p>`, [
+    showPanel(trSource("Restore {PROFILE}'s backup?", { PROFILE: profile.name }), `<p class="wl-account-muted">${escapeHtml(trSource("Restore the backup from {TIME}? It will replace this profile's current cloud saves. The current version will become one of the three older backups.", { TIME: savedAt }))}</p>`, [
       { label: "Restore backup", kind: "danger", run: () => restoreProfileBackup(profile, backup) },
       { label: "Cancel", kind: "secondary", run: () => openProfileBackups(profile) }
     ]);
@@ -998,14 +1395,14 @@
 
   async function restoreProfileBackup(profile, backup) {
     try {
-      showPanel("Restoring profile backup", `<p class="wl-account-muted">${escapeHtml(trSource("Restoring {PROFILE} from {TIME}…", { PROFILE: profile.name, TIME: formatTime(backup.updatedAt) }))}</p>`);
+      showPanel("Restoring profile backup", `<p class="wl-account-muted">${escapeHtml(trSource("Restoring {PROFILE}'s backup from {TIME}…", { PROFILE: profile.name, TIME: formatTime(backup.updatedAt) }))}</p>`);
       await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profile.profileId)}/revisions/${encodeURIComponent(backup.revision)}/restore`, {
         method: "POST",
         body: { expectedCurrentRevision: profile.currentRevision }
       });
       const isActive = profile.profileId === activeProfileId();
       if (isActive) await restoreProfile(profile.profileId);
-      showPanel("Backup restored", `<p class="wl-account-success">${escapeHtml(trSource(isActive ? "{PROFILE} now uses the complete backup from {TIME}. This device has downloaded and applied it." : "{PROFILE} now uses the complete backup from {TIME}. It will download when this device switches to that profile.", { PROFILE: profile.name, TIME: formatTime(backup.updatedAt) }))}</p>`, [
+      showPanel("Backup restored", `<p class="wl-account-success">${escapeHtml(trSource(isActive ? "{PROFILE} has been restored to the backup from {TIME}. Those saves are now on this device." : "{PROFILE} has been restored to the backup from {TIME} in the cloud. This device will download those saves when you switch to this profile.", { PROFILE: profile.name, TIME: formatTime(backup.updatedAt) }))}</p>`, [
         { label: "Continue", run: () => {
           closeOverlay();
           if (isActive && typeof Scene_Map !== "undefined" && SceneManager._scene instanceof Scene_Map) SceneManager.goto(Scene_Title);
@@ -1025,7 +1422,8 @@
   async function activateProfile(profile, source) {
     if (!profile) return;
     try {
-      showPanel("Switching save profile", `<p class="wl-account-muted">${escapeHtml(trSource("Preparing {PROFILE} without mixing save files…", { PROFILE: profile.name }))}</p>`);
+      if (source === "cloud") downloadPanel(profile);
+      else showPanel("Switching save profile", `<p class="wl-account-muted">${escapeHtml(profile.name)}</p>`);
       if (source === "cloud") {
         await restoreProfile(profile.profileId);
         setActiveProfileId(profile.profileId);
@@ -1047,7 +1445,7 @@
       }
       checkedStartupWorkspace = `${accountUid()}:${profile.profileId}`;
       finishStartupProfileDecision();
-      showPanel("Profile ready", `<p class="wl-account-success">${escapeHtml(trSource("{PROFILE} is active. global.rmmzsave and every save slot will now synchronize automatically.", { PROFILE: profile.name }))}</p>`, [
+      showPanel("Profile ready", `<p class="wl-account-success">${escapeHtml(trSource("{PROFILE} is ready. All saves in this profile will sync automatically.", { PROFILE: profile.name }))}</p>`, [
         { label: "Continue", run: () => {
           closeOverlay();
           if (typeof Scene_Map !== "undefined" && SceneManager._scene instanceof Scene_Map) SceneManager.goto(Scene_Title);
@@ -1059,12 +1457,12 @@
 
   async function switchFromActiveProfile(profile) {
     try {
-      showPanel("Saving current profile", `<p class="wl-account-muted">Uploading and finalizing every save in the current profile before switching…</p>`);
+      showPanel("Saving current profile", `<p class="wl-account-muted">Saving this profile's progress to the cloud before switching…</p>`);
       const result = await syncActiveProfileNow();
       if (result?.conflict) return;
       return activateProfile(profile, profile.currentRevision ? "cloud" : "empty");
     } catch (error) {
-      showError("Profile switch paused", new Error(trSource("WonderLang could not safely upload the current profile. Nothing was switched or downloaded. Connect to the internet and try again. {ERROR}", { ERROR: safeMessage(error) })), () => switchFromActiveProfile(profile));
+      showError("Profile switch paused", new Error(trSource("Your current profile could not be uploaded, so the profile was not switched. Check your internet connection and try again. {ERROR}", { ERROR: safeMessage(error) })), () => switchFromActiveProfile(profile));
     }
   }
 
@@ -1083,20 +1481,21 @@
           return;
         }
         const availableProfiles = Array.isArray(options.profiles) ? options.profiles : await listProfiles().catch(() => []);
-        const currentProfile = availableProfiles.find(item => item.profileId === previous) || { profileId: previous, name: tr("CloudAccount.Label.SelectedProfile", "selected profile") };
-        showWorkspaceMismatchPrompt(currentProfile, binding, availableProfiles);
+        // Recovery must offer the requested destination, not trap the player
+        // on the previously selected profile whose local binding is stale.
+        showWorkspaceMismatchPrompt(profile, binding, availableProfiles);
         return;
       }
       const currentProfile = Array.isArray(options.profiles) ? options.profiles.find(item => item.profileId === previous) : null;
       const currentName = currentProfile?.name || "the current profile";
-      showPanel(trSource("Switch to {PROFILE}?", { PROFILE: profile.name }), `<p class="wl-account-muted">${escapeHtml(trSource("WonderLang will first upload and finalize {CURRENT}, including global.rmmzsave and every save slot. Only after that succeeds will it download and activate {NEXT}. If the upload fails, this device stays on {CURRENT}.", { CURRENT: currentName, NEXT: profile.name }))}</p>`, [
+      showPanel(trSource("Switch to {PROFILE}?", { PROFILE: profile.name }), `<p class="wl-account-muted">${escapeHtml(trSource("First, all saves for {CURRENT} on this device will be uploaded to the cloud. Then {NEXT}'s cloud saves will be downloaded to this device. If the upload fails, you will stay on {CURRENT}.", { CURRENT: currentName, NEXT: profile.name }))}</p>`, [
         { label: "Sync and switch", run: () => switchFromActiveProfile(profile) },
         { label: "Cancel", kind: "secondary", run: onCancel }
       ]);
       return;
     }
     if (hasLocalPlayerSaves() && profile.currentRevision) {
-      showPanel(trSource("Use {PROFILE} on this device?", { PROFILE: profile.name }), `<p class="wl-account-muted">This device already has WonderLang saves, and this profile also has cloud saves. Choose which complete set should become this profile. No individual slots will be mixed.</p>`, [
+      showPanel(trSource("Use {PROFILE} on this device?", { PROFILE: profile.name }), `<p class="wl-account-muted">This device and this profile both have saves. Keep this device's saves to upload them to the profile, or use the cloud saves to replace the saves on this device. The two versions will not be combined.</p>`, [
         { label: "Keep device saves", run: () => activateProfile(profile, "device") },
         { label: "Use cloud saves", kind: "danger", run: () => activateProfile(profile, "cloud") },
         { label: "Cancel", kind: "secondary", run: openCloudSavesPanel }
@@ -1110,7 +1509,7 @@
     let remote;
     try { remote = await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profileId)}/download`); }
     catch (error) { showError("Cloud-profile conflict", error, () => presentProfileConflict(profileId)); return; }
-    showPanel("This profile changed on two devices", `<p class="wl-account-muted">WonderLang did not mix or overwrite the save sets. Choose which complete profile should become current.</p><div class="wl-account-status"><div class="wl-account-card"><b>This device</b>global.rmmzsave + all local saves</div><div class="wl-account-card"><b>Cloud</b>${escapeHtml(formatTime(remote.manifest.updatedAt))}</div></div>`, [
+    showPanel("This profile changed on two devices", `<p class="wl-account-muted">This device and the cloud have different saves for this profile. Nothing has been replaced yet. Choose which saves to keep. They will replace the other version.</p><div class="wl-account-status"><div class="wl-account-card"><b>This device</b>All saves on this device</div><div class="wl-account-card"><b>Cloud</b>${escapeHtml(formatTime(remote.manifest.updatedAt))}</div></div>`, [
       { label: "Keep this device", run: async () => {
         try { await uploadProfile(profileId, { baseRevision: remote.manifest.currentRevision, showConflict: true }); closeOverlay(); }
         catch (error) { showError("Device profile was not uploaded", error, () => presentProfileConflict(profileId)); }
@@ -1153,11 +1552,13 @@
     showLocalSaveFreshnessPrompt(profile, workspaceBinding());
   }
 
-  function showUnlabelledWorkspacePrompt(profile) {
+  async function showUnlabelledWorkspacePrompt(profile) {
+    const profiles = await listProfiles().catch(() => null);
     showPanel(tr("CloudAccount.Startup.UnlabelledTitle", "Which profile owns these saves?"),
-      `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Startup.UnlabelledBody", "This game was updated with safer profile protection. Confirm that the complete local save set belongs to {PROFILE} before WonderLang is allowed to upload it. If you are unsure, use the cloud copy instead.", { PROFILE: profile.name }))}</p>`, [
+      `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Startup.UnlabelledBody", "Do the saves on this device belong to {PROFILE}? Confirm only if you are sure. Otherwise, choose another profile or download this profile's cloud saves instead.", { PROFILE: profile.name }))}</p>`, [
         { label: tr("CloudAccount.Action.ConfirmProfileSaves", "These are {PROFILE}'s saves", { PROFILE: profile.name }), run: () => acceptUnlabelledWorkspace(profile).catch(error => showError(tr("CloudAccount.Error.Title", "Cloud-save check failed"), error, () => showUnlabelledWorkspacePrompt(profile))) },
         ...(profile.currentRevision ? [{ label: tr("CloudAccount.Action.UseCloudCopy", "Use {PROFILE}'s cloud saves", { PROFILE: profile.name }), kind: "danger", run: () => useProfileCloudCopy(profile) }] : []),
+        ...(profiles && canSaveLocalAsNewProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalAsNew", "Save local files to a new profile"), run: showSaveLocalAsNewProfile }] : []),
         { label: tr("CloudAccount.Action.ChooseProfile", "Choose another profile"), kind: "secondary", run: () => openCloudSavesPanel(true) },
         { label: tr("CloudAccount.Action.NotNow", "Not now"), kind: "secondary", run: closeOverlay }
       ]);
@@ -1165,15 +1566,19 @@
 
   async function useProfileCloudCopy(profile) {
     try {
-      showPanel(tr("CloudAccount.Startup.DownloadingTitle", "Loading cloud saves"), `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Startup.DownloadingBody", "Downloading the complete cloud save for {PROFILE} without uploading the local files…", { PROFILE: profile.name }))}</p>`);
+      downloadPanel(profile);
       await restoreProfile(profile.profileId);
       setActiveProfileId(profile.profileId);
       saveWorkspaceBinding(profile.profileId, { profileName: profile.name });
+      checkedStartupWorkspace = `${accountUid()}:${profile.profileId}`;
       finishStartupProfileDecision();
       showPanel(tr("CloudAccount.Startup.CloudReadyTitle", "Cloud saves ready"), `<p class="wl-account-success">${escapeHtml(tr("CloudAccount.Startup.CloudReadyBody", "{PROFILE}'s cloud saves are now active on this device.", { PROFILE: profile.name }))}</p>`, [
         { label: tr("CloudAccount.Action.Continue", "Continue"), run: closeOverlay }
       ]);
     } catch (error) {
+      // Repeated native account refreshes must not reopen a failed restore.
+      // The visible retry/profile controls still allow an explicit new attempt.
+      failedStartupWorkspace = `${accountUid()}:${profile.profileId}`;
       showError(tr("CloudAccount.Error.CloudLoadTitle", "Cloud saves were not loaded"), error, () => useProfileCloudCopy(profile));
     }
   }
@@ -1182,7 +1587,8 @@
     const boundProfile = binding?.uid === accountUid() ? profiles.find(item => item.profileId === binding.profileId) : null;
     const ownerName = binding?.profileName || boundProfile?.name || tr("CloudAccount.Label.AnotherProfile", "another profile");
     showPanel(tr("CloudAccount.Startup.MismatchTitle", "Local saves belong to another profile"),
-      `<p class="wl-account-error">${escapeHtml(tr("CloudAccount.Startup.MismatchBody", "These files are labelled as {OWNER}. WonderLang will not upload them to {ACTIVE}. Choose the matching profile, or replace the local files with {ACTIVE}'s cloud copy.", { OWNER: ownerName, ACTIVE: profile.name }))}</p>`, [
+      `<p class="wl-account-error">${escapeHtml(tr("CloudAccount.Startup.MismatchBody", "The saves on this device belong to {OWNER}, not {ACTIVE}. They will not be uploaded to {ACTIVE}. Choose their profile, or download {ACTIVE}'s cloud saves. Downloading replaces the saves on this device after keeping a recovery copy here. It does not change the saves in the cloud.", { OWNER: ownerName, ACTIVE: profile.name }))}</p>`, [
+        ...(canSaveLocalAsNewProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalAsNew", "Save local files to a new profile"), run: showSaveLocalAsNewProfile }] : []),
         ...(boundProfile ? [{ label: tr("CloudAccount.Action.ReturnToProfile", "Return to {PROFILE}", { PROFILE: boundProfile.name }), run: () => {
           setActiveProfileId(boundProfile.profileId);
           checkedStartupWorkspace = "";
@@ -1198,11 +1604,11 @@
   function showLocalSaveFreshnessPrompt(profile, binding) {
     const localTime = latestLocalSaveTime(binding);
     showPanel(tr("CloudAccount.Startup.NewerTitle", "Newer local saves found"),
-      `<p class="wl-account-success">${escapeHtml(tr("CloudAccount.Startup.NewerBody", "The complete local save set for {PROFILE} has changes that are not in the latest cloud backup. Sync global.rmmzsave and every save slot now?", { PROFILE: profile.name }))}</p><div class="wl-account-status"><div class="wl-account-card"><b>${escapeHtml(tr("CloudAccount.Label.ThisDevice", "This device"))}</b>${escapeHtml(localTime ? formatTime(localTime) : tr("CloudAccount.Label.ChangedLocally", "Changed locally"))}</div><div class="wl-account-card"><b>${escapeHtml(tr("CloudAccount.Label.CloudBackup", "Cloud backup"))}</b>${escapeHtml(profile.updatedAt ? formatTime(profile.updatedAt) : tr("CloudAccount.Label.NoBackupYet", "No backup yet"))}</div></div>`, [
+      `<p class="wl-account-success">${escapeHtml(tr("CloudAccount.Startup.NewerBody", "The saves for {PROFILE} on this device have changes that are not yet in the cloud. Upload all of this profile's saves now?", { PROFILE: profile.name }))}</p><div class="wl-account-status"><div class="wl-account-card"><b>${escapeHtml(tr("CloudAccount.Label.ThisDevice", "This device"))}</b>${escapeHtml(localTime ? formatTime(localTime) : tr("CloudAccount.Label.ChangedLocally", "Changed locally"))}</div><div class="wl-account-card"><b>${escapeHtml(tr("CloudAccount.Label.CloudBackup", "Cloud backup"))}</b>${escapeHtml(profile.updatedAt ? formatTime(profile.updatedAt) : tr("CloudAccount.Label.NoBackupYet", "No backup yet"))}</div></div>`, [
         { label: tr("CloudAccount.Action.SyncNow", "Sync now"), run: async () => {
           try {
             startupProfileDecisionPending = false;
-            showPanel(tr("CloudAccount.Startup.SyncingTitle", "Syncing newer saves"), `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Startup.SyncingBody", "Uploading and finalizing the complete {PROFILE} profile…", { PROFILE: profile.name }))}</p>`);
+            showPanel(tr("CloudAccount.Startup.SyncingTitle", "Syncing newer saves"), `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Startup.SyncingBody", "Uploading {PROFILE}'s saves to the cloud…", { PROFILE: profile.name }))}</p>`);
             const result = await uploadProfile(profile.profileId, { showConflict: true });
             if (result?.conflict) return;
             finishStartupProfileDecision();
@@ -1219,6 +1625,8 @@
   }
 
   async function checkStartupProfileFreshness(force = false) {
+    if (document.hidden || Date.now() < foregroundReadyAt) return "deferred";
+    if (isOffline()) { noteOffline(); return "offline"; }
     if (startupProfileCheckInFlight) return startupProfileCheckInFlight;
     startupProfileCheckInFlight = (async () => {
       const uid = accountUid();
@@ -1228,6 +1636,7 @@
         return "not_applicable";
       }
       const signature = `${uid}:${profileId}`;
+      if (failedStartupWorkspace === signature) return "awaiting_retry";
       if (!force && checkedStartupWorkspace === signature) return "already_checked";
       if (activeOverlay) return "deferred";
       const profiles = await listProfiles();
@@ -1295,6 +1704,7 @@
   };
 
   window.WLAccountEntitlements = {
+    titleAccountLabel,
     refresh,
     account,
     current: entitlement,
@@ -1345,16 +1755,34 @@
     },
     _nativeSignedOut() {
       cache(null);
+      refreshTitleAccount();
       window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: null }));
     }
   };
 
   window.addEventListener("wl-device-sign-in-state", event => showDeviceSignInState(event.detail));
 
-  window.addEventListener("online", () => {
-    if (startupProfileDecisionPending) scheduleStartupProfileCheck(250, true);
-    else drainUploadQueue().catch(error => console.warn("[WonderLang Cloud Save] Retry queue paused.", safeMessage(error)));
+  window.addEventListener("offline", noteOffline);
+  window.addEventListener("online", () => { resumeCloudSync(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) return;
+    // Android can suspend requests and report a transient offline state while
+    // resuming the WebView. Recheck after connectivity/token refresh settles.
+    foregroundReadyAt = Date.now() + 5000;
+    setTimeout(() => {
+      if (document.hidden) return;
+      if (deviceOffline()) noteOffline();
+      else resumeCloudSync();
+    }, 5000);
   });
+  window.addEventListener("wl-entitlements-updated", refreshTitleAccount);
+  setInterval(showOfflineNotice, 2000);
+  setInterval(() => {
+    if (document.hidden || Date.now() < foregroundReadyAt) return;
+    if (deviceOffline()) { noteOffline(); return; }
+    if (networkUnavailable || retryCount()) resumeCloudSync();
+  }, 15000);
+  setTimeout(() => { if (retryCount()) resumeCloudSync(); }, 1500);
   scheduleStartupProfileCheck(3_000);
 
   PluginManager.registerCommand(pluginName, "openAccount", openAccountPanel);

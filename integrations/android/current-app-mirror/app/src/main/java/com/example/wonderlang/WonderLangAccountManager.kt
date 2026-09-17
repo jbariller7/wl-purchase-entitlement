@@ -38,7 +38,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.KeyStore
 import java.util.Locale
-import java.util.TimeZone
+import android.icu.util.TimeZone
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -251,7 +251,7 @@ class WonderLangAccountManager(
                     "window.WLAccountEntitlements?._nativePurchaseVerified?.(" +
                         JSONObject.quote(response.toString()) + ")"
                 )
-                activity.runOnUiThread { onComplete(true, entitlements, null) }
+                activity.runOnUiThread { onComplete(true, response, null) }
             } catch (error: Exception) {
                 val message = safeMessage(error, "WonderLang could not verify this Google Play purchase.")
                 evaluate(

@@ -63,7 +63,7 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(source).toContain("data-profile-switcher");
     expect(source).toContain("Active save profile");
     expect(source).toContain("Sync and switch");
-    expect(source).toContain("Nothing was switched or downloaded");
+    expect(source).toContain("the profile was not switched");
     const switchFlow = source.slice(source.indexOf("async function switchFromActiveProfile"), source.indexOf("async function selectProfile"));
     expect(switchFlow.indexOf("await syncActiveProfileNow()")).toBeGreaterThan(-1);
     expect(switchFlow.indexOf("return activateProfile(profile")).toBeGreaterThan(switchFlow.indexOf("await syncActiveProfileNow()"));
@@ -87,7 +87,7 @@ describe("RPG Maker whole-profile sync contract", () => {
     expect(source).toContain("binding.uid === accountUid() && binding.profileId === profileId");
     expect(source).toContain("if (!workspaceMatches(profileId)) throw new Error");
     expect(source).toContain("!workspaceMatches(activeProfileId())");
-    expect(source).toContain("WonderLang will not upload them to {ACTIVE}");
+    expect(source).toContain("They will not be uploaded to {ACTIVE}");
   });
 
   it("fingerprints the complete local profile and asks before uploading startup changes", async () => {

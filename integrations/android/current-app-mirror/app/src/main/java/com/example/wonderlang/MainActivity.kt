@@ -2,6 +2,7 @@ package com.wonderlang.app
 
 import androidx.activity.result.contract.ActivityResultContracts
 import android.annotation.SuppressLint
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -17,6 +18,7 @@ import android.speech.RecognitionSupport
 import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Base64
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
@@ -28,6 +30,8 @@ import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
+import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -60,6 +64,8 @@ import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
+    // Updated by the game's actual Stretch option; use safe bounds until config loads.
+    private var stretchScreenEnabled = false
     private lateinit var accountManager: WonderLangAccountManager
     private lateinit var assetPackManager: AssetPackManager
     private lateinit var assetLoader: WebViewAssetLoader
@@ -180,12 +186,14 @@ class MainActivity : AppCompatActivity() {
     private val PACK_EN = "en"
     private val PACK_US = "us"
     private val PACK_AR = "ar"
+    private val PACK_EX = "ex"
+    private val PACK_RU = "ru"
 
     // Only the core game is install-time. All language packs are optional Play Asset Delivery packs.
-    // FR, ES, DE, PT, IT, KR, JP, ZH, EN, US, and AR are downloaded on demand.
+    // FR, ES, DE, PT, IT, KR, JP, ZH, EN, US, AR, EX, and RU are downloaded on demand.
     private val INSTALL_TIME_PACKS = setOf(PACK_GAME)
     private val STARTUP_PACKS = listOf(PACK_GAME)
-    private val RUNTIME_FETCH_PACKS = setOf(PACK_FR, PACK_ES, PACK_DE, PACK_PT, PACK_IT, PACK_KR, PACK_JP, PACK_ZH, PACK_EN, PACK_US, PACK_AR)
+    private val RUNTIME_FETCH_PACKS = setOf(PACK_FR, PACK_ES, PACK_DE, PACK_PT, PACK_IT, PACK_KR, PACK_JP, PACK_ZH, PACK_EN, PACK_US, PACK_AR, PACK_EX, PACK_RU)
     private val BUILT_IN_LANGUAGE_ALIASES = emptySet<String>()
     private val NEVER_FETCH_PACKS = INSTALL_TIME_PACKS
     private val ALL_KNOWN_LANGUAGE_PACKS = RUNTIME_FETCH_PACKS
@@ -819,6 +827,7 @@ class MainActivity : AppCompatActivity() {
             }
         )
         setupMetaAppEvents()
+        WonderLangTikTokEvents.initialize(applicationContext)
 
         // ✅ ENHANCED LOGGING - Ensure we can see logs
         Log.i(TAG, "🎮 WonderLang MainActivity onCreate() - App starting...")
@@ -841,8 +850,21 @@ class MainActivity : AppCompatActivity() {
 
         Log.i(TAG, "✅ Views initialized")
 
-        applySafeAreaInsets()
+        applyGameViewportInsets()
         setupWebView()
+        // Insets, rotation and resume can change the WebView after page initialization.
+        webView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                webView.post {
+                    webView.evaluateJavascript(
+                        "if (window.WL_refreshAndroidViewport) window.WL_refreshAndroidViewport(); " +
+                            "else window.dispatchEvent(new Event('resize'));",
+                        null
+                    )
+                }
+            }
+        }
+
         accountManager = WonderLangAccountManager(this, webView, ACCOUNT_API_BASE_URL)
         webView.addJavascriptInterface(accountManager, "WLAccountManager")
         accountManager.handleIntent(intent)
@@ -898,7 +920,9 @@ class MainActivity : AppCompatActivity() {
         webSettings.javaScriptEnabled = true
         webSettings.useWideViewPort = true
         webSettings.databaseEnabled = true
-        webSettings.loadWithOverviewMode = true
+        // RPG Maker owns canvas scaling. WebView must not independently zoom the
+        // whole page out to fit an overflowing HTML overlay on a narrow device.
+        webSettings.loadWithOverviewMode = false
         webSettings.defaultTextEncodingName = "utf-8"
         webSettings.javaScriptCanOpenWindowsAutomatically = true
         webSettings.loadsImagesAutomatically = true
@@ -998,7 +1022,11 @@ class MainActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             val params = window.attributes
             params.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                } else {
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
             window.attributes = params
         }
 
@@ -1014,67 +1042,36 @@ class MainActivity : AppCompatActivity() {
         controller.hide(WindowInsetsCompat.Type.systemBars())
     }
 
-    private fun applySafeAreaInsets() {
+    private fun setGameStretchScreen(enabled: Boolean) {
+        runOnUiThread {
+            if (stretchScreenEnabled != enabled) {
+                stretchScreenEnabled = enabled
+                ViewCompat.requestApplyInsets(findViewById<View>(android.R.id.content))
+            }
+        }
+    }
+
+    private fun applyGameViewportInsets() {
         val rootView = findViewById<View>(android.R.id.content)
 
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { _, insets ->
             val cutout = insets.displayCutout
-            val rects = cutout?.boundingRects ?: emptyList()
-
-            val hasDisplayCutout = rects.isNotEmpty()
-
-            val viewWidth = rootView.width
-            val viewHeight = rootView.height
-
-            var notchLeft = 0
-            var notchTop = 0
-            var notchRight = 0
-            var notchBottom = 0
-
-            if (hasDisplayCutout && viewWidth > 0 && viewHeight > 0) {
-                for (rect in rects) {
-                    Log.i(TAG, "Cutout rect: left=${rect.left}, top=${rect.top}, right=${rect.right}, bottom=${rect.bottom}")
-
-                    // Top notch/camera hole.
-                    if (rect.top <= 0 && rect.bottom > 0) {
-                        notchTop = maxOf(notchTop, rect.bottom)
-                    }
-
-                    // Left cutout.
-                    if (rect.left <= 0 && rect.right > 0) {
-                        notchLeft = maxOf(notchLeft, rect.right)
-                    }
-
-                    // Right cutout.
-                    if (rect.right >= viewWidth && rect.left < viewWidth) {
-                        notchRight = maxOf(notchRight, viewWidth - rect.left)
-                    }
-
-                    // Bottom cutout.
-                    if (rect.bottom >= viewHeight && rect.top < viewHeight) {
-                        notchBottom = maxOf(notchBottom, viewHeight - rect.top)
-                    }
-                }
-            }
-
-            // Tiny safety buffer. Set to 0 if you want the exact cutout rectangle only.
-            val extraPadding = 0
-
-            val safeLeft = if (notchLeft > 0) notchLeft + extraPadding else 0
-            val safeTop = if (notchTop > 0) notchTop + extraPadding else 0
-            val safeRight = if (notchRight > 0) notchRight + extraPadding else 0
-            val safeBottom = if (notchBottom > 0) notchBottom + extraPadding else 0
+            val hasDisplayCutout = cutout?.boundingRects?.isNotEmpty() == true
+            // The canvas and every HTML menu share this WebView. Only Stretch ON
+            // opts into the entire window; OFF restores the system's safe bounds.
+            val handledTypes = WindowInsetsCompat.Type.displayCutout() or
+                WindowInsetsCompat.Type.systemBars()
+            val safe = if (stretchScreenEnabled) Insets.NONE else insets.getInsets(handledTypes)
 
             Log.i(
                 TAG,
-                "Display cutout exact check: hasDisplayCutout=$hasDisplayCutout, " +
-                        "rectCount=${rects.size}, " +
-                        "viewWidth=$viewWidth, viewHeight=$viewHeight, " +
-                        "margins left=$safeLeft, top=$safeTop, right=$safeRight, bottom=$safeBottom"
+                "Game viewport: stretch=$stretchScreenEnabled, hasDisplayCutout=$hasDisplayCutout, " +
+                        "viewWidth=${rootView.width}, viewHeight=${rootView.height}, " +
+                        "margins left=${safe.left}, top=${safe.top}, right=${safe.right}, bottom=${safe.bottom}"
             )
 
-            setViewMargins(webView, safeLeft, safeTop, safeRight, safeBottom)
-            setViewMargins(loadingOverlay, safeLeft, safeTop, safeRight, safeBottom)
+            setViewMargins(webView, safe.left, safe.top, safe.right, safe.bottom)
+            setViewMargins(loadingOverlay, safe.left, safe.top, safe.right, safe.bottom)
 
             webView.post {
                 webView.evaluateJavascript(
@@ -1082,12 +1079,13 @@ class MainActivity : AppCompatActivity() {
                     (function() {
                         window.WL_SAFE_AREA = {
                             hasDisplayCutout: $hasDisplayCutout,
-                            left: $safeLeft,
-                            top: $safeTop,
-                            right: $safeRight,
-                            bottom: $safeBottom
+                            left: ${safe.left},
+                            top: ${safe.top},
+                            right: ${safe.right},
+                            bottom: ${safe.bottom}
                         };
-                        window.dispatchEvent(new Event('resize'));
+                        if (window.WL_refreshAndroidViewport) window.WL_refreshAndroidViewport();
+                        else window.dispatchEvent(new Event('resize'));
                     })();
                     """.trimIndent(),
                     null
@@ -1095,10 +1093,22 @@ class MainActivity : AppCompatActivity() {
                 webView.invalidate()
             }
 
-            insets
+            // ON ignores these safe areas; OFF already applies them as margins.
+            // Never apply them a second time inside HTML menus. Keep dispatching
+            // zero updates and preserve keyboard insets in both modes.
+            WindowInsetsCompat.Builder(insets)
+                .setDisplayCutout(null)
+                .setInsets(handledTypes, Insets.NONE)
+                .setInsetsIgnoringVisibility(handledTypes, Insets.NONE)
+                .build()
         }
 
-        ViewCompat.requestApplyInsets(rootView)
+        rootView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            if (right - left != oldRight - oldLeft || bottom - top != oldBottom - oldTop) {
+                ViewCompat.requestApplyInsets(rootView)
+            }
+        }
+        rootView.post { ViewCompat.requestApplyInsets(rootView) }
     }
 
     private fun dpToPx(dp: Int): Int {
@@ -1916,6 +1926,8 @@ class MainActivity : AppCompatActivity() {
                 "AR/texts/vocab.json",
                 "ar/texts/vocab.json"
             )
+            PACK_EX -> listOf("EX/texts/vocab.json", "ex/texts/vocab.json")
+            PACK_RU -> listOf("RU/texts/vocab.json", "ru/texts/vocab.json")
             else -> emptyList()
         }
     }
@@ -2673,52 +2685,33 @@ class MainActivity : AppCompatActivity() {
         return digest.joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
     }
 
-    private fun logMetaPurchaseIfNeeded(purchase: Purchase, acceptedProductIds: Collection<String>) {
-        if (!metaTrackingEnabled || !::metaAppEventsLogger.isInitialized) return
-
-        val preferences = getSharedPreferences("wl_meta_app_events", Context.MODE_PRIVATE)
-        val fingerprint = purchaseTokenFingerprint(purchase.purchaseToken)
-        val loggedFingerprints = preferences
-            .getStringSet("logged_purchase_tokens", emptySet())
-            ?.toMutableSet()
-            ?: mutableSetOf()
-
-        if (fingerprint in loggedFingerprints) {
-            Log.i(TAG, "Meta purchase already reported; skipping duplicate callback.")
-            return
-        }
-
-        var loggedProductCount = 0
-        acceptedProductIds.forEach { productId ->
-            val storePrice = storeProductPrices[productId]
-            if (storePrice == null) {
-                Log.w(TAG, "Meta purchase not reported because Play price data is missing for $productId.")
-                return@forEach
-            }
-
+    private fun logMetaVerifiedConversionIfNeeded(conversion: JSONObject?, productId: String) {
+        if (!metaTrackingEnabled || !::metaAppEventsLogger.isInitialized || conversion == null) return
+        try {
+            val name = conversion.optString("eventName")
+            val eventId = conversion.optString("eventId")
+            val currency = conversion.optString("currency")
+            val value = conversion.optDouble("value", Double.NaN)
+            if (name !in setOf("Purchase", "StartTrial", "Subscribe") || eventId.isBlank() ||
+                !currency.matches(Regex("[A-Z]{3}")) || !value.isFinite() || value < 0 ||
+                (name != "StartTrial" && value <= 0) || (name == "StartTrial" && value != 0.0)) return
+            val preferences = getSharedPreferences("wl_meta_app_events", Context.MODE_PRIVATE)
+            if (name == "Purchase" && eventId.removeSuffix(":paid") in
+                (preferences.getStringSet("logged_purchase_tokens", emptySet()) ?: emptySet())) return
+            val key = "subscription_" + purchaseTokenFingerprint(eventId)
+            if (preferences.getBoolean(key, false)) return
             val parameters = Bundle().apply {
                 putString(AppEventsConstants.EVENT_PARAM_CONTENT_ID, productId)
-                putString(AppEventsConstants.EVENT_PARAM_CONTENT_TYPE, "product")
-                purchase.orderId?.let { orderId ->
-                    putString(AppEventsConstants.EVENT_PARAM_ORDER_ID, orderId)
-                }
+                putString(AppEventsConstants.EVENT_PARAM_CURRENCY, currency)
             }
-
-            metaAppEventsLogger.logPurchase(
-                BigDecimal.valueOf(storePrice.amountMicros, 6),
-                Currency.getInstance(storePrice.currencyCode),
-                parameters
-            )
-            loggedProductCount++
-        }
-
-        if (loggedProductCount == acceptedProductIds.size && loggedProductCount > 0) {
-            loggedFingerprints.add(fingerprint)
-            preferences.edit()
-                .putStringSet("logged_purchase_tokens", loggedFingerprints)
-                .apply()
+            if (name == "Purchase") {
+                metaAppEventsLogger.logPurchase(BigDecimal.valueOf(value), Currency.getInstance(currency), parameters)
+            } else metaAppEventsLogger.logEvent(name, value, parameters)
+            preferences.edit().putBoolean(key, true).apply()
             metaAppEventsLogger.flush()
-            Log.i(TAG, "Meta purchase reported for ${acceptedProductIds.joinToString()}.")
+        } catch (error: Exception) {
+            // Analytics must never prevent a verified purchase from unlocking.
+            Log.w(TAG, "Meta subscription event could not be queued.")
         }
     }
 
@@ -2919,7 +2912,7 @@ class MainActivity : AppCompatActivity() {
         if (!purchaseClaimsInFlight.add(fingerprint)) return
 
         val kind = if (productId in SUBS_SKUS) "subscription" else "one_time"
-        accountManager.claimGooglePlayPurchase(kind, productId, purchase.purchaseToken) { success, _, error ->
+        accountManager.claimGooglePlayPurchase(kind, productId, purchase.purchaseToken) { success, receipt, error ->
             purchaseClaimsInFlight.remove(fingerprint)
             synchronized(purchaseQueryLock) {
                 // A server verification is newer than any Play snapshot already in flight.
@@ -2931,10 +2924,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             if (success) {
-                // Never send subscription starts/renewals to Meta from the device. Stripe and
-                // server automation own recurring conversion policy; this preserves the legacy
-                // one-time event only after receipt verification.
-                if (productId in IN_APP_SKUS) logMetaPurchaseIfNeeded(purchase, listOf(productId))
+                logMetaVerifiedConversionIfNeeded(receipt?.optJSONObject("adConversion"), productId)
+                WonderLangTikTokEvents.record(applicationContext, receipt?.optJSONObject("adConversion"), productId)
                 setPurchaseStatus("PURCHASED", "Purchase verified. Full WonderLang access is ready.")
             } else {
                 setPurchaseStatus(
@@ -3399,7 +3390,123 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun shareAchievementImageNative(
+        filename: String,
+        mimeType: String,
+        base64Png: String,
+        caption: String,
+        target: String
+    ): String {
+        return try {
+            val encoded = base64Png.substringAfter("base64,", base64Png).trim()
+            if (encoded.isEmpty()) return "ERROR_EMPTY_IMAGE"
+            if (encoded.length > 24 * 1024 * 1024) return "ERROR_IMAGE_TOO_LARGE"
+
+            val imageBytes = Base64.decode(encoded, Base64.DEFAULT)
+            val pngSignature = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+            if (imageBytes.size < pngSignature.size ||
+                !imageBytes.copyOfRange(0, pngSignature.size).contentEquals(pngSignature)) {
+                return "ERROR_INVALID_PNG"
+            }
+
+            val safeBaseName = File(filename).name
+                .replace(Regex("[^A-Za-z0-9._-]"), "_")
+                .trim('.', '_')
+                .take(96)
+                .ifBlank { "wonderlang_achievement.png" }
+            val safeFilename = if (safeBaseName.endsWith(".png", ignoreCase = true)) {
+                safeBaseName
+            } else {
+                "$safeBaseName.png"
+            }
+            val shareDirectory = File(cacheDir, "achievement_shares").apply {
+                if (!exists() && !mkdirs()) throw IllegalStateException("Could not create achievement share cache")
+            }
+            shareDirectory.listFiles()?.forEach { cached ->
+                if (cached.isFile && System.currentTimeMillis() - cached.lastModified() > 24L * 60L * 60L * 1000L) {
+                    runCatching { cached.delete() }
+                }
+            }
+            val imageFile = File.createTempFile(safeFilename.removeSuffix(".png").take(60).padEnd(3, '_'), ".png", shareDirectory)
+            imageFile.outputStream().use { stream -> stream.write(imageBytes) }
+
+            val imageUri = FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                imageFile
+            )
+            val safeMimeType = mimeType.takeIf { it.equals("image/png", ignoreCase = true) } ?: "image/png"
+            val normalizedTarget = target.trim().lowercase(Locale.ROOT)
+            val targetPackage = when (normalizedTarget) {
+                "x" -> "com.twitter.android"
+                "facebook" -> "com.facebook.katana"
+                "instagram" -> "com.instagram.android"
+                else -> null
+            }
+
+            val launch = java.util.concurrent.FutureTask<String> {
+                try {
+                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = safeMimeType
+                    putExtra(Intent.EXTRA_STREAM, imageUri)
+                    if (caption.isNotBlank()) putExtra(Intent.EXTRA_TEXT, caption)
+                    clipData = ClipData.newUri(contentResolver, "WonderLang achievement", imageUri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                val openChooser = {
+                    val chooser = Intent.createChooser(sendIntent, "Share achievement")
+                    chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    startActivity(chooser)
+                }
+
+                if (targetPackage == null) {
+                    openChooser()
+                } else {
+                    try {
+                        grantUriPermission(targetPackage, imageUri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        startActivity(Intent(sendIntent).setPackage(targetPackage))
+                    } catch (error: Exception) {
+                        Log.w(TAG, "Target share app unavailable: $targetPackage", error)
+                        openChooser()
+                    }
+                }
+                "STARTED"
+                } catch (error: Exception) {
+                    Log.e(TAG, "Could not open achievement share activity", error)
+                    "ERROR_SHARE_UNAVAILABLE"
+                }
+            }
+            runOnUiThread(launch)
+            launch.get(10, TimeUnit.SECONDS)
+        } catch (error: Exception) {
+            Log.e(TAG, "Achievement image sharing failed", error)
+            "ERROR_${error.javaClass.simpleName.uppercase(Locale.ROOT)}"
+        }
+    }
+
     inner class AndroidBridge {
+        @JavascriptInterface
+        fun setStretchScreen(enabled: Boolean) {
+            setGameStretchScreen(enabled)
+        }
+
+        @JavascriptInterface
+        fun shareAchievementImage(
+            filename: String,
+            mimeType: String,
+            base64Png: String,
+            caption: String,
+            target: String
+        ): String = shareAchievementImageNative(filename, mimeType, base64Png, caption, target)
+
+        @JavascriptInterface
+        fun shareImage(
+            filename: String,
+            mimeType: String,
+            base64Png: String,
+            caption: String,
+            target: String
+        ): String = shareAchievementImageNative(filename, mimeType, base64Png, caption, target)
 
         @JavascriptInterface
         fun getCrashDiagnostics(): String {

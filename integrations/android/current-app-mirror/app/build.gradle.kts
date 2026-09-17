@@ -26,6 +26,11 @@ val wonderLangEntitlementsFirebaseApiKey =
                 "or the untracked local.properties file. Never commit Firebase API keys."
         )
 
+val wonderLangTikTokAppSecret =
+    providers.environmentVariable("WONDERLANG_TIKTOK_APP_SECRET").orNull
+        ?: localProperties.getProperty("WONDERLANG_TIKTOK_APP_SECRET")
+        ?: throw GradleException("Missing WONDERLANG_TIKTOK_APP_SECRET in build environment or untracked local.properties.")
+
 android {
     buildFeatures {
         resValues = true
@@ -49,9 +54,10 @@ android {
         targetSdk = 36
 
         // New app/package, so versionCode can start again at 1.
-        versionCode = 33
-        versionName = "1.0.33 "
+        versionCode = 44
+        versionName = "1.0.44 "
 
+        resValue("string", "wonderlang_tiktok_app_secret", wonderLangTikTokAppSecret)
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         resValue(
             "string",
@@ -103,13 +109,11 @@ android {
             ".png", ".jpg", ".jpeg",
             ".ogg", ".m4a", ".webm",
             ".json", ".html", ".js", ".css", ".txt",
-            ".rpgmvp", ".rpgmvo", ".rpgmvw"
+            ".pack", ".rpgmvp", ".rpgmvo", ".rpgmvw"
         ))
     }
 
-    // French-only review-safe build.
-    // Only the install-time game asset pack remains.
-    // No optional/on-demand language asset packs are included.
+    // Core game assets are install-time; language packs are on-demand.
     assetPacks += listOf(
         ":assetpack_game",
         ":assetpack_fr",
@@ -122,7 +126,9 @@ android {
         ":assetpack_zh",
         ":assetpack_en",
         ":assetpack_us",
-        ":assetpack_ar"
+        ":assetpack_ar",
+        ":assetpack_ex",
+        ":assetpack_ru"
     )
 
 
@@ -168,6 +174,11 @@ dependencies {
     implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.2")
+
+    // TikTok manual, server-verified revenue events; automatic IAP remains disabled.
+    implementation("com.github.tiktok:tiktok-business-android-sdk:1.5.0")
+    implementation("com.android.installreferrer:installreferrer:2.2")
+    implementation("androidx.lifecycle:lifecycle-process:2.9.2")
 
     // Meta App Events for Android install attribution and Play-confirmed purchases.
     implementation("com.facebook.android:facebook-core:18.3.0")
