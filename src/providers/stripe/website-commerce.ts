@@ -15,8 +15,13 @@ interface WebsiteOrder extends Quote {sessionId:string;buyerEmail:string;sourceE
 export async function discoverWebsitePurchases(store:EntitlementStore,user:DecodedIdToken){
   const email=requireVerifiedEmail(user);
   const matching=await store.firestore().collection('websiteOrders').where('buyerEmail','==',email).limit(100).get();
+  const existingGrants=await store.grantsForUid(user.uid);
   for(const doc of matching.docs){
-    if(doc.data().claimedByUid)continue;
+    const owner=doc.data().claimedByUid;
+    if(owner && owner!==user.uid)continue;
+    // A claim reserves its owner before writing the grant. Retry an interrupted
+    // claim for that same owner instead of leaving a paid customer without access.
+    if(owner && existingGrants.some(g=>g.metadata?.stripeCheckoutSessionId===doc.id))continue;
     try{await claimWebsiteOrder(store,user,doc.id)}catch(error){
       // A refunded/disputed order is not eligible. Infrastructure errors must
       // remain visible for retry, rather than silently losing an entitlement.

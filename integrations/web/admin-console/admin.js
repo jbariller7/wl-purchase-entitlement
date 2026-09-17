@@ -891,6 +891,25 @@ function signInScreen(message = "Sign in with an approved WonderLang administrat
 async function providerSignIn(provider) { try { await signInWithPopup(state.auth, provider); } catch (error) { if (["auth/popup-blocked", "auth/cancelled-popup-request", "auth/operation-not-supported-in-this-environment"].includes(error?.code)) return signInWithRedirect(state.auth, provider); signInScreen(error?.message || "Sign-in failed."); } }
 async function start() {
   if (demo) return loadView("overview"); signInScreen("Loading secure sign-in…");
-  try { const response = await fetch("/api/v1/config"); if (!response.ok) throw new Error("The account service is not configured yet."); state.config = await response.json(); const firebaseApp = initializeApp(state.config.firebase); if (state.config.appCheck?.recaptchaEnterpriseSiteKey) state.appCheck = initializeAppCheck(firebaseApp, { provider: new ReCaptchaEnterpriseProvider(state.config.appCheck.recaptchaEnterpriseSiteKey), isTokenAutoRefreshEnabled: true }); state.auth = getAuth(firebaseApp); await getRedirectResult(state.auth).catch(() => undefined); onAuthStateChanged(state.auth, async (user) => { if (!user) return signInScreen(); state.user = user; try { await api("/admin-api/v1/session"); loadView("overview"); } catch (error) { await signOut(state.auth).catch(() => undefined); signInScreen(error?.message || "This account is not an administrator."); } }); } catch (error) { signInScreen(error?.message || "The operations service is unavailable."); }
+  try {
+    const response = await fetch("/api/v1/config");
+    if (!response.ok) throw new Error("The account service is not configured yet.");
+    state.config = await response.json();
+    // Firebase persistence is keyed by app name. Never share the customer
+    // session: rejecting a non-admin must not sign them out of the game/account.
+    const firebaseApp = initializeApp(state.config.firebase, "wonderlang-operations");
+    if (state.config.appCheck?.recaptchaEnterpriseSiteKey) state.appCheck = initializeAppCheck(firebaseApp, { provider: new ReCaptchaEnterpriseProvider(state.config.appCheck.recaptchaEnterpriseSiteKey), isTokenAutoRefreshEnabled: true });
+    state.auth = getAuth(firebaseApp);
+    await getRedirectResult(state.auth).catch(() => undefined);
+    onAuthStateChanged(state.auth, async (user) => {
+      if (!user) { state.user = null; return signInScreen(); }
+      state.user = user;
+      try { await api("/admin-api/v1/session"); loadView("overview"); }
+      catch (error) {
+        state.user = null;
+        signInScreen(error?.message || "This account is not an administrator.");
+      }
+    });
+  } catch (error) { signInScreen(error?.message || "The operations service is unavailable."); }
 }
 start();
