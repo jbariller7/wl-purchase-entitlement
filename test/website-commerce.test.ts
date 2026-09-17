@@ -12,7 +12,7 @@ function database(){
  }})};
  db.runTransaction=async(action:any)=>action({get:(ref:any)=>ref.get(),create:(ref:any,data:any)=>docs.set(ref.path,data),update:(ref:any,data:any)=>ref.set(data)});
  const saveLegacyOrder=vi.fn(),enqueue=vi.fn();
- const store={firestore:()=>db,saveLegacyOrder,enqueue} as unknown as EntitlementStore;
+ const store={firestore:()=>db,saveLegacyOrder,enqueue,saveCheckoutContext:vi.fn()} as unknown as EntitlementStore;
  return {docs,store,saveLegacyOrder,enqueue};
 }
 const request={offer:'premium' as const,locale:'fr',currency:'EUR',delivery:'steam' as const,mobilePlatform:'android' as const,requestId:'550e8400-e29b-41d4-a716-446655440000'};

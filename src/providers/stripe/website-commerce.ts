@@ -7,7 +7,7 @@ import type { EntitlementStore } from "../../infrastructure/entitlement-store.js
 import type { LedgerGrant, LegacyOrder } from "../../domain/model.js";
 import { SHEET_TAB_BY_PRODUCT, routePremiumDesktopAccess } from "../../legacy/catalog.js";
 import {websiteDelivery} from '../../legacy/website-delivery.js';
-import { websiteSessionSchema, websiteSessionParams, assertWebsitePrice, type WebsiteSessionRequest } from "./website-session.js";
+import { websiteSessionSchema, websiteSessionParams, websiteAttribution, assertWebsitePrice, type WebsiteSessionRequest } from "./website-session.js";
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const id=(v:string|{id:string}|null|undefined)=>typeof v==='string'?v:v?.id;
 interface Quote {request:WebsiteSessionRequest;priceId:string;claimHash:string;sessionId?:string;createdAt:string;}
@@ -83,7 +83,7 @@ export async function selectWebsiteMobilePlatform(store:EntitlementStore,user:De
  await store.recomputeEntitlements(user.uid,new Date());
  return {mobilePlatform:selected};
 }
-export async function startWebsiteCheckout(store:EntitlementStore,request:WebsiteSessionRequest,claimSecret:string){
+export async function startWebsiteCheckout(store:EntitlementStore,request:WebsiteSessionRequest,claimSecret:string,context:{ipAddress?:string;userAgent?:string}={}){
   if(!/^[A-Za-z0-9_-]{43}$/.test(claimSecret))throw new HttpError(400,'Invalid purchase recovery secret.');
   const priceId=websitePriceId(request.offer);
   if(!priceId)throw new HttpError(503,'This website offer is not configured.');
@@ -94,6 +94,7 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   const ref=store.firestore().collection('websiteCheckoutRequests').doc(request.requestId);
   const previousSession=await store.firestore().runTransaction(async tx=>{const previous=await tx.get(ref);if(previous.exists){const p=previous.data() as Quote;if(p.claimHash!==quote.claimHash||JSON.stringify(p.request)!==JSON.stringify(request)||p.priceId!==priceId)throw new HttpError(409,'Checkout request cannot be reused with different options.');return p.sessionId;}tx.create(ref,quote);return undefined;});
   if(previousSession){
+    await store.saveCheckoutContext(previousSession,{...context,...websiteAttribution(request),eventSourceUrl:origin+'/shop/'},new Date());
     const previous=await stripe.checkout.sessions.retrieve(previousSession);
     if(previous.status==='complete')return {completed:true,sessionId:previous.id};
     if(previous.status==='open'&&previous.url)return {url:previous.url,sessionId:previous.id};
@@ -104,6 +105,7 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   if(parameters.subscription_data)parameters.subscription_data.metadata={...parameters.subscription_data.metadata,wl_request_id:request.requestId};
   const session=await stripe.checkout.sessions.create(parameters,{idempotencyKey:`website-session-v1:${request.requestId}`});
   if(!session.url)throw new Error('Stripe checkout URL is missing.');
+  await store.saveCheckoutContext(session.id,{...context,...websiteAttribution(request),eventSourceUrl:origin+'/shop/'},new Date());
   await ref.set({sessionId:session.id},{merge:true});
   return {url:session.url,sessionId:session.id};
 }

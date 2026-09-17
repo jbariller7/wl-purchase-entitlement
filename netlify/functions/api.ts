@@ -27,7 +27,7 @@ import { firebaseAppCheck, firebaseAuth, firebaseStorage, firestore } from "../.
 import { checkoutRequestSchema, createBillingPortal, createCheckout } from "../../src/providers/stripe/checkout-service.js";
 import { claimHistoricalDesktopOrder } from "../../src/providers/stripe/legacy-claim-service.js";
 import { claimWebsiteOrder, discoverWebsitePurchases, websiteSubscriptionPortal, selectWebsiteMobilePlatform } from "../../src/providers/stripe/website-commerce.js";
-import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription } from "../../src/providers/google-play/service.js";
+import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription, googlePlaySubscriptionAdDetails } from "../../src/providers/google-play/service.js";
 import { sha256 } from "../../src/infrastructure/ids.js";
 import { claimAppleTransaction } from "../../src/providers/apple/service.js";
 import { ACCOUNT_DELETION_CONFIRMATION, AccountDeletionService } from "../../src/account-deletion/service.js";
@@ -467,7 +467,12 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const entitlements = parsed.data.kind === "subscription"
       ? await syncGooglePlaySubscription(source)
       : await syncGooglePlayOneTimeProduct({ ...source, productId: parsed.data.productId });
-    return json(200, { entitlements });
+    let adConversion;
+    if (parsed.data.kind === "subscription") {
+      try { adConversion = await googlePlaySubscriptionAdDetails(store, user.uid, parsed.data.purchaseToken, now); }
+      catch { console.warn("Google Play conversion details unavailable; purchase access remains granted."); }
+    }
+    return json(200, { entitlements, ...(adConversion ? {adConversion} : {}) });
   }
 
   if (event.httpMethod === "POST" && path === "/v1/apple/claim") {

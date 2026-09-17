@@ -66,10 +66,12 @@ async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<
 }
 
 export async function runOutboxWorker(limit = 20): Promise<{ processed: number; failed: number }> {
-  if (!deploymentControls().OUTBOX_PROCESSING_ENABLED) return { processed: 0, failed: 0 };
+  const controls = deploymentControls();
+  if (!controls.OUTBOX_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED) return { processed: 0, failed: 0 };
   const store = new EntitlementStore(firestore());
   const workerId = randomUUID();
-  const jobs = await store.leaseOutboxJobs(workerId, new Date(), limit);
+  const jobs = await store.leaseOutboxJobs(workerId, new Date(), limit,
+    controls.OUTBOX_PROCESSING_ENABLED ? undefined : ["meta_conversion", "tiktok_conversion"]);
   let processed = 0;
   let failed = 0;
   for (const job of jobs) {

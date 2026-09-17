@@ -8,6 +8,7 @@ import { sha256 } from "../../infrastructure/ids.js";
 import { assertProviderTokenEncryptionConfigured } from "../../infrastructure/provider-token-crypto.js";
 import { normalizeGoogleServiceAccountPrivateKey } from "../../infrastructure/private-key.js";
 import { chapterMigrationGrant } from "../../domain/legacy-chapter-migration.js";
+import { playSubscriptionAdEvent } from "../../domain/play-ad-event.js";
 
 let publisher: androidpublisher_v3.Androidpublisher | undefined;
 
@@ -224,6 +225,8 @@ export async function syncGooglePlaySubscription(input: {
     ...(state === "expired" ? { endsAt: periodEnd ?? new Date(input.eventCreated * 1000).toISOString() } : {}),
     metadata: {
       playSubscriptionState: purchase.subscriptionState ?? "UNKNOWN",
+      isTestPurchase: Boolean(purchase.testPurchase),
+      adCurrency: monthlyLine.autoRenewingPlan?.recurringPrice?.currencyCode ?? "",
       autoRenewEnabled: monthlyLine.autoRenewingPlan?.autoRenewEnabled ?? false,
       latestOrderId: purchase.lineItems?.[0]?.latestSuccessfulOrderId ?? purchase.latestOrderId ?? "",
       outOfAppResubscription: Boolean(outOfApp),
@@ -291,6 +294,23 @@ export async function reconcileGooglePlaySubscription(input: {
     // webhook flow is allowed to acknowledge a purchase at Google Play.
     acknowledge: false
   });
+}
+
+export async function googlePlaySubscriptionAdDetails(store: EntitlementStore, uid: string, purchaseToken: string, now: Date) {
+  const subscriptionId = tokenId(purchaseToken);
+  const grant = await store.getGrant("google_play", subscriptionId, "mobile_full_monthly");
+  if (!grant || grant.uid !== uid || grant.metadata?.isTestPurchase !== false || grant.state !== "active") return undefined;
+  const trial = typeof grant.metadata.trialEndsAt === "string" && Date.parse(grant.metadata.trialEndsAt) > now.getTime();
+  const base = {testPurchase:false,active:true,trial,subscriptionId,startedAt:grant.startsAt,now,currency:String(grant.metadata.adCurrency??"")};
+  if (trial) return playSubscriptionAdEvent(base);
+  // Read the actual charged amount, never the current catalog/offer price.
+  const orderId = String(grant.metadata.latestOrderId??"");
+  if (!orderId || now.getTime()-Date.parse(grant.startsAt)>7*86400_000) return undefined;
+  const api = await androidPublisher();
+  const {data:order} = await api.orders.get({packageName:googlePlayEnv().GOOGLE_PLAY_PACKAGE_NAME,orderId});
+  if (order.purchaseToken !== purchaseToken) return undefined;
+  return playSubscriptionAdEvent({...base,order:{id:orderId,createdAt:order.createTime??"",state:order.state??"",
+    value:Number(order.total?.units??0)+Number(order.total?.nanos??0)/1e9,currency:order.total?.currencyCode??""}});
 }
 
 export async function syncGooglePlayOneTimeProduct(input: {

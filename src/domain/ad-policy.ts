@@ -10,9 +10,11 @@ export function stripeInvoiceAdDecision(input: {
   billingReason: string | null;
   paid: boolean;
   amountPaid: number;
+  firstPaidInvoice?: boolean;
 }): AdDecision {
   if (!input.paid || input.amountPaid <= 0) return { send: false, reason: "invoice_not_paid" };
-  if (input.billingReason === "subscription_create") {
+  if (input.billingReason === "subscription_create" ||
+      (input.billingReason === "subscription_cycle" && input.firstPaidInvoice === true)) {
     return { send: true, eventName: "Subscribe", reason: "initial_subscription_payment" };
   }
   return { send: false, reason: "subscription_renewal_or_adjustment" };

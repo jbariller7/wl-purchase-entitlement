@@ -44,7 +44,7 @@ afterEach(() => {
 describe("advertising conversion delivery", () => {
   it("sends matching stable event IDs and privacy-reduced user data to Meta and TikTok", async () => {
     vi.mocked(fetch)
-      .mockResolvedValueOnce(new Response("{}", { status: 200 }))
+      .mockResolvedValueOnce(new Response('{"events_received":1}', { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ code: 0, message: "OK" }), { status: 200 }));
 
     await sendMetaConversion(payload);

@@ -320,6 +320,8 @@ describe("subscription and conversion policy", () => {
   });
 
   it("sends Subscribe for the first paid invoice but never for renewals", () => {
+    expect(stripeInvoiceAdDecision({ billingReason: "subscription_cycle", paid: true, amountPaid: 699, firstPaidInvoice: true })).toMatchObject({send:true,eventName:"Subscribe"});
+    expect(stripeInvoiceAdDecision({ billingReason: "subscription_create", paid: true, amountPaid: 0 })).toMatchObject({send:false});
     expect(stripeInvoiceAdDecision({ billingReason: "subscription_create", paid: true, amountPaid: 699 })).toMatchObject({
       send: true,
       eventName: "Subscribe"

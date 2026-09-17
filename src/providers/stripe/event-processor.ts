@@ -148,7 +148,7 @@ async function enqueueAdConversion(input: {
   product: string;
   context?: Record<string, unknown>;
 }): Promise<void> {
-  if (!deploymentControls().AD_CONVERSIONS_ENABLED) return;
+  if (!deploymentControls().AD_CONVERSIONS_ENABLED || input.event.livemode !== true) return;
   const context = input.context ?? {};
   const contextString = (key: string): string | undefined => {
     const value = context[key];
@@ -159,7 +159,7 @@ async function enqueueAdConversion(input: {
     eventName: input.eventName,
     eventId: input.eventSourceId,
     eventTime: input.event.created,
-    eventSourceUrl: stripeEnv().PUBLIC_APP_ORIGIN,
+    eventSourceUrl: contextString("eventSourceUrl") ?? stripeEnv().PUBLIC_APP_ORIGIN,
     ...(input.email ? { emailSha256: sha256(input.email.trim().toLowerCase()) } : {}),
     ...(uid ? { subjectUidHash: sha256(uid) } : {}),
     value: input.value,
@@ -183,10 +183,13 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
   const metadata = metadataOf(session);
   if (metadata.wl_checkout_flow === "website-session-v1") {
     const purchase = await recordWebsitePayment(store, session, event);
+    const subscriptionId = objectId(session.subscription as Expandable);
+    if (subscriptionId) await store.linkCheckoutContextToSubscription(session.id, subscriptionId, new Date(event.created * 1000));
+    const context = await store.checkoutContext(session.id);
     const decision = checkoutAdDecision({ mode: session.mode, paymentStatus: session.payment_status });
     // Desktop website purchases retain the existing automation's one ad event
     // and one key allocation. Do not enqueue a second conversion here.
-    if (purchase?.offer.startsWith('mobile_') && decision.send && decision.eventName) await enqueueAdConversion({store,event,eventName:decision.eventName,eventSourceId:session.id,email:session.customer_details?.email??null,value:stripeMajorValue(session.currency??"usd",session.amount_total??0),currency:session.currency??"usd",product:purchase.offer});
+    if (purchase?.offer.startsWith('mobile_') && decision.send && decision.eventName) await enqueueAdConversion({store,event,eventName:decision.eventName,eventSourceId:session.id,email:session.customer_details?.email??null,value:stripeMajorValue(session.currency??"usd",session.amount_total??0),currency:session.currency??"usd",product:purchase.offer,...(context?{context}:{})});
     return;
   }
   const uid = metadata.wl_uid || session.client_reference_id || undefined;
@@ -334,11 +337,26 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
 async function invoicePaid(store: EntitlementStore, invoice: Stripe.Invoice, event: Stripe.Event): Promise<void> {
   const subscriptionId = subscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
-  await syncSubscription({ store, subscriptionId, event });
+  const synced = await syncSubscription({ store, subscriptionId, event });
+  if (!synced.subscription) return;
+  let firstPaidInvoice = false;
+  if (deploymentControls().AD_CONVERSIONS_ENABLED && event.livemode === true &&
+      invoice.status === "paid" && invoice.amount_paid > 0 && invoice.billing_reason === "subscription_cycle") {
+    firstPaidInvoice = true;
+    // A trial's creation invoice is zero. Inspect paid history rather than
+    // assuming every subscription_cycle is a renewal or trusting webhook order.
+    for await (const previous of stripeClient().invoices.list({ subscription: subscriptionId, status: "paid", limit: 100 })) {
+      if (previous.id !== invoice.id && previous.amount_paid > 0 && previous.created <= invoice.created) {
+        firstPaidInvoice = false;
+        break;
+      }
+    }
+  }
   const decision = stripeInvoiceAdDecision({
     billingReason: invoice.billing_reason,
     paid: invoice.status === "paid",
-    amountPaid: invoice.amount_paid
+    amountPaid: invoice.amount_paid,
+    firstPaidInvoice
   });
   if (!decision.send || !decision.eventName) return;
   let context = await store.subscriptionContext(subscriptionId);

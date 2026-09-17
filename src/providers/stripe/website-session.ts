@@ -11,6 +11,12 @@ export const websiteSessionSchema = z.object({
   locale: z.string().refine(x => Object.hasOwn(locales, x)),
   currency: z.string().refine(x => Object.hasOwn(prices, x)),
   requestId: z.string().uuid(),
+  attribution: z.object({
+    fbp: z.string().max(255).optional(),
+    fbc: z.string().max(255).optional(),
+    ttclid: z.string().max(255).optional(),
+    ttp: z.string().max(255).optional()
+  }).strict().optional(),
   delivery: z.enum(["steam", "direct"]).optional(),
   learningLanguage: z.enum(["french","spanish","german","italian","portuguese","korean","japanese","mandarin","english"]).optional(),
   mobilePlatform: z.enum(["android", "ios", "later"]).optional()
@@ -24,13 +30,17 @@ export const websiteSessionSchema = z.object({
   if(["single","polyglot"].includes(r.offer) && r.mobilePlatform)issue("Desktop-only access does not include mobile access.");
 });
 export type WebsiteSessionRequest = z.infer<typeof websiteSessionSchema>;
+export function websiteAttribution(request: WebsiteSessionRequest): Record<string,string> {
+  return Object.fromEntries(Object.entries(request.attribution??{}).filter((entry): entry is [string,string] => typeof entry[1]==='string' && entry[1].length>0));
+}
 const languageValues=["french","spanish","german","italian","portuguese","korean","japanese","mandarin","english"];
 export function websiteSessionParams(request: WebsiteSessionRequest, priceId: string, origin: string): Stripe.Checkout.SessionCreateParams {
   const l=locales[request.locale as keyof typeof locales];
   if (!l || !/^price_/.test(priceId)) throw new Error("Invalid website checkout configuration.");
   const monthly=request.offer==="mobile_monthly";
   const metadata={wl_checkout_flow:"website-session-v1",wl_website_offer:request.offer,wl_locale:request.locale,
-    wl_desktop_delivery:request.delivery??"",wl_learning_language:request.learningLanguage??"",wl_mobile_platform:request.mobilePlatform??"later"};
+    wl_desktop_delivery:request.delivery??"",wl_learning_language:request.learningLanguage??"",wl_mobile_platform:request.mobilePlatform??"later",
+    ...websiteAttribution(request)};
   const m=mobileText[request.locale as keyof typeof mobileText];
   const summary=request.offer==="mobile_monthly" ? `${m[2]} ${m[7]}` : request.offer==="mobile_permanent" ? m[3] : l[`${request.offer as "single"|"polyglot"|"premium"}Description`];
   // Render the same allowlisted selections carried in metadata; no extra questions.

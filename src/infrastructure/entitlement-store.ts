@@ -444,7 +444,8 @@ export class EntitlementStore {
   async saveCheckoutContext(
     sessionId: string,
     context: {
-      uid: string;
+      uid?: string;
+      eventSourceUrl?: string;
       ipAddress?: string;
       userAgent?: string;
       fbp?: string;
@@ -583,15 +584,20 @@ export class EntitlementStore {
     });
   }
 
-  async leaseOutboxJobs(workerId: string, now: Date, limit = 20): Promise<OutboxJob[]> {
-    const candidates = await this.db.collection("outbox").where("state", "in", ["pending", "processing"]).limit(limit * 3).get();
+  async leaseOutboxJobs(workerId: string, now: Date, limit = 20, allowedKinds?: OutboxKind[]): Promise<OutboxJob[]> {
+    const query = this.db.collection("outbox").where("state", "in", ["pending", "processing"]);
+    // Scan active jobs when filtering so disabled fulfillment cannot starve ads.
+    // This reuses the existing state index and never leases other job kinds.
+    const candidates = await (allowedKinds ? query : query.limit(limit * 3)).get();
     const leased: OutboxJob[] = [];
     for (const candidate of candidates.docs) {
       if (leased.length >= limit) break;
+      if (allowedKinds && !allowedKinds.includes(candidate.data().kind as OutboxKind)) continue;
       const job = await this.db.runTransaction(async (transaction): Promise<OutboxJob | undefined> => {
         const fresh = await transaction.get(candidate.ref);
         if (!fresh.exists) return undefined;
         const data = fresh.data() as OutboxJob & { leaseExpiresAt?: string };
+        if (allowedKinds && !allowedKinds.includes(data.kind)) return undefined;
         const leaseExpired = data.state === "processing" &&
           Boolean(data.leaseExpiresAt) && Date.parse(data.leaseExpiresAt as string) <= now.getTime();
         if (data.state !== "pending" && !leaseExpired) return undefined;

@@ -57,6 +57,8 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
     signal: AbortSignal.timeout(20_000)
   });
   if (!response.ok) throw new Error(`Meta conversion failed (${response.status}).`);
+  const result = await response.json() as { events_received?: number; error?: unknown };
+  if (result.error || result.events_received !== 1) throw new Error("Meta did not acknowledge the conversion.");
 }
 
 export async function sendTikTokConversion(raw: Record<string, unknown>): Promise<void> {
@@ -108,5 +110,5 @@ export async function sendTikTokConversion(raw: Record<string, unknown>): Promis
   const body = await response.text();
   if (!response.ok) throw new Error(`TikTok conversion failed (${response.status}).`);
   const parsed = JSON.parse(body) as { code?: number; message?: string };
-  if (parsed.code && parsed.code !== 0) throw new Error(`TikTok conversion rejected (${parsed.code}).`);
+  if (parsed.code !== 0) throw new Error(`TikTok conversion rejected (${parsed.code ?? "missing_code"}).`);
 }

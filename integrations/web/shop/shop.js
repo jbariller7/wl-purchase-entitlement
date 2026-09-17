@@ -33,7 +33,7 @@ function render(){
  price.className='price';price.textContent=new Intl.NumberFormat(lang,{style:'currency',currency}).format(stripeMinorAmount(currency,amount)/10**currencyFractionDigits(currency))+(isMonthly?mobile[lang][6]:'');
  description.className='description';description.textContent=isMobile?mobile[lang][isMonthly?2:3]:l[offer+'Description'];
  card.append(heading,price,description);
- function update(){buy.href='/shop/checkout/?'+new URLSearchParams({offer,lang,currency,...options})}
+ function update(){const params=new URLSearchParams({offer,lang,currency,...options});for(const key of ['ttclid','gclid','gbraid','wbraid']){const value=query.get(key);if(value&&value.length<=255)params.set(key,value)}buy.href='/shop/checkout/?'+params}
  function choice(key,label,values){const wrapper=document.createElement('label'),text=document.createElement('span'),select=document.createElement('select');text.textContent=label;for(const [value,name]of values)select.add(new Option(name,value));if(options[key])select.value=options[key];options[key]=select.value;select.onchange=()=>{options[key]=select.value;update()};wrapper.append(text,select);card.append(wrapper)}
  if(offer==='single')choice('learningLanguage',l.language,['french','spanish','german','italian','portuguese','korean','japanese','mandarin','english'].map((x,i)=>[x,l.languages[i]]));
  if(!isMobile)choice('delivery',l.delivery,[['steam',l.steam],['direct',l.direct]]);

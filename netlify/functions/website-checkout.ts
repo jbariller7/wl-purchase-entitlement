@@ -18,7 +18,10 @@ export const lambdaHandler:LambdaHandler=async event=>{
   const {claimSecret,...selection}=payload as Record<string,unknown>;
   const parsed=websiteSessionSchema.safeParse(selection);if(!parsed.success||typeof claimSecret!=='string')throw new HttpError(400,'Invalid checkout selection.');
   const db=firestore();await consumeRateLimit({db,namespace:'api',subject:event.headers['x-nf-client-connection-ip']??'unknown',policy:{action:'website-checkout',limit:12,windowSeconds:600},now:new Date()});
-  return json(201,await startWebsiteCheckout(new EntitlementStore(db),parsed.data,claimSecret));
+  return json(201,await startWebsiteCheckout(new EntitlementStore(db),parsed.data,claimSecret,{
+    ...(event.headers['x-nf-client-connection-ip']?{ipAddress:event.headers['x-nf-client-connection-ip']}:{}),
+    ...(event.headers['user-agent']?{userAgent:event.headers['user-agent'].slice(0,1024)}:{})
+  }));
  }catch(error){return errorResponse(error);}
 };
 export default withLambda(lambdaHandler);

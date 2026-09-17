@@ -7,6 +7,7 @@ const stripeMock = vi.hoisted(() => ({
   subscriptions: { retrieve: vi.fn() },
   charges: { retrieve: vi.fn() },
   customers: { retrieve: vi.fn() },
+  invoices: { list: vi.fn() },
   checkout: { sessions: { list: vi.fn() } }
 }));
 
@@ -20,7 +21,7 @@ const original = { ...process.env };
 const created = 1_787_659_200;
 
 function stripeEvent(type: Stripe.Event.Type, object: object, id = `evt_${type.replace(/\W/g, "_")}`): Stripe.Event {
-  return { id, type, created, data: { object } } as Stripe.Event;
+  return { id, type, created, livemode: true, data: { object } } as Stripe.Event;
 }
 
 function fakeStore() {
@@ -78,6 +79,22 @@ afterEach(() => {
 });
 
 describe("Stripe provider event processing", () => {
+  it("reports the first paid invoice after a trial and suppresses later renewals regardless of delivery order", async () => {
+    process.env.AD_CONVERSIONS_ENABLED="true"; resetEnvironmentForTests();
+    const store=fakeStore();
+    store.subscriptionContext.mockResolvedValue({eventSourceUrl:"https://wonderlang.net/shop/"});
+    stripeMock.subscriptions.retrieve.mockResolvedValue(monthlySubscription());
+    const invoice={id:"in_first_paid",subscription:"sub_historical_monthly",status:"paid",amount_paid:699,currency:"eur",billing_reason:"subscription_cycle",created,customer_email:"buyer@example.com"};
+    stripeMock.invoices.list.mockImplementation(()=>({async *[Symbol.asyncIterator](){yield {...invoice,id:"in_future_renewal",created:created+2592000};yield invoice;yield {...invoice,id:"in_trial",created:created-259200,amount_paid:0};}}));
+    await processStripeEvent(store as unknown as EntitlementStore,stripeEvent("invoice.paid",invoice));
+    expect(store.enqueue.mock.calls.filter(([kind])=>kind==="meta_conversion")).toHaveLength(1);
+    expect(store.enqueue).toHaveBeenCalledWith("meta_conversion","meta:in_first_paid",expect.objectContaining({eventName:"Subscribe",value:6.99,currency:"EUR"}),expect.any(Date));
+    store.enqueue.mockClear();
+    const renewal={...invoice,id:"in_renewal",created:created+2592000};
+    stripeMock.invoices.list.mockImplementation(()=>({async *[Symbol.asyncIterator](){yield renewal;yield invoice;}}));
+    await processStripeEvent(store as unknown as EntitlementStore,stripeEvent("invoice.paid",renewal));
+    expect(store.enqueue).not.toHaveBeenCalled();
+  });
   it("grants paid Premium, queues exactly one PC/Mac delivery, redeems the discount, and schedules cancellation", async () => {
     const store = fakeStore();
     const session = {
@@ -211,6 +228,9 @@ describe("Stripe provider event processing", () => {
       expect(JSON.stringify(payload)).not.toContain("AdsPlayer@Example.com");
       expect(JSON.stringify(payload)).not.toContain("uid_ads");
     }
+    store.enqueue.mockClear();
+    await processStripeEvent(store as unknown as EntitlementStore, {...stripeEvent("checkout.session.completed",session,"evt_test"),livemode:false});
+    expect(store.enqueue.mock.calls.filter(([kind])=>kind==='meta_conversion'||kind==='tiktok_conversion')).toHaveLength(0);
   });
 
   it("fulfills a recognized historical website order without treating it as Premium", async () => {
