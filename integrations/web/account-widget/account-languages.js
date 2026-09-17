@@ -124,10 +124,34 @@ for (const [locale, value] of Object.entries(premiumCloudRequirement)) {
   if (dictionaries[locale]) dictionaries[locale]["Cloud save requires a Premium Lifetime Pass."] = value;
 }
 export function translateSummary(value, language) {
+  const emailIndex = emailFlowText.en.indexOf(value);
+  if (emailIndex >= 0) return (emailFlowText[language] || emailFlowText.en)[emailIndex];
   const mobileIndex=mobileSelectionText.en.indexOf(value);
   if(mobileIndex>=0)return (mobileSelectionText[language]??mobileSelectionText.en)[mobileIndex];
   return dictionaries[language]?.[value] ?? value;
 }
+const emailFlowText = {
+  en: ["Sending email…", "Email sent. Check your inbox and spam folder, then open the latest sign-in link.", "Confirm the email address that received this sign-in link. Change it below if needed."],
+  fr: ["Envoi de l’e-mail…", "E-mail envoyé. Consultez votre boîte de réception et vos courriers indésirables, puis ouvrez le lien de connexion le plus récent.", "Confirmez l’adresse e-mail qui a reçu ce lien de connexion. Modifiez-la ci-dessous si nécessaire."],
+  de: ["E-Mail wird gesendet…", "E-Mail gesendet. Prüfe deinen Posteingang und Spamordner und öffne dann den neuesten Anmeldelink.", "Bestätige die E-Mail-Adresse, die diesen Anmeldelink erhalten hat. Ändere sie bei Bedarf unten."],
+  es: ["Enviando correo…", "Correo enviado. Revisa tu bandeja de entrada y la carpeta de spam y abre el enlace de acceso más reciente.", "Confirma la dirección de correo que recibió este enlace de acceso. Cámbiala abajo si es necesario."],
+  "es-MX": ["Enviando correo…", "Correo enviado. Revisa tu bandeja de entrada y la carpeta de spam y abre el enlace de acceso más reciente.", "Confirma la dirección de correo que recibió este enlace de acceso. Cámbiala abajo si es necesario."],
+  "pt-BR": ["Enviando e-mail…", "E-mail enviado. Verifique sua caixa de entrada e a pasta de spam e abra o link de acesso mais recente.", "Confirme o endereço de e-mail que recebeu este link de acesso. Altere-o abaixo se necessário."],
+  "pt-PT": ["A enviar e-mail…", "E-mail enviado. Verifica a tua caixa de entrada e a pasta de spam e abre a ligação de início de sessão mais recente.", "Confirma o endereço de e-mail que recebeu esta ligação de início de sessão. Altera-o abaixo se necessário."],
+  it: ["Invio dell’e-mail…", "E-mail inviata. Controlla la posta in arrivo e la cartella spam, poi apri il link di accesso più recente.", "Conferma l’indirizzo e-mail che ha ricevuto questo link di accesso. Modificalo qui sotto se necessario."],
+  nl: ["E-mail verzenden…", "E-mail verzonden. Controleer je inbox en spammap en open de nieuwste inloglink.", "Bevestig het e-mailadres waarop je deze inloglink hebt ontvangen. Wijzig het hieronder indien nodig."],
+  sv: ["Skickar e-post…", "E-post skickad. Kontrollera inkorgen och skräppostmappen och öppna den senaste inloggningslänken.", "Bekräfta e-postadressen som tog emot den här inloggningslänken. Ändra den nedan vid behov."],
+  pl: ["Wysyłanie e-maila…", "E-mail wysłany. Sprawdź skrzynkę odbiorczą i folder spam, a następnie otwórz najnowszy link logowania.", "Potwierdź adres e-mail, na który wysłano ten link logowania. W razie potrzeby zmień go poniżej."],
+  uk: ["Надсилання листа…", "Лист надіслано. Перевірте вхідні листи та папку спаму й відкрийте найновіше посилання для входу.", "Підтвердьте адресу електронної пошти, на яку надійшло це посилання для входу. За потреби змініть її нижче."],
+  ru: ["Отправка письма…", "Письмо отправлено. Проверьте входящие письма и папку спама и откройте самую новую ссылку для входа.", "Подтвердите адрес электронной почты, на который пришла эта ссылка для входа. При необходимости измените его ниже."],
+  id: ["Mengirim email…", "Email terkirim. Periksa kotak masuk dan folder spam, lalu buka tautan masuk terbaru.", "Konfirmasikan alamat email yang menerima tautan masuk ini. Ubah di bawah jika perlu."],
+  ko: ["이메일 보내는 중…", "이메일을 보냈습니다. 받은편지함과 스팸 폴더를 확인한 후 가장 최근 로그인 링크를 여세요.", "이 로그인 링크를 받은 이메일 주소를 확인하세요. 필요한 경우 아래에서 수정하세요."],
+  ja: ["メールを送信中…", "メールを送信しました。受信トレイと迷惑メールフォルダーを確認し、最新のログインリンクを開いてください。", "このログインリンクを受け取ったメールアドレスを確認してください。必要に応じて下で変更できます。"],
+  "zh-CN": ["正在发送邮件…", "邮件已发送。请检查收件箱和垃圾邮件文件夹，然后打开最新的登录链接。", "请确认收到此登录链接的邮箱地址。如有需要，请在下方修改。"],
+  "zh-TW": ["正在傳送郵件…", "郵件已傳送。請檢查收件匣和垃圾郵件資料夾，然後開啟最新的登入連結。", "請確認收到此登入連結的電子郵件地址。如有需要，請在下方修改。"],
+  ar: ["جارٍ إرسال البريد الإلكتروني…", "تم إرسال الرسالة. تحقّق من صندوق الوارد ومجلد الرسائل غير المرغوب فيها، ثم افتح أحدث رابط لتسجيل الدخول.", "أكّد عنوان البريد الإلكتروني الذي استلم رابط تسجيل الدخول هذا. غيّره أدناه إذا لزم الأمر."],
+  hy: ["Նամակն ուղարկվում է…", "Նամակն ուղարկվել է։ Ստուգեք մուտքային նամակներն ու սպամի պանակը, ապա բացեք մուտքի ամենավերջին հղումը։", "Հաստատեք էլեկտրոնային փոստի հասցեն, որով ստացել եք մուտքի այս հղումը։ Անհրաժեշտության դեպքում փոխեք այն ստորև։"]
+};
 export function installAccountLanguagePicker(root) {
   let saved;
   try { saved = localStorage.getItem("wonderlang-account-language"); } catch {}

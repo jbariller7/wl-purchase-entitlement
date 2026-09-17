@@ -89,6 +89,7 @@ const html = `
         <label><span>Email</span><input type="email" name="email" autocomplete="email" required></label>
         <button type="submit">Email me a sign-in link</button>
       </form>
+      <p data-field="email-notice" role="status" aria-live="polite" hidden></p>
     </div>
 
     <div class="wl-signed-in" hidden>
@@ -208,6 +209,8 @@ function createDemoAccount() {
 
 class WonderLangAccount extends HTMLElement {
   async connectedCallback() {
+    if (this.initialized) return;
+    this.initialized = true;
     this.innerHTML = html;
     this.disposeLanguagePicker?.();
     this.disposeLanguagePicker = installAccountLanguagePicker(this);
@@ -383,14 +386,23 @@ class WonderLangAccount extends HTMLElement {
   }
 
   async sendEmailLink(email, linkToCurrentUser) {
+    if (this.emailSending) return;
+    this.emailSending = true;
+    const button = this.querySelector('[data-form="email"] button');
+    const notice = this.querySelector('[data-field="email-notice"]');
+    button.disabled = true;
+    notice.hidden = false;
+    notice.textContent = "Sending email…";
     try {
       const continueUrl = new URL(location.href);
       continueUrl.searchParams.delete("mode");
       continueUrl.searchParams.delete("oobCode");
       continueUrl.searchParams.delete("apiKey");
+      continueUrl.searchParams.delete("continueUrl");
+      continueUrl.searchParams.delete("lang");
       continueUrl.searchParams.set("link_email", linkToCurrentUser ? "1" : "0");
       await sendSignInLinkToEmail(this.auth, email, { url: continueUrl.toString(), handleCodeInApp: true });
-      localStorage.setItem("wl-email-link", email);
+      try { localStorage.setItem("wl-email-link", email); } catch (_) { /* Confirmation on the receiving page does not require storage. */ }
       if (linkToCurrentUser) {
         localStorage.setItem("wl-email-link-purpose", "link");
         localStorage.setItem("wl-email-link-uid", this.auth.currentUser.uid);
@@ -401,13 +413,23 @@ class WonderLangAccount extends HTMLElement {
       this.status(linkToCurrentUser
         ? "Check your email, then open the link in this browser to finish linking."
         : "Check your email for the secure sign-in link.");
-    } catch (error) { this.fail(error); }
+      notice.textContent = "Email sent. Check your inbox and spam folder, then open the latest sign-in link.";
+    } catch (error) { notice.textContent = friendlyAccountError(error); this.fail(error); }
+    finally { this.emailSending = false; button.disabled = false; }
   }
 
   async finishEmailLink() {
-    if (!isSignInWithEmailLink(this.auth, location.href)) return;
-    const email = localStorage.getItem("wl-email-link") || await this.confirmEmailForLink();
-    if (!email) throw new Error("Email confirmation is required to finish sign-in.");
+    if (this.emailFinishing || !isSignInWithEmailLink(this.auth, location.href)) return;
+    this.emailFinishing = true;
+    const emailLink = location.href;
+    try {
+    let savedEmail = "";
+    try { savedEmail = localStorage.getItem("wl-email-link") || ""; } catch (_) {}
+    const email = await this.confirmEmailForLink({
+      email: savedEmail,
+      copy: "Confirm the email address that received this sign-in link. Change it below if needed."
+    });
+    if (!email) return;
     const linkRequested = new URL(location.href).searchParams.get("link_email") === "1"
       && localStorage.getItem("wl-email-link-purpose") === "link";
     if (linkRequested) {
@@ -416,16 +438,19 @@ class WonderLangAccount extends HTMLElement {
       if (!current || !intendedUid || current.uid !== intendedUid) {
         throw new Error("For security, sign in to the original WonderLang account in this browser before linking this email.");
       }
-      const credential = EmailAuthProvider.credentialWithLink(email, location.href);
+      const credential = EmailAuthProvider.credentialWithLink(email, emailLink);
       await linkWithCredential(current, credential);
       this.status("Passwordless email login linked to this WonderLang account.");
     } else {
-      await signInWithEmailLink(this.auth, email, location.href);
+      await signInWithEmailLink(this.auth, email, emailLink);
     }
     localStorage.removeItem("wl-email-link");
     localStorage.removeItem("wl-email-link-purpose");
     localStorage.removeItem("wl-email-link-uid");
     history.replaceState({}, document.title, location.pathname);
+    if (this.desktopHandoff) this.handoffReady = true;
+    await this.renderUser(this.auth.currentUser);
+    } finally { this.emailFinishing = false; }
   }
 
   confirmEmailForLink(options = {}) {
@@ -458,6 +483,7 @@ class WonderLangAccount extends HTMLElement {
       });
       document.addEventListener("keydown", onKeydown);
       this.append(holder);
+      holder.querySelector("input").value = options.email || "";
       holder.querySelector("input").focus();
     });
   }
