@@ -6,11 +6,17 @@ const mocked=vi.hoisted(()=>({lease:vi.fn().mockResolvedValue([]),db:vi.fn()}));
 vi.mock('../src/infrastructure/entitlement-store.js',()=>({EntitlementStore:class {leaseOutboxJobs=mocked.lease}}));
 vi.mock('../src/infrastructure/firebase.js',()=>({firestore:mocked.db,firebaseAuth:vi.fn(),firebaseStorage:vi.fn()}));
 import {runOutboxWorker} from '../src/outbox/worker.js';
+import {lambdaHandler as scheduledWorker} from '../netlify/functions/outbox-worker.js';
 const original={...process.env};
 afterEach(()=>{process.env={...original};resetEnvironmentForTests();vi.clearAllMocks()});
 it('leases only advertising jobs while all other outbox processing remains disabled',async()=>{
  Object.assign(process.env,{AD_CONVERSIONS_ENABLED:'true',OUTBOX_PROCESSING_ENABLED:'false'});resetEnvironmentForTests();
  expect(await runOutboxWorker()).toEqual({processed:0,failed:0});
+ expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['meta_conversion','tiktok_conversion']);
+});
+it('the deployed scheduled handler also permits advertising-only delivery',async()=>{
+ Object.assign(process.env,{AD_CONVERSIONS_ENABLED:'true',OUTBOX_PROCESSING_ENABLED:'false'});resetEnvironmentForTests();
+ await scheduledWorker({} as never,{} as never);
  expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['meta_conversion','tiktok_conversion']);
 });
 it('includes first paid post-trial invoice but excludes a renewal and zero-value invoice',()=>{

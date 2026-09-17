@@ -5,7 +5,7 @@ import { deploymentControls } from "../../src/config/env.js";
 export const config = { schedule: "* * * * *" };
 
 export const lambdaHandler: LambdaHandler = async () => {
-  if (!deploymentControls().OUTBOX_PROCESSING_ENABLED) {
+  if (!deploymentControls().OUTBOX_PROCESSING_ENABLED && !deploymentControls().AD_CONVERSIONS_ENABLED) {
     return { statusCode: 200, headers: { "content-type": "application/json" }, body: JSON.stringify({ processed: 0, failed: 0 }) };
   }
   const { runOutboxWorker } = await import("../../src/outbox/worker.js");
