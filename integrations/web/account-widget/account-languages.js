@@ -1,6 +1,7 @@
 // Manually authored account-summary translations. Authentication, billing and
 // security workflows still require a separate full localization review.
 import {mobileSelectionText} from './mobile-selection-text.js';
+import {providerChoiceText} from './provider-choice-text.js';
 const source = [
   "WONDERLANG ACCOUNT", "Play anywhere. Keep your progress.", "Sign out", "YOUR ACCESS",
   "Account email", "Login methods", "Subscription", "Cloud saves", "Mobile platforms",
@@ -124,6 +125,7 @@ for (const [locale, value] of Object.entries(premiumCloudRequirement)) {
   if (dictionaries[locale]) dictionaries[locale]["Cloud save requires a Premium Lifetime Pass."] = value;
 }
 export function translateSummary(value, language) {
+  if (value === providerChoiceText.en) return providerChoiceText[language] || providerChoiceText.en;
   const emailIndex = emailFlowText.en.indexOf(value);
   if (emailIndex >= 0) return (emailFlowText[language] || emailFlowText.en)[emailIndex];
   const mobileIndex=mobileSelectionText.en.indexOf(value);

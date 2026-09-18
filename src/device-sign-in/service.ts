@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { Auth, DecodedIdToken } from "firebase-admin/auth";
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { HttpError } from "../http/auth.js";
@@ -7,6 +7,7 @@ import { sha256 } from "../infrastructure/ids.js";
 const CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const SESSION_TTL_MS = 10 * 60 * 1000;
 const ISSUANCE_LEASE_MS = 30 * 1000;
+const DELIVERY_RETRY_MS = 2 * 60 * 1000;
 const CODE_PATTERN = /^[2-9A-HJ-NP-Z]{8}$/;
 const ACCOUNT_SECURITY_COLLECTION = "accountSecurity";
 
@@ -25,10 +26,13 @@ export interface DeviceSignInSession {
   issuanceId?: string;
   issuanceStartedAt?: string;
   consumedAt?: string;
+  deliveryReceipt?: string;
+  deliveryRetryUntil?: string;
 }
 
 export type DeviceSignInLease =
   | { state: "pending"; retryAfterSeconds: number }
+  | { state: "delivered"; receipt: string }
   | { state: "issuing"; uid: string; issuanceId: string; deviceSessionGeneration: number; retryAfterSeconds: 0 };
 
 export interface DeviceSessionSecurityState {
@@ -209,7 +213,12 @@ export function leaseDeviceSession(
     throw new HttpError(401, "The device sign-in code or polling secret is invalid.");
   }
   if (expired(session, now) || session.state === "expired") throw new HttpError(410, "This device sign-in has expired. Start again.");
-  if (session.state === "consumed") throw new HttpError(410, "This device sign-in was already completed.");
+  if (session.state === "consumed") {
+    if (session.deliveryReceipt && Date.parse(session.deliveryRetryUntil ?? "") > now.getTime()) {
+      return { session, lease: { state: "delivered", receipt: session.deliveryReceipt } };
+    }
+    throw new HttpError(410, "This device sign-in was already completed.");
+  }
   if (session.state === "pending") return { session, lease: { state: "pending", retryAfterSeconds: 3 } };
   if (session.state === "issuing") {
     const started = Date.parse(session.issuanceStartedAt ?? "");
@@ -242,6 +251,27 @@ export function consumeDeviceSession(session: DeviceSignInSession, issuanceId: s
   }
   const { approvedUid: _approvedUid, issuanceId: _issuanceId, issuanceStartedAt: _started, ...rest } = session;
   return { ...rest, state: "consumed", consumedAt: now.toISOString() };
+}
+
+// A response may be lost after the transaction consumes the approval. Return
+// the SAME issued token briefly to the same polling-secret holder; never mint
+// another token. The database cannot decrypt it without that client secret.
+function deliveryKey(pollSecret: string): Buffer {
+  return createHash("sha256").update(`wonderlang-device-delivery-v1:${pollSecret}`).digest();
+}
+function sealDelivery(pollSecret: string, payload: { customToken: string; uid: string; generation: number }): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", deliveryKey(pollSecret), iv);
+  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(payload), "utf8"), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), ciphertext]).toString("base64url");
+}
+function openDelivery(pollSecret: string, receipt: string): { customToken: string; uid: string; generation: number } {
+  try {
+    const bytes = Buffer.from(receipt, "base64url");
+    const decipher = createDecipheriv("aes-256-gcm", deliveryKey(pollSecret), bytes.subarray(0, 12));
+    decipher.setAuthTag(bytes.subarray(12, 28));
+    return JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString("utf8"));
+  } catch { throw new HttpError(410, "This device sign-in could not be recovered. Start again."); }
 }
 
 function createUserCode(): string {
@@ -349,6 +379,13 @@ export class DeviceSignInService {
       return transition.lease;
     });
     if (lease.state === "pending") return lease;
+    if (lease.state === "delivered") {
+      const delivered = openDelivery(input.pollSecret, lease.receipt);
+      if (await currentDeviceSessionGeneration(this.db, delivered.uid) !== delivered.generation) {
+        throw new HttpError(410, "This device approval was revoked. Start sign-in again in WonderLang.");
+      }
+      return { state: "authorized", customToken: delivered.customToken };
+    }
     try {
       const currentGeneration = await currentDeviceSessionGeneration(this.db, lease.uid);
       if (currentGeneration !== lease.deviceSessionGeneration) {
@@ -367,7 +404,11 @@ export class DeviceSignInService {
       await this.db.runTransaction(async (transaction) => {
         const snapshot = await transaction.get(ref);
         if (!snapshot.exists) throw new HttpError(409, "Device sign-in session disappeared during issuance.");
-        transaction.set(ref, consumeDeviceSession(snapshot.data() as DeviceSignInSession, lease.issuanceId!, input.now));
+        transaction.set(ref, {
+          ...consumeDeviceSession(snapshot.data() as DeviceSignInSession, lease.issuanceId!, input.now),
+          deliveryReceipt: sealDelivery(input.pollSecret, { customToken, uid: lease.uid, generation: lease.deviceSessionGeneration }),
+          deliveryRetryUntil: new Date(input.now.getTime() + DELIVERY_RETRY_MS).toISOString()
+        });
       });
       return { state: "authorized", customToken };
     } catch (error) {

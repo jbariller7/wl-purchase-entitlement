@@ -13,7 +13,7 @@
  * build. It is inactive in browsers, Android, and iOS, and it never embeds a
  * Firebase API key or private credential in the game files.
  *
- * Sign-in opens Google in the player's normal browser. A high-entropy one-time
+ * Sign-in opens the account page in the player's normal browser. A high-entropy one-time
  * browser handoff and a separate polling secret bind the result automatically.
  * Only the Firebase refresh token is retained in NW.js's per-user app-data
  * directory with user-only file permissions where the operating system supports
@@ -206,13 +206,16 @@
     const timeout = setTimeout(() => controller?.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(url, { ...options, ...(controller ? { signal: controller.signal } : {}) });
-      const payload = await response.json().catch(() => ({}));
+      const payload = await response.json().catch(() => {
+        if (response.ok) throw new BridgeError("WonderLang could not reach the secure account service.", 0, "NETWORK");
+        return {};
+      });
       if (!response.ok) throw errorDetails(payload, response.status);
       return payload;
     } catch (error) {
-      if (error?.name === "AbortError") throw new BridgeError("The WonderLang account request timed out.");
+      if (error?.name === "AbortError") throw new BridgeError("The WonderLang account request timed out.", 0, "NETWORK");
       if (error instanceof BridgeError) throw error;
-      throw new BridgeError("WonderLang could not reach the secure account service.");
+      throw new BridgeError("WonderLang could not reach the secure account service.", 0, "NETWORK");
     } finally {
       clearTimeout(timeout);
     }
@@ -320,6 +323,8 @@
 
   function checkSignInStatus() {
     if (!activeAttempt) return false;
+    activeAttempt.showProgress = true;
+    emit("checking", publicAttempt(activeAttempt));
     // Wake the existing loop; never issue concurrent one-time token exchanges.
     wakePoll?.();
     return true;
@@ -381,22 +386,47 @@
           throw new BridgeError("This device sign-in code expired. Start again.", 410, "EXPIRED");
         }
         await sleep(activeAttempt.intervalSeconds * 1000, sequence);
-        const result = await requestJson(`${apiBase}/api/v1/device-sign-in/poll`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ userCode: activeAttempt.userCode, pollSecret: activeAttempt.pollSecret })
-        });
-        if (sequence !== attemptSequence) return;
-        if (result.state === "pending") {
-          activeAttempt.intervalSeconds = Math.max(activeAttempt.intervalSeconds, Math.min(15, Number(result.retryAfterSeconds) || 3));
-          continue;
+        if (sequence !== attemptSequence || !activeAttempt) return;
+        if (Date.parse(activeAttempt.expiresAt) <= Date.now()) {
+          throw new BridgeError("This device sign-in code expired. Start again.", 410, "EXPIRED");
         }
-        if (result.state !== "authorized") throw new BridgeError("WonderLang returned an unknown device sign-in state.");
-        if (!await exchangeCustomToken(result.customToken, sequence)) return;
-        if (sequence !== attemptSequence) return;
-        activeAttempt = null;
-        emit("authorized");
-        return;
+        try {
+          // Retain the delivered token only in memory until exchange succeeds.
+          // Never persist or expose this credential in UI events.
+          if (!activeAttempt.customToken) {
+            const result = await requestJson(`${apiBase}/api/v1/device-sign-in/poll`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ userCode: activeAttempt.userCode, pollSecret: activeAttempt.pollSecret })
+            });
+            if (sequence !== attemptSequence) return;
+            if (result.state === "pending") {
+              activeAttempt.intervalSeconds = Math.max(activeAttempt.intervalSeconds, Math.min(15, Number(result.retryAfterSeconds) || 3));
+              if (activeAttempt.showProgress) {
+                activeAttempt.showProgress = false;
+                emit("pending", publicAttempt(activeAttempt));
+              }
+              continue;
+            }
+            if (result.state !== "authorized") throw new BridgeError("WonderLang returned an unknown device sign-in state.");
+            activeAttempt.customToken = result.customToken;
+          }
+          emit("checking", publicAttempt(activeAttempt));
+          if (!await exchangeCustomToken(activeAttempt.customToken, sequence)) return;
+          if (sequence !== attemptSequence) return;
+          activeAttempt = null;
+          emit("authorized");
+          return;
+        } catch (error) {
+          if (sequence !== attemptSequence || !activeAttempt) return;
+          if (error instanceof BridgeError && (error.code === "NETWORK" || error.status === 408 || error.status === 429 || error.status >= 500)) {
+            activeAttempt.intervalSeconds = Math.min(15, activeAttempt.intervalSeconds + 2);
+            activeAttempt.showProgress = true;
+            emit("checking", publicAttempt(activeAttempt));
+            continue;
+          }
+          throw error;
+        }
       }
     } catch (error) {
       if (sequence !== attemptSequence || error?.code === "CANCELLED") return;

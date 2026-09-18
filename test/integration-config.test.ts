@@ -325,7 +325,9 @@ describe("isolated integration configuration", () => {
     expect(bridge).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
     expect(api).toContain('path === "/v1/device-sign-in/config"');
     expect(api).toContain("FIREBASE_WEB_API_KEY");
-    expect(account).toContain("Finish signing in with Google");
+    expect(account).toContain("Open sign-in page");
+    expect(account).toContain("Use Google, Apple, or an email link to sign in through your browser.");
+    expect(account).not.toContain("Finish signing in with Google");
     expect(account).toContain("wl-device-sign-in-state");
     expect(account).toContain('button.addEventListener("touchend"');
     expect(runtimeProbe).toContain("deployedPendingDeviceSignInState");

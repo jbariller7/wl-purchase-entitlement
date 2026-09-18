@@ -288,5 +288,18 @@ describe("PC/Mac device authorization", () => {
       wlDeviceSessionGeneration: 9
     });
     expect(session.state).toBe("consumed");
+    expect(JSON.stringify(session)).not.toContain("custom-token");
+    expect(session).not.toHaveProperty("approvedUid");
+    // Simulate losing the first HTTP response after consumption.
+    await expect(service.poll({ userCode: "ABCD-2345", pollSecret: secret, now: new Date(now.getTime() + 5_000) }))
+      .resolves.toEqual({ state: "authorized", customToken: "custom-token" });
+    expect(createCustomToken).toHaveBeenCalledTimes(1);
+    await expect(service.poll({ userCode: "ABCD-2345", pollSecret: "wrong", now: new Date(now.getTime() + 5_000) }))
+      .rejects.toThrow("polling secret is invalid");
+    await expect(service.poll({ userCode: "ABCD-2345", pollSecret: secret, now: new Date(now.getTime() + 122_000) }))
+      .rejects.toThrow("already completed");
+    securityRef.get = async () => ({ data: () => ({ deviceSessionGeneration: 10 }) });
+    await expect(service.poll({ userCode: "ABCD-2345", pollSecret: secret, now: new Date(now.getTime() + 6_000) }))
+      .rejects.toThrow("revoked");
   });
 });

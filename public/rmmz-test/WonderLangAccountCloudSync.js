@@ -271,14 +271,14 @@
       "Try again": "CloudAccount.UI.Tryagain",
       "Save": "CloudAccount.UI.Save",
       "Cloud": "CloudAccount.UI.Cloud",
-      "Opening Google sign-in in your browser…": "CloudAccount.SignIn.Opening",
-      "Choose your Google account in the browser. WonderLang will sign you in automatically when you finish. You do not need to enter a code.": "CloudAccount.SignIn.Browser",
+      "Opening sign-in in your browser…": "CloudAccount.SignIn.Opening",
+      "Use Google, Apple, or an email link to sign in through your browser. Then return to WonderLang; the game will finish signing you in automatically.": "CloudAccount.SignIn.Browser",
       "You are signed in. Loading your account and saves…": "CloudAccount.SignIn.Success",
       "Loading your account…": "CloudAccount.Account.Loading",
       "Please finish signing in before {TIME}.": "CloudAccount.SignIn.Expires",
       "Sign in to WonderLang": "CloudAccount.SignIn.Title",
       "Signed in": "CloudAccount.SignIn.Done",
-      "Open Google sign-in": "CloudAccount.SignIn.Open",
+      "Open sign-in page": "CloudAccount.SignIn.Open",
       "Switch to {PROFILE}?": "CloudAccount.Profile.SwitchTitle",
       "Use {PROFILE} on this device?": "CloudAccount.Profile.UseTitle",
       "Backups for {PROFILE}": "CloudAccount.Backups.Title",
@@ -288,7 +288,6 @@
       "Restoring {PROFILE}'s backup from {TIME}…": "CloudAccount.Backups.Restoring",
       "Restore backup ({COUNT})": "CloudAccount.Backups.Count",
       "Creating {PROFILE}…": "CloudAccount.Profile.Creating",
-      "Finish signing in with Google": "CloudAccount.SignIn.Title",
       "Account refresh failed": "CloudAccount.Status.Accountrefreshfailed",
       "Account unavailable": "CloudAccount.Status.Accountunavailable",
       "Backup was not restored": "CloudAccount.Status.Backupwasnotrestored",
@@ -1180,16 +1179,17 @@
   function showDeviceSignInState(detail) {
     const state = String(detail?.state || "");
     if (state === "starting") {
-      showPanel("Sign in to WonderLang", `<p class="wl-account-muted">Opening Google sign-in in your browser…</p>`, [
+      showPanel("Sign in to WonderLang", `<p class="wl-account-muted">Opening sign-in in your browser…</p>`, [
         { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() }
       ]);
       return;
     }
-    if (state === "pending") {
-      showPanel("Finish signing in with Google", `
-        <p class="wl-account-muted">Choose your Google account in the browser. WonderLang will sign you in automatically when you finish. You do not need to enter a code.</p>
+    if (state === "pending" || state === "checking") {
+      showPanel("Sign in to WonderLang", `
+        ${state === "checking" ? `<p class="wl-account-success" role="status">${escapeHtml(tr("CloudAccount.SignIn.Checking", "Checking sign-in status…"))}</p>` : ""}
+        <p class="wl-account-muted">Use Google, Apple, or an email link to sign in through your browser. Then return to WonderLang; the game will finish signing you in automatically.</p>
         <p class="wl-account-muted">${escapeHtml(trSource("Please finish signing in before {TIME}.", { TIME: formatTime(detail.expiresAt) }))}</p>`, [
-        { label: "Open Google sign-in", run: () => bridge()?.reopenSignIn?.() },
+        { label: "Open sign-in page", run: () => bridge()?.reopenSignIn?.() },
         { label: tr("CloudAccount.SignIn.Check", "Check login status"), kind: "secondary", run: () => bridge()?.checkSignInStatus?.() },
         { label: "Cancel", kind: "secondary", run: () => bridge()?.cancelSignIn?.() },
         { label: "Close", kind: "secondary", run: closeOverlay }

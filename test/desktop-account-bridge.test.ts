@@ -148,6 +148,42 @@ describe("WonderLang PC/Mac account bridge", () => {
     expect(source).not.toMatch(/AIza[0-9A-Za-z_-]{20,}/);
   });
 
+  it.each(["poll", "poll-body", "exchange"])("recovers a transient %s failure without another browser approval", async (stage) => {
+    vi.useFakeTimers();
+    let polls = 0, exchanges = 0;
+    const idToken = jwt("uid-retry", Date.now() + 3_600_000);
+    const fetchMock = vi.fn(async (input: string) => {
+      const url = String(input);
+      if (url.endsWith("/config")) return response(200, { firebaseApiKey: apiKey, firebaseProjectId: projectId });
+      if (url.endsWith("/start")) return response(201, {
+        userCode: "ABCD-2345", pollSecret: "A".repeat(43),
+        verificationUrl: `https://wonderlang.app/account/#desktop_sign_in=ABCD-2345.${"B".repeat(43)}`,
+        expiresAt: new Date(Date.now() + 600_000).toISOString(), intervalSeconds: 3
+      });
+      if (url.endsWith("/poll")) {
+        polls++;
+        if (stage === "poll" && polls === 1) return response(503, { error: "Temporary outage" });
+        if (stage === "poll-body" && polls === 1) return { ok: true, status: 200, json: async () => { throw new Error("Body truncated"); } };
+        return response(200, { state: "authorized", customToken: "custom-token-value-that-is-long-enough" });
+      }
+      exchanges++;
+      if (stage === "exchange" && exchanges === 1) throw new Error("Connection lost");
+      return response(200, { idToken, refreshToken, expiresIn: "3600" });
+    });
+    const result = harness(fetchMock);
+    result.context.WLAccountManager.openSignIn!();
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(result.events.some(event => event.detail.state === "error")).toBe(false);
+    result.context.WLAccountManager.checkSignInStatus!();
+    expect(result.events.at(-1)?.detail.state).toBe("checking");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(result.tokens).toEqual([idToken]);
+    expect(result.opened).toHaveLength(1);
+    expect(polls).toBe(stage.startsWith("poll") ? 2 : 1);
+    expect(exchanges).toBe(stage === "exchange" ? 2 : 1);
+    expect(JSON.stringify(result.events)).not.toContain("custom-token-value");
+  });
+
   it("restores a saved refresh token, rotates it, and erases it on sign-out", async () => {
     vi.useFakeTimers();
     const sessionPath = "C:\\WonderLangProfile\\wonderlang-account-session-v1.json";

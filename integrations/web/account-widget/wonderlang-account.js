@@ -78,7 +78,7 @@ const html = `
       <aside class="wl-device-prompt" data-section="device-prompt" hidden>
         <p class="wl-eyebrow">PC / MAC SIGN-IN</p>
         <h3>Continue in WonderLang.</h3>
-        <p>Choose the Google account you want to use. WonderLang will finish signing in automatically.</p>
+        <p>Sign in with Google, Apple, or an email link.</p>
       </aside>
       <div class="wl-provider-grid">
         <button type="button" data-action="google">Continue with Google</button>
@@ -495,7 +495,7 @@ class WonderLangAccount extends HTMLElement {
       if (this.handoffReady && user) {
         await this.completeDesktopHandoff(user);
       } else {
-        this.status("Choose your Google account. WonderLang will continue automatically after sign-in.");
+        this.status("Sign in with Google, Apple, or an email link.");
       }
       return;
     }

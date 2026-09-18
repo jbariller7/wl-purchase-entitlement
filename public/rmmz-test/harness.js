@@ -83,7 +83,7 @@
     getCachedIdToken: () => "mock-firebase-id-token",
     refreshIdToken: () => true,
     openSignIn: () => {
-      status().textContent = "Showing a simulated PC/Mac device code. No account request is made.";
+      status().textContent = "Showing simulated PC/Mac browser sign-in. No account request is made.";
       window.dispatchEvent(new CustomEvent("wl-device-sign-in-state", { detail: { state: "starting" } }));
       setTimeout(() => window.dispatchEvent(new CustomEvent("wl-device-sign-in-state", {
         detail: {
@@ -93,6 +93,12 @@
           expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString()
         }
       })), 120);
+      return true;
+    },
+    checkSignInStatus: () => {
+      const expiresAt = new Date(Date.now() + 600_000).toISOString();
+      window.dispatchEvent(new CustomEvent("wl-device-sign-in-state", { detail: { state: "checking", expiresAt } }));
+      setTimeout(() => window.dispatchEvent(new CustomEvent("wl-device-sign-in-state", { detail: { state: "pending", expiresAt } })), 1200);
       return true;
     },
     cancelSignIn: () => {
