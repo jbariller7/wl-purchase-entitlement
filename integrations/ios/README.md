@@ -2,7 +2,7 @@
 
 The iOS project was not available, so no production file was touched. `WonderLangEntitlementStore.swift` is a clean-room StoreKit 2 adapter to place in a duplicate project later.
 
-The adapter currently targets the isolated `https://wl-purchase-entitlement.netlify.app` test service. Replace that constant only as an explicit production-cutover step.
+The adapter currently targets the isolated `https://wonderlang.app` test service. Replace that constant only as an explicit production-cutover step.
 
 Required integration:
 

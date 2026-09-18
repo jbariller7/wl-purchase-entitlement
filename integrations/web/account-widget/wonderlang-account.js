@@ -26,7 +26,7 @@ const DESKTOP_HANDOFF_KEY = "wl-desktop-sign-in-handoff";
 const DESKTOP_REDIRECT_KEY = "wl-desktop-sign-in-redirect";
 const previewParam = pageParams.get("demo");
 const demoProfile = pageParams.get("profile");
-const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"].includes(location.hostname)
+const demoMode = ["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app", "wonderlang.app"].includes(location.hostname)
   && previewParam === "1";
 const localEmailLinkDemo = ["localhost", "127.0.0.1"].includes(location.hostname)
   && previewParam === "email-link";

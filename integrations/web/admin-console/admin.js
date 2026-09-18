@@ -7,7 +7,7 @@ import {
 import "./admin.css";
 
 const appNode = document.querySelector("#app");
-const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app"]);
+const previewHosts = new Set(["localhost", "127.0.0.1", "wl-purchase-entitlement.netlify.app", "wonderlang.app"]);
 let demo = previewHosts.has(location.hostname) && new URLSearchParams(location.search).get("demo") === "1";
 const demoProfile = new URLSearchParams(location.search).get("profile");
 const state = { auth: null, appCheck: null, user: demo ? { email: "owner@wonderlang.net" } : null, config: { environment: demo ? "test" : "unknown", checkoutEnabled: false }, view: "overview", customer: null, secondPlatformRequests: [], stripeDiagnostic: null, googlePlayDiagnostic: null, firebaseAuthDiagnostic: null, appleCatalogDiagnostic: null, keyInventoryComparison: null, previews: {}, notice: null };

@@ -6,7 +6,7 @@
  * @param ApiBaseUrl
  * @text Account API URL
  * @type string
- * @default https://wl-purchase-entitlement.netlify.app
+ * @default https://wonderlang.app
  *
  * @help
  * Load this plugin before WonderLangAccountCloudSync in a duplicated PC/Mac test
@@ -24,7 +24,7 @@
 
   const pluginName = "WonderLangDesktopAccountBridge";
   const params = PluginManager.parameters(pluginName);
-  const apiBase = String(params.ApiBaseUrl || "https://wl-purchase-entitlement.netlify.app").replace(/\/$/, "");
+  const apiBase = String(params.ApiBaseUrl || "https://wonderlang.app").replace(/\/$/, "");
   const SESSION_FILENAME = "wonderlang-account-session-v1.json";
   const TOKEN_SKEW_MS = 60_000;
   const REQUEST_TIMEOUT_MS = 20_000;

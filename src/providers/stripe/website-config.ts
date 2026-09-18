@@ -8,7 +8,7 @@ import type {WebsiteSessionRequest} from './website-session.js';
 export function websiteStripeConfiguration(){
  const secret=process.env.STRIPE_LIVE_SECRET_KEY;
  if(!secret || !/^(sk|rk)_live_/.test(secret))throw new Error('STRIPE_LIVE_SECRET_KEY is missing or is not a live Stripe key.');
- const origin=new URL(process.env.PUBLIC_APP_ORIGIN??'https://wl-purchase-entitlement.netlify.app').origin;
+ const origin=new URL(process.env.PUBLIC_APP_ORIGIN??'https://wonderlang.app').origin;
  if(!origin.startsWith('https://'))throw new Error('Website checkout requires an HTTPS return origin.');
  return {secret,origin};
 }

@@ -6,7 +6,7 @@
  * @param ApiBaseUrl
  * @text Account API URL
  * @type string
- * @default https://wl-purchase-entitlement.netlify.app
+ * @default https://wonderlang.app
  *
  * @param OpenOnPlaytest
  * @text Open account automatically in playtest
@@ -50,7 +50,7 @@
 
   const pluginName = "WonderLangAccountCloudSync";
   const params = PluginManager.parameters(pluginName);
-  const apiBase = String(params.ApiBaseUrl || "https://wl-purchase-entitlement.netlify.app").replace(/\/$/, "");
+  const apiBase = String(params.ApiBaseUrl || "https://wonderlang.app").replace(/\/$/, "");
   const openOnPlaytest = String(params.OpenOnPlaytest || "false").toLowerCase() === "true";
   if (!/^https:\/\//i.test(apiBase)) throw new Error("WonderLang account API must use HTTPS.");
 

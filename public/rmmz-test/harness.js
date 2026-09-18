@@ -63,7 +63,7 @@
   };
 
   window.PluginManager = {
-    parameters: () => ({ ApiBaseUrl: "https://wl-purchase-entitlement.netlify.app" }),
+    parameters: () => ({ ApiBaseUrl: "https://wonderlang.app" }),
     registerCommand: () => undefined
   };
   window.DataManager = {
@@ -89,7 +89,7 @@
         detail: {
           state: "pending",
           userCode: "ABCD-2345",
-          verificationUrl: "https://wl-purchase-entitlement.netlify.app/account/?demo=1&device_code=ABCD-2345",
+          verificationUrl: "https://wonderlang.app/account/?demo=1&device_code=ABCD-2345",
           expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString()
         }
       })), 120);

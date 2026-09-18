@@ -3,9 +3,9 @@
 Embed the generated script and custom element on `wonderlang.net`:
 
 ```html
-<link rel="stylesheet" href="https://wl-purchase-entitlement.netlify.app/wonderlang-account.css">
-<script src="https://wl-purchase-entitlement.netlify.app/wonderlang-account.js" defer></script>
-<wonderlang-account api-base="https://wl-purchase-entitlement.netlify.app"></wonderlang-account>
+<link rel="stylesheet" href="https://wonderlang.app/wonderlang-account.css">
+<script src="https://wonderlang.app/wonderlang-account.js" defer></script>
+<wonderlang-account api-base="https://wonderlang.app"></wonderlang-account>
 ```
 
 The widget offers Google, Apple and passwordless email-link sign-in; account status; Mobile Monthly, Polyglot Permanent and Premium Lifetime checkout; first-mobile-platform and Steam/direct-download selection for Premium; Stripe Billing Portal; subscription-to-Premium confirmation; and a verified historical-purchase claim for the private 50% Premium offer.

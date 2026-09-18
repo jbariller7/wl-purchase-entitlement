@@ -33,6 +33,20 @@
 [functions."device-sign-in-cleanup"]
   schedule = "7 * * * *"
 
+# Move new purchases before browser-local recovery data is created. Keep old
+# account/completion/API URLs working for issued links and installed clients.
+[[redirects]]
+  from = "https://wl-purchase-entitlement.netlify.app/shop/"
+  to = "https://wonderlang.app/shop/"
+  status = 302
+  force = true
+
+[[redirects]]
+  from = "https://wl-purchase-entitlement.netlify.app/shop/checkout/*"
+  to = "https://wonderlang.app/shop/checkout/:splat"
+  status = 302
+  force = true
+
 [[redirects]]
   from = "/"
   to = "/admin/"

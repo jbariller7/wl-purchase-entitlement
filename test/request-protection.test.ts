@@ -33,6 +33,10 @@ describe("request protection", () => {
     const allowed = apiAllowedOrigins(true);
     expect(() => requireAllowedOrigin(undefined, allowed)).not.toThrow();
     expect(() => requireAllowedOrigin("https://appassets.local", allowed)).not.toThrow();
+    for (const origin of ["https://wonderlang.app", "https://www.wonderlang.app", "https://wl-purchase-entitlement.netlify.app"]) {
+      expect(() => requireAllowedOrigin(origin, allowed)).not.toThrow();
+    }
+    expect(() => requireAllowedOrigin("https://wonderlang.app.evil.example", allowed)).toThrowError(HttpError);
     expect(() => requireAllowedOrigin("https://evil.example", allowed)).toThrowError(HttpError);
     expect(requestHeader({ OrIgIn: "https://wonderlang.net" }, "origin")).toBe("https://wonderlang.net");
   });

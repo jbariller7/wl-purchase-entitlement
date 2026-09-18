@@ -4,6 +4,8 @@
       "https://wonderlang.net",
       "https://www.wonderlang.net",
       "https://wl-purchase-entitlement.netlify.app",
+      "https://wonderlang.app",
+      "https://www.wonderlang.app",
       "https://appassets.local"
     ],
     "method": ["GET", "PUT", "HEAD"],

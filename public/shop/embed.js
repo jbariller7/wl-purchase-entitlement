@@ -1,7 +1,8 @@
 (() => {
   const script = document.currentScript;
   if (!script) return;
-  const origin = new URL(script.src).origin;
+  const scriptOrigin = new URL(script.src).origin;
+  const origin = scriptOrigin === 'https://wl-purchase-entitlement.netlify.app' ? 'https://wonderlang.app' : scriptOrigin;
   const frame = document.createElement('iframe');
   const url = new URL('/shop/', origin);
   const normalizeLanguage = value => ({jp:'ja',kr:'ko',ua:'uk',zh:'zh-CN',pt:'pt-PT'}[value] || value);

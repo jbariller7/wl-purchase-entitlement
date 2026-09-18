@@ -243,7 +243,7 @@ class MainActivity : AppCompatActivity() {
     private val POLYGLOT_PURCHASE_OPTION_ID = "buy-polyglot-permanent"
     // Must match LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF in the entitlement service.
     private val LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF_MS = 1_787_615_999_999L
-    private val ACCOUNT_API_BASE_URL = "https://wl-purchase-entitlement.netlify.app"
+    private val ACCOUNT_API_BASE_URL = "https://wonderlang.app"
     private val purchaseQueryLock = Any()
     @Volatile private var purchaseQueryInFlight: Boolean = false
     @Volatile private var purchaseEntitlementSyncCompleted: Boolean = false

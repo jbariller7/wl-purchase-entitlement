@@ -11,7 +11,10 @@ const schema=z.object({sessionId:z.string().regex(/^cs_live_[A-Za-z0-9]+$/),clai
 export const lambdaHandler:LambdaHandler=async event=>{
  try{
   if(event.httpMethod!=='POST')return json(405,{error:'Method not allowed'});
-  if(event.headers.origin!==websiteStripeConfiguration().origin)throw new HttpError(403,'Invalid origin.');
+  const canonicalOrigin=websiteStripeConfiguration().origin;
+  // Pending Stripe sessions can still return to the original browser origin.
+  const legacyReturn=canonicalOrigin==='https://wonderlang.app'&&event.headers.origin==='https://wl-purchase-entitlement.netlify.app';
+  if(event.headers.origin!==canonicalOrigin&&!legacyReturn)throw new HttpError(403,'Invalid origin.');
   if(!event.body||event.body.length>1000||event.isBase64Encoded)throw new HttpError(400,'Invalid request.');
   const parsed=schema.safeParse(parseJsonBody(event.body));if(!parsed.success)throw new HttpError(400,'Invalid request.');const input=parsed.data;
   const db=firestore();

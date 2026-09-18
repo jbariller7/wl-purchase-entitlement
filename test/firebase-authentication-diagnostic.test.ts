@@ -17,7 +17,7 @@ function environment(): FirebaseAuthDiagnosticEnvironment {
     PUBLIC_APP_ORIGIN: "https://wonderlang.net",
     FIREBASE_APPLE_SERVICE_ID: "com.wonderlang.account",
     FIREBASE_APPLE_BUNDLE_ID: "com.wonderlang.app",
-    FIREBASE_REQUIRED_AUTHORIZED_DOMAINS: '["wonderlang-accounts.firebaseapp.com","wl-purchase-entitlement.netlify.app","wonderlang.net","www.wonderlang.net"]'
+    FIREBASE_REQUIRED_AUTHORIZED_DOMAINS: '["wonderlang-accounts.firebaseapp.com","wonderlang.app","wonderlang.net","www.wonderlang.net"]'
   };
 }
 
@@ -26,7 +26,7 @@ function project(overrides: Partial<FirebaseAuthenticationProjectConfig> = {}): 
     name: "projects/wonderlang-accounts/config",
     authorizedDomains: [
       "wonderlang-accounts.firebaseapp.com",
-      "wl-purchase-entitlement.netlify.app",
+      "wonderlang.app",
       "wonderlang.net",
       "www.wonderlang.net"
     ],
@@ -135,7 +135,7 @@ describe("read-only Firebase Authentication diagnostic", () => {
 
     expect(result.passed).toBe(false);
     expect(result.checks.find((check) => check.id === "project-domains")?.issues).toContain(
-      "Missing authorized domains: wl-purchase-entitlement.netlify.app, wonderlang.net, www.wonderlang.net."
+      "Missing authorized domains: wonderlang.app, wonderlang.net, www.wonderlang.net."
     );
     expect(result.checks.find((check) => check.id === "passwordless-email")?.issues).toContain(
       "Email authentication requires a password, so passwordless email links are disabled."

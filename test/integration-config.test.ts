@@ -123,7 +123,7 @@ describe("isolated integration configuration", () => {
     const rmmz = read("integrations/rmmz/WonderLangAccountCloudSync.js");
     const ios = read("integrations/ios/WonderLangEntitlementStore.swift");
     for (const source of [rmmz, ios]) {
-      expect(source).toContain("https://wl-purchase-entitlement.netlify.app");
+      expect(source).toContain("https://wonderlang.app");
       expect(source).not.toContain("https://purchased-keys-automation.netlify.app");
     }
   });
@@ -234,7 +234,7 @@ describe("isolated integration configuration", () => {
     const widget = read("integrations/web/account-widget/wonderlang-account.js");
     const page = read("public/account/index.html");
     const headers = read("public/_headers");
-    expect(widget).toContain('"wl-purchase-entitlement.netlify.app"');
+    expect(widget).toContain('"wonderlang.app"');
     expect(widget).toContain('previewParam === "1"');
     expect(widget).toContain("if (demoMode) return this.demoRequest(path, options)");
     expect(widget).toContain("no real sign-in, purchase, save, or deletion can occur.");

@@ -175,10 +175,10 @@ describe("Stripe provider event processing", () => {
       STRIPE_PRICE_POLYGLOT_PERMANENT: "price_polyglot",
       STRIPE_PRICE_PREMIUM_LIFETIME: "price_premium",
       STRIPE_COUPON_LEGACY_DESKTOP_50: "coupon_legacy",
-      STRIPE_SUCCESS_URL: "https://wl-purchase-entitlement.netlify.app/account/?checkout=success",
-      STRIPE_CANCEL_URL: "https://wl-purchase-entitlement.netlify.app/account/?checkout=cancel",
-      STRIPE_PORTAL_RETURN_URL: "https://wl-purchase-entitlement.netlify.app/account/",
-      PUBLIC_APP_ORIGIN: "https://wl-purchase-entitlement.netlify.app"
+      STRIPE_SUCCESS_URL: "https://wonderlang.app/account/?checkout=success",
+      STRIPE_CANCEL_URL: "https://wonderlang.app/account/?checkout=cancel",
+      STRIPE_PORTAL_RETURN_URL: "https://wonderlang.app/account/",
+      PUBLIC_APP_ORIGIN: "https://wonderlang.app"
     });
     resetEnvironmentForTests();
     const store = fakeStore();
@@ -216,7 +216,7 @@ describe("Stripe provider event processing", () => {
       expect(payload).toMatchObject({
         eventName: "Purchase",
         eventId: "cs_ads",
-        eventSourceUrl: "https://wl-purchase-entitlement.netlify.app",
+        eventSourceUrl: "https://wonderlang.app",
         value: 59.99,
         currency: "USD",
         product: "premium_lifetime_pass",

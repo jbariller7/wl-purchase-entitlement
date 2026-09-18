@@ -11,6 +11,10 @@ export function requestHeader(headers: Readonly<Record<string, string | undefine
 export function apiAllowedOrigins(includeAndroidWebView: boolean): Set<string> {
   return new Set([
     ...(process.env.PUBLIC_APP_ORIGIN ? [process.env.PUBLIC_APP_ORIGIN] : []),
+    "https://wonderlang.app",
+    "https://www.wonderlang.app",
+    // Existing installs and previously issued account links remain supported.
+    "https://wl-purchase-entitlement.netlify.app",
     "https://wonderlang.net",
     "https://www.wonderlang.net",
     ...(includeAndroidWebView ? ["https://appassets.local"] : [])

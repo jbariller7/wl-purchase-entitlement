@@ -58,7 +58,7 @@ function harness(fetchMock: ReturnType<typeof vi.fn>, files = new Map<string, st
     }
   };
   const windowObject: Record<string, unknown> = {
-    PluginManager: { parameters: () => ({ ApiBaseUrl: "https://wl-purchase-entitlement.netlify.app" }) },
+    PluginManager: { parameters: () => ({ ApiBaseUrl: "https://wonderlang.app" }) },
     Utils: { isNwjs: () => true },
     navigator: { userAgent: "Mozilla/5.0 NW.js Windows" },
     nw: {
@@ -116,7 +116,7 @@ describe("WonderLang PC/Mac account bridge", () => {
       if (url.endsWith("/api/v1/device-sign-in/start")) return response(201, {
         userCode: "ABCD-2345",
         pollSecret: "A".repeat(43),
-        verificationUrl: `https://wl-purchase-entitlement.netlify.app/account/#desktop_sign_in=ABCD-2345.${"B".repeat(43)}`,
+        verificationUrl: `https://wonderlang.app/account/#desktop_sign_in=ABCD-2345.${"B".repeat(43)}`,
         expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
         intervalSeconds: 3
       });
@@ -129,7 +129,7 @@ describe("WonderLang PC/Mac account bridge", () => {
     expect(result.context.WLAccountManager.openSignIn!()).toBe(true);
     await vi.advanceTimersByTimeAsync(0);
     expect(result.events.some(event => event.detail.state === "pending" && !("userCode" in event.detail))).toBe(true);
-    expect(result.opened).toEqual([`https://wl-purchase-entitlement.netlify.app/account/#desktop_sign_in=ABCD-2345.${"B".repeat(43)}`]);
+    expect(result.opened).toEqual([`https://wonderlang.app/account/#desktop_sign_in=ABCD-2345.${"B".repeat(43)}`]);
 
     if (mode === "manual") {
       for (let i = 0; i < 5; i++) result.context.WLAccountManager.checkSignInStatus!();

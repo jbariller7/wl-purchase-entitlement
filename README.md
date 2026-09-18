@@ -63,4 +63,4 @@ Copy `.env.example` to a secure local environment source. Never commit private k
 
 Start with `docs/IMPLEMENTATION_PLAN.md`; production rollout order matters because the old and new Stripe fulfillment webhooks must never allocate keys in parallel. `docs/COMPLETION_AUDIT.md` maps every full-goal requirement to current evidence and the remaining staging/release gates.
 
-The Netlify test site is `https://wl-purchase-entitlement.netlify.app`. Keep every `*_ENABLED` switch false until separate Firebase test and Stripe test credentials are installed and the corresponding workflow is being exercised intentionally.
+The Netlify test site is `https://wonderlang.app`. Keep every `*_ENABLED` switch false until separate Firebase test and Stripe test credentials are installed and the corresponding workflow is being exercised intentionally.

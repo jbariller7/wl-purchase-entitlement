@@ -9,7 +9,7 @@ function harness(url){
  const page=new context.Widget();page.auth={currentUser:{uid:'confirmed-user'}};page.querySelector=()=>({});page.status=vi.fn();page.fail=e=>{throw e};return{context,page};
 }
 it('carries desktop approval through an email link opened in a new browser session',async()=>{
- const initial=harness('https://wl-purchase-entitlement.netlify.app/account/');
+ const initial=harness('https://wonderlang.app/account/');
  initial.page.desktopHandoff={userCode:'ABCD-2345',approvalSecret:'B'.repeat(43)};
  await initial.page.sendEmailLink('tester@example.com',false);
  const options=initial.context.sendSignInLinkToEmail.mock.calls[0][2];
@@ -25,7 +25,7 @@ it('carries desktop approval through an email link opened in a new browser sessi
  expect(receiving.context.sessionStorage.getItem('handoff')).toBeNull();
 });
 it('does not attach a game handoff to account-linking email',async()=>{
- const {page,context}=harness('https://wl-purchase-entitlement.netlify.app/account/');
+ const {page,context}=harness('https://wonderlang.app/account/');
  page.desktopHandoff={userCode:'ABCD-2345',approvalSecret:'B'.repeat(43)};
  await page.sendEmailLink('tester@example.com',true);
  expect(new URL(context.sendSignInLinkToEmail.mock.calls[0][2].url).hash).toBe('');

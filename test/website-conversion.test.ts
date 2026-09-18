@@ -1,14 +1,20 @@
 import {beforeEach,expect,it,vi} from 'vitest';
 import {createHash} from 'node:crypto';
-const mocks=vi.hoisted(()=>({retrieve:vi.fn(),get:vi.fn(),limit:vi.fn()}));
-vi.mock('../src/providers/stripe/website-config.js',()=>({websiteStripeConfiguration:()=>({origin:'https://wonderlang.test'}),websiteStripeClient:()=>({checkout:{sessions:{retrieve:mocks.retrieve}}})}));
+const mocks=vi.hoisted(()=>({retrieve:vi.fn(),get:vi.fn(),limit:vi.fn(),origin:'https://wonderlang.test'}));
+vi.mock('../src/providers/stripe/website-config.js',()=>({websiteStripeConfiguration:()=>({origin:mocks.origin}),websiteStripeClient:()=>({checkout:{sessions:{retrieve:mocks.retrieve}}})}));
 vi.mock('../src/infrastructure/firebase.js',()=>({firestore:()=>({collection:()=>({doc:()=>({get:mocks.get})})})}));
 vi.mock('../src/http/rate-limit.js',()=>({consumeRateLimit:mocks.limit}));
 import {lambdaHandler} from '../netlify/functions/website-conversion.js';
 const secret='x'.repeat(43);
 const session={id:'cs_live_abc123',livemode:true,metadata:{wl_request_id:'request',wl_checkout_flow:'website-session-v1'},status:'complete',payment_status:'paid',amount_total:3199,currency:'eur'};
 async function call(body:object,origin='https://wonderlang.test'){return await lambdaHandler({httpMethod:'POST',headers:{origin},body:JSON.stringify(body)} as never,{} as never) as {statusCode:number;body:string};}
-beforeEach(()=>{vi.clearAllMocks();mocks.retrieve.mockResolvedValue({...session});mocks.get.mockResolvedValue({data:()=>({sessionId:session.id,claimHash:createHash('sha256').update(secret).digest('hex')})});});
+beforeEach(()=>{vi.clearAllMocks();mocks.origin='https://wonderlang.test';mocks.retrieve.mockResolvedValue({...session});mocks.get.mockResolvedValue({data:()=>({sessionId:session.id,claimHash:createHash('sha256').update(secret).digest('hex')})});});
+it('supports pending purchases on the old domain after the production migration',async()=>{
+ mocks.origin='https://wonderlang.app';
+ expect((await call({sessionId:session.id,claimSecret:secret},'https://wl-purchase-entitlement.netlify.app')).statusCode).toBe(200);
+ expect((await call({sessionId:session.id,claimSecret:secret},'https://wonderlang.app.evil.test')).statusCode).toBe(403);
+ expect((await call({sessionId:session.id,claimSecret:'a'.repeat(43)},'https://wl-purchase-entitlement.netlify.app')).statusCode).toBe(404);
+});
 it('returns only verified amount and currency for the checkout owner',async()=>{
  const result=await call({sessionId:session.id,claimSecret:secret});expect(result.statusCode).toBe(200);
  expect(JSON.parse(result.body)).toEqual({conversion:{transactionId:session.id,value:31.99,currency:'EUR'}});

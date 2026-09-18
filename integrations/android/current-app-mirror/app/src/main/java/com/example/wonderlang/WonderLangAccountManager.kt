@@ -325,7 +325,10 @@ class WonderLangAccountManager(
         val uri = runCatching { Uri.parse(rawUrl) }.getOrNull() ?: return false
         val host = uri.host?.lowercase().orEmpty()
         val allowed = uri.scheme == "https" && (
-            host == "wonderlang.net" ||
+            host == "wonderlang.app" ||
+                host == "www.wonderlang.app" ||
+                host == "wl-purchase-entitlement.netlify.app" ||
+                host == "wonderlang.net" ||
                 host == "www.wonderlang.net" ||
                 host == "billing.stripe.com" ||
                 host == "play.google.com" ||
@@ -490,7 +493,7 @@ class WonderLangAccountManager(
             positiveLabel = "Send link"
         ) { email ->
             val settings = ActionCodeSettings.newBuilder()
-                .setUrl("https://wl-purchase-entitlement.netlify.app/account/")
+                .setUrl("https://wonderlang.app/account/")
                 .setHandleCodeInApp(true)
                 .setAndroidPackageName(activity.packageName, false, null)
                 // Omit the custom-domain override: Firebase selects the project's

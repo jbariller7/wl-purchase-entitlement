@@ -6,7 +6,7 @@
  * @param ApiBaseUrl
  * @text Account API URL
  * @type string
- * @default https://wl-purchase-entitlement.netlify.app
+ * @default https://wonderlang.app
  *
  * @param ExitWhenDone
  * @text Exit after writing the probe
@@ -23,7 +23,7 @@
 
   const pluginName = "WonderLangDesktopRuntimeProbe";
   const params = PluginManager.parameters(pluginName);
-  const apiBase = String(params.ApiBaseUrl || "https://wl-purchase-entitlement.netlify.app").replace(/\/$/, "");
+  const apiBase = String(params.ApiBaseUrl || "https://wonderlang.app").replace(/\/$/, "");
   const exitWhenDone = String(params.ExitWhenDone || "true") === "true";
   const fatalErrors = [];
   const consoleProblems = [];

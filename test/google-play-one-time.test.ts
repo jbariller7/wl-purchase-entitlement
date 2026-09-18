@@ -75,7 +75,7 @@ beforeEach(() => {
     GOOGLE_PLAY_PACKAGE_NAME: "com.wonderlang.app",
     GOOGLE_PLAY_MONTHLY_PRODUCT_ID: "wonderlangmonthly",
     GOOGLE_PLAY_POLYGLOT_PRODUCT_ID: "wonderlangfull",
-    GOOGLE_PLAY_RTDN_AUDIENCE: "https://wl-purchase-entitlement.netlify.app/webhooks/google-play",
+    GOOGLE_PLAY_RTDN_AUDIENCE: "https://wonderlang.app/webhooks/google-play",
     GOOGLE_PLAY_RTDN_SERVICE_ACCOUNT_EMAIL: "rtdn-test@example.iam.gserviceaccount.com"
   });
   resetEnvironmentForTests();

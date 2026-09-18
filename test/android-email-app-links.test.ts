@@ -54,7 +54,7 @@ describe("Android passwordless-email App Links", () => {
 
     expect(manager).not.toMatch(/\.setLinkDomain\s*\(/);
     expect(manager).not.toMatch(/\.setDynamicLinkDomain\s*\(/);
-    expect(manager).toContain('.setUrl("https://wl-purchase-entitlement.netlify.app/account/")');
+    expect(manager).toContain('.setUrl("https://wonderlang.app/account/")');
     expect(manager).toContain(".setAndroidPackageName(activity.packageName, false, null)");
     expect(gradle).toContain(`applicationId = "${packageName}"`);
     expect(manifest).toContain('android:autoVerify="true"');

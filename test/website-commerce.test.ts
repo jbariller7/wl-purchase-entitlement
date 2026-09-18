@@ -2,7 +2,7 @@ import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {EntitlementStore} from '../src/infrastructure/entitlement-store.js';
 import type Stripe from 'stripe';
 const api=vi.hoisted(()=>({prices:{retrieve:vi.fn()},checkout:{sessions:{create:vi.fn(),retrieve:vi.fn(),listLineItems:vi.fn()}}}));
-vi.mock('../src/providers/stripe/website-config.js',()=>({websiteStripeClient:()=>api,websiteStripeConfiguration:()=>({origin:'https://wl-purchase-entitlement.netlify.app'}),websitePriceId:()=> 'price_approved'}));
+vi.mock('../src/providers/stripe/website-config.js',()=>({websiteStripeClient:()=>api,websiteStripeConfiguration:()=>({origin:'https://wonderlang.app'}),websitePriceId:()=> 'price_approved'}));
 import {startWebsiteCheckout,recordWebsitePayment} from '../src/providers/stripe/website-commerce.js';
 function database(){
  const docs=new Map<string,any>();

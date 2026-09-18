@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 const BUILD_KIND = "wonderlang-rmmz-desktop-entitlement-test";
 const BUILD_VERSION = 1;
 const MARKER_FILENAME = ".wl-rmmz-test-build.json";
-const DEFAULT_API_BASE_URL = "https://wl-purchase-entitlement.netlify.app";
+const DEFAULT_API_BASE_URL = "https://wonderlang.app";
 
 const REQUIRED_SOURCE_FILES = [
   "index.html",

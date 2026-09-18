@@ -24,7 +24,7 @@ WonderLangAccountCloudSync       status: true
 Both use this test parameter:
 
 ```text
-ApiBaseUrl = https://wl-purchase-entitlement.netlify.app
+ApiBaseUrl = https://wonderlang.app
 ```
 
 The guarded preparation script also adds `WonderLangDesktopRuntimeProbe` as the
@@ -44,7 +44,7 @@ runtime (`nw.exe`, `nw.dll`, and `resources.pak`) and writes the disposable
 `Run-WonderLang-Entitlement-Test.cmd` launcher. The runtime is used read-only;
 it is not copied into Git or modified.
 
-The duplicate-build default is the isolated `https://wl-purchase-entitlement.netlify.app` test service. Production builds must override `ApiBaseUrl` deliberately during the release cutover; never point a test build back at `purchased-keys-automation`.
+The duplicate-build default is the isolated `https://wonderlang.app` test service. Production builds must override `ApiBaseUrl` deliberately during the release cutover; never point a test build back at `purchased-keys-automation`.
 
 The paywall duplicate should merge ownership as follows:
 

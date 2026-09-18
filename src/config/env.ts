@@ -35,7 +35,7 @@ const firebaseAuthDiagnosticSchema = firebaseAdminSchema.extend({
   PUBLIC_APP_ORIGIN: z.string().url(),
   FIREBASE_APPLE_SERVICE_ID: z.string().min(1).default("com.wonderlang.account"),
   FIREBASE_APPLE_BUNDLE_ID: z.string().min(1).default("com.wonderlang.app"),
-  FIREBASE_REQUIRED_AUTHORIZED_DOMAINS: z.string().min(1).default('["wonderlang-accounts.firebaseapp.com","wl-purchase-entitlement.netlify.app","wonderlang.net","www.wonderlang.net"]')
+  FIREBASE_REQUIRED_AUTHORIZED_DOMAINS: z.string().min(1).default('["wonderlang-accounts.firebaseapp.com","wl-purchase-entitlement.netlify.app","wonderlang.app","www.wonderlang.app","wonderlang.net","www.wonderlang.net"]')
 });
 
 const googlePlaySchema = z.object({
