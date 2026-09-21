@@ -228,8 +228,8 @@ function renderOverview(data) {
   <section class="metric-grid">${metric("Active monthly", m.activeSubscriptions, "Full mobile game", "accent")}${metric("Polyglot permanent", m.permanentCustomers, "One mobile platform", "dark")}${metric("Premium Lifetime", m.premiumCustomers, "PC/Mac, cloud and future content", "dark")}${metric("Payment grace", m.graceSubscriptions, "Seven-day access window", "warning")}${metric("Cloud storage", formatBytes(m.cloudStorageBytes), `${formatBytes(m.cloudStorageDailyChangeBytes)} since prior snapshot`, "dark")}${metric("Needs attention", m.failedOperations, "Manual review queue", "danger")}</section>
   <section class="panel"><header><h3>Store reviewer accounts</h3><button class="button secondary" data-view="overview">Refresh login counts</button></header>
   <p class="panel-copy">Successful sign-in sessions observed by the account API. Refreshes and token renewals do not add logins. Browser sign-in and native email-link sign-in count separately; desktop handoffs do not. Counts are an activity indicator, not a count of people.</p>
-  ${table(["Store", "Account", "Status", "Total logins", "Last 24 hours", "Last 7 days", "Last login", "Action"], (data.reviewers || []).map(r => [r.slot === "apple" ? "Apple" : "Google Play", r.email || "Not created", r.exists ? (r.disabled ? "Disabled" : "Enabled") : "Not created", r.totalLogins ?? "—", r.last24Hours ?? "—", r.last7Days ?? "—", formatDate(r.lastLoginAt), htmlCell(r.exists ? `<button class="text-button" data-directory-open="${escapeHtml(r.uid)}">Manage account</button>` : `<button class="button secondary" data-create-reviewer="${escapeHtml(r.slot)}">Create review account</button>`)]))}
-  <p class="panel-copy">Accounts receive Premium Lifetime and no admin permissions. Manage account lets you disable access and revoke sessions. Passwords are shown once at creation; save them privately in your store review instructions.</p>
+  ${table(["Store", "Account", "Status", "Total logins", "Last 24 hours", "Last 7 days", "Last login", "Action"], (data.reviewers || []).map(r => [r.slot === "apple" ? "Apple" : "Google Play", r.email || "Not created", r.exists ? (r.disabled ? "Disabled" : "Enabled") : "Not created", r.totalLogins ?? "—", r.last24Hours ?? "—", r.last7Days ?? "—", formatDate(r.lastLoginAt), htmlCell(r.exists ? `<button class="text-button" data-directory-open="${escapeHtml(r.uid)}">Manage account</button><button class="text-button" data-reviewer-credentials="${escapeHtml(r.slot)}">${r.credentialsSaved ? "Show credentials" : "Save existing password"}</button>` : `<button class="button secondary" data-create-reviewer="${escapeHtml(r.slot)}">Create review account</button>`)]))}
+  <p class="panel-copy">Accounts receive Premium Lifetime and no admin permissions. Manage account lets you disable access and revoke sessions. Passwords are stored encrypted and can be revealed here by administrators. Credential views are recorded in the audit history.</p>
   <div id="reviewer-credentials" role="status"></div></section>
   <section class="dashboard-grid"><article class="panel attention-panel"><header><div><p class="section-kicker">ATTENTION QUEUE</p><h3>What needs you</h3></div><button class="text-button" data-view="operations">See all</button></header><div class="alert-list">${(data.alerts || []).length ? data.alerts.map((a) => { const view = ["operations", "inventory", "customers"].includes(a.view) ? a.view : "operations"; return `<button class="alert-row" data-view="${view}"><span class="alert-icon ${escapeHtml(a.tone)}"></span><span><strong>${escapeHtml(a.title)}</strong><small>${escapeHtml(a.detail)}</small></span><b>${escapeHtml(a.action)} →</b></button>`; }).join("") : empty("Nothing needs attention.")}</div></article>
   <article class="panel quick-panel"><header><div><p class="section-kicker">SAFE SHORTCUTS</p><h3>Quick actions</h3></div></header><div class="quick-grid">${[["Customer lookup", "Search access, purchases and saves", "customers"], ["Change a price", "New checkouts only", "billing"], ["Issue a refund", "Find the customer, then preview the payment refund", "customers"], ["Import purchases", "Dry-run before applying", "imports"]].map(([t,d,v]) => `<button class="quick-action" data-view="${v}"><span>↗</span><strong>${t}</strong><small>${d}</small></button>`).join("")}</div></article></section>
@@ -763,13 +763,42 @@ function bindView() {
     }
   }));
   document.querySelector("#customer-search")?.addEventListener("submit", async (event) => { event.preventDefault(); const q = new FormData(event.currentTarget).get("q"); try { state.customer = await api(`/admin-api/v1/customers/search?q=${encodeURIComponent(q)}`); await loadView("customers"); } catch (error) { toast(error.message, true); } });
+  document.querySelectorAll("[data-reviewer-credentials]").forEach(button => button.addEventListener("click", async () => {
+    const slot = button.dataset.reviewerCredentials;
+    const holder = document.querySelector("#reviewer-credentials");
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      if (demo) throw new Error("Reviewer credentials are unavailable in the demo.");
+      if (button.textContent === "Save existing password") {
+        holder.innerHTML = `<form id="save-reviewer-password" class="stack-form"><strong>Save the existing ${escapeHtml(slot)} reviewer password</strong><p>This stores an encrypted copy for admin retrieval. It does not change the account’s password.</p><label>Existing password<input type="password" name="password" minlength="12" maxlength="128" required autocomplete="off"></label><button class="button primary">Save encrypted password</button></form>`;
+        holder.querySelector("form").addEventListener("submit", async event => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          const submit = form.querySelector("button");
+          submit.disabled = true;
+          try {
+            await api(`/admin-api/v1/reviewers/${slot}/credentials`, { method: "POST", body: { password: String(new FormData(form).get("password")) } });
+            form.reset();
+            holder.textContent = "Password saved. Use Show credentials to retrieve it whenever needed.";
+            button.textContent = "Show credentials";
+          } catch (error) { submit.disabled = false; toast(error.message, true); }
+        });
+      } else {
+        const result = await api(`/admin-api/v1/reviewers/${slot}/credentials`);
+        holder.innerHTML = `<strong>${escapeHtml(slot === "apple" ? "Apple" : "Google Play")} reviewer credentials</strong><p>Email: <code>${escapeHtml(result.email)}</code></p><p>Password: <code>${escapeHtml(result.password)}</code></p><button type="button" class="button secondary" data-hide-reviewer-password>Hide credentials</button>`;
+        holder.querySelector("[data-hide-reviewer-password]").addEventListener("click", () => { holder.replaceChildren(); });
+      }
+    } catch (error) { holder.textContent = error.message; }
+    finally { button.disabled = false; }
+  }));
   document.querySelectorAll("[data-create-reviewer]").forEach(button => button.addEventListener("click", async () => {
     if (button.disabled) return;
     button.disabled = true;
     try {
       if (demo) throw new Error("Account creation is unavailable in the demo.");
       const result = await api("/admin-api/v1/reviewers", { method: "POST", body: { slot: button.dataset.createReviewer } });
-      document.querySelector("#reviewer-credentials").innerHTML += `<strong>Created. Save these credentials now; the password is shown only once.</strong><p>Email: <code>${escapeHtml(result.email)}</code></p><p>Password: <code>${escapeHtml(result.password)}</code></p><p>Reviewer instructions: open https://wonderlang.app/account/ on the test device, choose Sign in with a password, then generate the game sign-in link and tap Open WonderLang. Enter the same email if asked.</p>`;
+      document.querySelector("#reviewer-credentials").innerHTML += `<strong>Created. These credentials are saved securely and can be revealed again from this page.</strong><p>Email: <code>${escapeHtml(result.email)}</code></p><p>Password: <code>${escapeHtml(result.password)}</code></p><p>Reviewer instructions: open https://wonderlang.app/account/ on the test device, choose Sign in with a password, then generate the game sign-in link and tap Open WonderLang. Enter the same email if asked.</p>`;
       button.textContent = "Created";
     } catch (error) { button.disabled = false; document.querySelector("#reviewer-credentials").textContent = error.message; }
   }));

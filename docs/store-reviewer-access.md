@@ -11,9 +11,12 @@ creates a disabled Firebase user, grants Premium Lifetime, records an audit entr
 then enables the user. It never adopts an existing customer, sets an admin claim,
 or marks an unverified mailbox as verified. The accounts need no inbox.
 
-The password appears once in the authenticated creation response. It is not stored
-in Firestore, logs, audit entries or source. Save it privately in store review notes.
-Never publish reviewer credentials, sign-in links or tokens in this repository.
+Passwords are encrypted with AES-256-GCM and account-bound authenticated metadata
+using the existing server encryption key ring. Admin Overview's Show credentials
+fetches them through an admin-only no-store endpoint and audits the access.
+Overview responses never include passwords or ciphertext. Existing reviewer
+passwords can be saved through Save existing password; this does not change the
+Firebase password. Never publish credentials, sign-in links or tokens in source.
 If provisioning fails partway, the account remains disabled. An administrator must
 inspect its grant and registry entry and reset its Firebase password before enabling
 it; retrying Create will never overwrite an existing account.

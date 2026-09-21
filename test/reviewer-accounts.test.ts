@@ -1,16 +1,22 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import type { Firestore } from "firebase-admin/firestore";
 import type { Auth, DecodedIdToken } from "firebase-admin/auth";
 import { ReviewerAccounts } from "../src/admin/reviewer-accounts.js";
 import { EntitlementStore } from "../src/infrastructure/entitlement-store.js";
 
-afterEach(() => vi.restoreAllMocks());
+import { resetEnvironmentForTests } from "../src/config/env.js";
+beforeEach(() => {
+  vi.stubEnv("PROVIDER_TOKEN_ENCRYPTION_KEYS", JSON.stringify({current:"test",keys:{test:Buffer.alloc(32, 7).toString("base64")}}));
+  resetEnvironmentForTests();
+});
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); resetEnvironmentForTests(); });
 
 const now = new Date("2026-09-21T12:00:00Z");
 function fixture() {
   const data = new Map<string, Record<string, any>>();
   function ref(path: string): any {
     return { path, collection: (name: string) => ({ doc: (id: string) => ref(`${path}/${name}/${id}`) }),
+      update: async (value: any) => data.set(path, { ...data.get(path), ...value }),
       set: async (value: any) => data.set(path, value),
       create: async (value: any) => data.set(path, value),
       get: async () => ({ exists: data.has(path), data: () => data.get(path) }) };
@@ -28,7 +34,7 @@ function fixture() {
   return { data, db, auth, service, token };
 }
 describe("reviewer login monitoring", () => {
-  it("creates a disabled non-admin account, grants Premium, and enables it without persisting its password", async () => {
+  it("creates a disabled non-admin account, grants Premium, and enables it without persisting its plaintext password", async () => {
     const f = fixture();
     const grant = vi.spyOn(EntitlementStore.prototype, "upsertGrant").mockResolvedValue(true);
     const result = await f.service.create("apple", { uid: "owner", email: "owner@example.com" }, now);
@@ -93,4 +99,23 @@ describe("reviewer login monitoring", () => {
     await expect(f.service.mobileLink(f.token, now)).rejects.toThrow("unavailable");
     expect(f.auth.generateSignInWithEmailLink).not.toHaveBeenCalled();
   });
+});
+
+it("saves encrypted existing credentials and retrieves them without changing Firebase passwords or exposing them in audit entries", async () => {
+  const f = fixture();
+  f.data.set("reviewerAccounts/store-reviewer-google", {totalLogins: 3});
+  const actor = {uid:"owner",email:"owner@example.com"};
+  await f.service.saveCredentials("google", "test-only-strong-password!", actor, now);
+  expect(JSON.stringify([...f.data.values()])).not.toContain("test-only-strong-password!");
+  expect(f.auth.updateUser).not.toHaveBeenCalled();
+  expect(f.data.get("reviewerAccounts/store-reviewer-google")?.totalLogins).toBe(3);
+  expect((await f.service.credentials("google", actor, now)).password).toBe("test-only-strong-password!");
+  const encrypted = f.data.get("reviewerAccounts/store-reviewer-google")?.encryptedPassword;
+  f.data.set("reviewerAccounts/store-reviewer-apple", { encryptedPassword: encrypted });
+  await expect(f.service.credentials("apple", actor, now)).rejects.toThrow("authentication failed");
+});
+it("does not store credentials for a missing reviewer", async () => {
+  const f = fixture();
+  await expect(f.service.saveCredentials("apple", "test-only-password!", {uid:"owner",email:"owner@example.com"}, now)).rejects.toThrow("does not exist");
+  expect(f.data.size).toBe(0);
 });

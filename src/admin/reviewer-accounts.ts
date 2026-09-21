@@ -4,6 +4,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { HttpError } from "../http/auth.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { recordAdminAudit, type AdminActor } from "./audit.js";
+import { encryptProviderToken, decryptProviderToken, type EncryptedProviderToken } from "../infrastructure/provider-token-crypto.js";
 
 export const reviewerSlots = ["apple", "google"] as const;
 export type ReviewerSlot = typeof reviewerSlots[number];
@@ -16,17 +17,18 @@ export class ReviewerAccounts {
     const uid = `store-reviewer-${slot}`;
     const email = `${slot}-review-${randomBytes(6).toString("hex")}@wonderlang.app`;
     const password = `${randomBytes(24).toString("base64url")}!aA9`;
+    const encryptedPassword = encryptProviderToken(password, `wonderlang:reviewer-password:${uid}`);
     try {
       await this.auth.createUser({ uid, email, password, emailVerified: false, disabled: true,
         displayName: slot === "apple" ? "Apple App Review" : "Google Play Review" });
     } catch (error) {
       if ((error as { code?: string }).code === "auth/uid-already-exists") {
-        throw new HttpError(409, "This reviewer account already exists. Its password cannot be retrieved; use Firebase to reset it if necessary.");
+        throw new HttpError(409, "This reviewer account already exists. Use Show credentials on the admin overview.");
       }
       throw error;
     }
     await this.db.collection("reviewerAccounts").doc(uid).set({ uid, email, slot,
-      createdAt: now.toISOString(), totalLogins: 0, lastLoginAt: null });
+      createdAt: now.toISOString(), totalLogins: 0, lastLoginAt: null, encryptedPassword });
     await new EntitlementStore(this.db).upsertGrant({ id: "", uid, provider: "admin",
       providerTransactionId: `reviewer-premium-${slot}`, product: "premium_lifetime_pass",
       state: "active", startsAt: now.toISOString(),
@@ -35,8 +37,33 @@ export class ReviewerAccounts {
     await recordAdminAudit({ db: this.db, actor, action: "reviewer.create", targetType: "user",
       targetId: uid, summary: `Created ${slot} review account with Premium Lifetime`, now });
     await this.auth.updateUser(uid, { disabled: false });
-    // Only this authenticated, no-store response contains the password. Never log or persist it.
+    // Plaintext is returned only through authenticated, no-store admin responses.
     return { uid, email, password };
+  }
+
+  async credentials(slot: ReviewerSlot, actor: AdminActor, now: Date) {
+    const uid = `store-reviewer-${slot}`;
+    const row = await this.db.collection("reviewerAccounts").doc(uid).get();
+    const encrypted = row.data()?.encryptedPassword as EncryptedProviderToken | undefined;
+    if (!encrypted) throw new HttpError(404, "No password has been saved for this reviewer yet.");
+    const user = await this.auth.getUser(uid);
+    const password = decryptProviderToken(encrypted, `wonderlang:reviewer-password:${uid}`);
+    await recordAdminAudit({ db: this.db, actor, action: "reviewer.credentials.read", targetType: "user",
+      targetId: uid, summary: "Viewed stored reviewer credentials", now });
+    return { uid, email: user.email, password };
+  }
+
+  async saveCredentials(slot: ReviewerSlot, password: string, actor: AdminActor, now: Date) {
+    const uid = `store-reviewer-${slot}`;
+    const ref = this.db.collection("reviewerAccounts").doc(uid);
+    if (!(await ref.get()).exists) throw new HttpError(404, "Reviewer account does not exist.");
+    await this.auth.getUser(uid);
+    const encryptedPassword = encryptProviderToken(password, `wonderlang:reviewer-password:${uid}`);
+    // This stores an existing credential; it never changes the Firebase password.
+    await ref.update({ encryptedPassword, credentialsSavedAt: now.toISOString() });
+    await recordAdminAudit({ db: this.db, actor, action: "reviewer.credentials.save", targetType: "user",
+      targetId: uid, summary: "Saved encrypted reviewer credentials", now });
+    return { saved: true };
   }
 
   async list(now: Date) {
@@ -48,7 +75,7 @@ export class ReviewerAccounts {
       const row = snapshot.data()!;
       const [user, recent] = await Promise.all([this.auth.getUser(uid),
         ref.collection("logins").where("authenticatedAt", ">=", new Date(now.getTime() - 7 * 86400_000).toISOString()).get()]);
-      return { slot, uid, exists: true, email: user.email, disabled: user.disabled,
+      return { slot, uid, exists: true, email: user.email, disabled: user.disabled, credentialsSaved: Boolean(row.encryptedPassword),
         totalLogins: Number(row.totalLogins || 0), lastLoginAt: row.lastLoginAt ?? null,
         last24Hours: recent.docs.filter(d => Date.parse(d.data().authenticatedAt) >= now.getTime() - 86400_000).length,
         last7Days: recent.size, trackingSince: row.createdAt };

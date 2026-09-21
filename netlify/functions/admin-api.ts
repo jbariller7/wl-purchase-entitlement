@@ -137,6 +137,16 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const input = body(z.object({ slot: z.enum(["apple", "google"]) }).strict(), event);
     return json(201, await new ReviewerAccounts(db, firebaseAuth()).create(input.slot, actor, now));
   }
+  const reviewerCredentials = path.match(/^\/v1\/reviewers\/(apple|google)\/credentials$/);
+  if (reviewerCredentials) {
+    const slot = reviewerCredentials[1] as "apple" | "google";
+    const service = new ReviewerAccounts(db, firebaseAuth());
+    if (event.httpMethod === "GET") return json(200, await service.credentials(slot, actor, now));
+    if (event.httpMethod === "POST") {
+      const input = body(z.object({ password: z.string().min(12).max(128) }).strict(), event);
+      return json(200, await service.saveCredentials(slot, input.password, actor, now));
+    }
+  }
   if (event.httpMethod === "GET" && path === "/v1/customers") {
     const parsed = directoryQuery.safeParse(event.queryStringParameters || {});
     if (!parsed.success) throw new HttpError(400, "Invalid account directory filters.");
