@@ -3,6 +3,7 @@ import { withLambda } from "@netlify/aws-lambda-compat";
 import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-lambda-compat";
 import { z } from "zod";
 import { AdminBillingService } from "../../src/admin/billing-service.js";
+import { accountDirectory, directoryQuery } from "../../src/admin/account-directory.js";
 import { AdminCloudSaveService } from "../../src/admin/cloud-save-service.js";
 import { LegacyKeyInventoryDiagnosticService } from "../../src/legacy/key-inventory-diagnostic.js";
 import { AdminImportService } from "../../src/admin/import-service.js";
@@ -131,6 +132,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     });
   }
   if (event.httpMethod === "GET" && path === "/v1/overview") return json(200, await operations.overview());
+  if (event.httpMethod === "GET" && path === "/v1/customers") {
+    const parsed = directoryQuery.safeParse(event.queryStringParameters || {});
+    if (!parsed.success) throw new HttpError(400, "Invalid account directory filters.");
+    return json(200, await accountDirectory(db, firebaseAuth(), parsed.data, now));
+  }
   if (event.httpMethod === "GET" && path === "/v1/customers/search") {
     const query = event.queryStringParameters?.q;
     if (!query || query.length > 4096) throw new HttpError(400, "Enter an exact email, Firebase UID, Stripe ID, or provider transaction ID.");

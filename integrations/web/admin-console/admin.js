@@ -186,13 +186,35 @@ function navItem(id, number) { return `<button type="button" data-view="${id}" c
 function pageIntro(kicker, title, copy, actions = "") { return `<section class="page-intro"><div><p class="section-kicker">${kicker}</p><h2>${title}</h2><p>${copy}</p></div><div class="hero-actions">${actions}</div></section>`; }
 function empty(message) { return `<div class="empty-state">${escapeHtml(message)}</div>`; }
 
+const directory = { filters: { source: "registered", access: "all", cloud: "all", platform: "all", status: "all", q: "" }, cursor: null, result: null, history: [] };
+function directorySelect(name, label, values) {
+  return `<label>${label}<select name="${name}">${values.map(([value, text]) => `<option value="${value}" ${directory.filters[name] === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>`;
+}
+function renderDirectory() {
+  const result = directory.result || { rows: [], scanned: 0 };
+  const pending = directory.filters.source === "pending";
+  const labels = { premium_lifetime: "Premium Lifetime", permanent: "Permanent", subscription: "Monthly", legacy: "Legacy", none: "No game entitlement" };
+  return `<section class="panel form-panel"><header><div><p class="section-kicker">ACCOUNT DIRECTORY</p><h3>${pending ? "Pending grants" : "Registered accounts"}</h3></div></header>
+  <form id="directory-filters" class="stack-form"><label>Search part of an email, name or UID<input name="q" type="search" value="${escapeHtml(directory.filters.q)}" placeholder="e.g. gmail, Alice, or part of an account ID"></label>
+  <div class="definition-grid">
+  ${directorySelect("source", "List", [["registered", "Registered accounts"], ["pending", "Pending first sign-in"]])}
+  ${directorySelect("access", "Access", [["all", "All access types"], ...Object.entries(labels)])}
+  ${directorySelect("cloud", "Cloud saves", [["all", "All"], ["yes", "Included"], ["no", "Not included"]])}
+  ${directorySelect("platform", "Platform", [["all", "All"], ["android", "Android"], ["ios", "iOS"], ["desktop", "PC / Mac"]])}
+  ${directorySelect("status", "Account status", [["all", "All"], ["enabled", "Enabled"], ["disabled", "Disabled"]])}
+  </div><button class="button primary">Apply filters / Refresh</button></form>
+  <p class="panel-copy">${pending ? "These imported grants are waiting for the exact verified email to sign in. Access shown is what the pending grant provides; it is not an active account or a sent invitation." : "Access is calculated from current grants, including expiry. Open an account to review or change its access."}</p>
+  ${table(["Email", "Name", "Access", "Platforms", "Cloud saves", "Status", "Last sign-in", "Action"], result.rows.map(row => [row.email || row.uid || "No email", row.name || "—", labels[row.entitlements.accessKind] || row.entitlements.accessKind, [...row.entitlements.mobilePlatforms, ...(row.entitlements.pcMacAccess ? ["PC / Mac"] : [])].join(", ") || "—", row.entitlements.cloudSave ? "Included" : "No", pending ? "Pending sign-in" : row.disabled ? "Disabled" : "Enabled", formatDate(row.lastSignInAt), row.uid ? htmlCell(`<button class="text-button" data-directory-open="${escapeHtml(row.uid)}">Open account</button>`) : "Awaiting sign-in"]))}
+  <p class="panel-copy">${result.rows.length} matching accounts in this batch of ${result.scanned} records.${result.nextCursor ? " More records are available; use Next batch to continue, including when this batch has no matches." : " End of list."}</p>
+  <div class="card-actions"><button class="button secondary" data-directory-prev ${directory.history.length ? "" : "disabled"}>Previous batch</button><button class="button secondary" data-directory-next ${result.nextCursor ? "" : "disabled"}>Next batch</button></div></section>`;
+}
 function shell(content) {
-  const environment = demo ? "Demo · test" : `${state.config.environment || "unknown"}${state.config.checkoutEnabled ? " · checkout on" : " · safe mode"}`;
+  const environment = demo ? "Simulated demo" : "Account administration";
   const demoBanner = demo ? `<aside class="demo-banner" role="note"><div><strong>SIMULATED DEMO — NOT LIVE DATA</strong><span>Every customer, payment, key count and operation on this page is fictional. Demo actions never call Firebase, Stripe, Google Play, Apple, Sheets or MailerLite.</span></div><a href="/admin/">Exit demo</a></aside>` : "";
   return `<div class="ops-shell"><aside class="side-nav">
     <div class="brand"><span class="brand-mark">W</span><span><strong>WonderLang</strong><small>Operations</small></span></div>
     <nav aria-label="Operations sections">${Object.keys(views).map((id, index) => navItem(id, String(index + 1).padStart(2, "0"))).join("")}</nav>
-    <div class="side-foot"><span class="health-dot"></span><span><strong>${state.config.environment === "production" ? "Production" : "Test isolation"}</strong><small>Server-enforced controls</small></span></div>
+    <div class="side-foot"><span class="health-dot"></span><span><strong>${demo ? "Simulated data" : "Admin access"}</strong><small>Server-enforced controls</small></span></div>
   </aside><main class="workspace"><header class="topbar"><button class="mobile-menu" type="button" aria-label="Open navigation">Menu</button>
     <div><p class="eyebrow">CONTROL CENTRE</p><h1>${escapeHtml(views[state.view])}</h1></div>
     <div class="top-actions"><span class="environment"><i></i>${escapeHtml(environment)}</span><button class="user-menu" type="button" data-action="sign-out"><span>${initials(state.user?.email)}</span>${escapeHtml(state.user?.email)}</button></div>
@@ -244,7 +266,7 @@ function renderCustomers() {
     <section class="panel spaced"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Received", "Refunded", "Status", "Action"], paymentRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVE PROFILES</p><h3>Complete player workspaces</h3></div></header><p class="panel-copy">Each profile is one atomic bundle containing global.rmmzsave and every save slot. The current version plus three previous versions are retained. Download and restore actions require a support reason and are recorded in Admin Audit.</p>${table(["Profile", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudProfileRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
   return `${pageIntro("CUSTOMER SUPPORT", "Find the whole customer story.", "Access, purchases, login providers, cloud saves and manual actions are tied to one Firebase UID.")}
-  ${requestQueue}<form id="customer-search" class="search-bar"><input name="q" type="search" required placeholder="Email, UID, Stripe customer/payment, or store transaction" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
+  ${renderDirectory()}${openRequestRows.length ? requestQueue : ""}<form id="customer-search" class="search-bar"><input name="q" type="search" required aria-label="Exact account or payment lookup" placeholder="Exact email, UID, payment or store transaction ID" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
 }
 
 function renderBilling(data) {
@@ -354,6 +376,13 @@ async function api(path, options = {}) {
   return body;
 }
 function demoApi(path, options) {
+  if (path.startsWith("/admin-api/v1/customers?")) {
+    const f = new URLSearchParams(path.split("?")[1]);
+    const pending = f.get("source") === "pending";
+    const row = { uid: pending ? null : demoCustomer.user.uid, email: pending ? "invited@example.com" : demoCustomer.user.email, disabled: false, lastSignInAt: pending ? null : demoCustomer.user.lastSignInAt, entitlements: demoCustomer.entitlements };
+    const match = (!f.get("q") || row.email.toLowerCase().includes(f.get("q").toLowerCase())) && (f.get("access") === "all" || f.get("access") === row.entitlements.accessKind) && (f.get("cloud") !== "no") && f.get("status") !== "disabled";
+    return { rows: match ? [row] : [], scanned: 1, nextCursor: null };
+  }
   const method = options.method || "GET";
   if (path.includes("overview")) return demoOverview;
   if (method === "GET" && path === endpoints.secondPlatformRequests) {
@@ -618,9 +647,12 @@ async function loadView(view) {
     let data;
     if (view === "overview") data = await api(endpoints.overview);
     else if (view === "customers") {
-      const result = await api(endpoints.secondPlatformRequests);
+      const params = new URLSearchParams(directory.filters);
+      if (directory.cursor) params.set("cursor", directory.cursor);
+      const [result, accounts] = await Promise.all([api(endpoints.secondPlatformRequests), api(`/admin-api/v1/customers?${params}`)]);
       if (revision !== viewLoadRevision || state.view !== view) return;
       state.secondPlatformRequests = result.requests || [];
+      directory.result = accounts;
     }
     else if (["billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
     if (revision !== viewLoadRevision || state.view !== view) return;
@@ -694,6 +726,23 @@ async function mutate(path, body, success) {
 }
 
 function bindView() {
+  document.querySelector("#directory-filters")?.addEventListener("submit", event => {
+    event.preventDefault(); directory.filters = Object.fromEntries(new FormData(event.currentTarget));
+    directory.cursor = null; directory.history = []; state.customer = null; loadView("customers");
+  });
+  document.querySelector("[data-directory-next]")?.addEventListener("click", () => {
+    if (!directory.result?.nextCursor) return;
+    directory.history.push(directory.cursor); directory.cursor = directory.result.nextCursor; loadView("customers");
+  });
+  document.querySelector("[data-directory-prev]")?.addEventListener("click", () => {
+    if (!directory.history.length) return;
+    directory.cursor = directory.history.pop(); loadView("customers");
+  });
+  document.querySelectorAll("[data-directory-open]").forEach(button => button.addEventListener("click", async () => {
+    button.disabled = true;
+    try { state.customer = await api(`/admin-api/v1/customers/${encodeURIComponent(button.dataset.directoryOpen)}`); await loadView("customers"); document.querySelector(".customer-grid")?.scrollIntoView({ block: "start" }); }
+    catch (error) { button.disabled = false; toast(error.message, true); }
+  }));
   document.querySelectorAll("[data-second-platform-open]").forEach((button) => button.addEventListener("click", async () => {
     try {
       state.customer = await api(`/admin-api/v1/customers/${encodeURIComponent(button.dataset.secondPlatformOpen)}`);
