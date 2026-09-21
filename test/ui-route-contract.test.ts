@@ -137,7 +137,6 @@ describe("administrator interface route contract", () => {
       "[data-run-google-play-diagnostic]",
       "[data-run-firebase-auth-diagnostic]",
       "[data-run-apple-catalog-diagnostic]",
-      "[data-compare-key-inventory]",
       "[data-provider=\"google\"]",
       "[data-provider=\"apple\"]"
     ]) expect(admin).toContain(selector);
@@ -184,7 +183,6 @@ describe("administrator interface route contract", () => {
       ["/admin-api/v1/imports/commit", 'path === "/v1/imports/commit"'],
       ["/admin-api/v1/operations", 'path === "/v1/operations"'],
       ["/admin-api/v1/inventory", 'path === "/v1/inventory"'],
-      ["/admin-api/v1/inventory/source-comparison", 'path === "/v1/inventory/source-comparison"'],
       ["/admin-api/v1/audit", 'path === "/v1/audit"'],
       ["/admin-api/v1/second-platform-requests", 'path === "/v1/second-platform-requests"'],
       ["/admin-api/v1/session", 'path === "/v1/session"']
@@ -238,13 +236,14 @@ describe("administrator interface route contract", () => {
     expect(admin).toMatch(/catch \(error\) \{\s*if \(revision !== viewLoadRevision \|\| state\.view !== view\) return;/);
   });
 
-  it("distinguishes an unimported Firestore key mirror from genuinely empty stock", () => {
-    expect(admin).toContain("Firestore inventory has not been imported yet");
-    expect(admin).toContain("Your existing Google Sheet is still the source and has not been changed.");
+  it("uses Google Sheets for inventory and stock alerts without an import warning", () => {
+    expect(admin).toContain("Google Sheets key registry");
+    expect(admin).toContain("Refresh inventory");
+    expect(admin).not.toContain("Firestore inventory has not been imported yet");
     const operations = read("src/admin/operations-service.ts");
-    expect(operations).toContain("inventoryInitialized(summary)");
-    expect(operations).toContain("Key inventory has not been imported");
-    expect(operations).toContain("run the dry-run comparison before creating the Firestore mirror");
+    expect(operations).toContain("new LegacyKeyInventoryDiagnosticService().inventory(new Date())");
+    expect(operations).not.toContain("Key inventory has not been imported");
+    expect(read("netlify/functions/admin-api.ts")).toContain("await keyInventoryDiagnostic.inventory(now)");
   });
 
   it("limits the working Stripe price editor to Premium and labels mobile prices as native", () => {

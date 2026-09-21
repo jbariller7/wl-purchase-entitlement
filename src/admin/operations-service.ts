@@ -1,3 +1,4 @@
+import { LegacyKeyInventoryDiagnosticService } from "../legacy/key-inventory-diagnostic.js";
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore, type Query } from "firebase-admin/firestore";
 import type { Auth, UserRecord } from "firebase-admin/auth";
@@ -208,7 +209,7 @@ export class AdminOperationsService {
 
   async overview(): Promise<Record<string, unknown>> {
     const entitlements = this.db.collection("entitlements");
-    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, failedCloudSaveCleanup, openSecondPlatformRequests, inventory, recent, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor] = await Promise.all([
+    const [activeSubscriptions, permanentCustomers, premiumCustomers, graceSubscriptions, failedOutbox, failedEvents, failedReconciliations, failedCloudSaveCleanup, openSecondPlatformRequests, inventoryResult, recent, cloudStorage, cloudStorageMonitor, cloudSaveCleanupMonitor] = await Promise.all([
       this.count(entitlements.where("subscriptionState", "==", "active")),
       this.count(entitlements.where("accessKind", "==", "permanent")),
       this.count(entitlements.where("accessKind", "==", "premium_lifetime")),
@@ -221,7 +222,7 @@ export class AdminOperationsService {
         this.count(this.db.collection("secondPlatformRequests").where("state", "==", "pending")),
         this.count(this.db.collection("secondPlatformRequests").where("state", "==", "approving"))
       ]).then(([pending, approving]) => pending + approving),
-      this.inventorySummary(),
+      new LegacyKeyInventoryDiagnosticService().inventory(new Date()),
       this.db.collection("grants").orderBy("startsAt", "desc").limit(12).get(),
       this.db.collection("operationalMetrics").doc("cloudStorage").get(),
       this.db.collection("operationalMetrics").doc("cloudStorageMonitor").get(),
@@ -232,8 +233,9 @@ export class AdminOperationsService {
     await Promise.all([...new Set(recentRows.map((row) => String(row.uid ?? "")).filter(Boolean))].map(async (uid) => {
       users.set(uid, await this.auth.getUser(uid).catch(() => undefined));
     }));
+    const inventory = inventoryResult.summary;
     const lowStock = inventory.filter((row) => row.lowStock);
-    const inventoryInitialized = this.inventoryInitialized(inventory);
+
     const cloud = cloudStorage.exists ? cloudStorage.data() : undefined;
     const cloudMonitor = cloudStorageMonitor.exists ? cloudStorageMonitor.data() : undefined;
     const cleanupMonitor = cloudSaveCleanupMonitor.exists ? cloudSaveCleanupMonitor.data() : undefined;
@@ -246,8 +248,8 @@ export class AdminOperationsService {
       ...(cloudMonitor?.state === "failed" ? [{ view: "operations", tone: "danger", title: "Cloud storage inventory failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
       ...(cleanupMonitor?.state === "failed" ? [{ view: "operations", tone: "danger", title: "Cloud-save cleanup worker failed", detail: "Review Firebase IAM/billing and the scheduled function status", action: "Open operations" }] : []),
       ...(openSecondPlatformRequests ? [{ view: "customers", tone: "neutral", title: `${openSecondPlatformRequests} Premium second-platform request${openSecondPlatformRequests === 1 ? "" : "s"} awaiting review`, detail: "Approve or decline each request with an audit reason", action: "Review requests" }] : []),
-      ...(!inventoryInitialized
-        ? [{ view: "inventory", tone: "warning", title: "Key inventory has not been imported", detail: "Google Sheets remains untouched; run the dry-run comparison before creating the Firestore mirror", action: "Review inventory" }]
+      ...(inventoryResult.state !== "ready"
+        ? [{ view: "inventory", tone: "warning", title: "Google Sheets inventory is unavailable", detail: "Open Key inventory to retry the read-only registry check", action: "Review inventory" }]
         : lowStock.slice(0, 3).map((row) => ({ view: "inventory", tone: "warning", title: `${row.sheetTab} inventory is low`, detail: `${row.available} keys available · threshold ${row.lowStockThreshold}`, action: "Review inventory" }))),
       ...(graceSubscriptions ? [{ view: "customers", tone: "neutral", title: `${graceSubscriptions} subscription${graceSubscriptions === 1 ? " is" : "s are"} in payment grace`, detail: "Stripe access remains available for up to seven days", action: "View customers" }] : [])
     ];

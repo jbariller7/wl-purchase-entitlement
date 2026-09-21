@@ -287,7 +287,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     await operations.releaseProviderEvent({ actor, eventId: releaseMatch[1], ...body(reasonSchema, event), now });
     return json(200, { released: true });
   }
-  if (event.httpMethod === "GET" && path === "/v1/inventory") return json(200, await operations.inventory());
+  if (event.httpMethod === "GET" && path === "/v1/inventory") return json(200, await keyInventoryDiagnostic.inventory(now));
   if (event.httpMethod === "GET" && path === "/v1/inventory/source-comparison") {
     return json(200, await keyInventoryDiagnostic.compare(await operations.inventorySummary(), now));
   }

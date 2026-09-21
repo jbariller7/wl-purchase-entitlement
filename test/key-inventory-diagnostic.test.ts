@@ -5,6 +5,34 @@ import {
 } from "../src/legacy/key-inventory-diagnostic.js";
 
 describe("read-only legacy key-inventory diagnostic", () => {
+  it("loads live inventory in one Sheets batch with no Firestore dependency or key disclosure", async () => {
+    const get = vi.fn();
+    const batchGet = vi.fn().mockResolvedValue({ data: { valueRanges: [
+      { values: [["PRIVATE-KEY-1", ""], ["PRIVATE-KEY-2", "private@example.com"], ["", "ignored@example.com"]] },
+      { values: [["PRIVATE-KEY-3", " "]] }
+    ] } });
+    const service = new LegacyKeyInventoryDiagnosticService({ sheetsFactory: async () => ({ spreadsheets: { values: { get, batchGet } } }), spreadsheetId: "private-sheet", tabs: ["A", "B"] });
+    const result = await service.inventory(new Date("2026-09-21T12:00:00Z"));
+    expect(batchGet).toHaveBeenCalledWith({ spreadsheetId: "private-sheet", ranges: ["'A'!A2:B", "'B'!A2:B"] });
+    expect(get).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ source: "google_sheets", state: "ready", readOnly: true, totals: { available: 2, assigned: 1, total: 3, duplicateRows: 0 } });
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE-KEY|private@example|private-sheet|ignored@example/);
+  });
+
+  it("does not represent an incomplete or failed Sheets response as zero stock", async () => {
+    const service = new LegacyKeyInventoryDiagnosticService({ sheetsFactory: async () => ({ spreadsheets: { values: { get: vi.fn(), batchGet: vi.fn().mockResolvedValue({ data: { valueRanges: [] } }) } } }), spreadsheetId: "private-sheet", tabs: ["A"] });
+    expect(await service.inventory(new Date())).toMatchObject({ state: "unavailable", summary: [], totals: null });
+  });
+
+  it("reports empty stock and duplicate rows separately from connectivity failure", async () => {
+    const get = vi.fn().mockResolvedValueOnce({ data: { values: [] } }).mockResolvedValueOnce({ data: { values: [["same", ""], ["same", "assigned"]] } });
+    const service = new LegacyKeyInventoryDiagnosticService({ sheetsFactory: async () => ({ spreadsheets: { values: { get } } }), spreadsheetId: "sheet", tabs: ["A"] });
+    expect(await service.inventory(new Date())).toMatchObject({ state: "ready", totals: { total: 0 } });
+    const duplicate = await service.inventory(new Date());
+    expect(duplicate).toMatchObject({ state: "ready", totals: { duplicateRows: 1 } });
+    expect(duplicate.issues).toHaveLength(1);
+  });
+
   it("counts blank versus assigned rows without returning keys or personal data", async () => {
     const get = vi.fn().mockResolvedValue({
       data: {

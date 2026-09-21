@@ -1,5 +1,7 @@
 import { google } from "googleapis";
 import { SHEET_TAB_BY_PRODUCT } from "./catalog.js";
+import { normalizeGoogleServiceAccountPrivateKey } from "../infrastructure/private-key.js";
+import { inventoryStockPolicyFromEnvironment, inventoryThresholdFor } from "../config/inventory-policy.js";
 
 export interface KeyInventoryCount {
   sheetTab: string;
@@ -19,6 +21,7 @@ interface SheetsClient {
   spreadsheets: {
     values: {
       get(input: { spreadsheetId: string; range: string }): Promise<{ data: { values?: unknown[][] | null } }>;
+      batchGet?(input: { spreadsheetId: string; ranges: string[] }): Promise<{ data: { valueRanges?: Array<{ values?: unknown[][] | null }> | null } }>;
     };
   };
 }
@@ -38,7 +41,7 @@ function required(name: string, override?: string): string {
 async function createSheetsClient(): Promise<SheetsClient> {
   const auth = new google.auth.JWT({
     email: required("GOOGLE_SERVICE_ACCOUNT_EMAIL"),
-    key: required("GOOGLE_PRIVATE_KEY").replace(/\\n/g, "\n"),
+    key: normalizeGoogleServiceAccountPrivateKey(required("GOOGLE_PRIVATE_KEY")),
     scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"]
   });
   return google.sheets({ version: "v4", auth }) as unknown as SheetsClient;
@@ -109,19 +112,41 @@ export class LegacyKeyInventoryDiagnosticService {
     this.tabs = [...new Set(dependencies.tabs ?? Object.values(SHEET_TAB_BY_PRODUCT))].sort();
   }
 
+  private async readCounts(): Promise<KeyInventoryCount[]> {
+    const sheets = await this.sheetsFactory();
+    const spreadsheetId = required("GOOGLE_SHEET_ID", this.dependencies.spreadsheetId);
+    if (sheets.spreadsheets.values.batchGet) {
+      const result = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges: this.tabs.map(escapedSheetRange) });
+      const ranges = result.data.valueRanges;
+      if (!ranges || ranges.length !== this.tabs.length) throw new Error("Incomplete inventory response");
+      return this.tabs.map((tab, index) => summarizeKeyInventoryRows(tab, ranges[index]!.values ?? []));
+    }
+    const source: KeyInventoryCount[] = [];
+    for (const sheetTab of this.tabs) {
+      const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: escapedSheetRange(sheetTab) });
+      source.push(summarizeKeyInventoryRows(sheetTab, response.data.values ?? []));
+    }
+    return source;
+  }
+
+  async inventory(now: Date) {
+    const base = { source: "google_sheets", readOnly: true, checkedAt: now.toISOString() };
+    try {
+      const counts = await this.readCounts();
+      const policy = inventoryStockPolicyFromEnvironment();
+      const summary = counts.map(row => ({ ...row, lowStockThreshold: inventoryThresholdFor(row.sheetTab, policy), lowStock: row.available <= inventoryThresholdFor(row.sheetTab, policy) }));
+      const totals = counts.reduce((sum, row) => ({ available: sum.available + row.available, assigned: sum.assigned + row.assigned, total: sum.total + row.total, duplicateRows: sum.duplicateRows + row.duplicateRows }), { available: 0, assigned: 0, total: 0, duplicateRows: 0 });
+      return { ...base, state: "ready", summary, totals, issues: totals.duplicateRows ? ["Duplicate key rows exist in the sheet. Counts show rows; review duplicates before treating them as distinct keys."] : [] };
+    } catch (error) {
+      const failure = safeInventoryFailure(error);
+      return { ...base, state: "unavailable", summary: [], totals: null, failureCode: failure.failureCode, issues: [failure.issue] };
+    }
+  }
+
   async compare(firestoreSummary: FirestoreInventoryCount[], now: Date): Promise<Record<string, unknown>> {
     const checkedAt = now.toISOString();
     try {
-      const sheets = await this.sheetsFactory();
-      const spreadsheetId = required("GOOGLE_SHEET_ID", this.dependencies.spreadsheetId);
-      const source: KeyInventoryCount[] = [];
-      for (const sheetTab of this.tabs) {
-        const response = await sheets.spreadsheets.values.get({
-          spreadsheetId,
-          range: escapedSheetRange(sheetTab)
-        });
-        source.push(summarizeKeyInventoryRows(sheetTab, response.data.values ?? []));
-      }
+      const source = await this.readCounts();
 
       const firestoreByTab = new Map(firestoreSummary.map((row) => [row.sheetTab, row]));
       const tabs = source.map((sheet) => {
