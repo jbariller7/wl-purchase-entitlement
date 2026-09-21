@@ -1,3 +1,4 @@
+import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
 import type { Config } from "@netlify/functions";
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-lambda-compat";
@@ -140,6 +141,7 @@ function withCors(event: HandlerEvent, response: HandlerResponse): HandlerRespon
 }
 
 function userRateLimitPolicy(method: string, path: string): RateLimitPolicy {
+  if (path === "/v1/reviewer/mobile-link") return { action: "reviewer-mobile-link", limit: 10, windowSeconds: 10 * 60 };
   if (path === "/v1/checkout") return { action: "checkout", limit: 8, windowSeconds: 10 * 60 };
   if (path === "/v1/billing-portal") return { action: "billing-portal", limit: 10, windowSeconds: 10 * 60 };
   if (path === "/v1/legacy/claim") return { action: "legacy-claim", limit: 10, windowSeconds: 60 * 60 };
@@ -277,6 +279,12 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     policy: userRateLimitPolicy(event.httpMethod, path),
     now
   });
+
+  const reviewers = new ReviewerAccounts(db, firebaseAuth());
+  await reviewers.recordLogin(user, now);
+  if (event.httpMethod === "POST" && path === "/v1/reviewer/mobile-link") {
+    return json(200, await reviewers.mobileLink(user, now));
+  }
 
   if (event.httpMethod === "POST" && path === "/v1/admin-bootstrap") {
     if (!deploymentControls().ADMIN_BOOTSTRAP_ENABLED) throw new HttpError(503, "Initial administrator bootstrap is disabled.");

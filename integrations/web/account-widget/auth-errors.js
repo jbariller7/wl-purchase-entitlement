@@ -1,4 +1,7 @@
 const messages = new Map([
+  ["auth/invalid-credential", "The email or password is incorrect. Please try again."],
+  ["auth/wrong-password", "The email or password is incorrect. Please try again."],
+  ["auth/user-not-found", "The email or password is incorrect. Please try again."],
   ["auth/network-request-failed", "Sign-in could not reach Firebase. Check your connection, or open this page in Safari, Chrome, Edge, or Firefox and try again."],
   ["auth/operation-not-allowed", "This sign-in method is not configured yet. Please use another method or contact WonderLang support."],
   ["auth/unauthorized-domain", "This WonderLang sign-in page is not authorized yet. Please contact WonderLang support."],

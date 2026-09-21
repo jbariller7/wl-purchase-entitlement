@@ -1,3 +1,4 @@
+import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
 import type { Config } from "@netlify/functions";
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-lambda-compat";
@@ -131,7 +132,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       controls: deploymentControls()
     });
   }
-  if (event.httpMethod === "GET" && path === "/v1/overview") return json(200, await operations.overview());
+  if (event.httpMethod === "GET" && path === "/v1/overview") return json(200, { ...await operations.overview(), reviewers: await new ReviewerAccounts(db, firebaseAuth()).list(now) });
+  if (event.httpMethod === "POST" && path === "/v1/reviewers") {
+    const input = body(z.object({ slot: z.enum(["apple", "google"]) }).strict(), event);
+    return json(201, await new ReviewerAccounts(db, firebaseAuth()).create(input.slot, actor, now));
+  }
   if (event.httpMethod === "GET" && path === "/v1/customers") {
     const parsed = directoryQuery.safeParse(event.queryStringParameters || {});
     if (!parsed.success) throw new HttpError(400, "Invalid account directory filters.");
