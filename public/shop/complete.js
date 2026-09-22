@@ -15,7 +15,9 @@
     if(!conversion||!Number.isFinite(conversion.value)||conversion.value<=0||conversion.transactionId!==sessionId)return finish();
     // Browser and durable server delivery share the verified Stripe session ID.
     // Respect an explicit tracking opt-out; never issue a consent grant here.
-    if(conversion.meta && navigator.globalPrivacyControl!==true && window.wlMarketingConsent!==false){
+    const metaSentKey='wl-meta-purchase:'+sessionId;
+    let metaAlreadyQueued=false;try{metaAlreadyQueued=localStorage.getItem(metaSentKey)==='1';}catch{}
+    if(conversion.meta && !metaAlreadyQueued && navigator.globalPrivacyControl!==true && window.wlMarketingConsent!==false){
       const meta=conversion.meta;
       if(/^\d+$/.test(meta.pixelId)&&meta.eventId===sessionId&&meta.eventName==='Purchase'){
         metaDelivery=new Promise(resolve=>{
@@ -23,6 +25,7 @@
           if(!fbq.queue){fbq.queue=[];fbq.loaded=true;fbq.version='2.0';window._fbq=fbq;}
           fbq('init',meta.pixelId,meta.emailSha256?{em:meta.emailSha256}:{});
           fbq('trackSingle',meta.pixelId,'Purchase',{value:conversion.value,currency:conversion.currency,content_ids:[meta.product],content_type:'product'},{eventID:meta.eventId});
+          try{localStorage.setItem(metaSentKey,'1');}catch{}
           const pixel=document.createElement('script');pixel.async=true;pixel.src='https://connect.facebook.net/en_US/fbevents.js';
           pixel.onload=()=>setTimeout(resolve,500);pixel.onerror=resolve;document.head.append(pixel);
           setTimeout(resolve,2000);

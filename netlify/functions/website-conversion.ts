@@ -28,7 +28,11 @@ export const lambdaHandler:LambdaHandler=async event=>{
   if(quote?.sessionId!==session.id||expected.length!==supplied.length||!timingSafeEqual(expected,supplied))throw new HttpError(404,'Purchase not found.');
   if(session.status!=='complete'||session.payment_status!=='paid'||!session.currency||!session.amount_total)return json(200,{conversion:null});
   const pixel=process.env.META_PIXEL_ID;
+  // An old bookmarked completion page must not create another browser event
+  // after the platform's deduplication window. Server payment reporting remains.
+  const age=Date.now()/1000-session.created;
   const meta=session.mode==='payment'&&session.metadata?.wl_ads_owner==='entitlement-v2'&&
+    Number.isFinite(age)&&age>=0&&age<86400&&
     process.env.AD_CONVERSIONS_ENABLED==='true'&&/^\d+$/.test(pixel??'') ? {
       pixelId:pixel,eventId:session.id,eventName:'Purchase',product:session.metadata.wl_website_offer??'wonderlang',
       ...(session.customer_details?.email?{emailSha256:createHash('sha256').update(session.customer_details.email.trim().toLowerCase()).digest('hex')}:{})

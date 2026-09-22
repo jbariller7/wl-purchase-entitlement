@@ -23,9 +23,12 @@ it('pairs the new website browser Purchase with the server session ID and hashed
  const oldPixel=process.env.META_PIXEL_ID,oldEnabled=process.env.AD_CONVERSIONS_ENABLED;
  try {
  process.env.META_PIXEL_ID='552284573796131';process.env.AD_CONVERSIONS_ENABLED='true';
- mocks.retrieve.mockResolvedValue({...session,mode:'payment',customer_details:{email:'Buyer@Example.com'},metadata:{...session.metadata,wl_ads_owner:'entitlement-v2',wl_website_offer:'premium'}});
+ const paid={...session,created:Math.floor(Date.now()/1000),mode:'payment',customer_details:{email:'Buyer@Example.com'},metadata:{...session.metadata,wl_ads_owner:'entitlement-v2',wl_website_offer:'premium'}};
+ mocks.retrieve.mockResolvedValue(paid);
  const body=JSON.parse((await call({sessionId:session.id,claimSecret:secret})).body);
  expect(body.conversion.meta).toEqual({pixelId:'552284573796131',eventId:session.id,eventName:'Purchase',product:'premium',emailSha256:createHash('sha256').update('buyer@example.com').digest('hex')});
+ mocks.retrieve.mockResolvedValue({...paid,created:paid.created-3*86400});
+ expect(JSON.parse((await call({sessionId:session.id,claimSecret:secret})).body).conversion.meta).toBeUndefined();
  } finally { if(oldPixel===undefined)delete process.env.META_PIXEL_ID;else process.env.META_PIXEL_ID=oldPixel;if(oldEnabled===undefined)delete process.env.AD_CONVERSIONS_ENABLED;else process.env.AD_CONVERSIONS_ENABLED=oldEnabled; }
 });
 it('rejects unrelated origin or incorrect recovery secret',async()=>{

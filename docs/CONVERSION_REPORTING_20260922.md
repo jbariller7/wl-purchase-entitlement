@@ -19,7 +19,7 @@ The Steam event remains an explicitly requested proxy, not a verified Steam rece
 
 New website checkouts carry `wl_ads_owner=entitlement-v2`. Deploy the legacy `wonderlang-keys` guard first; it skips its advertising calls only for this marker. Old desktop checkout sessions remain legacy-owned. Key allocation and email delivery are unchanged. The new server conversion enqueue is independent of legacy key availability.
 
-The website embed carries available original fbp/fbc and genuine fbclid across the marketing-site iframe boundary. The server uses the checkout request IP and user agent. No invented click IDs, fake revenue, raw purchase tokens, or browser secrets are added. Website completion emits a browser Purchase only after verifying a live, paid session and its browser-held claim secret. Reloads reuse the same transaction ID.
+The website embed carries available original fbp/fbc and genuine fbclid across the marketing-site iframe boundary. The server uses the checkout request IP and user agent. No invented click IDs, fake revenue, raw purchase tokens, or browser secrets are added. Website completion emits a browser Purchase only after verifying a live, paid session and its browser-held claim secret. Reloads reuse the same transaction ID and a local queued marker. Old completion pages stop emitting browser Purchase after 24 hours; server reporting is unchanged.
 
 Steam requests store only an email hash in the client retry record. A Firestore transaction creates the lifetime dedup record and outbox job atomically. Repeat requests within 24 hours may retry the browser event with the same ID; later repeats do not emit a new browser event. The outbox retains its dedup key after successful delivery. If the server request fails, the desktop plugin retries while running, after reopening, and on reconnect. The separate fixed-$10 full-game launch Purchase was removed.
 
@@ -27,7 +27,7 @@ Native Android purchase access is still granted before optional analytics enrich
 
 ## Validation and rollout
 
-54 focused tests passed (Steam lifetime dedup, website identity/ownership/attribution, Stripe subscriptions, native purchase identity and sandbox filtering). TypeScript and website asset build passed. The updated Android audit passes 29 checks and rejects the original click-only regression. JavaScript syntax checks pass. Android Kotlin compilation must be completed in a working Android Studio environment: the local Gradle daemon fails before compiling with `Unable to establish loopback connection`.
+57 focused tests passed (Steam lifetime dedup, website identity/ownership/attribution, Stripe subscriptions, native purchase identity and sandbox filtering). TypeScript and website asset build passed. The updated Android audit passes 29 checks and rejects the original click-only regression. JavaScript syntax checks pass. Android `:app:compileDebugKotlin` passed. The initial Gradle loopback failure was resolved using the existing short Java temporary directory (`C:\sdk\wl-java-tmp`) through process-local Java options.
 
 Release gates: upload updated Steam builds, build/test/release Android, and implement/test iOS on Mac. No production fake purchases were sent. Verify the next real paid order's browser/server ID and the corresponding outbox acknowledgement. Observe coverage over new traffic, not the historical 7-day figure. Pixel coverage is not the percentage of all business sales matched to an ad; it cannot measure Steam buyers who never claim PDFs.
 

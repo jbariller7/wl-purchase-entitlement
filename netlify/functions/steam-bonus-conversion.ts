@@ -17,7 +17,7 @@ export const lambdaHandler:LambdaHandler=async event=>{
  const reply=(r:ReturnType<typeof json>)=>({...r,headers:{...r.headers,...cors}});
  try{
   if(!allowed)throw new HttpError(403,'Invalid origin.');
-  if(event.httpMethod==='OPTIONS')return reply({...json(204,{}),headers:{'access-control-allow-methods':'POST, OPTIONS','access-control-allow-headers':'content-type'}});
+  if(event.httpMethod==='OPTIONS')return reply({...json(200,{}),headers:{'access-control-allow-methods':'POST, OPTIONS','access-control-allow-headers':'content-type'}});
   if(event.httpMethod!=='POST')return reply(json(405,{error:'Method not allowed'}));
   if(!deploymentControls().AD_CONVERSIONS_ENABLED)throw new HttpError(503,'Reporting temporarily unavailable.');
   if(!event.body||event.body.length>1500||event.isBase64Encoded)throw new HttpError(400,'Invalid request.');
