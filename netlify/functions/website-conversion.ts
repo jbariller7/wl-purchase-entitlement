@@ -27,7 +27,13 @@ export const lambdaHandler:LambdaHandler=async event=>{
   const expected=Buffer.from(typeof quote?.claimHash==='string'?quote.claimHash:'','hex');
   if(quote?.sessionId!==session.id||expected.length!==supplied.length||!timingSafeEqual(expected,supplied))throw new HttpError(404,'Purchase not found.');
   if(session.status!=='complete'||session.payment_status!=='paid'||!session.currency||!session.amount_total)return json(200,{conversion:null});
-  return json(200,{conversion:{transactionId:session.id,value:stripeMajorValue(session.currency,session.amount_total),currency:session.currency.toUpperCase()}});
+  const pixel=process.env.META_PIXEL_ID;
+  const meta=session.mode==='payment'&&session.metadata?.wl_ads_owner==='entitlement-v2'&&
+    process.env.AD_CONVERSIONS_ENABLED==='true'&&/^\d+$/.test(pixel??'') ? {
+      pixelId:pixel,eventId:session.id,eventName:'Purchase',product:session.metadata.wl_website_offer??'wonderlang',
+      ...(session.customer_details?.email?{emailSha256:createHash('sha256').update(session.customer_details.email.trim().toLowerCase()).digest('hex')}:{})
+    }:undefined;
+  return json(200,{conversion:{transactionId:session.id,value:stripeMajorValue(session.currency,session.amount_total),currency:session.currency.toUpperCase(),...(meta?{meta}:{})}});
  }catch(error){return errorResponse(error);}
 };
 export default withLambda(lambdaHandler);

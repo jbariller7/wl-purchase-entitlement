@@ -19,6 +19,15 @@ it('returns only verified amount and currency for the checkout owner',async()=>{
  const result=await call({sessionId:session.id,claimSecret:secret});expect(result.statusCode).toBe(200);
  expect(JSON.parse(result.body)).toEqual({conversion:{transactionId:session.id,value:31.99,currency:'EUR'}});
 });
+it('pairs the new website browser Purchase with the server session ID and hashed email',async()=>{
+ const oldPixel=process.env.META_PIXEL_ID,oldEnabled=process.env.AD_CONVERSIONS_ENABLED;
+ try {
+ process.env.META_PIXEL_ID='552284573796131';process.env.AD_CONVERSIONS_ENABLED='true';
+ mocks.retrieve.mockResolvedValue({...session,mode:'payment',customer_details:{email:'Buyer@Example.com'},metadata:{...session.metadata,wl_ads_owner:'entitlement-v2',wl_website_offer:'premium'}});
+ const body=JSON.parse((await call({sessionId:session.id,claimSecret:secret})).body);
+ expect(body.conversion.meta).toEqual({pixelId:'552284573796131',eventId:session.id,eventName:'Purchase',product:'premium',emailSha256:createHash('sha256').update('buyer@example.com').digest('hex')});
+ } finally { if(oldPixel===undefined)delete process.env.META_PIXEL_ID;else process.env.META_PIXEL_ID=oldPixel;if(oldEnabled===undefined)delete process.env.AD_CONVERSIONS_ENABLED;else process.env.AD_CONVERSIONS_ENABLED=oldEnabled; }
+});
 it('rejects unrelated origin or incorrect recovery secret',async()=>{
  expect((await call({sessionId:session.id,claimSecret:secret},'https://attacker.test')).statusCode).toBe(403);
  expect(mocks.retrieve).not.toHaveBeenCalled();

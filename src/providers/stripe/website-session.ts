@@ -39,7 +39,7 @@ export function websiteSessionParams(request: WebsiteSessionRequest, priceId: st
   const l=locales[request.locale as keyof typeof locales];
   if (!l || !/^price_/.test(priceId)) throw new Error("Invalid website checkout configuration.");
   const monthly=request.offer==="mobile_monthly";
-  const metadata={wl_checkout_flow:"website-session-v1",wl_website_offer:request.offer,wl_locale:request.locale,
+  const metadata={wl_checkout_flow:"website-session-v1",wl_ads_owner:"entitlement-v2",wl_website_offer:request.offer,wl_locale:request.locale,
     wl_desktop_delivery:request.delivery??"",wl_learning_language:request.learningLanguage??"",wl_mobile_platform:request.mobilePlatform??"later",
     ...websiteAttribution(request)};
   const m=mobileText[request.locale as keyof typeof mobileText];

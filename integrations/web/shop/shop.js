@@ -2,9 +2,11 @@ import locales from '../../../catalog/website-checkout-locales.json';
 import prices from '../../../catalog/website-prices.json';
 import ui from '../../../catalog/website-shop-ui.json';
 import mobile from '../../../catalog/website-mobile-locales.json';
+import {metaAttribution,addAttribution} from './attribution.js';
 import {REGIONAL_PRICES,stripeMinorAmount,currencyFractionDigits} from '../../../src/domain/regional-pricing.ts';
 const native={en:'English',fr:'Français',de:'Deutsch',es:'Español','es-MX':'Español (Latinoamérica)','pt-BR':'Português (Brasil)','pt-PT':'Português (Portugal)',it:'Italiano',nl:'Nederlands',sv:'Svenska',pl:'Polski',uk:'Українська',ru:'Русский',id:'Bahasa Indonesia',ko:'한국어',ja:'日本語','zh-CN':'简体中文','zh-TW':'繁體中文',ar:'العربية',hy:'Հայերեն'};
 const query=new URLSearchParams(location.search);
+const metaContext=metaAttribution(location.search,document.cookie);
 const browserLocale=navigator.language;
 let lang=Object.hasOwn(locales,query.get('lang'))?query.get('lang'):Object.hasOwn(locales,browserLocale)?browserLocale:Object.hasOwn(locales,browserLocale.split('-')[0])?browserLocale.split('-')[0]:'en';
 let currency=Object.hasOwn(prices,query.get('currency'))?query.get('currency'):'USD';
@@ -33,7 +35,7 @@ function render(){
  price.className='price';price.textContent=new Intl.NumberFormat(lang,{style:'currency',currency}).format(stripeMinorAmount(currency,amount)/10**currencyFractionDigits(currency))+(isMonthly?mobile[lang][6]:'');
  description.className='description';description.textContent=isMobile?mobile[lang][isMonthly?2:3]:l[offer+'Description'];
  card.append(heading,price,description);
- function update(){const params=new URLSearchParams({offer,lang,currency,...options});for(const key of ['ttclid','gclid','gbraid','wbraid']){const value=query.get(key);if(value&&value.length<=255)params.set(key,value)}buy.href='/shop/checkout/?'+params}
+ function update(){const params=new URLSearchParams({offer,lang,currency,...options});addAttribution(params,metaContext);for(const key of ['ttclid','gclid','gbraid','wbraid']){const value=query.get(key);if(value&&value.length<=255)params.set(key,value)}buy.href='/shop/checkout/?'+params}
  function choice(key,label,values){const wrapper=document.createElement('label'),text=document.createElement('span'),select=document.createElement('select');text.textContent=label;for(const [value,name]of values)select.add(new Option(name,value));if(options[key])select.value=options[key];options[key]=select.value;select.onchange=()=>{options[key]=select.value;update()};wrapper.append(text,select);card.append(wrapper)}
  if(offer==='single')choice('learningLanguage',l.language,['french','spanish','german','italian','portuguese','korean','japanese','mandarin','english'].map((x,i)=>[x,l.languages[i]]));
  if(!isMobile)choice('delivery',l.delivery,[['steam',l.steam],['direct',l.direct]]);

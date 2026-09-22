@@ -211,6 +211,7 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var productPrices: Map<String, String> = emptyMap()
     @Volatile private var subscriptionOfferTokens: Map<String, String> = emptyMap()
     private val purchaseClaimsInFlight = ConcurrentHashMap.newKeySet<String>()
+    private val conversionRetriesInFlight = ConcurrentHashMap.newKeySet<String>()
     private data class StoreProductPrice(
         val amountMicros: Long,
         val currencyCode: String,
@@ -2926,6 +2927,7 @@ class MainActivity : AppCompatActivity() {
             if (success) {
                 logMetaVerifiedConversionIfNeeded(receipt?.optJSONObject("adConversion"), productId)
                 WonderLangTikTokEvents.record(applicationContext, receipt?.optJSONObject("adConversion"), productId)
+                if (receipt?.optString("adConversionStatus") == "pending") retryPurchaseConversion(purchase, productId)
                 setPurchaseStatus("PURCHASED", "Purchase verified. Full WonderLang access is ready.")
             } else {
                 setPurchaseStatus(
@@ -2934,6 +2936,30 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+    }
+
+    // Retry analytics enrichment independently of the successful unlock. Play's
+    // owned-purchase refresh resumes this path after a process restart as well.
+    private fun retryPurchaseConversion(purchase: Purchase, productId: String, attempt: Int = 0) {
+        val key = purchaseTokenFingerprint(purchase.purchaseToken) + ":" + productId
+        if (attempt >= 4 || !conversionRetriesInFlight.add(key)) return
+        val delay = longArrayOf(15_000L, 60_000L, 180_000L, 600_000L)[attempt]
+        android.os.Handler(mainLooper).postDelayed({
+            if (isDestroyed || !::accountManager.isInitialized || !accountManager.isSignedIn()) {
+                conversionRetriesInFlight.remove(key)
+                return@postDelayed
+            }
+            val kind = if (productId in SUBS_SKUS) "subscription" else "one_time"
+            accountManager.claimGooglePlayPurchase(kind, productId, purchase.purchaseToken) { success, receipt, _ ->
+                conversionRetriesInFlight.remove(key)
+                if (success && receipt?.optJSONObject("adConversion") != null) {
+                    logMetaVerifiedConversionIfNeeded(receipt.optJSONObject("adConversion"), productId)
+                    WonderLangTikTokEvents.record(applicationContext, receipt.optJSONObject("adConversion"), productId)
+                } else if (!success || receipt?.optString("adConversionStatus") == "pending") {
+                    retryPurchaseConversion(purchase, productId, attempt + 1)
+                }
+            }
+        }, delay)
     }
 
     private fun setupBillingClient() {

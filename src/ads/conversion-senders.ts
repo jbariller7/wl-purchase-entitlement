@@ -15,6 +15,7 @@ interface ConversionPayload {
   value: number;
   currency: string;
   product: string;
+  conversionKind?: string;
 }
 
 function asConversion(payload: Record<string, unknown>): ConversionPayload {
@@ -50,7 +51,8 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
           currency: event.currency,
           value: event.value,
           content_ids: [event.product],
-          content_type: "product"
+          content_type: "product",
+          ...(event.conversionKind ? {conversion_kind:event.conversionKind} : {})
         }
       }]
     }),

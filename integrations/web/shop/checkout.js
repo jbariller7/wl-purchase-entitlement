@@ -1,4 +1,5 @@
 import ui from '../../../catalog/website-shop-ui.json';
+import {metaAttribution} from './attribution.js';
 const q=new URLSearchParams(location.search),locale=Object.hasOwn(ui,q.get('lang'))?q.get('lang'):'en',t=ui[locale];
 document.documentElement.lang=locale;document.documentElement.dir=locale==='ar'?'rtl':'ltr';document.getElementById('heading').textContent=t[5];
 try{
@@ -7,12 +8,12 @@ try{
  const storageKey='wl-checkout-attempt:'+JSON.stringify(selection);
  let attempt=JSON.parse(sessionStorage.getItem(storageKey)||'null');
  if(!attempt){
-  const attribution={};
+  const attribution=metaAttribution(location.search,document.cookie);
   const gaCookie=document.cookie.split('; ').find(x=>x.startsWith('_ga='));
   const gaMatch=gaCookie?.match(/^_ga=GA\d+\.\d+\.(\d+\.\d+)$/);
   if(gaMatch)attribution.gaClientId=gaMatch[1];
   // Only carry identifiers already present; do not create tracking cookies.
-  for(const [key,cookie] of [['fbp','_fbp'],['fbc','_fbc'],['ttp','_ttp']]){
+  for(const [key,cookie] of [['ttp','_ttp']]){
    const raw=document.cookie.split('; ').find(x=>x.startsWith(cookie+'='))?.slice(cookie.length+1);
    if(raw){try{const value=decodeURIComponent(raw);if(value.length<=255)attribution[key]=value;}catch{}}
   }

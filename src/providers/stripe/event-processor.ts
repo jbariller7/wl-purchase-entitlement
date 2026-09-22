@@ -187,9 +187,10 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
     if (subscriptionId) await store.linkCheckoutContextToSubscription(session.id, subscriptionId, new Date(event.created * 1000));
     const context = await store.checkoutContext(session.id);
     const decision = checkoutAdDecision({ mode: session.mode, paymentStatus: session.payment_status });
-    // Desktop website purchases retain the existing automation's one ad event
-    // and one key allocation. Do not enqueue a second conversion here.
-    if (purchase?.offer.startsWith('mobile_') && decision.send && decision.eventName) await enqueueAdConversion({store,event,eventName:decision.eventName,eventSourceId:session.id,email:session.customer_details?.email??null,value:stripeMajorValue(session.currency??"usd",session.amount_total??0),currency:session.currency??"usd",product:purchase.offer,...(context?{context}:{})});
+    // New website sessions use the durable outbox independently of key/email
+    // delivery. Older desktop sessions remain owned by the legacy automation.
+    const ownsReporting = purchase?.offer.startsWith('mobile_') || metadata.wl_ads_owner === 'entitlement-v2';
+    if (purchase && ownsReporting && decision.send && decision.eventName) await enqueueAdConversion({store,event,eventName:decision.eventName,eventSourceId:session.id,email:session.customer_details?.email??null,value:stripeMajorValue(session.currency??"usd",session.amount_total??0),currency:session.currency??"usd",product:purchase.offer,...(context?{context}:{})});
     return;
   }
   const uid = metadata.wl_uid || session.client_reference_id || undefined;
