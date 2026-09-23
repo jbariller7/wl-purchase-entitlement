@@ -1272,12 +1272,26 @@
     }, { capture: true, passive: true });
   }
 
+  function finishAndroidSignInView(value) {
+    // Only replace the sign-in intro. Background token/entitlement refreshes
+    // must not open a dialog over gameplay or a save-recovery decision.
+    if (runtimeMobilePlatform() !== "android" ||
+        activeOverlay?.dataset?.wlAccountView !== "sign-in" ||
+        !value?.uid || value.uid !== accountUid() ||
+        value._nativeAccountStatus === "loading") return false;
+    // openAccountPanel replaces the tagged overlay synchronously, so duplicate
+    // native snapshots cannot launch a second transition.
+    openAccountPanel().catch(error => showError("Account unavailable", error, openAccountPanel));
+    return true;
+  }
+
   function showSignInIntro() {
-    showPanel("WonderLang account", `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Intro.Body", "Cloud saves are exclusive to Premium Lifetime Pass holders. Sync your progress between PC, Mac and mobile. Learn more at wonderlang.net."))}</p>`, [
+    const panel = showPanel("WonderLang account", `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Intro.Body", "Cloud saves are exclusive to Premium Lifetime Pass holders. Sync your progress between PC, Mac and mobile. Learn more at wonderlang.net."))}</p>`, [
       { label: "Sign in", run: beginSignIn },
       { label: "wonderlang.net", kind: "secondary", run: () => bridge()?.openExternalUrl?.("https://wonderlang.net/") },
       { label: "Close", kind: "secondary", run: closeOverlay }
     ]);
+    panel.dataset.wlAccountView = "sign-in";
   }
   function confirmSignOut() {
     showPanel(tr("CloudAccount.SignOut.Label", "Sign out"), `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.SignOut.Body", "Sign out on this device? Local saves will stay here. Any pending saves will sync only after you sign back in to this same account. Other devices will stay signed in."))}</p>`, [
@@ -1977,6 +1991,7 @@
         if (!value || typeof value !== "object") throw new Error("Invalid account snapshot.");
         cache(value);
         window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: value.entitlements || null }));
+        if (finishAndroidSignInView(value)) return;
         if (activeProfileId()) scheduleStartupProfileCheck(750);
         else ensureProfileSelection().catch(error => console.warn("[WonderLang Cloud Save] Profile selection paused.", safeMessage(error)));
       } catch (error) {
