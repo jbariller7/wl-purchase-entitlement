@@ -11,6 +11,7 @@ export const websiteSessionSchema = z.object({
   locale: z.string().refine(x => Object.hasOwn(locales, x)),
   currency: z.string().refine(x => Object.hasOwn(prices, x)),
   requestId: z.string().uuid(),
+  campaignId: z.string().uuid().optional(),
   attribution: z.object({
     gaClientId: z.string().regex(/^\d+\.\d+$/).max(100).optional(),
     fbp: z.string().max(255).optional(),

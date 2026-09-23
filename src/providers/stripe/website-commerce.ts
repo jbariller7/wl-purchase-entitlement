@@ -8,6 +8,7 @@ import type { LedgerGrant, LegacyOrder } from "../../domain/model.js";
 import { SHEET_TAB_BY_PRODUCT, routePremiumDesktopAccess } from "../../legacy/catalog.js";
 import {websiteDelivery} from '../../legacy/website-delivery.js';
 import { websiteSessionSchema, websiteSessionParams, websiteAttribution, assertWebsitePrice, type WebsiteSessionRequest } from "./website-session.js";
+import { DiscountLinks, assertDiscountAvailable, applyDiscountToSession } from "./discount-links.js";
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const id=(v:string|{id:string}|null|undefined)=>typeof v==='string'?v:v?.id;
 interface Quote {request:WebsiteSessionRequest;priceId:string;claimHash:string;sessionId?:string;createdAt:string;}
@@ -88,25 +89,37 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   const priceId=websitePriceId(request.offer);
   if(!priceId)throw new HttpError(503,'This website offer is not configured.');
   const stripe=stripeClient(),origin=websiteStripeConfiguration().origin;
+  const campaigns=request.campaignId?new DiscountLinks(store.firestore(),stripe,origin):null;
+  const campaign=campaigns?await campaigns.get(request.campaignId!):null;
+  if(campaign) assertDiscountAvailable(campaign,new Date(),request);
   const price=await stripe.prices.retrieve(priceId,{expand:['currency_options']});
   assertWebsitePrice(price,request,true);
   const quote:Quote={request,priceId,claimHash:digest(claimSecret),createdAt:new Date().toISOString()};
   const ref=store.firestore().collection('websiteCheckoutRequests').doc(request.requestId);
-  const previousSession=await store.firestore().runTransaction(async tx=>{const previous=await tx.get(ref);if(previous.exists){const p=previous.data() as Quote;if(p.claimHash!==quote.claimHash||JSON.stringify(p.request)!==JSON.stringify(request)||p.priceId!==priceId)throw new HttpError(409,'Checkout request cannot be reused with different options.');return p.sessionId;}tx.create(ref,quote);return undefined;});
+  const attempt=await store.firestore().runTransaction(async tx=>{const previous=await tx.get(ref);if(previous.exists){const p=previous.data() as Quote;if(p.claimHash!==quote.claimHash||JSON.stringify(p.request)!==JSON.stringify(request)||p.priceId!==priceId)throw new HttpError(409,'Checkout request cannot be reused with different options.');return p;}tx.create(ref,quote);return quote;});
+  const previousSession=attempt.sessionId;
   if(previousSession){
     await store.saveCheckoutContext(previousSession,{...context,...websiteAttribution(request),eventSourceUrl:origin+'/shop/'},new Date());
     const previous=await stripe.checkout.sessions.retrieve(previousSession);
     if(previous.status==='complete')return {completed:true,sessionId:previous.id};
-    if(previous.status==='open'&&previous.url)return {url:previous.url,sessionId:previous.id};
+    if(previous.status==='open'&&previous.url){
+      if(campaign && campaigns) await campaigns.registerSession(campaign,previous,new Date());
+      return {url:previous.url,sessionId:previous.id};
+    }
     throw new HttpError(409,'This checkout has expired. Please select your offer again.');
   }
   const parameters=websiteSessionParams(request,priceId,origin);
   parameters.metadata={...parameters.metadata,wl_request_id:request.requestId};
   if(parameters.subscription_data)parameters.subscription_data.metadata={...parameters.subscription_data.metadata,wl_request_id:request.requestId};
+  if(campaign) {
+    if(Date.now()-Date.parse(attempt.createdAt)>1800000) throw new HttpError(409,'This checkout attempt has expired. Please select your offer again.');
+    applyDiscountToSession(parameters,campaign,origin,new Date(attempt.createdAt));
+  }
   const session=await stripe.checkout.sessions.create(parameters,{idempotencyKey:`website-session-v1:${request.requestId}`});
   if(!session.url)throw new Error('Stripe checkout URL is missing.');
   await store.saveCheckoutContext(session.id,{...context,...websiteAttribution(request),eventSourceUrl:origin+'/shop/'},new Date());
   await ref.set({sessionId:session.id},{merge:true});
+  if(campaign && campaigns) await campaigns.registerSession(campaign,session,new Date());
   return {url:session.url,sessionId:session.id};
 }
 export function websiteDesktopRoute(r:WebsiteSessionRequest){

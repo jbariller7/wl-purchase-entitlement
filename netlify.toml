@@ -16,6 +16,9 @@
   node_bundler = "esbuild"
   included_files = ["src/**"]
 
+[functions."discount-link-expiry"]
+  schedule = "* * * * *"
+
 [functions."outbox-worker"]
   schedule = "*/5 * * * *"
 

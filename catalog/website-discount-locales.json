@@ -1,0 +1,22 @@
+{
+ "en":["This offer is no longer available.","Discount applies to the first payment.","Discount applies to every monthly payment.","Discount applies for {MONTHS} months."],
+ "fr":["Cette offre n’est plus disponible.","La réduction s’applique au premier paiement.","La réduction s’applique à chaque mensualité.","La réduction s’applique pendant {MONTHS} mois."],
+ "de":["Dieses Angebot ist nicht mehr verfügbar.","Der Rabatt gilt für die erste Zahlung.","Der Rabatt gilt für jede monatliche Zahlung.","Der Rabatt gilt für {MONTHS} Monate."],
+ "es":["Esta oferta ya no está disponible.","El descuento se aplica al primer pago.","El descuento se aplica a cada pago mensual.","El descuento se aplica durante {MONTHS} meses."],
+ "es-MX":["Esta oferta ya no está disponible.","El descuento se aplica al primer pago.","El descuento se aplica a cada pago mensual.","El descuento se aplica durante {MONTHS} meses."],
+ "pt-BR":["Esta oferta não está mais disponível.","O desconto se aplica ao primeiro pagamento.","O desconto se aplica a cada pagamento mensal.","O desconto se aplica por {MONTHS} meses."],
+ "pt-PT":["Esta oferta já não está disponível.","O desconto aplica-se ao primeiro pagamento.","O desconto aplica-se a cada pagamento mensal.","O desconto aplica-se durante {MONTHS} meses."],
+ "it":["Questa offerta non è più disponibile.","Lo sconto si applica al primo pagamento.","Lo sconto si applica a ogni pagamento mensile.","Lo sconto si applica per {MONTHS} mesi."],
+ "nl":["Deze aanbieding is niet meer beschikbaar.","De korting geldt voor de eerste betaling.","De korting geldt voor elke maandelijkse betaling.","De korting geldt gedurende {MONTHS} maanden."],
+ "sv":["Det här erbjudandet är inte längre tillgängligt.","Rabatten gäller den första betalningen.","Rabatten gäller varje månadsbetalning.","Rabatten gäller i {MONTHS} månader."],
+ "pl":["Ta oferta nie jest już dostępna.","Zniżka dotyczy pierwszej płatności.","Zniżka dotyczy każdej miesięcznej płatności.","Okres obowiązywania zniżki w miesiącach: {MONTHS}."],
+ "uk":["Ця пропозиція більше не доступна.","Знижка застосовується до першого платежу.","Знижка застосовується до кожного щомісячного платежу.","Тривалість знижки в місяцях: {MONTHS}."],
+ "ru":["Это предложение больше недоступно.","Скидка применяется к первому платежу.","Скидка применяется к каждому ежемесячному платежу.","Срок действия скидки в месяцах: {MONTHS}."],
+ "id":["Penawaran ini tidak tersedia lagi.","Diskon berlaku untuk pembayaran pertama.","Diskon berlaku untuk setiap pembayaran bulanan.","Diskon berlaku selama {MONTHS} bulan."],
+ "ko":["이 혜택은 더 이상 이용할 수 없습니다.","할인은 첫 결제에 적용됩니다.","할인은 매월 결제에 적용됩니다.","할인은 {MONTHS}개월 동안 적용됩니다."],
+ "ja":["この特典は終了しました。","割引は初回のお支払いに適用されます。","割引は毎月のお支払いに適用されます。","割引は{MONTHS}か月間適用されます。"],
+ "zh-CN":["此优惠已结束。","折扣适用于首次付款。","折扣适用于每月付款。","折扣适用期限为{MONTHS}个月。"],
+ "zh-TW":["此優惠已結束。","折扣適用於首次付款。","折扣適用於每月付款。","折扣適用期限為{MONTHS}個月。"],
+ "ar":["لم يعد هذا العرض متاحًا.","يسري الخصم على الدفعة الأولى.","يسري الخصم على كل دفعة شهرية.","مدة سريان الخصم بالأشهر: {MONTHS}."],
+ "hy":["Այս առաջարկն այլևս հասանելի չէ։","Զեղչը կիրառվում է առաջին վճարման համար։","Զեղչը կիրառվում է յուրաքանչյուր ամսական վճարման համար։","Զեղչի գործողության տևողությունը՝ ամիսներով՝ {MONTHS}։"]
+}

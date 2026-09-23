@@ -1,4 +1,5 @@
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
+import { DiscountLinks, discountLinkSchema } from "../../src/providers/stripe/discount-links.js";
 import type { Config } from "@netlify/functions";
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-lambda-compat";
@@ -123,6 +124,18 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const imports = new AdminImportService(db, firebaseAuth());
   const cloudSaves = new AdminCloudSaveService(db, firebaseStorage());
   const keyInventoryDiagnostic = new LegacyKeyInventoryDiagnosticService();
+
+  if (path === "/v1/discount-links") {
+    const discounts = new DiscountLinks(db);
+    if (event.httpMethod === "GET") return json(200, await discounts.list());
+    if (event.httpMethod === "POST") return json(201, await discounts.create(discountLinkSchema.parse(body(discountLinkSchema, event)), actor, now));
+  }
+  const discountAction = path.match(/^\/v1\/discount-links\/([0-9a-f-]+)\/(active|provision)$/i);
+  if (event.httpMethod === "POST" && discountAction) {
+    const discounts = new DiscountLinks(db);
+    if (discountAction[2] === "provision") return json(200, await discounts.provision(discountAction[1]!, actor, now));
+    return json(200, await discounts.setActive(discountAction[1]!, body(z.object({active:z.boolean()}).strict(), event).active, actor, now));
+  }
 
   if (event.httpMethod === "GET" && path === "/v1/session") {
     return json(200, {

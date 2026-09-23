@@ -58,6 +58,31 @@ describe('website checkout runtime',()=>{
   expect(saveLegacyOrder).toHaveBeenCalledWith(expect.objectContaining({productCode:'POLY_STEAM',playMode:'STEAM'}));
   expect(enqueue).not.toHaveBeenCalled();
  });
+ it('discounted checkout uses the normal recovery, fulfillment and attribution flow',async()=>{
+  const {store,docs,saveLegacyOrder}=database();
+  const campaignId='550e8400-e29b-41d4-a716-446655440001';
+  docs.set('websiteDiscountLinks/'+campaignId,{id:campaignId,name:'Newsletter offer',offer:'premium',percentOff:25,active:true,ready:true,couponId:'coupon_newsletter',expiresAt:null});
+  api.checkout.sessions.create.mockResolvedValue({id:'cs_discount',status:'open',expires_at:Math.floor(Date.now()/1000)+3600,url:'https://checkout.stripe.com/c/pay/cs_discount'});
+  await startWebsiteCheckout(store,{...request,campaignId},secret);
+  const params=api.checkout.sessions.create.mock.calls[0]![0];
+  expect(params.discounts).toEqual([{coupon:'coupon_newsletter'}]);
+  expect(params.metadata).toMatchObject({wl_checkout_flow:'website-session-v1',wl_ads_owner:'entitlement-v2',wl_discount_link:campaignId,wl_request_id:request.requestId});
+  expect(store.saveCheckoutContext).toHaveBeenCalledWith('cs_discount',expect.any(Object),expect.any(Date));
+  expect(docs.has('websiteDiscountSessions/cs_discount')).toBe(true);
+  api.checkout.sessions.listLineItems.mockResolvedValue({data:[{price:{id:'price_approved'},quantity:1}]});
+  await recordWebsitePayment(store,{id:'cs_discount',livemode:true,payment_status:'paid',metadata:params.metadata,customer_details:{email:'Buyer@example.com'},payment_intent:'pi_discount',amount_total:4499,currency:'eur'} as unknown as Stripe.Checkout.Session,{id:'evt_discount',created:1789572000} as Stripe.Event);
+  expect(docs.get('websiteOrders/cs_discount').request.campaignId).toBe(campaignId);
+  expect(saveLegacyOrder).toHaveBeenCalledWith(expect.objectContaining({productCode:'POLY_STEAM',playMode:'STEAM'}));
+ });
+ it('keeps discounted Stripe parameters identical after an interrupted response',async()=>{
+  const {store,docs}=database();const campaignId='550e8400-e29b-41d4-a716-446655440001';
+  docs.set('websiteDiscountLinks/'+campaignId,{id:campaignId,name:'Retry offer',offer:'premium',percentOff:20,active:true,ready:true,couponId:'coupon_retry',expiresAt:null});
+  api.checkout.sessions.create.mockRejectedValueOnce(Error('network interruption'));
+  await expect(startWebsiteCheckout(store,{...request,campaignId},secret)).rejects.toThrow('network interruption');
+  api.checkout.sessions.create.mockResolvedValue({id:'cs_retry',status:'open',expires_at:Math.floor(Date.now()/1000)+3600,url:'https://checkout.stripe.com/c/pay/cs_retry'});
+  await startWebsiteCheckout(store,{...request,campaignId},secret);
+  expect(api.checkout.sessions.create.mock.calls[1]).toEqual(api.checkout.sessions.create.mock.calls[0]);
+ });
  it('does not accept a test payment as a live website purchase',async()=>{
   const {store}=database();
   await expect(recordWebsitePayment(store,{livemode:false} as Stripe.Checkout.Session,{} as Stripe.Event)).rejects.toThrow(/must be live/);
