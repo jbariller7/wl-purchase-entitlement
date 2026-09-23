@@ -15,6 +15,15 @@ const RETAINED_PRIOR_REVISIONS = 3;
 
 export const cloudSaveProfileIdSchema = z.string().regex(PROFILE_ID_PATTERN, "Invalid cloud-save profile ID.");
 export const cloudSaveProfileNameSchema = z.string().trim().min(1).max(40);
+export function cloudProfileNameKey(name: string): string {
+  return name.normalize("NFKC").trim().replace(/\s+/gu, " ").toLowerCase();
+}
+
+export function requireUniqueCloudProfileName(profiles: Array<{ profileId: string; name: string }>, name: string, exceptId?: string): void {
+  if (profiles.some(profile => profile.profileId !== exceptId && cloudProfileNameKey(profile.name) === cloudProfileNameKey(name))) {
+    throw new HttpError(409, "A save profile with this name already exists. Choose a different name.");
+  }
+}
 export const createCloudSaveProfileSchema = z.object({ name: cloudSaveProfileNameSchema });
 export const renameCloudSaveProfileSchema = z.object({ name: cloudSaveProfileNameSchema });
 export const prepareProfileUploadSchema = z.object({
@@ -191,8 +200,10 @@ export class CloudSaveProfileService {
     if (!existing.empty) return;
     const ref = collection.doc("default");
     await this.db.runTransaction(async (transaction) => {
-      const snapshot = await transaction.get(ref);
-      if (snapshot.exists) return;
+      const registry = this.db.collection("cloudSaves").doc(uid);
+      await transaction.get(registry);
+      const snapshot = await transaction.get(collection);
+      if (!snapshot.empty) return;
       const manifest: CloudSaveProfileManifest = {
         uid,
         profileId: "default",
@@ -206,6 +217,7 @@ export class CloudSaveProfileService {
         previousRevisions: []
       };
       transaction.create(ref, manifest);
+      transaction.set(registry, { profileNamesUpdatedAt: now.toISOString() }, { merge: true });
     });
   }
 
@@ -219,13 +231,19 @@ export class CloudSaveProfileService {
   }
 
   async create(uid: string, name: string, now: Date): Promise<ReturnType<typeof publicProfile>> {
+    name = cloudSaveProfileNameSchema.parse(name);
     await this.requireCloudSave(uid, now);
     await this.ensureDefault(uid, now);
     const profileId = randomUUID();
     const ref = this.profiles(uid).doc(profileId);
     const manifest = await this.db.runTransaction(async (transaction) => {
+      // Serialize name changes per account, including simultaneous requests
+      // from different devices. Existing profiles need no migration.
+      const registry = this.db.collection("cloudSaves").doc(uid);
+      await transaction.get(registry);
       const snapshot = await transaction.get(this.profiles(uid));
       if (snapshot.size >= MAX_PROFILES) throw new HttpError(409, "An account can have at most six save profiles.");
+      requireUniqueCloudProfileName(snapshot.docs.map(doc => doc.data() as CloudSaveProfileManifest), name);
       const value: CloudSaveProfileManifest = {
         uid,
         profileId,
@@ -239,20 +257,27 @@ export class CloudSaveProfileService {
         previousRevisions: []
       };
       transaction.create(ref, value);
+      transaction.set(registry, { profileNamesUpdatedAt: now.toISOString() }, { merge: true });
       return value;
     });
     return publicProfile(manifest);
   }
 
   async rename(uid: string, profileId: string, name: string, now: Date): Promise<ReturnType<typeof publicProfile>> {
+    name = cloudSaveProfileNameSchema.parse(name);
     await this.requireCloudSave(uid, now);
     const ref = this.profiles(uid).doc(profileId);
     const manifest = await this.db.runTransaction(async (transaction) => {
+      const registry = this.db.collection("cloudSaves").doc(uid);
+      await transaction.get(registry);
+      const profiles = await transaction.get(this.profiles(uid));
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) throw new HttpError(404, "Cloud-save profile was not found.");
+      requireUniqueCloudProfileName(profiles.docs.map(doc => doc.data() as CloudSaveProfileManifest), name, profileId);
       const current = snapshot.data() as CloudSaveProfileManifest;
       const next = { ...current, name, renamedAt: now.toISOString() };
       transaction.set(ref, next);
+      transaction.set(registry, { profileNamesUpdatedAt: now.toISOString() }, { merge: true });
       return next;
     });
     return publicProfile(manifest);

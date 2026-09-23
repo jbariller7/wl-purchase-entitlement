@@ -7,6 +7,7 @@
       fullGame: true,
       allLanguages: true,
       cloudSave: true,
+      premiumLifetime: true,
       accessKind: "subscription",
       subscriptionState: "active",
       computedAt: new Date().toISOString(),

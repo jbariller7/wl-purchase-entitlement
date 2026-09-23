@@ -1,0 +1,124 @@
+{
+  "translations": {
+    "US": [
+      "Create a new profile for all saves on this device. Your other profiles will not change. Enter a unique name to continue.",
+      "These local saves are not linked to the selected profile “{ACTIVE}”. Nothing has been replaced. Using this profile's cloud saves will replace local saves after keeping a recovery copy on this device.",
+      "A save profile with this name already exists. Choose a different name."
+    ],
+    "EN": [
+      "Create a new profile for all saves on this device. Your other profiles will not change. Enter a unique name to continue.",
+      "These local saves are not linked to the selected profile “{ACTIVE}”. Nothing has been replaced. Using this profile's cloud saves will replace local saves after keeping a recovery copy on this device.",
+      "A save profile with this name already exists. Choose a different name."
+    ],
+    "FR": [
+      "Créez un nouveau profil pour toutes les sauvegardes de cet appareil. Vos autres profils ne changeront pas. Saisissez un nom unique pour continuer.",
+      "Ces sauvegardes locales ne sont pas liées au profil sélectionné « {ACTIVE} ». Rien n’a été remplacé. Utiliser les sauvegardes cloud de ce profil remplacera les sauvegardes locales après avoir conservé une copie de secours sur cet appareil.",
+      "Un profil de sauvegarde porte déjà ce nom. Choisissez un autre nom."
+    ],
+    "ES": [
+      "Crea un perfil nuevo para todas las partidas de este dispositivo. Los demás perfiles no cambiarán. Introduce un nombre único para continuar.",
+      "Estas partidas locales no están vinculadas al perfil seleccionado «{ACTIVE}». No se ha sustituido nada. Si usas las partidas de este perfil guardadas en la nube, sustituirán las partidas locales tras guardar una copia de recuperación en este dispositivo.",
+      "Ya existe un perfil de partidas con este nombre. Elige otro nombre."
+    ],
+    "EX": [
+      "Crea un perfil nuevo para todas las partidas de este dispositivo. Los demás perfiles no cambiarán. Ingresa un nombre único para continuar.",
+      "Estas partidas locales no están vinculadas al perfil seleccionado «{ACTIVE}». No se ha reemplazado nada. Si usas las partidas de este perfil guardadas en la nube, reemplazarán las partidas locales después de guardar una copia de recuperación en este dispositivo.",
+      "Ya existe un perfil de partidas con este nombre. Elige otro nombre."
+    ],
+    "DE": [
+      "Erstelle ein neues Profil für alle Spielstände auf diesem Gerät. Deine anderen Profile bleiben unverändert. Gib einen noch nicht verwendeten Namen ein, um fortzufahren.",
+      "Diese lokalen Spielstände sind nicht mit dem ausgewählten Profil „{ACTIVE}“ verknüpft. Es wurde nichts ersetzt. Wenn du die Cloud-Spielstände dieses Profils verwendest, wird zuerst eine Wiederherstellungskopie auf diesem Gerät gespeichert. Danach werden die lokalen Spielstände ersetzt.",
+      "Ein Spielstandprofil mit diesem Namen existiert bereits. Wähle einen anderen Namen."
+    ],
+    "PT": [
+      "Crie um novo perfil para todas as partidas salvas neste dispositivo. Seus outros perfis não mudarão. Digite um nome exclusivo para continuar.",
+      "Estas partidas locais não estão vinculadas ao perfil selecionado “{ACTIVE}”. Nada foi substituído. Ao usar as partidas deste perfil salvas na nuvem, as partidas locais serão substituídas depois que uma cópia de recuperação for guardada neste dispositivo.",
+      "Já existe um perfil de partidas salvas com esse nome. Escolha outro nome."
+    ],
+    "EPT": [
+      "Cria um novo perfil para todas as gravações neste dispositivo. Os teus outros perfis não mudarão. Introduz um nome único para continuar.",
+      "Estas gravações locais não estão associadas ao perfil selecionado «{ACTIVE}». Nada foi substituído. Ao usares as gravações deste perfil na nuvem, as gravações locais serão substituídas depois de ser guardada uma cópia de recuperação neste dispositivo.",
+      "Já existe um perfil de gravações com esse nome. Escolhe outro nome."
+    ],
+    "IT": [
+      "Crea un nuovo profilo per tutti i salvataggi su questo dispositivo. Gli altri profili non cambieranno. Inserisci un nome univoco per continuare.",
+      "Questi salvataggi locali non sono collegati al profilo selezionato «{ACTIVE}». Non è stato sostituito nulla. Usando i salvataggi cloud di questo profilo, quelli locali verranno sostituiti dopo aver conservato una copia di recupero su questo dispositivo.",
+      "Esiste già un profilo di salvataggio con questo nome. Scegli un altro nome."
+    ],
+    "KR": [
+      "이 기기의 모든 저장 데이터를 위한 새 프로필을 만드세요. 다른 프로필은 바뀌지 않습니다. 계속하려면 중복되지 않는 이름을 입력하세요.",
+      "이 기기의 저장 데이터는 선택한 프로필 ‘{ACTIVE}’에 연결되어 있지 않습니다. 아직 아무것도 교체되지 않았습니다. 이 프로필의 클라우드 저장 데이터를 사용하면 먼저 이 기기에 복구용 사본을 보관한 뒤 로컬 저장 데이터를 교체합니다.",
+      "이 이름의 저장 프로필이 이미 있습니다. 다른 이름을 선택하세요."
+    ],
+    "JP": [
+      "この端末のすべてのセーブデータ用に新しいプロフィールを作成します。他のプロフィールは変わりません。まだ使われていない名前を入力して続けてください。",
+      "この端末のセーブデータは、選択したプロフィール「{ACTIVE}」に関連付けられていません。まだ何も置き換えていません。このプロフィールのクラウドセーブを使うと、端末に復旧用のコピーを残してから、端末のセーブデータを置き換えます。",
+      "この名前のセーブ用プロフィールはすでにあります。別の名前を選んでください。"
+    ],
+    "JP_hir": [
+      "このたんまつのすべてのセーブデータのために、あたらしいプロフィールをつくります。ほかのプロフィールはかわりません。まだつかわれていないなまえをいれてつづけてください。",
+      "このたんまつのセーブデータは、えらんだプロフィール「{ACTIVE}」にむすびついていません。まだなにもいれかえていません。このプロフィールのクラウドセーブをつかうと、もとにもどすためのコピーをたんまつにのこしてから、たんまつのセーブデータをいれかえます。",
+      "このなまえのセーブようプロフィールはすでにあります。べつのなまえをえらんでください。"
+    ],
+    "NL": [
+      "Maak een nieuw profiel voor alle opgeslagen spellen op dit apparaat. Je andere profielen veranderen niet. Voer een unieke naam in om door te gaan.",
+      "Deze lokaal opgeslagen spellen zijn niet gekoppeld aan het geselecteerde profiel ‘{ACTIVE}’. Er is niets vervangen. Als je de cloudopslagen van dit profiel gebruikt, worden de lokale spellen vervangen nadat er een herstelkopie op dit apparaat is bewaard.",
+      "Er bestaat al een opslagprofiel met deze naam. Kies een andere naam."
+    ],
+    "ZH": [
+      "为此设备上的所有存档创建新配置档。其他配置档不会改变。请输入不重复的名称以继续。",
+      "这些本地存档未关联到所选配置档“{ACTIVE}”。尚未替换任何存档。使用此配置档的云端存档时，会先在此设备上保留一份恢复副本，再替换本地存档。",
+      "已存在同名的存档配置档。请选择其他名称。"
+    ],
+    "ZH_trad": [
+      "為此裝置上的所有存檔建立新設定檔。其他設定檔不會改變。請輸入不重複的名稱以繼續。",
+      "這些本機存檔未連結至所選設定檔「{ACTIVE}」。尚未替換任何存檔。使用此設定檔的雲端存檔時，會先在此裝置上保留一份還原副本，再替換本機存檔。",
+      "已存在同名的存檔設定檔。請選擇其他名稱。"
+    ],
+    "ZH_hir": [
+      "Wèi cǐ shèbèi shàng de suǒyǒu cúndàng chuàngjiàn xīn pèizhì dàng。Qítā pèizhì dàng bú huì gǎibiàn。Qǐng shūrù bù chóngfù de míngchēng yǐ jìxù。",
+      "Zhèxiē běndì cúndàng wèi guānlián dào suǒ xuǎn pèizhì dàng “{ACTIVE}”。Shàng wèi tìhuàn rènhé cúndàng。Shǐyòng cǐ pèizhì dàng de yúnduān cúndàng shí，huì xiān zài cǐ shèbèi shàng bǎoliú yí fèn huīfù fùběn，zài tìhuàn běndì cúndàng。",
+      "Yǐ cúnzài tóngmíng de cúndàng pèizhì dàng。Qǐng xuǎnzé qítā míngchēng。"
+    ],
+    "ID": [
+      "Buat profil baru untuk semua simpanan di perangkat ini. Profil lainnya tidak berubah. Masukkan nama yang belum digunakan untuk melanjutkan.",
+      "Simpanan lokal ini tidak terhubung ke profil yang dipilih, “{ACTIVE}”. Belum ada yang diganti. Jika Anda menggunakan simpanan cloud profil ini, simpanan lokal akan diganti setelah salinan pemulihan disimpan di perangkat ini.",
+      "Profil simpanan dengan nama ini sudah ada. Pilih nama lain."
+    ],
+    "AR": [
+      "أنشئ ملفًا شخصيًا جديدًا لجميع المحفوظات على هذا الجهاز. لن تتغير ملفاتك الشخصية الأخرى. أدخل اسمًا غير مستخدم للمتابعة.",
+      "هذه المحفوظات المحلية غير مرتبطة بالملف الشخصي المحدد «{ACTIVE}». لم يُستبدل شيء بعد. عند استخدام محفوظات هذا الملف من السحابة، ستُحفظ نسخة للاسترداد على هذا الجهاز أولًا، ثم ستُستبدل المحفوظات المحلية.",
+      "يوجد بالفعل ملف شخصي للمحفوظات بهذا الاسم. اختر اسمًا آخر."
+    ],
+    "AR_hir": [
+      "أَنْشِئْ مَلَفًّا شَخْصِيًّا جَدِيدًا لِجَمِيعِ الْمَحْفُوظَاتِ عَلَى هَذَا الْجِهَازِ. لَنْ تَتَغَيَّرَ مَلَفَّاتُكَ الشَّخْصِيَّةُ الْأُخْرَى. أَدْخِلِ اسْمًا غَيْرَ مُسْتَخْدَمٍ لِلْمُتَابَعَةِ.",
+      "هَذِهِ الْمَحْفُوظَاتُ الْمَحَلِّيَّةُ غَيْرُ مُرْتَبِطَةٍ بِالْمَلَفِّ الشَّخْصِيِّ الْمُحَدَّدِ «{ACTIVE}». لَمْ يُسْتَبْدَلْ شَيْءٌ بَعْدُ. عِنْدَ اسْتِخْدَامِ مَحْفُوظَاتِ هَذَا الْمَلَفِّ مِنَ السَّحَابَةِ، سَتُحْفَظُ نُسْخَةٌ لِلِاسْتِرْدَادِ عَلَى هَذَا الْجِهَازِ أَوَّلًا، ثُمَّ سَتُسْتَبْدَلُ الْمَحْفُوظَاتُ الْمَحَلِّيَّةُ.",
+      "يُوجَدُ بِالْفِعْلِ مَلَفٌّ شَخْصِيٌّ لِلْمَحْفُوظَاتِ بِهَذَا الِاسْمِ. اِخْتَرِ اسْمًا آخَرَ."
+    ],
+    "PL": [
+      "Utwórz nowy profil dla wszystkich zapisów na tym urządzeniu. Pozostałe profile nie zmienią się. Wpisz nieużywaną nazwę, aby kontynuować.",
+      "Te lokalne zapisy nie są powiązane z wybranym profilem „{ACTIVE}”. Nic nie zostało zastąpione. Użycie zapisów tego profilu z chmury zastąpi lokalne zapisy po zachowaniu kopii do odzyskiwania na tym urządzeniu.",
+      "Profil zapisów o tej nazwie już istnieje. Wybierz inną nazwę."
+    ],
+    "UK": [
+      "Створіть новий профіль для всіх збережень на цьому пристрої. Інші профілі не зміняться. Введіть унікальну назву, щоб продовжити.",
+      "Ці локальні збереження не пов’язані з вибраним профілем «{ACTIVE}». Ще нічого не замінено. Використання хмарних збережень цього профілю замінить локальні збереження після створення копії для відновлення на цьому пристрої.",
+      "Профіль збережень із такою назвою вже існує. Виберіть іншу назву."
+    ],
+    "RU": [
+      "Создайте новый профиль для всех сохранений на этом устройстве. Другие профили не изменятся. Введите уникальное название, чтобы продолжить.",
+      "Эти локальные сохранения не связаны с выбранным профилем «{ACTIVE}». Пока ничего не заменено. Использование облачных сохранений этого профиля заменит локальные сохранения после создания копии для восстановления на этом устройстве.",
+      "Профиль сохранений с таким названием уже существует. Выберите другое название."
+    ],
+    "SV": [
+      "Skapa en ny profil för alla sparade spel på den här enheten. Dina andra profiler ändras inte. Ange ett unikt namn för att fortsätta.",
+      "Dessa lokala sparningar är inte kopplade till den valda profilen ”{ACTIVE}”. Inget har ersatts. Om du använder profilens molnsparningar ersätts de lokala sparningarna efter att en återställningskopia har sparats på den här enheten.",
+      "Det finns redan en sparprofil med det här namnet. Välj ett annat namn."
+    ],
+    "HY": [
+      "Ստեղծեք նոր պրոֆիլ այս սարքի բոլոր պահումների համար։ Ձեր մյուս պրոֆիլները չեն փոխվի։ Շարունակելու համար մուտքագրեք չօգտագործված անուն։",
+      "Այս տեղային պահումները կապված չեն ընտրված «{ACTIVE}» պրոֆիլի հետ։ Դեռ ոչինչ չի փոխարինվել։ Այս պրոֆիլի ամպային պահումներն օգտագործելիս նախ այս սարքում կստեղծվի վերականգնման պատճեն, ապա կփոխարինվեն տեղային պահումները։",
+      "Այս անունով պահումների պրոֆիլ արդեն կա։ Ընտրեք այլ անուն։"
+    ]
+  }
+}

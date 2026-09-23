@@ -1003,7 +1003,7 @@
       .wl-account-panel h3{margin:0;color:var(--wl-account-text,#fff);font-size:clamp(18px,2.2vw,23px);font-weight:850;line-height:1.2}.wl-account-muted{margin:0;color:rgba(238,248,241,.7);font-size:clamp(14px,1.7vw,17px);line-height:1.58}.wl-account-muted+.wl-account-muted{margin-top:10px}
       .wl-account-identity-row{display:flex;align-items:stretch;flex-wrap:wrap;gap:10px;margin-bottom:20px}.wl-account-identity{display:flex;align-items:center;gap:12px;min-height:46px;max-width:100%;padding:10px 14px;border:1px solid rgba(255,255,255,.13);border-radius:14px;background:rgba(0,0,0,.16);color:rgba(255,255,255,.92);font-size:15px;font-weight:720}.wl-account-identity::before{content:"";width:9px;height:9px;flex:0 0 auto;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 13px var(--wl-account-highlight,#d9ff45)}.wl-account-profile-switcher{position:relative;min-height:46px;display:flex;align-items:center;gap:9px;padding:5px 38px 5px 13px;border:1px solid rgba(255,255,255,.16);border-radius:14px;background:rgba(255,255,255,.08);color:rgba(255,255,255,.68);cursor:pointer}.wl-account-profile-switcher::after{content:"⌄";position:absolute;right:14px;top:50%;color:var(--wl-account-highlight,#d9ff45);font-size:20px;font-weight:900;line-height:1;transform:translateY(-58%);pointer-events:none}.wl-account-profile-label{font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.wl-account-profile-select{min-width:110px;max-width:230px;border:0;outline:0;appearance:none;-webkit-appearance:none;background:transparent;color:var(--wl-account-text,#fff);font-size:15px;font-weight:850;cursor:pointer}.wl-account-profile-select option{background:#13251f;color:#fff}.wl-account-profile-switcher:focus-within{border-color:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 0 3px rgba(217,255,69,.14)}
       .wl-account-status{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:22px 0}.wl-account-card{position:relative;min-height:106px;padding:18px 18px 16px;overflow:hidden;border:1px solid rgba(255,255,255,.13);border-radius:17px;background:linear-gradient(145deg,rgba(255,255,255,.105),rgba(0,0,0,.14));box-shadow:inset 0 1px rgba(255,255,255,.06)}.wl-account-card::after{content:"";position:absolute;width:74px;height:74px;right:-34px;bottom:-38px;border-radius:50%;background:var(--wl-account-highlight,#d9ff45);filter:blur(28px);opacity:.12}.wl-account-card b{display:block;margin-bottom:10px;color:var(--wl-account-highlight,#d9ff45);font-size:11px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}.wl-account-card{font-size:16px;font-weight:760;line-height:1.35}
-      .wl-account-actions{display:flex;flex-wrap:wrap;gap:10px;padding:16px clamp(20px,3.6vw,42px) clamp(20px,3vw,30px);border-top:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.12)}.wl-account-actions:empty{display:none}.wl-account-btn{min-height:48px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:11px 18px;background:var(--wl-account-gradient,linear-gradient(135deg,#d9ff45,#32b6a8));box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.4);color:#112016;font-size:15px;font-weight:900;letter-spacing:.01em;cursor:pointer;touch-action:manipulation;transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}.wl-account-btn:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 11px 28px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.45)}.wl-account-btn:active{transform:scale(.97)}.wl-account-btn:focus-visible{outline:3px solid var(--wl-account-highlight,#d9ff45);outline-offset:3px}.wl-account-btn:disabled{cursor:not-allowed;opacity:.45;filter:saturate(.4);transform:none}.wl-account-btn.secondary{background:rgba(255,255,255,.08);box-shadow:inset 0 1px rgba(255,255,255,.08);color:var(--wl-account-text,#fff)}.wl-account-btn.danger{border-color:rgba(255,174,185,.32);background:linear-gradient(135deg,#ff9c91,#d95b70);color:#2b0a11}
+      .wl-account-actions{max-height:45vh;display:flex;flex-wrap:wrap;gap:10px;padding:16px clamp(20px,3.6vw,42px) clamp(20px,3vw,30px);border-top:1px solid rgba(255,255,255,.1);background:rgba(0,0,0,.12)}.wl-account-actions:empty{display:none}.wl-account-btn{min-height:48px;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:11px 18px;background:var(--wl-account-gradient,linear-gradient(135deg,#d9ff45,#32b6a8));box-shadow:0 8px 22px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.4);color:#112016;font-size:15px;font-weight:900;letter-spacing:.01em;cursor:pointer;touch-action:manipulation;transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}.wl-account-btn:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 11px 28px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.45)}.wl-account-btn:active{transform:scale(.97)}.wl-account-btn:focus-visible{outline:3px solid var(--wl-account-highlight,#d9ff45);outline-offset:3px}.wl-account-btn:disabled{cursor:not-allowed;opacity:.45;filter:saturate(.4);transform:none}.wl-account-btn.secondary{background:rgba(255,255,255,.08);box-shadow:inset 0 1px rgba(255,255,255,.08);color:var(--wl-account-text,#fff)}.wl-account-btn.danger{border-color:rgba(255,174,185,.32);background:linear-gradient(135deg,#ff9c91,#d95b70);color:#2b0a11}
       .wl-account-input{display:block;width:100%;margin:18px 0 2px;padding:16px 17px;border:1px solid rgba(255,255,255,.2);border-radius:15px;outline:0;background:rgba(0,0,0,.22);box-shadow:inset 0 2px 8px rgba(0,0,0,.18);color:#fff;font-size:18px;font-weight:680;transition:border-color .15s ease,box-shadow .15s ease}.wl-account-input:focus{border-color:var(--wl-account-highlight,#d9ff45);box-shadow:0 0 0 3px rgba(217,255,69,.14),inset 0 2px 8px rgba(0,0,0,.18)}
       .wl-account-code{display:inline-block;margin:16px 0;padding:15px 19px;border:1px solid rgba(255,255,255,.2);border-radius:15px;background:rgba(0,0,0,.24);color:#fff;font:800 28px/1.1 monospace;letter-spacing:.14em}
       .wl-account-save{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;margin-top:12px;padding:17px 18px;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(0,0,0,.13);transition:border-color .14s ease,background .14s ease,transform .14s ease}.wl-account-save:hover{border-color:rgba(255,255,255,.22);background:rgba(255,255,255,.07)}.wl-account-save.active{border-color:var(--wl-account-highlight,#d9ff45);background:linear-gradient(120deg,rgba(255,255,255,.12),rgba(0,0,0,.12));box-shadow:0 0 0 1px var(--wl-account-highlight,#d9ff45),0 12px 30px rgba(0,0,0,.18)}.wl-account-save h3{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-bottom:7px}.wl-account-active-pill{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:var(--wl-account-highlight,#d9ff45);color:#142116;font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase}.wl-account-save-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}.wl-account-save-actions .wl-account-btn{min-height:42px;padding:9px 13px;font-size:13px}
@@ -1128,7 +1128,7 @@
     const localizedTitle = trSource(title);
     overlay.innerHTML = `<section class="wl-account-panel" role="dialog" aria-modal="true" aria-label="${escapeHtml(localizedTitle)}">
       <header class="wl-account-header"><div class="wl-account-mark" aria-hidden="true">W</div><div class="wl-account-heading"><div class="wl-account-kicker">${escapeHtml(trSource("WonderLang Cloud"))}</div><h2>${escapeHtml(localizedTitle)}</h2></div><div class="wl-account-trust"><span class="wl-account-trust-dot"></span>${escapeHtml(trSource("Secure sync"))}</div></header>
-      <div class="wl-account-scroll"><div class="wl-account-content">${bodyHtml}</div></div><div class="wl-account-actions"></div>
+      <div class="wl-account-scroll"><div class="wl-account-content">${bodyHtml}</div></div><div class="wl-account-actions wl-account-scroll"></div>
     </section>`;
     translateStaticTextNodes(overlay.querySelector(".wl-account-content"));
     const actionsHost = overlay.querySelector(".wl-account-actions");
@@ -1147,6 +1147,9 @@
   }
 
   function playerErrorMessage(error) {
+    if (error?.message === "A save profile with this name already exists. Choose a different name.") {
+      return tr("CloudAccount.Error.DuplicateProfileName", "A save profile with this name already exists. Choose a different name.");
+    }
     if (error instanceof AccountApiError) {
       return error.status === 401
         ? tr("CloudAccount.Error.SignInRequired", "Please sign in to your WonderLang account and try again.")
@@ -1393,6 +1396,7 @@
       const overlay = showPanel("Save profiles", intro + rows, [
         ...(active && canSyncCloud() ? [{ label: tr("CloudAccount.Action.SyncNow", "Cloud sync now"), run: syncFromUi }] : []),
         ...(canSaveLocalAsNewProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalAsNew", "Save local files to a new profile"), run: showSaveLocalAsNewProfile }] : []),
+        ...(canSaveLocalToExistingProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalToExisting", "Save local files to an existing profile"), run: showSaveLocalToExistingProfile }] : []),
         ...(profiles.length < 6 ? [{ label: "Create profile", run: showCreateProfile }] : []),
         { label: "Refresh", kind: "secondary", run: openCloudSavesPanel },
         ...(!forcePick || active ? [{ label: "Back to account", kind: "secondary", run: openAccountPanel }] : []),
@@ -1430,9 +1434,50 @@
   }
 
   function canSaveLocalAsNewProfile(profiles) {
+    // Existing ownership must not hide the non-destructive rescue path.
+    // A new profile keeps independent device progress separate from cloud saves.
+    return canSyncCloud() && hasLocalPlayerSaves() && profiles.length < 6;
+  }
+
+  function canSaveLocalToExistingProfile(profiles) {
+    return canSyncCloud() && hasLocalPlayerSaves() && profiles.length > 0;
+  }
+
+  async function keepLocalProfileRecovery() {
     const binding = workspaceBinding();
-    return accountUid() !== "signed-out" && hasLocalPlayerSaves() && profiles.length < 6 &&
-      !(binding?.uid === accountUid() && profiles.some(profile => profile.profileId === binding.profileId));
+    const bundle = await buildProfileBundle(binding?.profileId || "unlabelled");
+    await StorageManager.saveObject(`wl-profile-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`, { binding, bundle });
+  }
+
+  async function showSaveLocalToExistingProfile() {
+    const uid = accountUid();
+    const label = tr("CloudAccount.Action.SaveLocalToExisting", "Save local files to an existing profile");
+    try {
+      const profiles = await listProfiles();
+      if (accountUid() !== uid || !canSaveLocalToExistingProfile(profiles)) return openCloudSavesPanel();
+      showPanel(label, `<p class="wl-account-muted">${escapeHtml(trSource("Choose a profile"))}</p>`, [
+        ...profiles.map(profile => ({ label: profile.name, run: () => {
+          let submitting = false;
+          showPanel(label, `<p class="wl-account-error">${escapeHtml(tr("CloudAccount.Profile.ReplaceWithLocalBody", "Upload all saves on this device to “{PROFILE}”? This replaces that profile's cloud saves; the previous cloud version remains in backup history. The saves will not be merged. A recovery copy will also be kept on this device.", { PROFILE: profile.name }))}</p>`, [
+            { label: "Keep device saves", run: async () => {
+              if (submitting) return;
+              submitting = true;
+              try {
+                if (accountUid() !== uid || !canSyncCloud() || !hasLocalPlayerSaves()) return openCloudSavesPanel();
+                await keepLocalProfileRecovery();
+                if (accountUid() !== uid) return openCloudSavesPanel();
+                // Keep the revision shown at confirmation. A concurrent cloud
+                // change must trigger the normal conflict flow, never overwrite silently.
+                await activateProfile(profile, "device");
+              } catch (error) { showError(tr("CloudAccount.Error.UploadTitle", "Newer saves were not uploaded"), error, showSaveLocalToExistingProfile); }
+              finally { submitting = false; }
+            } },
+            { label: "Cancel", kind: "secondary", run: showSaveLocalToExistingProfile }
+          ]);
+        } })),
+        { label: "Cancel", kind: "secondary", run: openCloudSavesPanel }
+      ]);
+    } catch (error) { showError(tr("CloudAccount.Error.Title", "Cloud-save check failed"), error, showSaveLocalToExistingProfile); }
   }
 
   function showSaveLocalAsNewProfile() {
@@ -1443,23 +1488,21 @@
       if (submitting) return;
       submitting = true;
       try {
-        // Recheck ownership and available slots at submission, not just when
+        // Recheck access and available slots at submission, not just when
         // the recovery prompt was opened. The server enforces the limit too.
         const profiles = await listProfiles();
         if (accountUid() !== uid || !canSaveLocalAsNewProfile(profiles)) return openCloudSavesPanel();
         showPanel("Creating profile", `<p class="wl-account-muted">${escapeHtml(trSource("Creating {PROFILE}…", { PROFILE: name }))}</p>`);
-        const binding = workspaceBinding();
-        const bundle = await buildProfileBundle(binding?.profileId || "unlabelled");
-        await StorageManager.saveObject(`wl-profile-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`, { binding, bundle });
+        await keepLocalProfileRecovery();
         const profile = await request("/api/v1/cloud-save-profiles", { method: "POST", body: { name } });
-        // This is the player's explicit adoption of unmatched local files.
+        // This is the player's explicit copy of local files into a new profile.
         // Never route through selection, which could download an empty set.
         if (accountUid() !== uid) return openCloudSavesPanel();
         await activateProfile(profile, "device");
       } catch (error) {
         showError("Profile was not created", error, showSaveLocalAsNewProfile);
       } finally { submitting = false; }
-    }, tr("CloudAccount.Profile.AdoptLocalBody", "The saves on this device do not belong to any profile on your account. Create a new profile for them? All these saves will be uploaded to the new profile. Your other profiles will not change. Enter a name to continue."));
+    }, tr("CloudAccount.Profile.CopyLocalBody", "Create a new profile for all saves on this device. Your other profiles will not change. Enter a unique name to continue."));
   }
 
   function showRenameProfile(profile) {
@@ -1467,6 +1510,7 @@
     profileNameEditor("Rename save profile", profile.name, "Rename", async name => {
       try {
         await request(`/api/v1/cloud-save-profiles/${encodeURIComponent(profile.profileId)}/rename`, { method: "POST", body: { name } });
+        if (workspaceMatches(profile.profileId)) saveWorkspaceBinding(profile.profileId, { profileName: name });
         await openCloudSavesPanel();
       } catch (error) { showError("Profile was not renamed", error, () => showRenameProfile(profile)); }
     });
@@ -1730,6 +1774,7 @@
         { label: tr("CloudAccount.Action.ConfirmProfileSaves", "These are {PROFILE}'s saves", { PROFILE: profile.name }), run: () => acceptUnlabelledWorkspace(profile).catch(error => showError(tr("CloudAccount.Error.Title", "Cloud-save check failed"), error, () => showUnlabelledWorkspacePrompt(profile))) },
         ...(profile.currentRevision ? [{ label: tr("CloudAccount.Action.UseCloudCopy", "Use {PROFILE}'s cloud saves", { PROFILE: profile.name }), kind: "danger", run: () => useProfileCloudCopy(profile) }] : []),
         ...(profiles && canSaveLocalAsNewProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalAsNew", "Save local files to a new profile"), run: showSaveLocalAsNewProfile }] : []),
+        ...(profiles && canSaveLocalToExistingProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalToExisting", "Save local files to an existing profile"), run: showSaveLocalToExistingProfile }] : []),
         { label: tr("CloudAccount.Action.ChooseProfile", "Choose another profile"), kind: "secondary", run: () => openCloudSavesPanel(true) },
         { label: tr("CloudAccount.Action.NotNow", "Not now"), kind: "secondary", run: closeOverlay }
       ]);
@@ -1756,10 +1801,10 @@
 
   function showWorkspaceMismatchPrompt(profile, binding, profiles) {
     const boundProfile = binding?.uid === accountUid() ? profiles.find(item => item.profileId === binding.profileId) : null;
-    const ownerName = binding?.profileName || boundProfile?.name || tr("CloudAccount.Label.AnotherProfile", "another profile");
     showPanel(tr("CloudAccount.Startup.MismatchTitle", "Local saves belong to another profile"),
-      `<p class="wl-account-error">${escapeHtml(tr("CloudAccount.Startup.MismatchBody", "The saves on this device belong to {OWNER}, not {ACTIVE}. They will not be uploaded to {ACTIVE}. Choose their profile, or download {ACTIVE}'s cloud saves. Downloading replaces the saves on this device after keeping a recovery copy here. It does not change the saves in the cloud.", { OWNER: ownerName, ACTIVE: profile.name }))}</p>`, [
+      `<p class="wl-account-error">${escapeHtml(tr("CloudAccount.Startup.MismatchSafeBody", "These local saves are not linked to the selected profile “{ACTIVE}”. Nothing has been replaced. Using this profile's cloud saves will replace local saves after keeping a recovery copy on this device.", { ACTIVE: profile.name }))}</p>`, [
         ...(canSaveLocalAsNewProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalAsNew", "Save local files to a new profile"), run: showSaveLocalAsNewProfile }] : []),
+        ...(canSaveLocalToExistingProfile(profiles) ? [{ label: tr("CloudAccount.Action.SaveLocalToExisting", "Save local files to an existing profile"), run: showSaveLocalToExistingProfile }] : []),
         ...(boundProfile ? [{ label: tr("CloudAccount.Action.ReturnToProfile", "Return to {PROFILE}", { PROFILE: boundProfile.name }), run: () => {
           setActiveProfileId(boundProfile.profileId);
           checkedStartupWorkspace = "";
