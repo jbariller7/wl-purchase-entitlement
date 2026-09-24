@@ -13,7 +13,9 @@ const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const id=(v:string|{id:string}|null|undefined)=>typeof v==='string'?v:v?.id;
 interface Quote {request:WebsiteSessionRequest;priceId:string;claimHash:string;sessionId?:string;createdAt:string;}
 interface WebsiteOrder extends Quote {sessionId:string;buyerEmail:string;sourceEventId:string;sourceEventCreated:number;claimedByUid?:string;}
-export async function discoverWebsitePurchases(store:EntitlementStore,user:DecodedIdToken){
+// Shared by browser purchase discovery and the account refresh used by native apps.
+// Keep delivery/key lookups out of sign-in: only reconcile verified purchases here.
+export async function claimMatchingWebsitePurchases(store:EntitlementStore,user:DecodedIdToken){
   const email=requireVerifiedEmail(user);
   const matching=await store.firestore().collection('websiteOrders').where('buyerEmail','==',email).limit(100).get();
   const existingGrants=await store.grantsForUid(user.uid);
@@ -29,6 +31,9 @@ export async function discoverWebsitePurchases(store:EntitlementStore,user:Decod
       if(!(error instanceof HttpError && [403,409].includes(error.status)))throw error;
     }
   }
+}
+export async function discoverWebsitePurchases(store:EntitlementStore,user:DecodedIdToken){
+  await claimMatchingWebsitePurchases(store,user);
   const owned=await store.firestore().collection('websiteOrders').where('claimedByUid','==',user.uid).limit(100).get();
   const grants=await store.grantsForUid(user.uid);
   return Promise.all(owned.docs.map(async doc=>{

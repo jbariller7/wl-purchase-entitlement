@@ -27,7 +27,7 @@ import { EntitlementStore } from "../../src/infrastructure/entitlement-store.js"
 import { firebaseAppCheck, firebaseAuth, firebaseStorage, firestore } from "../../src/infrastructure/firebase.js";
 import { checkoutRequestSchema, createBillingPortal, createCheckout } from "../../src/providers/stripe/checkout-service.js";
 import { claimHistoricalDesktopOrder } from "../../src/providers/stripe/legacy-claim-service.js";
-import { claimWebsiteOrder, discoverWebsitePurchases, websiteSubscriptionPortal, selectWebsiteMobilePlatform } from "../../src/providers/stripe/website-commerce.js";
+import { claimWebsiteOrder, claimMatchingWebsitePurchases, discoverWebsitePurchases, websiteSubscriptionPortal, selectWebsiteMobilePlatform } from "../../src/providers/stripe/website-commerce.js";
 import { syncGooglePlayOneTimeProduct, syncGooglePlaySubscription, googlePlaySubscriptionAdDetails, googlePlayOneTimeAdDetails } from "../../src/providers/google-play/service.js";
 import { sha256 } from "../../src/infrastructure/ids.js";
 import { claimAppleTransaction } from "../../src/providers/apple/service.js";
@@ -331,6 +331,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (event.httpMethod === "GET" && path === "/v1/me") {
     if (user.email && user.email_verified) {
       await new AdminImportService(db, firebaseAuth()).claimPendingForVerifiedUser({ uid: user.uid, email: user.email, now });
+      await claimMatchingWebsitePurchases(store, user);
     }
     const [entitlements, discount, grants, authUser, cloudProfiles, stripeCustomerId, secondPlatformRequest] = await Promise.all([
       store.effectiveEntitlements(user.uid, now),
