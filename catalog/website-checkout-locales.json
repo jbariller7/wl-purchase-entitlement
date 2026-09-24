@@ -3,7 +3,7 @@
     "stripeLocale": "en", "single": "WonderLang — One Language (PC/Mac)", "polyglot": "WonderLang — Polyglot (PC/Mac)", "premium": "WonderLang — Premium Lifetime Pass",
     "singleDescription": "Permanent PC/Mac access to one learning language. Steam key or direct download. Mobile access and cloud saves are not included.",
     "polyglotDescription": "Permanent PC/Mac access to all current and future learning languages. Steam key or direct download. Mobile access and cloud saves are not included.",
-    "premiumDescription": "One-time payment. All learning languages, permanent access on Android and iOS, one PC/Mac access, cross-platform cloud saves, and all future sequels and additional content. Both mobile platforms are included automatically.",
+    "premiumDescription": "One-time payment. All learning languages, permanent Android access, PC/Mac access, cross-platform cloud saves, and future sequels and additional content when released. iOS access is included when the iOS version launches; it is not available yet.",
     "delivery": "PC/Mac delivery", "steam": "Steam key", "direct": "Direct download", "language": "Language you want to learn", "mobile": "First mobile platform (included)", "later": "Choose later",
     "languages": ["French", "Spanish", "German", "Italian", "Portuguese", "Korean", "Japanese", "Mandarin Chinese", "English"]
   },
@@ -11,7 +11,7 @@
     "stripeLocale": "fr", "single": "WonderLang — Une langue (PC/Mac)", "polyglot": "WonderLang — Polyglotte (PC/Mac)", "premium": "WonderLang — Pass Premium à vie",
     "singleDescription": "Accès permanent sur PC/Mac à une langue à apprendre. Clé Steam ou téléchargement direct. Accès mobile et sauvegardes cloud non inclus.",
     "polyglotDescription": "Accès permanent sur PC/Mac à toutes les langues d’apprentissage actuelles et futures. Clé Steam ou téléchargement direct. Accès mobile et sauvegardes cloud non inclus.",
-    "premiumDescription": "Paiement unique. Toutes les langues, un accès permanent sur Android et iOS, un accès PC/Mac, les sauvegardes cloud multiplateformes et tous les futurs contenus et suites. Les deux plateformes mobiles sont incluses automatiquement.",
+    "premiumDescription": "Paiement unique. Toutes les langues, un accès permanent sur Android, un accès PC/Mac, les sauvegardes cloud multiplateformes et les futurs contenus et suites à leur sortie. L’accès iOS est inclus dès le lancement de cette version, qui n’est pas encore disponible.",
     "delivery": "Version PC/Mac souhaitée", "steam": "Clé Steam", "direct": "Téléchargement direct", "language": "Langue que vous souhaitez apprendre", "mobile": "Première plateforme mobile (incluse)", "later": "Choisir plus tard",
     "languages": ["Français", "Espagnol", "Allemand", "Italien", "Portugais", "Coréen", "Japonais", "Chinois mandarin", "Anglais"]
   },
@@ -27,7 +27,7 @@
     "stripeLocale": "es", "single": "WonderLang — Un idioma (PC/Mac)", "polyglot": "WonderLang — Políglota (PC/Mac)", "premium": "WonderLang — Pase Premium de por vida",
     "singleDescription": "Acceso permanente en PC/Mac a un idioma de aprendizaje. Clave de Steam o descarga directa. No incluye acceso móvil ni partidas guardadas en la nube.",
     "polyglotDescription": "Acceso permanente en PC/Mac a todos los idiomas de aprendizaje actuales y futuros. Clave de Steam o descarga directa. No incluye acceso móvil ni partidas guardadas en la nube.",
-    "premiumDescription": "Pago único. Todos los idiomas, acceso permanente en Android e iOS, un acceso para PC/Mac, partidas en la nube entre plataformas y todas las futuras secuelas y contenidos adicionales. Ambas plataformas móviles se incluyen automáticamente.",
+    "premiumDescription": "Pago único. Todos los idiomas, acceso permanente en Android, acceso para PC/Mac, partidas en la nube entre plataformas y futuras secuelas y contenidos adicionales cuando se publiquen. El acceso a iOS se incluye cuando se lance esa versión, que aún no está disponible.",
     "delivery": "Versión para PC/Mac", "steam": "Clave de Steam", "direct": "Descarga directa", "language": "Idioma que quieres aprender", "mobile": "Primera plataforma móvil (incluida)", "later": "Elegir más tarde",
     "languages": ["Francés", "Español", "Alemán", "Italiano", "Portugués", "Coreano", "Japonés", "Chino mandarín", "Inglés"]
   },

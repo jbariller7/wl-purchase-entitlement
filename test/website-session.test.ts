@@ -11,7 +11,8 @@ describe('guest website selections',()=>{
   const params=(options:object)=>websiteSessionParams(websiteSessionSchema.parse({...common,locale:'fr',...options}),'price_approved','https://example.com');
   const premium=params({offer:'premium',delivery:'steam',mobilePlatform:'android'});
   expect(checkoutMessage(premium)).toContain('Version PC/Mac souhaitée: Clé Steam');
-  expect(checkoutMessage(premium)).toContain('Android et iOS');
+  expect(checkoutMessage(premium)).toContain('Android');
+  expect(checkoutMessage(premium)).toContain('L’accès iOS est inclus dès le lancement');
   expect(checkoutMessage(premium)).not.toContain('Première plateforme mobile');
   expect(premium.custom_fields).toBeUndefined();
   const single=params({offer:'single',delivery:'direct',learningLanguage:'french'});

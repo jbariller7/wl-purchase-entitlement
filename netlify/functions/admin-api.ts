@@ -13,6 +13,7 @@ import { AdminImportService } from "../../src/admin/import-service.js";
 import { AdminOperationsService } from "../../src/admin/operations-service.js";
 import { AdminProviderDiagnosticService } from "../../src/admin/provider-diagnostic-service.js";
 import type { AdminActor } from "../../src/admin/audit.js";
+import { experimentControl,controlExperiment,experimentReport } from '../../src/analytics/website-experiments.js';
 import { deploymentControls } from "../../src/config/env.js";
 import { requireAppCheck } from "../../src/http/app-check.js";
 import { HttpError, requireAdmin, requireUser } from "../../src/http/auth.js";
@@ -130,6 +131,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const discounts = new DiscountLinks(db);
     if (event.httpMethod === "GET") return json(200, await discounts.list());
     if (event.httpMethod === "POST") return json(201, await discounts.create(discountLinkSchema.parse(body(discountLinkSchema, event)), actor, now));
+  }
+  if(path==='/v1/experiments'){
+    if(event.httpMethod==='GET')return json(200,await experimentReport(db,event.queryStringParameters?.id));
+    if(event.httpMethod==='POST')return json(200,await controlExperiment(db,body(experimentControl,event),actor.uid));
   }
   const discountAction = path.match(/^\/v1\/discount-links\/([0-9a-f-]+)\/(active|provision|website-sale)$/i);
   if (event.httpMethod === "POST" && discountAction) {

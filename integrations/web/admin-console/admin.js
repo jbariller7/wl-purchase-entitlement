@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { renderDiscountLinks, bindDiscountLinks, demoDiscountLinks } from "./discount-links.js";
+import {renderExperiments,bindExperiments,demoExperiments} from './experiments.js';
 import { getToken as getAppCheckToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import {
   getAuth, getRedirectResult, GoogleAuthProvider, OAuthProvider, onAuthStateChanged,
@@ -164,8 +165,9 @@ function majorAmount(currency, unitAmount) {
   return (Number(unitAmount) / (digits === 0 ? 1 : 100)).toFixed(digits);
 }
 
-const views = { overview: "Overview", customers: "Customers", discounts: "Discount links", sales: "Website sales", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
+const views = { overview: "Overview", customers: "Customers", discounts: "Discount links", sales: "Website sales", experiments: "Website A/B tests", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
 const endpoints = {
+  experiments: "/admin-api/v1/experiments",
   discounts: "/admin-api/v1/discount-links",
   sales: "/admin-api/v1/discount-links",
   overview: "/admin-api/v1/overview", billing: "/admin-api/v1/catalog", operations: "/admin-api/v1/operations",
@@ -381,6 +383,7 @@ async function api(path, options = {}) {
   return body;
 }
 function demoApi(path, options) {
+  if(path.startsWith('/admin-api/v1/experiments'))return demoExperiments(path,options);
   if (path.startsWith("/admin-api/v1/discount-links")) return demoDiscountLinks(path, options);
   if (path.startsWith("/admin-api/v1/customers?")) {
     const f = new URLSearchParams(path.split("?")[1]);
@@ -660,10 +663,11 @@ async function loadView(view) {
       state.secondPlatformRequests = result.requests || [];
       directory.result = accounts;
     }
-    else if (["discounts", "sales", "billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
+    else if (["discounts", "sales", "experiments", "billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
     if (revision !== viewLoadRevision || state.view !== view) return;
-    const content = (view === "discounts" || view === "sales") ? renderDiscountLinks(data,view === "sales") : view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports() : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
+    const content = view === "experiments" ? renderExperiments(data) : (view === "discounts" || view === "sales") ? renderDiscountLinks(data,view === "sales") : view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports() : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
     appNode.innerHTML = shell(content); bindShell(); bindView();
+    if(view === "experiments") bindExperiments({api,toast,reload:()=>loadView(view)});
     if (view === "discounts" || view === "sales") bindDiscountLinks({ api, toast, reload: () => loadView(view) });
     if (state.notice) {
       const notice = state.notice;

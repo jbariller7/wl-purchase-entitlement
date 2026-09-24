@@ -6,6 +6,7 @@ document.documentElement.lang=locale;document.documentElement.dir=locale==='ar'?
 try{
  const selection={offer:q.get('offer'),locale,currency:q.get('currency')||'USD'};
  if(q.has('campaign'))selection.campaignId=q.get('campaign');
+ if(/^[a-f0-9]{64}$/.test(q.get('experimentToken')||''))selection.experimentToken=q.get('experimentToken');
  for(const key of ['delivery','learningLanguage','mobilePlatform'])if(q.has(key))selection[key]=q.get(key);
  const storageKey='wl-checkout-attempt:'+JSON.stringify(selection);
  let attempt=JSON.parse(sessionStorage.getItem(storageKey)||'null');

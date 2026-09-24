@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { validEnrollment,recordExperiment } from '../../analytics/website-experiments.js';
 import type Stripe from "stripe";
 import type { DecodedIdToken } from "firebase-admin/auth";
 import { websiteStripeClient as stripeClient, websiteStripeConfiguration, websitePriceId } from './website-config.js';
@@ -11,7 +12,7 @@ import { websiteSessionSchema, websiteSessionParams, websiteAttribution, assertW
 import { DiscountLinks, assertDiscountAvailable, applyDiscountToSession } from "./discount-links.js";
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const id=(v:string|{id:string}|null|undefined)=>typeof v==='string'?v:v?.id;
-interface Quote {request:WebsiteSessionRequest;priceId:string;claimHash:string;sessionId?:string;createdAt:string;}
+interface Quote {request:WebsiteSessionRequest;priceId:string;claimHash:string;sessionId?:string;createdAt:string;experimentToken?:string|null;}
 interface WebsiteOrder extends Quote {sessionId:string;buyerEmail:string;sourceEventId:string;sourceEventCreated:number;claimedByUid?:string;}
 // Shared by browser purchase discovery and the account refresh used by native apps.
 // Keep delivery/key lookups out of sign-in: only reconcile verified purchases here.
@@ -101,7 +102,8 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   if(campaign) {assertDiscountAvailable(campaign,new Date(),request);await campaigns!.assertPublished(campaign);}
   const price=await stripe.prices.retrieve(priceId,{expand:['currency_options']});
   assertWebsitePrice(price,request,true);
-  const quote:Quote={request,priceId,claimHash:digest(claimSecret),createdAt:new Date().toISOString()};
+  const enrollment=request.experimentToken?await validEnrollment(store.firestore(),request.experimentToken):null;
+  const quote:Quote={request,priceId,claimHash:digest(claimSecret),createdAt:new Date().toISOString(),...(request.experimentToken?{experimentToken:enrollment?.events?.exposure?request.experimentToken:null}:{})};
   const ref=store.firestore().collection('websiteCheckoutRequests').doc(request.requestId);
   const attempt=await store.firestore().runTransaction(async tx=>{const previous=await tx.get(ref);if(previous.exists){const p=previous.data() as Quote;if(p.claimHash!==quote.claimHash||JSON.stringify(p.request)!==JSON.stringify(request)||p.priceId!==priceId)throw new HttpError(409,'Checkout request cannot be reused with different options.');return p;}tx.create(ref,quote);return quote;});
   const previousSession=attempt.sessionId;
@@ -110,6 +112,7 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
     const previous=await stripe.checkout.sessions.retrieve(previousSession);
     if(previous.status==='complete')return {completed:true,sessionId:previous.id};
     if(previous.status==='open'&&previous.url){
+      await recordExperiment(store.firestore(),previous.metadata?.wl_experiment_token,'checkout');
       if(campaign && campaigns) await campaigns.registerSession(campaign,previous,new Date());
       return {url:previous.url,sessionId:previous.id};
     }
@@ -117,6 +120,12 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   }
   const parameters=websiteSessionParams(request,priceId,origin);
   parameters.metadata={...parameters.metadata,wl_request_id:request.requestId};
+  // Freeze attribution with the original attempt so retrying Stripe's same
+  // idempotency key cannot change its parameters after expiry or withdrawal.
+  if(attempt.experimentToken){
+    parameters.metadata.wl_experiment_token=attempt.experimentToken;
+    if(parameters.subscription_data)parameters.subscription_data.metadata={...parameters.subscription_data.metadata,wl_experiment_token:attempt.experimentToken};
+  }
   if(process.env.ORDER_EMAILS_ENABLED==='true' && Number.isFinite(Date.parse(process.env.ORDER_EMAILS_START_AT??''))){
     parameters.metadata.wl_email_owner='workspace-v1';
     if(parameters.subscription_data)parameters.subscription_data.metadata={...parameters.subscription_data.metadata,wl_email_owner:'workspace-v1'};
@@ -126,10 +135,12 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
     if(Date.now()-Date.parse(attempt.createdAt)>1800000) throw new HttpError(409,'This checkout attempt has expired. Please select your offer again.');
     applyDiscountToSession(parameters,campaign,origin,new Date(attempt.createdAt));
   }
+  if(attempt.experimentToken&&parameters.cancel_url){const cancel=new URL(parameters.cancel_url);cancel.searchParams.set('experimentToken',attempt.experimentToken);parameters.cancel_url=cancel.href;}
   const session=await stripe.checkout.sessions.create(parameters,{idempotencyKey:`website-session-v1:${request.requestId}`});
   if(!session.url)throw new Error('Stripe checkout URL is missing.');
   await store.saveCheckoutContext(session.id,{...context,...websiteAttribution(request),eventSourceUrl:origin+'/shop/'},new Date());
   await ref.set({sessionId:session.id},{merge:true});
+  await recordExperiment(store.firestore(),parameters.metadata.wl_experiment_token as string|undefined,'checkout');
   if(campaign && campaigns) await campaigns.registerSession(campaign,session,new Date());
   return {url:session.url,sessionId:session.id};
 }
@@ -159,6 +170,11 @@ export async function recordWebsitePayment(store:EntitlementStore,session:Stripe
   await store.firestore().runTransaction(async tx=>{const previous=await tx.get(ref);if(!previous.exists)tx.create(ref,{...quote,sessionId:session.id,buyerEmail,sourceEventId:event.id,sourceEventCreated:event.created});});
   const route=websiteDesktopRoute(quote.request);
   if(route){const transactionId=id(session.payment_intent);const order:LegacyOrder={id:session.id,stripeCheckoutSessionId:session.id,...(transactionId?{stripePaymentIntentId:transactionId}:{}),buyerEmail,productCode:route.productCode,playMode:route.playMode,quantity:1,amountTotal:session.amount_total??0,currency:session.currency?.toUpperCase()??'USD',paidAt:new Date(event.created*1000).toISOString()};await store.saveLegacyOrder(order);}
+  const token=session.metadata?.wl_experiment_token;
+  if(token){
+    if(quote.request.offer==='mobile_monthly')await recordExperiment(store.firestore(),token,'trial',undefined,event.created*1000);
+    else if(session.payment_status==='paid')await recordExperiment(store.firestore(),token,'purchase',{id:session.id,amount:session.amount_total??0,currency:session.currency??''},event.created*1000);
+  }
   return quote.request;
 }
 export async function claimWebsiteOrder(store:EntitlementStore,user:DecodedIdToken,sessionId:string,claimSecret?:string){

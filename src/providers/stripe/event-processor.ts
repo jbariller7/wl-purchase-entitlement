@@ -11,6 +11,7 @@ import { paymentLinkId, routeLegacyOrder, routePremiumDesktopAccess, type Premiu
 import { stripeClient, withStripeClient } from "./client.js";
 import {websiteStripeClient} from './website-config.js';
 import { recordWebsitePayment } from "./website-commerce.js";
+import { recordExperiment } from '../../analytics/website-experiments.js';
 import {queueCheckoutConfirmation, queueInvoiceConfirmation} from '../../email/purchase-confirmation.js';
 
 type Expandable = string | { id: string } | null | undefined;
@@ -342,6 +343,9 @@ async function invoicePaid(store: EntitlementStore, invoice: Stripe.Invoice, eve
   if (!subscriptionId) return;
   const synced = await syncSubscription({ store, subscriptionId, event });
   if (!synced.subscription) return;
+  if(event.livemode===true&&invoice.status==='paid'&&invoice.amount_paid>0&&invoice.id){
+    await recordExperiment(store.firestore(),synced.subscription.metadata.wl_experiment_token,'purchase',{id:invoice.id,amount:invoice.amount_paid,currency:invoice.currency},event.created*1000);
+  }
   await queueInvoiceConfirmation(store,invoice,event,synced.subscription);
   let firstPaidInvoice = false;
   if (deploymentControls().AD_CONVERSIONS_ENABLED && event.livemode === true &&

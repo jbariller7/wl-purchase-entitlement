@@ -235,3 +235,4 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
   .search-bar { flex-direction: column; }
   .info-strip { align-items: flex-start; flex-direction: column; }
 }
+.experiment-page .page-intro{display:block}.experiment-page .page-intro h2{font-size:36px;margin:8px 0 14px}.experiment-page .page-intro p{max-width:900px}.experiment-page .panel{padding:24px;margin-top:24px}.experiment-page .panel header{padding:0;gap:16px;flex-wrap:wrap}.experiment-page .table-wrap{overflow-x:auto}.experiment-page details{margin-top:20px}.experiment-page summary{cursor:pointer;font-weight:700}

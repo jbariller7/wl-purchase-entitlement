@@ -10,7 +10,8 @@ function database(){
   const path=`${name}/${id}`;
   return {path,id,get:async()=>({exists:docs.has(path),data:()=>docs.get(path)}),set:async(data:any)=>docs.set(path,{...docs.get(path),...data})};
  }})};
- db.runTransaction=async(action:any)=>action({get:(ref:any)=>ref.get(),create:(ref:any,data:any)=>docs.set(ref.path,data),update:(ref:any,data:any)=>ref.set(data)});
+ db.doc=(path:string)=>db.collection(path.split('/')[0]).doc(path.split('/')[1]);
+ db.runTransaction=async(action:any)=>action({get:(ref:any)=>ref.get(),create:(ref:any,data:any)=>docs.set(ref.path,data),update:(ref:any,data:any)=>ref.set(data),set:(ref:any,data:any)=>ref.set(data)});
  const saveLegacyOrder=vi.fn(),enqueue=vi.fn();
  const store={firestore:()=>db,saveLegacyOrder,enqueue,saveCheckoutContext:vi.fn()} as unknown as EntitlementStore;
  return {docs,store,saveLegacyOrder,enqueue};
@@ -23,6 +24,30 @@ beforeEach(()=>{
  api.checkout.sessions.create.mockResolvedValue({id:'cs_live_new',url:'https://checkout.stripe.com/c/pay/cs_live_new'});
 });
 describe('website checkout runtime',()=>{
+ it('carries only verified experiment enrollments into Stripe and deduplicates paid attribution',async()=>{
+  const {store,docs}=database(),token='b'.repeat(64),at=Date.now();
+  docs.set('websiteExperimentEnrollments/'+token,{experimentId:'hero',variant:'B',createdAt:at-1000,locale:'fr',device:'mobile',country:'FR',source:'direct',events:{exposure:true}});
+  await startWebsiteCheckout(store,{...request,experimentToken:token},secret);
+  const params=api.checkout.sessions.create.mock.calls[0]![0];expect(params.metadata.wl_experiment_token).toBe(token);
+  api.checkout.sessions.listLineItems.mockResolvedValue({data:[{price:{id:'price_approved'},quantity:1}]});
+  const paid={id:'cs_live_new',livemode:true,payment_status:'paid',metadata:params.metadata,customer_details:{email:'Buyer@example.com'},payment_intent:'pi_paid',amount_total:5999,currency:'eur'} as unknown as Stripe.Checkout.Session;
+  for(let i=0;i<2;i++)await recordWebsitePayment(store,paid,{id:'evt_paid',created:Math.ceil(at/1000)} as Stripe.Event);
+  expect(docs.get('websiteExperimentResults/hero').variants.B).toMatchObject({checkout:1,purchases:1,transactions:1,revenue:{EUR:5999}});
+ });
+ it('ignores a syntactically valid token which was never enrolled',async()=>{
+  const {store}=database();await startWebsiteCheckout(store,{...request,experimentToken:'c'.repeat(64)},secret);
+  expect(api.checkout.sessions.create.mock.calls[0]![0].metadata.wl_experiment_token).toBeUndefined();
+ });
+ it('keeps Stripe retry parameters stable if consent is withdrawn during an interrupted checkout',async()=>{
+  const {store,docs}=database(),token='d'.repeat(64);
+  const e={experimentId:'hero',variant:'A',createdAt:Date.now()-1000,events:{exposure:true}};docs.set('websiteExperimentEnrollments/'+token,e);
+  api.checkout.sessions.create.mockRejectedValueOnce(Error('interrupted'));
+  await expect(startWebsiteCheckout(store,{...request,experimentToken:token},secret)).rejects.toThrow('interrupted');
+  docs.set('websiteExperimentEnrollments/'+token,{...e,withdrawn:true});
+  await startWebsiteCheckout(store,{...request,experimentToken:token},secret);
+  expect(api.checkout.sessions.create.mock.calls[1]).toEqual(api.checkout.sessions.create.mock.calls[0]);
+  expect(docs.has('websiteExperimentResults/hero')).toBe(false);
+ });
  it.each(['mobile_monthly','mobile_permanent'] as const)('blocks new %s iOS checkout before contacting Stripe',async offer=>{
   const {store}=database();
   await expect(startWebsiteCheckout(store,{offer,mobilePlatform:'ios',locale:'en',currency:'USD',requestId:request.requestId},secret)).rejects.toThrow(/not available/);
