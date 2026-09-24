@@ -46,7 +46,7 @@ function render(){
  function choice(key,label,values){const wrapper=document.createElement('label'),text=document.createElement('span'),select=document.createElement('select');text.textContent=label;for(const [value,name]of values)select.add(new Option(name,value));if(campaign?.[key])options[key]=campaign[key];if(options[key])select.value=options[key];select.disabled=Boolean(campaign?.[key]);options[key]=select.value;select.onchange=()=>{options[key]=select.value;update()};wrapper.append(text,select);card.append(wrapper)}
  if(offer==='single')choice('learningLanguage',l.language,['french','spanish','german','italian','portuguese','korean','japanese','mandarin','english'].map((x,i)=>[x,l.languages[i]]));
  if(!isMobile)choice('delivery',l.delivery,[['steam',l.steam],['direct',l.direct]]);
- if(isMobile)choice('mobilePlatform',mobile[lang][4],[['android','Android'],['ios','iOS']]);
+ if(isMobile)choice('mobilePlatform',mobile[lang][4],[['android','Android']]);
  if(isMonthly){const trial=document.createElement('p');trial.textContent=mobile[lang][7];card.append(trial)}
  buy.className='buy';buy.textContent=t[1];buy.target='_blank';buy.rel='noopener';update();card.append(buy);grid.append(card);
  });

@@ -21,6 +21,7 @@ export const discountLinkSchema = z.object({
   expiresAt: z.string().datetime().nullable().default(null)
 }).strict().superRefine((v,c) => {
   const invalid=(message:string)=>c.addIssue({code:"custom",message});
+  if(v.mobilePlatform==='ios') invalid('iOS purchases are not available yet.');
   if(v.offer!=="mobile_monthly" && v.duration!=="once") invalid("Recurring discounts require Mobile Monthly.");
   if(v.duration==="repeating" && !v.durationMonths) invalid("Enter the number of discounted months.");
   if(v.duration!=="repeating" && v.durationMonths) invalid("Months apply only to repeating discounts.");
@@ -31,6 +32,7 @@ export const discountLinkSchema = z.object({
 export type DiscountInput = z.infer<typeof discountLinkSchema>;
 export type DiscountLink = DiscountInput & { active: boolean; ready: boolean; couponId: string; createdAt: string; updatedAt: string };
 export function assertDiscountAvailable(link: DiscountLink, now: Date, request?: WebsiteSessionRequest): void {
+  if(link.offer.startsWith('mobile_') && link.mobilePlatform==='ios') throw new HttpError(410,"This offer is no longer available.");
   if(!link.ready || !link.active || (link.expiresAt && Date.parse(link.expiresAt)<=now.getTime())) throw new HttpError(410,"This offer is no longer available.");
   if(request && (request.offer!==link.offer || (["delivery","learningLanguage","mobilePlatform"] as const).some(k=>link[k] && link[k]!==request[k]))) throw new HttpError(400,"This checkout does not match the discount link.");
 }

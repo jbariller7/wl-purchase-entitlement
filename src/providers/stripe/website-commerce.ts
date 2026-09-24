@@ -90,6 +90,8 @@ export async function selectWebsiteMobilePlatform(store:EntitlementStore,user:De
  return {mobilePlatform:selected};
 }
 export async function startWebsiteCheckout(store:EntitlementStore,request:WebsiteSessionRequest,claimSecret:string,context:{ipAddress?:string;userAgent?:string}={}){
+  // Apply only to new checkouts; historical paid iOS orders remain claimable.
+  if(request.offer.startsWith('mobile_') && request.mobilePlatform==='ios')throw new HttpError(410,'This mobile platform is not available for purchase yet.');
   if(!/^[A-Za-z0-9_-]{43}$/.test(claimSecret))throw new HttpError(400,'Invalid purchase recovery secret.');
   const priceId=websitePriceId(request.offer);
   if(!priceId)throw new HttpError(503,'This website offer is not configured.');

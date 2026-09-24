@@ -28,7 +28,7 @@ export function renderDiscountLinks(data){
  <label>Default currency (buyers can change it)<select name="currency">${options(Object.fromEntries(data.currencies.map(c=>[c,c])))}</select></label>
  <label data-discount-desktop>Delivery<select name="delivery"><option value="">Buyer chooses</option><option value="steam">Steam key</option><option value="direct">Direct download</option></select></label>
  <label data-discount-single>Learning language<select name="learningLanguage"><option value="">Buyer chooses</option>${options({french:'French',spanish:'Spanish',german:'German',italian:'Italian',portuguese:'Portuguese',korean:'Korean',japanese:'Japanese',mandarin:'Mandarin',english:'English'})}</select></label>
- <label data-discount-mobile>Mobile platform<select name="mobilePlatform"><option value="">Buyer chooses</option><option value="android">Android</option><option value="ios">iOS</option></select></label>
+ <label data-discount-mobile>Mobile platform<select name="mobilePlatform"><option value="android">Android</option></select></label>
  <label data-discount-monthly>Subscription discount duration<select name="duration"><option value="once">First payment</option><option value="repeating">A number of months</option><option value="forever">Every payment</option></select></label>
  <label data-discount-months>Number of months<input name="durationMonths" type="number" min="1" max="36" step="1" value="3"></label>
  <label>Expiry date and time (your local time; optional)<input name="expiresAt" type="datetime-local"></label>

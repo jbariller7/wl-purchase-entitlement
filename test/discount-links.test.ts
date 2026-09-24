@@ -20,6 +20,10 @@ function fixture(){
  return {records,stripe,service:new DiscountLinks(db as unknown as Firestore,stripe as unknown as Stripe,'https://wonderlang.app')};
 }
 describe('discount campaigns',()=>{
+ it('rejects new iOS campaigns and makes existing iOS campaign links unavailable',()=>{
+  expect(discountLinkSchema.safeParse({...input,delivery:undefined,offer:'mobile_permanent',mobilePlatform:'ios'}).success).toBe(false);
+  expect(()=>assertDiscountAvailable({...link,offer:'mobile_permanent',mobilePlatform:'ios'},now)).toThrow(/no longer available/);
+ });
  it('applies a named percentage to every currency without changing normal fulfillment metadata',()=>{
   for(const currency of Object.keys(prices)){
    const request=websiteSessionSchema.parse({offer:'premium',delivery:'steam',locale:'fr',currency,requestId:id,campaignId:id});

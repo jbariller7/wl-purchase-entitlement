@@ -23,6 +23,12 @@ beforeEach(()=>{
  api.checkout.sessions.create.mockResolvedValue({id:'cs_live_new',url:'https://checkout.stripe.com/c/pay/cs_live_new'});
 });
 describe('website checkout runtime',()=>{
+ it.each(['mobile_monthly','mobile_permanent'] as const)('blocks new %s iOS checkout before contacting Stripe',async offer=>{
+  const {store}=database();
+  await expect(startWebsiteCheckout(store,{offer,mobilePlatform:'ios',locale:'en',currency:'USD',requestId:request.requestId},secret)).rejects.toThrow(/not available/);
+  expect(api.prices.retrieve).not.toHaveBeenCalled();
+  expect(api.checkout.sessions.create).not.toHaveBeenCalled();
+ });
  it('creates the live guest session without unrelated native/test feature switches',async()=>{
   const {store,docs}=database();
   const result=await startWebsiteCheckout(store,request,secret);
