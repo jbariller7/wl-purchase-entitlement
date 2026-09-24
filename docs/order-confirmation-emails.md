@@ -16,7 +16,7 @@ Native Google Play / App Store purchases still receive store receipts. They do n
 
 Sender and reply-to: orders@wonderlang.app (existing alias). Authenticated account: jonathan@wonderlang.app. SMTP: smtp-relay.gmail.com, port 587, required STARTTLS, certificate verification enabled. Password: Netlify secret `ORDER_EMAIL_SMTP_PASSWORD`, production deploy context only. The current Netlify plan locks secret scopes to Builds, Functions and Runtime; selecting Functions alone requires an upgrade. The application reads this secret only in server email code and never injects it into browser assets. No secret belongs in Git or chat.
 
-Google Admin routing rule **WonderLang order confirmations**: domain sender addresses only, SMTP authentication required, TLS required. Saved on 2026-09-24. SPF, google DKIM public record and DMARC were present when checked. Actual delivered-message headers still require verification.
+Google Admin routing rule **WonderLang order confirmations**: domain sender addresses only, SMTP authentication required, TLS required. Saved on 2026-09-24. SPF, google DKIM public record and DMARC were present when checked. Owner preview delivery was verified in Gmail on 2026-09-24: sender/reply-to orders@wonderlang.app, mailed by wonderlang.app, signed by wonderlang.app, TLS encryption. The raw SPF/DMARC result headers were not inspected.
 
 Activation sequence:
 
@@ -38,6 +38,8 @@ Admin → Operations already shows `purchase_confirmation` jobs and terminal fai
 
 Generate dummy previews: `node --import tsx scripts/preview-order-emails.ts`. Output is ignored under backups/order-email-previews. No real keys or recipients are used.
 
-## Remaining activation work
+## Production activation
 
-Backend commit 3f5f9e8 and key allocator commit 977b492 were published successfully on 2026-09-24. The sending credential has not yet been provided. The Google app-password page is waiting for owner reauthentication, and Netlify's new-secret form is prepared with only the Production value to be filled by the user. Do not claim live sending or verified inbox delivery until steps 2–5 are complete. 83 distinct focused tests passed, TypeScript passed, and English and Arabic previews were visually checked.
+Backend commit 3f5f9e8 and key allocator commit 977b492 were published successfully on 2026-09-24. Commit 10d7b50 adds allowlisted SMTP error codes to the admin test response, without exposing provider responses or credentials; TypeScript validation passed.
+
+The Workspace app password is stored as a production Netlify secret. Owner-only dummy preview emails reached the inbox. ORDER_EMAILS_START_AT is 2026-09-24T14:08:30.902Z and ORDER_EMAILS_ENABLED is true in production only. Deployment 6ab52f76f647130936cd4b78 published these settings; the live admin Operations card confirmed sending enabled, credential configured, and the expected start time. No historical order backfill was performed. The first legitimate new purchase still needs observation through queued purchase_confirmation to sent; no artificial paid order was created. 83 distinct focused tests previously passed, and English and Arabic previews were visually checked.
