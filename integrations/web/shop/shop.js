@@ -71,7 +71,14 @@ function render(){
  const grid=document.getElementById('offers');grid.replaceChildren();
  if(campaignLoading||campaignError){document.getElementById('status').textContent=campaignError?discountText[lang][0]:t[5];return;}
  if(campaign)document.getElementById('heading').textContent=campaign.name;
- let tabs=document.getElementById('platform-tabs');if(!tabs){tabs=document.createElement('nav');tabs.id='platform-tabs';grid.before(tabs)}tabs.replaceChildren();
+ let tabs=document.getElementById('platform-tabs');
+ if(!tabs){
+  const row=document.createElement('div');row.className='shop-toolbar';
+  tabs=document.createElement('nav');tabs.id='platform-tabs';
+  const currencyControl=currencySelect.closest('label');currencyControl.classList.add('toolbar-currency');
+  row.append(tabs,currencyControl);grid.before(row);
+ }
+ tabs.replaceChildren();
  for(const [value,label] of [['desktop','PC / Mac'],['mobile',mobile[lang][4]],['both',mobile[lang][5]]]){const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-pressed',String(category===value));button.onclick=()=>{category=value;render()};tabs.append(button)}
  tabs.hidden=Boolean(campaign);tabs.style.display=campaign?"none":"";
  const offers=campaign?[campaign.offer]:category==='desktop'?['single','polyglot','premium']:category==='mobile'?['mobile_monthly','mobile_permanent','premium']:['premium'];
