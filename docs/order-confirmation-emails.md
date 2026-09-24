@@ -14,7 +14,7 @@ Native Google Play / App Store purchases still receive store receipts. They do n
 
 ## Transport and activation
 
-Sender and reply-to: orders@wonderlang.app (existing alias). Authenticated account: jonathan@wonderlang.app. SMTP: smtp-relay.gmail.com, port 587, required STARTTLS, certificate verification enabled. Password: Netlify secret `ORDER_EMAIL_SMTP_PASSWORD`, production Functions scope only. No secret belongs in Git, browser assets, or chat.
+Sender and reply-to: orders@wonderlang.app (existing alias). Authenticated account: jonathan@wonderlang.app. SMTP: smtp-relay.gmail.com, port 587, required STARTTLS, certificate verification enabled. Password: Netlify secret `ORDER_EMAIL_SMTP_PASSWORD`, production deploy context only. The current Netlify plan locks secret scopes to Builds, Functions and Runtime; selecting Functions alone requires an upgrade. The application reads this secret only in server email code and never injects it into browser assets. No secret belongs in Git or chat.
 
 Google Admin routing rule **WonderLang order confirmations**: domain sender addresses only, SMTP authentication required, TLS required. Saved on 2026-09-24. SPF, google DKIM public record and DMARC were present when checked. Actual delivered-message headers still require verification.
 
@@ -40,4 +40,4 @@ Generate dummy previews: `node --import tsx scripts/preview-order-emails.ts`. Ou
 
 ## Remaining activation work
 
-At implementation time the sending credential had not yet been provided. Do not claim live sending or verified inbox delivery until steps 2–5 are complete.
+Backend commit 3f5f9e8 and key allocator commit 977b492 were published successfully on 2026-09-24. The sending credential has not yet been provided. The Google app-password page is waiting for owner reauthentication, and Netlify's new-secret form is prepared with only the Production value to be filled by the user. Do not claim live sending or verified inbox delivery until steps 2–5 are complete. 83 distinct focused tests passed, TypeScript passed, and English and Arabic previews were visually checked.
