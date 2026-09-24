@@ -11,7 +11,7 @@ The original draft in `Documents/New WonderLang website` remains a reference; th
 - Manually authored translations: `integrations/web/testsite/content.json`.
 - Homepage runtime: `integrations/web/testsite/site.js`; bundle via `node scripts/build-widget.mjs`.
 - Original game/brand art was reused and compressed to WebP in `public/testsite/assets`.
-- The newsletter form is deliberately disabled and sends/stores no email.
+- MailerLite signup uses supplied form 22154858, account 1292227, form 144956028970075999. Email is sent directly to MailerLite only on submission. The provider handles validation and confirmed success. Copy is localized in EN/FR/ES; signup is separate from optional experiment measurement. No real subscriber was added during verification.
 - `/shop/` is the existing live widget. Prices, currency handling, website sales, expiry and countdown are shared with the normal site and demo. These are real purchases through the normal Stripe checkout, delivery, entitlement, email and advertising pipeline.
 
 ## Content audit
@@ -21,7 +21,7 @@ Reference: current wonderlang.net homepage, local draft, existing purchase catal
 - Windows, macOS, Steam Deck and Android are available; iOS is pending.
 - European Portuguese, Eastern Armenian and Swedish are pending. Arabic/Russian are available in Polyglot.
 - Preserve eleven learning languages, fifteen explanation languages, 45+ hours, beginner/A1/A2, gameplay features, creator quote, demo, PDFs, classroom contact, community funding, Beyond and FAQ.
-- Remove old hardcoded sale, Android-coming-soon copy, all-products-no-subscription claim, old funding totals and specific unconfirmed launch promises.
+- Remove old hardcoded sale, Android-coming-soon copy, all-products-no-subscription claim, stale draft funding totals and specific unconfirmed launch promises.
 - Desktop: one-time purchase. Android: monthly or permanent. Retired chapter purchases are not sold.
 - Premium includes cloud saves and future iOS access once launched. Clarified this in the EN/FR/ES shared shop/Stripe descriptions too.
 - Do not claim that exam-aligned practice is an exam certification or that the game alone guarantees fluency.
@@ -42,7 +42,7 @@ With about two direct website purchases/day before consent/bot exclusions, small
 
 ## Measurement contract
 
-- Optional first-party measurement only after consent. Stores consent choice plus a random browser UUID locally; server stores a hashed enrollment token, not the UUID or customer email. No replay or newsletter-email collection.
+- Optional first-party measurement only after consent. Stores consent choice plus a random browser UUID locally; server stores a hashed enrollment token, not the UUID or customer email. No replay or newsletter-email collection in experiment analytics. Newsletter signup separately sends email to MailerLite.
 - Withdrawal removes the local visitor ID, clears token-bearing shop links, and marks the enrollment withdrawn server-side to stop future optional events/purchase attribution. Previously collected aggregates remain. If the withdrawal request cannot reach the server, future page collection still stops locally; an already-open checkout may retain its token.
 - Enrollment window: 14 days. Same browser stays assigned within an experiment. Clearing storage or using another browser/device can create another enrollment; this is not a cross-device person count.
 - Exposure only when document is visible. Funnel actions count once per enrolled browser; checkouts and monthly starts come from the server.
@@ -61,4 +61,11 @@ With about two direct website purchases/day before consent/bot exclusions, small
 
 The opaque token passes from homepage to shop to checkout. Checkout validates it and freezes accepted attribution in the persisted checkout attempt to preserve Stripe idempotency on retries. Stripe session/subscription metadata carries the token for verified payment processing. Normal purchases without a token follow the existing path.
 
-Automated regression coverage includes assignment persistence/pause, exposure/click/transaction deduplication, free-trial handling, expiry, withdrawal, unknown tokens, browser-forged event rejection, bot filtering, checkout metadata and interrupted Stripe retries. Preview review covers desktop/mobile layouts, all three languages, variant CTAs, navigation, FAQ, placeholder form and the shared shop.
+Automated regression coverage includes assignment persistence/pause, exposure/click/transaction deduplication, free-trial handling, expiry, withdrawal, unknown tokens, browser-forged event rejection, bot filtering, checkout metadata and interrupted Stripe retries. Preview review covers desktop/mobile layouts, all three languages, variant CTAs, navigation, FAQ, MailerLite form and the shared shop.
+
+## Restored homepage content (24 September 2026)
+
+- All four original GIFs are copied unchanged from the draft: two gameplay demonstrations and two decorative characters. Keep these animated; do not flatten them during image optimization.
+- All 28 language pools use the current wonderlang.net totals, not the stale draft. `integrations/web/testsite/funding.json` stores the snapshot, goal, source and date. The page labels totals as a dated snapshot, not live accounting. Update this file and the localized date when reconciling new contributions.
+- Contributions retain the existing PayPal destination and US$19/30/60 reward tiers. The page distinguishes funded/released Arabic and Russian from funded/in-development Eastern Armenian and Swedish, and preserves the donation terms and new-pool option.
+- The supplied MailerLite provider script loads its jQuery/inputmask dependencies. CSP permits only its required hosts for scripts, connect and form submission; no inline scripts or general third-party wildcard were added.

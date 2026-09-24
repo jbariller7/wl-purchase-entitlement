@@ -132,4 +132,4 @@
     X-Robots-Tag = "noindex, nofollow"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-Content-Type-Options = "nosniff"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://groot.mailerlite.com https://assets.mlcdn.com https://static.mailerlite.com https://assets.mailerlite.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://assets.mailerlite.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action https://assets.mailerlite.com; frame-ancestors 'self'"

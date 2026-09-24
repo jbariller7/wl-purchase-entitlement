@@ -1,95 +1,737 @@
 {
   "en": {
-    "nav": ["The adventure", "Languages", "Choose your edition", "FAQ"],
-    "account": "My account", "menu": "Menu", "skip": "Skip to content", "pageLanguage": "Page language",
+    "nav": [
+      "The adventure",
+      "Languages",
+      "Choose your edition",
+      "FAQ"
+    ],
+    "account": "My account",
+    "menu": "Menu",
+    "skip": "Skip to content",
+    "pageLanguage": "Page language",
     "eyebrow": "A language-learning adventure • Beginner to A2",
     "heroA": "Your next adventure.\nYour next language.",
     "heroB": "Make a new language\npart of your story.",
     "intro": "Explore a colourful world, meet its curious inhabitants and learn a language along the way. A real RPG, with learning woven into every quest.",
-    "play": "Try the free demo", "buy": "Find your edition", "trailer": "Watch the trailer", "platforms": "Windows · macOS · Steam Deck · Android", "ios": "iOS is coming later.",
-    "stats": ["45+ hours", "of adventure & learning", "11 languages", "to explore", "Your own pace", "beginner, A1 & A2 modes"],
-    "adventureTag": "LESSONS THAT LIVE IN THE WORLD", "adventureTitle": "A little less studying.\nA lot more adventuring.",
+    "play": "Try the free demo",
+    "buy": "Find your edition",
+    "trailer": "Watch the trailer",
+    "platforms": "Windows · macOS · Steam Deck · Android",
+    "ios": "iOS is coming later.",
+    "stats": [
+      "45+ hours",
+      "of adventure & learning",
+      "11 languages",
+      "to explore",
+      "Your own pace",
+      "beginner, A1 & A2 modes"
+    ],
+    "adventureTag": "LESSONS THAT LIVE IN THE WORLD",
+    "adventureTitle": "A little less studying.\nA lot more adventuring.",
     "adventureCopy": "Every conversation gives you a reason to understand. Every puzzle gives you a reason to try. Build your skills while following a story, not just a lesson list.",
-    "features": [["Talk to the world", "Follow dialogues, meet characters and put useful words into context."],["Build your own sentences", "Practise grammar and word order through interactive challenges."],["Battle, remember, repeat", "Revisit vocabulary through language combat and spaced repetition."],["Find your voice", "Practise listening and pronunciation with speech-recognition challenges on supported devices."]],
-    "galleryAlt": ["A conversation inside a WonderLang village home", "A WonderLang sentence-building challenge", "A vocabulary challenge during combat"],
-    "languageTag": "ONE WORLD. MANY WAYS TO DISCOVER IT.", "languageTitle": "Where will your curiosity take you?",
+    "features": [
+      [
+        "Talk to the world",
+        "Follow dialogues, meet characters and put useful words into context."
+      ],
+      [
+        "Build your own sentences",
+        "Practise grammar and word order through interactive challenges."
+      ],
+      [
+        "Battle, remember, repeat",
+        "Revisit vocabulary through language combat and spaced repetition."
+      ],
+      [
+        "Find your voice",
+        "Practise listening and pronunciation with speech-recognition challenges on supported devices."
+      ]
+    ],
+    "galleryAlt": [
+      "A conversation inside a WonderLang village home",
+      "A WonderLang sentence-building challenge",
+      "A vocabulary challenge during combat"
+    ],
+    "languageTag": "ONE WORLD. MANY WAYS TO DISCOVER IT.",
+    "languageTitle": "Where will your curiosity take you?",
     "languageCopy": "Choose a language to learn. With Polyglot, you can switch between all available languages and receive future language additions.",
-    "languageNames": ["French","Spanish","German","Italian","English","Portuguese (Brazil)","Korean","Japanese","Mandarin Chinese","Modern Standard Arabic","Russian"],
-    "languageNotes": ["Beginner · A1 · A2","European & Latin American","Beginner · A1 · A2","Beginner · A1 · A2","American & British","Beginner · A1 · A2","Hangul · TOPIK I practice","Kana, kanji · N5/N4 practice","Characters · HSK 1/2 practice","Alphabet module · Polyglot","Cyrillic module · Polyglot"],
+    "languageNames": [
+      "French",
+      "Spanish",
+      "German",
+      "Italian",
+      "English",
+      "Portuguese (Brazil)",
+      "Korean",
+      "Japanese",
+      "Mandarin Chinese",
+      "Modern Standard Arabic",
+      "Russian"
+    ],
+    "languageNotes": [
+      "Beginner · A1 · A2",
+      "European & Latin American",
+      "Beginner · A1 · A2",
+      "Beginner · A1 · A2",
+      "American & British",
+      "Beginner · A1 · A2",
+      "Hangul · TOPIK I practice",
+      "Kana, kanji · N5/N4 practice",
+      "Characters · HSK 1/2 practice",
+      "Alphabet module · Polyglot",
+      "Cyrillic module · Polyglot"
+    ],
     "baseLanguages": "Play with explanations in English, French, Spanish, German, Italian, Portuguese, Korean, Chinese, Japanese, Dutch, Indonesian, Polish, Russian, Ukrainian or Arabic.",
     "pending": "Still in development: European Portuguese, Eastern Armenian and Swedish. They are not available yet.",
-    "demoTag": "YOUR FIRST QUEST IS FREE", "demoTitle": "See if the adventure is for you.", "demoCopy": "Try the first part of the game before choosing an edition. You can keep your progress when you continue with the full version on the same platform.",
-    "steamDemo": "Find the demo on Steam", "android": "Explore on Google Play", "demoNote": "No payment is needed to try the demo. Full-game access depends on your edition.",
-    "shopTag": "YOUR ADVENTURE, YOUR EDITION", "shopTitle": "Choose how you want to play.",
+    "demoTag": "YOUR FIRST QUEST IS FREE",
+    "demoTitle": "See if the adventure is for you.",
+    "demoCopy": "Try the first part of the game before choosing an edition. You can keep your progress when you continue with the full version on the same platform.",
+    "steamDemo": "Find the demo on Steam",
+    "android": "Explore on Google Play",
+    "demoNote": "No payment is needed to try the demo. Full-game access depends on your edition.",
+    "shopTag": "YOUR ADVENTURE, YOUR EDITION",
+    "shopTitle": "Choose how you want to play.",
     "shopCopy": "One language or all of them. Desktop, mobile, or both. Current regional prices and active sales appear below.",
-    "openShop": "Open the shop in a new tab", "shopLoading": "Purchase options", "purchaseNote": "Purchases here are real. Secure checkout, access instructions and any relevant Steam key or download link come through our normal purchase system.",
-    "benefits": [["Desktop access", "Choose a Steam key or a DRM-free direct download. Desktop editions are one-time purchases."],["Android access", "Choose a monthly subscription or permanent mobile access."],["Premium Lifetime", "Desktop and mobile access, all languages, cross-platform cloud saves, and future expansions and sequels when released. iOS is still pending."]],
-    "pdf": "A little more to practise with", "pdfCopy": "Desktop purchases here include bonus printable flashcards, a phrasebook and an exercise book. After a mobile purchase, sign in on the website with the purchase email, then use that account in the app.",
+    "openShop": "Open the shop in a new tab",
+    "shopLoading": "Purchase options",
+    "purchaseNote": "Purchases here are real. Secure checkout, access instructions and any relevant Steam key or download link come through our normal purchase system.",
+    "benefits": [
+      [
+        "Desktop access",
+        "Choose a Steam key or a DRM-free direct download. Desktop editions are one-time purchases."
+      ],
+      [
+        "Android access",
+        "Choose a monthly subscription or permanent mobile access."
+      ],
+      [
+        "Premium Lifetime",
+        "Desktop and mobile access, all languages, cross-platform cloud saves, and future expansions and sequels when released. iOS is still pending."
+      ]
+    ],
+    "pdf": "A little more to practise with",
+    "pdfCopy": "Desktop purchases here include bonus printable flashcards, a phrasebook and an exercise book. After a mobile purchase, sign in on the website with the purchase email, then use that account in the app.",
     "classroom": "Buying for a class? Contact us about a classroom licence.",
-    "creatorQuote": "“I created WonderLang because I wish I’d had a game like this when I started learning languages: fun, immersive, and beginner-friendly.”", "creatorRole": "Jonathan · Creator of WonderLang",
-    "fundTag": "BUILT WITH THE COMMUNITY", "fundTitle": "Help another language find its voice.", "fundCopy": "Support the development of additional languages through the community fund. Arabic and Russian are already available; Eastern Armenian and Swedish are still in development. Funding does not mean a language has launched.", "fundAction": "Support language development", "fundContact": "Teaching an under-represented language? Let’s talk.",
-    "beyondTag": "THE NEXT CHAPTER", "beyondTitle": "WonderLang Beyond", "beyondCopy": "A standalone adventure in development for intermediate learners, from A2 to B2. Follow the Kickstarter page for news.", "beyondAction": "Follow on Kickstarter",
+    "creatorQuote": "“I created WonderLang because I wish I’d had a game like this when I started learning languages: fun, immersive, and beginner-friendly.”",
+    "creatorRole": "Jonathan · Creator of WonderLang",
+    "fundTag": "BUILT WITH THE COMMUNITY",
+    "fundTitle": "Help another language find its voice.",
+    "fundCopy": "Help bring another language to WonderLang. Each pool has a US$1,000 goal. Development begins when its goal is reached, with a target of three months—not a guaranteed release date.",
+    "fundAction": "Choose a language & contribute",
+    "fundContact": "Teaching an under-represented language? Let’s talk.",
+    "beyondTag": "THE NEXT CHAPTER",
+    "beyondTitle": "WonderLang Beyond",
+    "beyondCopy": "A standalone adventure in development for intermediate learners, from A2 to B2. Follow the Kickstarter page for news.",
+    "beyondAction": "Follow on Kickstarter",
     "faqTitle": "A few things you might be wondering.",
-    "faq": [["Do I need to know the language already?","No. Beginner modes include foundational grammar and conjugation. WonderLang is best used alongside other study habits; it does not promise fluency on its own."],["What levels does the game cover?","Beginner, A1 and much of A2. Korean, Japanese and Mandarin include practice aimed at TOPIK I, JLPT N5/N4 and HSK 1/2 learners. These are learning references, not exam certifications."],["Who is it for?","Adults and children around age 9 and up. Younger children may enjoy playing with help from an adult."],["What does it cost?","See the live prices above. Desktop editions are one-time purchases. Android has monthly and permanent options. Premium Lifetime includes desktop, mobile and cloud saves. Prices vary by region."],["Can I move between devices?","Premium Lifetime lets you sync WonderLang saves between desktop and mobile. Sign in with the same account and sync before switching devices. Steam Cloud is a separate Steam feature."],["Is it available on my device?","Windows, macOS, Steam Deck and Android are available now. iOS is still in development. Mobile access is separate from standard desktop editions."],["Will there be more languages and updates?","Polyglot includes future language additions. Premium Lifetime also includes future expansions and sequels when released. European Portuguese, Eastern Armenian and Swedish are pending; no release date is promised."],["Where can I find help or other players?","Join the Discord community or contact us. For purchase questions, email orders@wonderlang.app."]],
-    "newsletterTag": "STAY CURIOUS", "newsletterTitle": "The next adventure, in your inbox.", "newsletterCopy": "Game updates, new languages and occasional offers.", "email": "Email address", "subscribe": "Signup coming soon", "placeholder": "Preview form only. Signups are not open here yet; your email is not sent or saved.",
-    "footerCopy": "A world to explore. A language to discover.", "contact": "Contact", "community": "Join our Discord", "privacy": "Privacy & measurement", "rights": "© WonderLang. All rights reserved.",
-    "consentTitle": "Help us improve this adventure?", "consentCopy": "Allow optional measurement to compare website versions and understand visits, shop clicks and purchases using a random browser ID. We do not record your signup email or session replays. You can change this choice below.", "accept": "Allow measurement", "reject": "No thanks", "privacyText": "Optional measurement links a random browser ID to the website version you see and purchases through this shop, for a 14-day conversion window. It includes page language, device category, country and broad traffic source, not your name or email. Essential checkout data is processed separately to fulfil purchases. No session replay is used. Declining does not prevent purchases. Change your choice with the buttons below; this stops future optional measurement in this browser.", "close": "Close", "preview": "Preview version — excluded from experiment results"
+    "faq": [
+      [
+        "Do I need to know the language already?",
+        "No. Beginner modes include foundational grammar and conjugation. WonderLang is best used alongside other study habits; it does not promise fluency on its own."
+      ],
+      [
+        "What levels does the game cover?",
+        "Beginner, A1 and much of A2. Korean, Japanese and Mandarin include practice aimed at TOPIK I, JLPT N5/N4 and HSK 1/2 learners. These are learning references, not exam certifications."
+      ],
+      [
+        "Who is it for?",
+        "Adults and children around age 9 and up. Younger children may enjoy playing with help from an adult."
+      ],
+      [
+        "What does it cost?",
+        "See the live prices above. Desktop editions are one-time purchases. Android has monthly and permanent options. Premium Lifetime includes desktop, mobile and cloud saves. Prices vary by region."
+      ],
+      [
+        "Can I move between devices?",
+        "Premium Lifetime lets you sync WonderLang saves between desktop and mobile. Sign in with the same account and sync before switching devices. Steam Cloud is a separate Steam feature."
+      ],
+      [
+        "Is it available on my device?",
+        "Windows, macOS, Steam Deck and Android are available now. iOS is still in development. Mobile access is separate from standard desktop editions."
+      ],
+      [
+        "Will there be more languages and updates?",
+        "Polyglot includes future language additions. Premium Lifetime also includes future expansions and sequels when released. European Portuguese, Eastern Armenian and Swedish are pending; no release date is promised."
+      ],
+      [
+        "Where can I find help or other players?",
+        "Join the Discord community or contact us. For purchase questions, email orders@wonderlang.app."
+      ]
+    ],
+    "newsletterTag": "STAY CURIOUS",
+    "newsletterTitle": "The next adventure, in your inbox.",
+    "newsletterCopy": "Get additional content and join our newsletter for game news, new languages and occasional offers.",
+    "email": "Email address",
+    "subscribe": "Get the additional content",
+    "footerCopy": "A world to explore. A language to discover.",
+    "contact": "Contact",
+    "community": "Join our Discord",
+    "privacy": "Privacy & measurement",
+    "rights": "© WonderLang. All rights reserved.",
+    "consentTitle": "Help us improve this adventure?",
+    "consentCopy": "Allow optional measurement to compare site versions and understand visits, shop clicks and purchases using a random browser ID. This measurement does not collect your email or record session replays. Newsletter subscriptions are handled separately by MailerLite. You can change this choice below.",
+    "accept": "Allow measurement",
+    "reject": "No thanks",
+    "privacyText": "Optional measurement links a random browser ID to the website version you see and purchases through this shop, for a 14-day conversion window. It includes page language, device category, country and broad traffic source, not your name or email. Essential checkout data is processed separately to fulfil purchases. No session replay is used. Declining does not prevent purchases. Change your choice with the buttons below; this stops future optional measurement in this browser. Newsletter signup sends your email to MailerLite to manage your subscription; you can unsubscribe from any newsletter.",
+    "close": "Close",
+    "preview": "Preview version — excluded from experiment results",
+    "fundNav": "Fund a language",
+    "fundNames": [
+      "Arabic",
+      "Eastern Armenian",
+      "Russian",
+      "Swedish",
+      "Thai",
+      "Dutch",
+      "Tagalog",
+      "Greek",
+      "Norwegian",
+      "Irish (Gaelic)",
+      "Hebrew",
+      "Welsh",
+      "Finnish",
+      "Esperanto",
+      "Cantonese Chinese",
+      "Icelandic",
+      "Polish",
+      "Hindi",
+      "Ukrainian",
+      "Czech",
+      "Turkish",
+      "Vietnamese",
+      "Haitian Creole",
+      "Scottish Gaelic",
+      "Georgian",
+      "Danish",
+      "Telugu",
+      "Latin"
+    ],
+    "fundStatuses": [
+      "Accepting contributions",
+      "Funded · In development",
+      "Funded · Released"
+    ],
+    "fundTotal": "{amount} of {goal}",
+    "fundUpdated": "Funding totals checked on 24 September 2026. These are not live totals.",
+    "fundTiers": [
+      [
+        "US$19+",
+        "Receive your chosen language when it is released, if its funding goal is reached."
+      ],
+      [
+        "US$30+",
+        "Get Polyglot now (Steam or DRM-free), plus your chosen language when it is released if funded."
+      ],
+      [
+        "US$60+",
+        "Get a Lifetime Pass, plus your chosen language when it is released if funded."
+      ]
+    ],
+    "fundChoose": "Choose your language on PayPal. To suggest a new one, select “Other” and enter its name; we contribute the first US$500 to new pools.",
+    "fundTerms": "Contributions are donations, not preorders, and are non-refundable. Development of a language starts only when its goal is reached. Fully funded does not mean released: Eastern Armenian and Swedish are still in development.",
+    "gifTitles": [
+      "Build sentences in battle",
+      "Put vocabulary into practice"
+    ],
+    "gifCopy": [
+      "Watch a Spanish sentence-building challenge during combat.",
+      "See a German vocabulary challenge with typed answers."
+    ],
+    "newsletterNote": "By subscribing, you agree to receive WonderLang emails. Your email is sent to MailerLite to manage your subscription. You can unsubscribe at any time.",
+    "signupLoading": "Subscribing…",
+    "signupThanks": "Thank you!",
+    "signupSuccess": "You have successfully joined our subscriber list.",
+    "signupError": "We could not complete your subscription. Please try again."
   },
   "fr": {
-    "nav": ["L’aventure", "Les langues", "Choisir une édition", "FAQ"],
-    "account": "Mon compte", "menu": "Menu", "skip": "Aller au contenu", "pageLanguage": "Langue du site",
+    "nav": [
+      "L’aventure",
+      "Les langues",
+      "Choisir une édition",
+      "FAQ"
+    ],
+    "account": "Mon compte",
+    "menu": "Menu",
+    "skip": "Aller au contenu",
+    "pageLanguage": "Langue du site",
     "eyebrow": "Une aventure pour apprendre une langue • Débutant à A2",
-    "heroA": "Votre prochaine aventure.\nVotre prochaine langue.", "heroB": "Faites d’une nouvelle langue\nune partie de votre histoire.",
+    "heroA": "Votre prochaine aventure.\nVotre prochaine langue.",
+    "heroB": "Faites d’une nouvelle langue\nune partie de votre histoire.",
     "intro": "Explorez un monde haut en couleur, rencontrez ses habitants singuliers et apprenez une langue en chemin. Un véritable RPG où chaque quête vous fait progresser.",
-    "play": "Essayer la démo gratuite", "buy": "Choisir mon édition", "trailer": "Voir la bande-annonce", "platforms": "Windows · macOS · Steam Deck · Android", "ios": "La version iOS arrivera plus tard.",
-    "stats": ["Plus de 45 h", "d’aventure et d’apprentissage", "11 langues", "à découvrir", "À votre rythme", "modes débutant, A1 et A2"],
-    "adventureTag": "L’APPRENTISSAGE AU CŒUR DU MONDE", "adventureTitle": "Un peu moins de révisions.\nBeaucoup plus d’aventure.",
+    "play": "Essayer la démo gratuite",
+    "buy": "Choisir mon édition",
+    "trailer": "Voir la bande-annonce",
+    "platforms": "Windows · macOS · Steam Deck · Android",
+    "ios": "La version iOS arrivera plus tard.",
+    "stats": [
+      "Plus de 45 h",
+      "d’aventure et d’apprentissage",
+      "11 langues",
+      "à découvrir",
+      "À votre rythme",
+      "modes débutant, A1 et A2"
+    ],
+    "adventureTag": "L’APPRENTISSAGE AU CŒUR DU MONDE",
+    "adventureTitle": "Un peu moins de révisions.\nBeaucoup plus d’aventure.",
     "adventureCopy": "Chaque conversation vous donne une raison de comprendre. Chaque énigme vous donne envie d’essayer. Développez vos compétences au fil d’une histoire, pas simplement d’une liste de leçons.",
-    "features": [["Parlez avec les habitants", "Suivez les dialogues, rencontrez des personnages et découvrez les mots en contexte."],["Construisez vos phrases", "Travaillez la grammaire et l’ordre des mots grâce à des défis interactifs."],["Combattez, mémorisez, recommencez", "Retrouvez le vocabulaire dans des combats linguistiques et des exercices de répétition espacée."],["Faites entendre votre voix", "Exercez votre compréhension orale et votre prononciation avec des défis de reconnaissance vocale sur les appareils compatibles."]],
-    "galleryAlt": ["Une conversation dans une maison du village de WonderLang", "Un défi de construction de phrases dans WonderLang", "Un défi de vocabulaire pendant un combat"],
-    "languageTag": "UN MONDE. MILLE ENVIES DE LE DÉCOUVRIR.", "languageTitle": "Où votre curiosité vous mènera-t-elle ?", "languageCopy": "Choisissez la langue que vous souhaitez apprendre. Avec Polyglotte, passez d’une langue disponible à l’autre et profitez des futures langues ajoutées.",
-    "languageNames": ["Français","Espagnol","Allemand","Italien","Anglais","Portugais du Brésil","Coréen","Japonais","Chinois mandarin","Arabe standard moderne","Russe"],
-    "languageNotes": ["Débutant · A1 · A2","Espagne et Amérique latine","Débutant · A1 · A2","Débutant · A1 · A2","Américain et britannique","Débutant · A1 · A2","Hangeul · Pratique TOPIK I","Kanas, kanjis · Pratique N5/N4","Caractères · Pratique HSK 1/2","Module d’alphabet · Polyglotte","Module cyrillique · Polyglotte"],
-    "baseLanguages": "Jouez avec des explications en anglais, français, espagnol, allemand, italien, portugais, coréen, chinois, japonais, néerlandais, indonésien, polonais, russe, ukrainien ou arabe.", "pending": "Encore en développement : le portugais européen, l’arménien oriental et le suédois. Ils ne sont pas encore disponibles.",
-    "demoTag": "VOTRE PREMIÈRE QUÊTE EST GRATUITE", "demoTitle": "Découvrez si l’aventure vous plaît.", "demoCopy": "Essayez le début du jeu avant de choisir votre édition. Vous pourrez conserver votre progression en passant à la version complète sur la même plateforme.", "steamDemo": "Trouver la démo sur Steam", "android": "Découvrir sur Google Play", "demoNote": "Aucun paiement n’est nécessaire pour essayer la démo. L’accès au jeu complet dépend de votre édition.",
-    "shopTag": "VOTRE AVENTURE, VOTRE ÉDITION", "shopTitle": "Choisissez votre façon de jouer.", "shopCopy": "Une langue ou toutes les langues. Sur ordinateur, sur mobile ou sur les deux. Les tarifs régionaux et les promotions en cours sont affichés ci-dessous.", "openShop": "Ouvrir la boutique dans un nouvel onglet", "shopLoading": "Options d’achat", "purchaseNote": "Les achats effectués ici sont réels. Le paiement sécurisé, les instructions d’accès et, selon l’achat, la clé Steam ou le lien de téléchargement passent par notre système habituel.",
-    "benefits": [["Sur ordinateur", "Choisissez une clé Steam ou un téléchargement direct sans DRM. Les éditions pour ordinateur s’achètent en une seule fois."],["Sur Android", "Choisissez un abonnement mensuel ou un accès mobile permanent."],["Premium à vie", "Accès sur ordinateur et mobile, toutes les langues, sauvegardes cloud multiplateformes et futures extensions et suites à leur sortie. iOS reste en développement."]],
-    "pdf": "De quoi prolonger la pratique", "pdfCopy": "Les achats pour ordinateur effectués ici incluent des cartes de vocabulaire à imprimer, un guide de phrases et un cahier d’exercices. Après un achat mobile, connectez-vous au site avec l’adresse utilisée pour l’achat, puis utilisez ce compte dans l’application.", "classroom": "Un achat pour une classe ? Contactez-nous au sujet d’une licence pour l’enseignement.",
-    "creatorQuote": "« J’ai créé WonderLang parce que j’aurais aimé avoir un jeu comme celui-ci quand j’ai commencé à apprendre des langues : amusant, immersif et accessible aux débutants. »", "creatorRole": "Jonathan · Créateur de WonderLang",
-    "fundTag": "UN PROJET PORTÉ PAR SA COMMUNAUTÉ", "fundTitle": "Aidez une autre langue à trouver sa voix.", "fundCopy": "Soutenez le développement de nouvelles langues grâce au financement communautaire. L’arabe et le russe sont déjà disponibles ; l’arménien oriental et le suédois sont encore en développement. Une langue financée n’est pas forcément déjà sortie.", "fundAction": "Soutenir le développement des langues", "fundContact": "Vous enseignez une langue peu représentée ? Parlons-en.",
-    "beyondTag": "LE PROCHAIN CHAPITRE", "beyondTitle": "WonderLang Beyond", "beyondCopy": "Une aventure indépendante en développement pour les apprenants de niveau intermédiaire, de A2 à B2. Suivez la page Kickstarter pour découvrir les dernières nouvelles.", "beyondAction": "Suivre sur Kickstarter",
+    "features": [
+      [
+        "Parlez avec les habitants",
+        "Suivez les dialogues, rencontrez des personnages et découvrez les mots en contexte."
+      ],
+      [
+        "Construisez vos phrases",
+        "Travaillez la grammaire et l’ordre des mots grâce à des défis interactifs."
+      ],
+      [
+        "Combattez, mémorisez, recommencez",
+        "Retrouvez le vocabulaire dans des combats linguistiques et des exercices de répétition espacée."
+      ],
+      [
+        "Faites entendre votre voix",
+        "Exercez votre compréhension orale et votre prononciation avec des défis de reconnaissance vocale sur les appareils compatibles."
+      ]
+    ],
+    "galleryAlt": [
+      "Une conversation dans une maison du village de WonderLang",
+      "Un défi de construction de phrases dans WonderLang",
+      "Un défi de vocabulaire pendant un combat"
+    ],
+    "languageTag": "UN MONDE. MILLE ENVIES DE LE DÉCOUVRIR.",
+    "languageTitle": "Où votre curiosité vous mènera-t-elle ?",
+    "languageCopy": "Choisissez la langue que vous souhaitez apprendre. Avec Polyglotte, passez d’une langue disponible à l’autre et profitez des futures langues ajoutées.",
+    "languageNames": [
+      "Français",
+      "Espagnol",
+      "Allemand",
+      "Italien",
+      "Anglais",
+      "Portugais du Brésil",
+      "Coréen",
+      "Japonais",
+      "Chinois mandarin",
+      "Arabe standard moderne",
+      "Russe"
+    ],
+    "languageNotes": [
+      "Débutant · A1 · A2",
+      "Espagne et Amérique latine",
+      "Débutant · A1 · A2",
+      "Débutant · A1 · A2",
+      "Américain et britannique",
+      "Débutant · A1 · A2",
+      "Hangeul · Pratique TOPIK I",
+      "Kanas, kanjis · Pratique N5/N4",
+      "Caractères · Pratique HSK 1/2",
+      "Module d’alphabet · Polyglotte",
+      "Module cyrillique · Polyglotte"
+    ],
+    "baseLanguages": "Jouez avec des explications en anglais, français, espagnol, allemand, italien, portugais, coréen, chinois, japonais, néerlandais, indonésien, polonais, russe, ukrainien ou arabe.",
+    "pending": "Encore en développement : le portugais européen, l’arménien oriental et le suédois. Ils ne sont pas encore disponibles.",
+    "demoTag": "VOTRE PREMIÈRE QUÊTE EST GRATUITE",
+    "demoTitle": "Découvrez si l’aventure vous plaît.",
+    "demoCopy": "Essayez le début du jeu avant de choisir votre édition. Vous pourrez conserver votre progression en passant à la version complète sur la même plateforme.",
+    "steamDemo": "Trouver la démo sur Steam",
+    "android": "Découvrir sur Google Play",
+    "demoNote": "Aucun paiement n’est nécessaire pour essayer la démo. L’accès au jeu complet dépend de votre édition.",
+    "shopTag": "VOTRE AVENTURE, VOTRE ÉDITION",
+    "shopTitle": "Choisissez votre façon de jouer.",
+    "shopCopy": "Une langue ou toutes les langues. Sur ordinateur, sur mobile ou sur les deux. Les tarifs régionaux et les promotions en cours sont affichés ci-dessous.",
+    "openShop": "Ouvrir la boutique dans un nouvel onglet",
+    "shopLoading": "Options d’achat",
+    "purchaseNote": "Les achats effectués ici sont réels. Le paiement sécurisé, les instructions d’accès et, selon l’achat, la clé Steam ou le lien de téléchargement passent par notre système habituel.",
+    "benefits": [
+      [
+        "Sur ordinateur",
+        "Choisissez une clé Steam ou un téléchargement direct sans DRM. Les éditions pour ordinateur s’achètent en une seule fois."
+      ],
+      [
+        "Sur Android",
+        "Choisissez un abonnement mensuel ou un accès mobile permanent."
+      ],
+      [
+        "Premium à vie",
+        "Accès sur ordinateur et mobile, toutes les langues, sauvegardes cloud multiplateformes et futures extensions et suites à leur sortie. iOS reste en développement."
+      ]
+    ],
+    "pdf": "De quoi prolonger la pratique",
+    "pdfCopy": "Les achats pour ordinateur effectués ici incluent des cartes de vocabulaire à imprimer, un guide de phrases et un cahier d’exercices. Après un achat mobile, connectez-vous au site avec l’adresse utilisée pour l’achat, puis utilisez ce compte dans l’application.",
+    "classroom": "Un achat pour une classe ? Contactez-nous au sujet d’une licence pour l’enseignement.",
+    "creatorQuote": "« J’ai créé WonderLang parce que j’aurais aimé avoir un jeu comme celui-ci quand j’ai commencé à apprendre des langues : amusant, immersif et accessible aux débutants. »",
+    "creatorRole": "Jonathan · Créateur de WonderLang",
+    "fundTag": "UN PROJET PORTÉ PAR SA COMMUNAUTÉ",
+    "fundTitle": "Aidez une autre langue à trouver sa voix.",
+    "fundCopy": "Aidez une nouvelle langue à rejoindre WonderLang. Chaque cagnotte vise 1 000 $ US. Le développement commence une fois cet objectif atteint, avec un délai visé de trois mois, sans garantie de date de sortie.",
+    "fundAction": "Choisir une langue et contribuer",
+    "fundContact": "Vous enseignez une langue peu représentée ? Parlons-en.",
+    "beyondTag": "LE PROCHAIN CHAPITRE",
+    "beyondTitle": "WonderLang Beyond",
+    "beyondCopy": "Une aventure indépendante en développement pour les apprenants de niveau intermédiaire, de A2 à B2. Suivez la page Kickstarter pour découvrir les dernières nouvelles.",
+    "beyondAction": "Suivre sur Kickstarter",
     "faqTitle": "Les réponses à vos premières questions.",
-    "faq": [["Faut-il déjà connaître la langue ?","Non. Les modes débutants abordent les bases de la grammaire et de la conjugaison. WonderLang complète d’autres habitudes d’apprentissage ; il ne promet pas de vous rendre bilingue à lui seul."],["Quels niveaux sont couverts ?","Le niveau débutant, A1 et une grande partie de A2. Le coréen, le japonais et le mandarin proposent une pratique destinée aux apprenants TOPIK I, JLPT N5/N4 et HSK 1/2. Ce sont des repères pédagogiques, pas des certifications d’examen."],["À qui s’adresse le jeu ?","Aux adultes et aux enfants à partir d’environ 9 ans. Les plus jeunes peuvent jouer avec l’aide d’un adulte."],["Combien coûte le jeu ?","Consultez les tarifs actualisés ci-dessus. Les éditions pour ordinateur s’achètent en une fois. Android propose un abonnement mensuel ou un accès permanent. Premium à vie inclut l’ordinateur, le mobile et les sauvegardes cloud. Les prix varient selon la région."],["Puis-je passer d’un appareil à l’autre ?","Premium à vie permet de synchroniser les sauvegardes WonderLang entre ordinateur et mobile. Connectez-vous au même compte et synchronisez avant de changer d’appareil. Steam Cloud est une fonctionnalité distincte de Steam."],["Le jeu est-il disponible sur mon appareil ?","Windows, macOS, Steam Deck et Android sont disponibles maintenant. iOS est encore en développement. L’accès mobile est distinct des éditions standard pour ordinateur."],["Y aura-t-il de nouvelles langues et des mises à jour ?","Polyglotte inclut les futures langues ajoutées. Premium à vie inclut aussi les futures extensions et suites à leur sortie. Le portugais européen, l’arménien oriental et le suédois sont prévus, sans date de sortie garantie."],["Où trouver de l’aide ou d’autres joueurs ?","Rejoignez la communauté Discord ou contactez-nous. Pour les questions d’achat, écrivez à orders@wonderlang.app."]],
-    "newsletterTag": "GARDEZ VOTRE CURIOSITÉ", "newsletterTitle": "La prochaine aventure dans votre boîte mail.", "newsletterCopy": "Les nouvelles du jeu, les nouvelles langues et quelques offres.", "email": "Adresse e-mail", "subscribe": "Inscription bientôt disponible", "placeholder": "Formulaire de démonstration uniquement. Les inscriptions ne sont pas encore ouvertes ici ; votre adresse n’est ni envoyée ni enregistrée.",
-    "footerCopy": "Un monde à explorer. Une langue à découvrir.", "contact": "Contact", "community": "Rejoindre notre Discord", "privacy": "Confidentialité et mesure", "rights": "© WonderLang. Tous droits réservés.",
-    "consentTitle": "Vous nous aidez à améliorer l’aventure ?", "consentCopy": "Autorisez la mesure facultative pour comparer les versions du site et comprendre les visites, les clics vers la boutique et les achats grâce à un identifiant de navigateur aléatoire. Nous n’enregistrons ni votre adresse d’inscription ni de relecture de session. Vous pouvez modifier ce choix ci-dessous.", "accept": "Autoriser la mesure", "reject": "Non merci", "privacyText": "La mesure facultative relie un identifiant de navigateur aléatoire à la version du site affichée et aux achats dans cette boutique, sur une période de conversion de 14 jours. Elle comprend la langue du site, le type d’appareil, le pays et la catégorie de provenance du trafic, pas votre nom ni votre adresse e-mail. Les données indispensables au paiement sont traitées séparément pour livrer les achats. Aucune relecture de session n’est utilisée. Refuser n’empêche pas d’acheter. Modifiez votre choix avec les boutons ci-dessous pour arrêter les futures mesures facultatives dans ce navigateur.", "close": "Fermer", "preview": "Version de prévisualisation — exclue des résultats de l’expérience"
+    "faq": [
+      [
+        "Faut-il déjà connaître la langue ?",
+        "Non. Les modes débutants abordent les bases de la grammaire et de la conjugaison. WonderLang complète d’autres habitudes d’apprentissage ; il ne promet pas de vous rendre bilingue à lui seul."
+      ],
+      [
+        "Quels niveaux sont couverts ?",
+        "Le niveau débutant, A1 et une grande partie de A2. Le coréen, le japonais et le mandarin proposent une pratique destinée aux apprenants TOPIK I, JLPT N5/N4 et HSK 1/2. Ce sont des repères pédagogiques, pas des certifications d’examen."
+      ],
+      [
+        "À qui s’adresse le jeu ?",
+        "Aux adultes et aux enfants à partir d’environ 9 ans. Les plus jeunes peuvent jouer avec l’aide d’un adulte."
+      ],
+      [
+        "Combien coûte le jeu ?",
+        "Consultez les tarifs actualisés ci-dessus. Les éditions pour ordinateur s’achètent en une fois. Android propose un abonnement mensuel ou un accès permanent. Premium à vie inclut l’ordinateur, le mobile et les sauvegardes cloud. Les prix varient selon la région."
+      ],
+      [
+        "Puis-je passer d’un appareil à l’autre ?",
+        "Premium à vie permet de synchroniser les sauvegardes WonderLang entre ordinateur et mobile. Connectez-vous au même compte et synchronisez avant de changer d’appareil. Steam Cloud est une fonctionnalité distincte de Steam."
+      ],
+      [
+        "Le jeu est-il disponible sur mon appareil ?",
+        "Windows, macOS, Steam Deck et Android sont disponibles maintenant. iOS est encore en développement. L’accès mobile est distinct des éditions standard pour ordinateur."
+      ],
+      [
+        "Y aura-t-il de nouvelles langues et des mises à jour ?",
+        "Polyglotte inclut les futures langues ajoutées. Premium à vie inclut aussi les futures extensions et suites à leur sortie. Le portugais européen, l’arménien oriental et le suédois sont prévus, sans date de sortie garantie."
+      ],
+      [
+        "Où trouver de l’aide ou d’autres joueurs ?",
+        "Rejoignez la communauté Discord ou contactez-nous. Pour les questions d’achat, écrivez à orders@wonderlang.app."
+      ]
+    ],
+    "newsletterTag": "GARDEZ VOTRE CURIOSITÉ",
+    "newsletterTitle": "La prochaine aventure dans votre boîte mail.",
+    "newsletterCopy": "Recevez du contenu supplémentaire et inscrivez-vous à notre newsletter pour découvrir les nouveautés du jeu, les nouvelles langues et quelques offres.",
+    "email": "Adresse e-mail",
+    "subscribe": "Recevoir le contenu supplémentaire",
+    "footerCopy": "Un monde à explorer. Une langue à découvrir.",
+    "contact": "Contact",
+    "community": "Rejoindre notre Discord",
+    "privacy": "Confidentialité et mesure",
+    "rights": "© WonderLang. Tous droits réservés.",
+    "consentTitle": "Vous nous aidez à améliorer l’aventure ?",
+    "consentCopy": "Autorisez la mesure facultative pour comparer les versions du site et comprendre les visites, les clics vers la boutique et les achats grâce à un identifiant de navigateur aléatoire. Cette mesure ne collecte pas votre adresse e-mail et n’enregistre aucune relecture de session. Les inscriptions à la newsletter sont gérées séparément par MailerLite. Vous pouvez modifier ce choix ci-dessous.",
+    "accept": "Autoriser la mesure",
+    "reject": "Non merci",
+    "privacyText": "La mesure facultative relie un identifiant de navigateur aléatoire à la version du site affichée et aux achats dans cette boutique, sur une période de conversion de 14 jours. Elle comprend la langue du site, le type d’appareil, le pays et la catégorie de provenance du trafic, pas votre nom ni votre adresse e-mail. Les données indispensables au paiement sont traitées séparément pour livrer les achats. Aucune relecture de session n’est utilisée. Refuser n’empêche pas d’acheter. Modifiez votre choix avec les boutons ci-dessous pour arrêter les futures mesures facultatives dans ce navigateur. L’inscription à la newsletter transmet votre adresse e-mail à MailerLite pour gérer votre abonnement ; vous pouvez vous désinscrire depuis chaque newsletter.",
+    "close": "Fermer",
+    "preview": "Version de prévisualisation — exclue des résultats de l’expérience",
+    "fundNav": "Financer une langue",
+    "fundNames": [
+      "Arabe",
+      "Arménien oriental",
+      "Russe",
+      "Suédois",
+      "Thaï",
+      "Néerlandais",
+      "Tagalog",
+      "Grec",
+      "Norvégien",
+      "Irlandais (gaélique)",
+      "Hébreu",
+      "Gallois",
+      "Finnois",
+      "Espéranto",
+      "Chinois cantonais",
+      "Islandais",
+      "Polonais",
+      "Hindi",
+      "Ukrainien",
+      "Tchèque",
+      "Turc",
+      "Vietnamien",
+      "Créole haïtien",
+      "Gaélique écossais",
+      "Géorgien",
+      "Danois",
+      "Télougou",
+      "Latin"
+    ],
+    "fundStatuses": [
+      "Contributions ouvertes",
+      "Financée · En développement",
+      "Financée · Disponible"
+    ],
+    "fundTotal": "{amount} sur {goal}",
+    "fundUpdated": "Montants vérifiés le 24 septembre 2026. Ils ne sont pas actualisés en temps réel.",
+    "fundTiers": [
+      [
+        "19 $ US ou plus",
+        "Recevez la langue choisie à sa sortie, si son objectif de financement est atteint."
+      ],
+      [
+        "30 $ US ou plus",
+        "Recevez Polyglotte dès maintenant (Steam ou sans DRM), puis la langue choisie à sa sortie si elle est financée."
+      ],
+      [
+        "60 $ US ou plus",
+        "Recevez un Pass à vie, puis la langue choisie à sa sortie si elle est financée."
+      ]
+    ],
+    "fundChoose": "Choisissez votre langue sur PayPal. Pour en proposer une nouvelle, sélectionnez « Other » et indiquez son nom ; nous apportons les premiers 500 $ US aux nouvelles cagnottes.",
+    "fundTerms": "Les contributions sont des dons, pas des précommandes, et ne sont pas remboursables. Le développement d’une langue ne commence que si son objectif est atteint. Un financement complet ne signifie pas que la langue est disponible : l’arménien oriental et le suédois sont encore en développement.",
+    "gifTitles": [
+      "Construisez des phrases en combat",
+      "Mettez le vocabulaire en pratique"
+    ],
+    "gifCopy": [
+      "Découvrez un défi de construction de phrases en espagnol pendant un combat.",
+      "Découvrez un défi de vocabulaire allemand avec des réponses à saisir."
+    ],
+    "newsletterNote": "En vous inscrivant, vous acceptez de recevoir les e-mails de WonderLang. Votre adresse est transmise à MailerLite pour gérer votre inscription. Vous pouvez vous désinscrire à tout moment.",
+    "signupLoading": "Inscription en cours…",
+    "signupThanks": "Merci !",
+    "signupSuccess": "Votre inscription à notre liste de diffusion a bien été enregistrée.",
+    "signupError": "Votre inscription n’a pas pu être finalisée. Veuillez réessayer."
   },
   "es": {
-    "nav": ["La aventura", "Idiomas", "Elige tu edición", "Preguntas"],
-    "account": "Mi cuenta", "menu": "Menú", "skip": "Ir al contenido", "pageLanguage": "Idioma del sitio",
+    "nav": [
+      "La aventura",
+      "Idiomas",
+      "Elige tu edición",
+      "Preguntas"
+    ],
+    "account": "Mi cuenta",
+    "menu": "Menú",
+    "skip": "Ir al contenido",
+    "pageLanguage": "Idioma del sitio",
     "eyebrow": "Una aventura para aprender idiomas • Principiante a A2",
-    "heroA": "Tu próxima aventura.\nTu próximo idioma.", "heroB": "Haz que un nuevo idioma\nforme parte de tu historia.",
+    "heroA": "Tu próxima aventura.\nTu próximo idioma.",
+    "heroB": "Haz que un nuevo idioma\nforme parte de tu historia.",
     "intro": "Explora un mundo lleno de color, conoce a sus curiosos habitantes y aprende un idioma por el camino. Un auténtico RPG en el que cada misión te ayuda a aprender.",
-    "play": "Prueba la demo gratuita", "buy": "Encuentra tu edición", "trailer": "Ver el tráiler", "platforms": "Windows · macOS · Steam Deck · Android", "ios": "La versión para iOS llegará más adelante.",
-    "stats": ["Más de 45 h", "de aventura y aprendizaje", "11 idiomas", "por descubrir", "A tu ritmo", "modos principiante, A1 y A2"],
-    "adventureTag": "EL APRENDIZAJE FORMA PARTE DEL MUNDO", "adventureTitle": "Un poco menos de estudio.\nMucha más aventura.", "adventureCopy": "Cada conversación te da un motivo para comprender. Cada puzle te invita a intentarlo. Desarrolla tus habilidades siguiendo una historia, no solo una lista de lecciones.",
-    "features": [["Habla con sus habitantes", "Sigue los diálogos, conoce a los personajes y descubre palabras útiles en su contexto."],["Construye tus propias frases", "Practica la gramática y el orden de las palabras con retos interactivos."],["Combate, recuerda y repite", "Repasa el vocabulario mediante combates lingüísticos y repetición espaciada."],["Encuentra tu voz", "Practica la comprensión oral y la pronunciación con retos de reconocimiento de voz en dispositivos compatibles."]],
-    "galleryAlt": ["Una conversación en una casa del pueblo de WonderLang", "Un reto de construcción de frases en WonderLang", "Un reto de vocabulario durante un combate"],
-    "languageTag": "UN MUNDO. MUCHAS FORMAS DE DESCUBRIRLO.", "languageTitle": "¿Adónde te llevará la curiosidad?", "languageCopy": "Elige el idioma que quieres aprender. Con Polyglot puedes cambiar entre todos los idiomas disponibles y recibir los que se añadan en el futuro.",
-    "languageNames": ["Francés","Español","Alemán","Italiano","Inglés","Portugués de Brasil","Coreano","Japonés","Chino mandarín","Árabe estándar moderno","Ruso"],
-    "languageNotes": ["Principiante · A1 · A2","España y Latinoamérica","Principiante · A1 · A2","Principiante · A1 · A2","Estadounidense y británico","Principiante · A1 · A2","Hangul · Práctica TOPIK I","Kana, kanji · Práctica N5/N4","Caracteres · Práctica HSK 1/2","Módulo del alfabeto · Polyglot","Módulo del cirílico · Polyglot"],
-    "baseLanguages": "Juega con explicaciones en inglés, francés, español, alemán, italiano, portugués, coreano, chino, japonés, neerlandés, indonesio, polaco, ruso, ucraniano o árabe.", "pending": "Siguen en desarrollo: portugués europeo, armenio oriental y sueco. Todavía no están disponibles.",
-    "demoTag": "TU PRIMERA MISIÓN ES GRATIS", "demoTitle": "Descubre si esta aventura es para ti.", "demoCopy": "Prueba el principio del juego antes de elegir una edición. Puedes conservar tu progreso al continuar con la versión completa en la misma plataforma.", "steamDemo": "Encuentra la demo en Steam", "android": "Descubre el juego en Google Play", "demoNote": "No necesitas pagar para probar la demo. El acceso al juego completo depende de tu edición.",
-    "shopTag": "TU AVENTURA, TU EDICIÓN", "shopTitle": "Elige cómo quieres jugar.", "shopCopy": "Un idioma o todos. En ordenador, en móvil o en ambos. Los precios regionales y las ofertas activas aparecen a continuación.", "openShop": "Abrir la tienda en una pestaña nueva", "shopLoading": "Opciones de compra", "purchaseNote": "Las compras que hagas aquí son reales. El pago seguro, las instrucciones de acceso y, cuando corresponda, la clave de Steam o el enlace de descarga se tramitan mediante nuestro sistema habitual.",
-    "benefits": [["En ordenador", "Elige una clave de Steam o una descarga directa sin DRM. Las ediciones para ordenador se compran con un pago único."],["En Android", "Elige una suscripción mensual o acceso móvil permanente."],["Premium de por vida", "Acceso en ordenador y móvil, todos los idiomas, guardado en la nube entre plataformas y futuras expansiones y secuelas cuando se publiquen. iOS sigue pendiente."]],
-    "pdf": "Un poco más para practicar", "pdfCopy": "Las compras para ordenador realizadas aquí incluyen tarjetas de vocabulario imprimibles, un libro de frases y un cuaderno de ejercicios. Tras una compra móvil, inicia sesión en la web con el correo de la compra y utiliza esa cuenta en la aplicación.", "classroom": "¿Compras para una clase? Consúltanos sobre una licencia educativa.",
-    "creatorQuote": "«Creé WonderLang porque me habría encantado tener un juego así cuando empecé a aprender idiomas: divertido, inmersivo y accesible para principiantes».", "creatorRole": "Jonathan · Creador de WonderLang",
-    "fundTag": "UN PROYECTO IMPULSADO POR LA COMUNIDAD", "fundTitle": "Ayuda a otro idioma a encontrar su voz.", "fundCopy": "Apoya el desarrollo de más idiomas mediante el fondo comunitario. El árabe y el ruso ya están disponibles; el armenio oriental y el sueco siguen en desarrollo. Que un idioma esté financiado no significa que ya se haya publicado.", "fundAction": "Apoya el desarrollo de idiomas", "fundContact": "¿Enseñas una lengua poco representada? Hablemos.",
-    "beyondTag": "EL PRÓXIMO CAPÍTULO", "beyondTitle": "WonderLang Beyond", "beyondCopy": "Una aventura independiente en desarrollo para estudiantes de nivel intermedio, de A2 a B2. Sigue la página de Kickstarter para recibir novedades.", "beyondAction": "Seguir en Kickstarter",
+    "play": "Prueba la demo gratuita",
+    "buy": "Encuentra tu edición",
+    "trailer": "Ver el tráiler",
+    "platforms": "Windows · macOS · Steam Deck · Android",
+    "ios": "La versión para iOS llegará más adelante.",
+    "stats": [
+      "Más de 45 h",
+      "de aventura y aprendizaje",
+      "11 idiomas",
+      "por descubrir",
+      "A tu ritmo",
+      "modos principiante, A1 y A2"
+    ],
+    "adventureTag": "EL APRENDIZAJE FORMA PARTE DEL MUNDO",
+    "adventureTitle": "Un poco menos de estudio.\nMucha más aventura.",
+    "adventureCopy": "Cada conversación te da un motivo para comprender. Cada puzle te invita a intentarlo. Desarrolla tus habilidades siguiendo una historia, no solo una lista de lecciones.",
+    "features": [
+      [
+        "Habla con sus habitantes",
+        "Sigue los diálogos, conoce a los personajes y descubre palabras útiles en su contexto."
+      ],
+      [
+        "Construye tus propias frases",
+        "Practica la gramática y el orden de las palabras con retos interactivos."
+      ],
+      [
+        "Combate, recuerda y repite",
+        "Repasa el vocabulario mediante combates lingüísticos y repetición espaciada."
+      ],
+      [
+        "Encuentra tu voz",
+        "Practica la comprensión oral y la pronunciación con retos de reconocimiento de voz en dispositivos compatibles."
+      ]
+    ],
+    "galleryAlt": [
+      "Una conversación en una casa del pueblo de WonderLang",
+      "Un reto de construcción de frases en WonderLang",
+      "Un reto de vocabulario durante un combate"
+    ],
+    "languageTag": "UN MUNDO. MUCHAS FORMAS DE DESCUBRIRLO.",
+    "languageTitle": "¿Adónde te llevará la curiosidad?",
+    "languageCopy": "Elige el idioma que quieres aprender. Con Polyglot puedes cambiar entre todos los idiomas disponibles y recibir los que se añadan en el futuro.",
+    "languageNames": [
+      "Francés",
+      "Español",
+      "Alemán",
+      "Italiano",
+      "Inglés",
+      "Portugués de Brasil",
+      "Coreano",
+      "Japonés",
+      "Chino mandarín",
+      "Árabe estándar moderno",
+      "Ruso"
+    ],
+    "languageNotes": [
+      "Principiante · A1 · A2",
+      "España y Latinoamérica",
+      "Principiante · A1 · A2",
+      "Principiante · A1 · A2",
+      "Estadounidense y británico",
+      "Principiante · A1 · A2",
+      "Hangul · Práctica TOPIK I",
+      "Kana, kanji · Práctica N5/N4",
+      "Caracteres · Práctica HSK 1/2",
+      "Módulo del alfabeto · Polyglot",
+      "Módulo del cirílico · Polyglot"
+    ],
+    "baseLanguages": "Juega con explicaciones en inglés, francés, español, alemán, italiano, portugués, coreano, chino, japonés, neerlandés, indonesio, polaco, ruso, ucraniano o árabe.",
+    "pending": "Siguen en desarrollo: portugués europeo, armenio oriental y sueco. Todavía no están disponibles.",
+    "demoTag": "TU PRIMERA MISIÓN ES GRATIS",
+    "demoTitle": "Descubre si esta aventura es para ti.",
+    "demoCopy": "Prueba el principio del juego antes de elegir una edición. Puedes conservar tu progreso al continuar con la versión completa en la misma plataforma.",
+    "steamDemo": "Encuentra la demo en Steam",
+    "android": "Descubre el juego en Google Play",
+    "demoNote": "No necesitas pagar para probar la demo. El acceso al juego completo depende de tu edición.",
+    "shopTag": "TU AVENTURA, TU EDICIÓN",
+    "shopTitle": "Elige cómo quieres jugar.",
+    "shopCopy": "Un idioma o todos. En ordenador, en móvil o en ambos. Los precios regionales y las ofertas activas aparecen a continuación.",
+    "openShop": "Abrir la tienda en una pestaña nueva",
+    "shopLoading": "Opciones de compra",
+    "purchaseNote": "Las compras que hagas aquí son reales. El pago seguro, las instrucciones de acceso y, cuando corresponda, la clave de Steam o el enlace de descarga se tramitan mediante nuestro sistema habitual.",
+    "benefits": [
+      [
+        "En ordenador",
+        "Elige una clave de Steam o una descarga directa sin DRM. Las ediciones para ordenador se compran con un pago único."
+      ],
+      [
+        "En Android",
+        "Elige una suscripción mensual o acceso móvil permanente."
+      ],
+      [
+        "Premium de por vida",
+        "Acceso en ordenador y móvil, todos los idiomas, guardado en la nube entre plataformas y futuras expansiones y secuelas cuando se publiquen. iOS sigue pendiente."
+      ]
+    ],
+    "pdf": "Un poco más para practicar",
+    "pdfCopy": "Las compras para ordenador realizadas aquí incluyen tarjetas de vocabulario imprimibles, un libro de frases y un cuaderno de ejercicios. Tras una compra móvil, inicia sesión en la web con el correo de la compra y utiliza esa cuenta en la aplicación.",
+    "classroom": "¿Compras para una clase? Consúltanos sobre una licencia educativa.",
+    "creatorQuote": "«Creé WonderLang porque me habría encantado tener un juego así cuando empecé a aprender idiomas: divertido, inmersivo y accesible para principiantes».",
+    "creatorRole": "Jonathan · Creador de WonderLang",
+    "fundTag": "UN PROYECTO IMPULSADO POR LA COMUNIDAD",
+    "fundTitle": "Ayuda a otro idioma a encontrar su voz.",
+    "fundCopy": "Ayuda a incorporar otro idioma a WonderLang. Cada fondo tiene un objetivo de 1.000 USD. El desarrollo comienza al alcanzar ese objetivo, con un plazo previsto de tres meses, sin una fecha de lanzamiento garantizada.",
+    "fundAction": "Elige un idioma y contribuye",
+    "fundContact": "¿Enseñas una lengua poco representada? Hablemos.",
+    "beyondTag": "EL PRÓXIMO CAPÍTULO",
+    "beyondTitle": "WonderLang Beyond",
+    "beyondCopy": "Una aventura independiente en desarrollo para estudiantes de nivel intermedio, de A2 a B2. Sigue la página de Kickstarter para recibir novedades.",
+    "beyondAction": "Seguir en Kickstarter",
     "faqTitle": "Respuestas a tus primeras preguntas.",
-    "faq": [["¿Necesito conocer el idioma de antemano?","No. Los modos para principiantes incluyen las bases de la gramática y la conjugación. WonderLang complementa otros hábitos de estudio; no promete fluidez por sí solo."],["¿Qué niveles cubre el juego?","Principiante, A1 y gran parte de A2. El coreano, el japonés y el mandarín incluyen práctica dirigida a estudiantes de TOPIK I, JLPT N5/N4 y HSK 1/2. Son referencias de aprendizaje, no certificaciones de examen."],["¿Para quién es?","Para adultos y niños a partir de unos 9 años. Los más pequeños pueden disfrutarlo con ayuda de un adulto."],["¿Cuánto cuesta?","Consulta los precios actualizados arriba. Las ediciones para ordenador tienen un pago único. Android ofrece suscripción mensual y acceso permanente. Premium de por vida incluye ordenador, móvil y guardado en la nube. Los precios varían según la región."],["¿Puedo cambiar de dispositivo?","Premium de por vida permite sincronizar las partidas de WonderLang entre ordenador y móvil. Usa la misma cuenta y sincroniza antes de cambiar de dispositivo. Steam Cloud es una función independiente de Steam."],["¿Está disponible en mi dispositivo?","Windows, macOS, Steam Deck y Android están disponibles ahora. iOS sigue en desarrollo. El acceso móvil es independiente de las ediciones estándar para ordenador."],["¿Habrá más idiomas y actualizaciones?","Polyglot incluye los idiomas que se añadan en el futuro. Premium de por vida también incluye futuras expansiones y secuelas cuando se publiquen. El portugués europeo, el armenio oriental y el sueco están pendientes, sin fecha de lanzamiento garantizada."],["¿Dónde puedo encontrar ayuda u otros jugadores?","Únete a la comunidad de Discord o contacta con nosotros. Para consultas sobre compras, escribe a orders@wonderlang.app."]],
-    "newsletterTag": "SIGUE EXPLORANDO", "newsletterTitle": "La próxima aventura, en tu correo.", "newsletterCopy": "Novedades del juego, nuevos idiomas y ofertas ocasionales.", "email": "Correo electrónico", "subscribe": "Inscripción disponible pronto", "placeholder": "Este formulario es solo una muestra. Las inscripciones aún no están abiertas aquí; tu correo no se envía ni se guarda.",
-    "footerCopy": "Un mundo por explorar. Un idioma por descubrir.", "contact": "Contacto", "community": "Únete a nuestro Discord", "privacy": "Privacidad y medición", "rights": "© WonderLang. Todos los derechos reservados.",
-    "consentTitle": "¿Nos ayudas a mejorar la aventura?", "consentCopy": "Permite la medición opcional para comparar versiones del sitio y comprender las visitas, los clics hacia la tienda y las compras mediante un identificador aleatorio del navegador. No grabamos tu correo de inscripción ni reproducciones de sesiones. Puedes cambiar esta elección abajo.", "accept": "Permitir la medición", "reject": "No, gracias", "privacyText": "La medición opcional vincula un identificador aleatorio del navegador con la versión del sitio que ves y las compras en esta tienda durante un periodo de conversión de 14 días. Incluye el idioma del sitio, el tipo de dispositivo, el país y la categoría de origen del tráfico, no tu nombre ni tu correo electrónico. Los datos esenciales del pago se procesan por separado para entregar las compras. No se graban reproducciones de sesiones. Rechazar la medición no impide comprar. Cambia tu elección con los botones de abajo para detener futuras mediciones opcionales en este navegador.", "close": "Cerrar", "preview": "Versión de vista previa — excluida de los resultados del experimento"
+    "faq": [
+      [
+        "¿Necesito conocer el idioma de antemano?",
+        "No. Los modos para principiantes incluyen las bases de la gramática y la conjugación. WonderLang complementa otros hábitos de estudio; no promete fluidez por sí solo."
+      ],
+      [
+        "¿Qué niveles cubre el juego?",
+        "Principiante, A1 y gran parte de A2. El coreano, el japonés y el mandarín incluyen práctica dirigida a estudiantes de TOPIK I, JLPT N5/N4 y HSK 1/2. Son referencias de aprendizaje, no certificaciones de examen."
+      ],
+      [
+        "¿Para quién es?",
+        "Para adultos y niños a partir de unos 9 años. Los más pequeños pueden disfrutarlo con ayuda de un adulto."
+      ],
+      [
+        "¿Cuánto cuesta?",
+        "Consulta los precios actualizados arriba. Las ediciones para ordenador tienen un pago único. Android ofrece suscripción mensual y acceso permanente. Premium de por vida incluye ordenador, móvil y guardado en la nube. Los precios varían según la región."
+      ],
+      [
+        "¿Puedo cambiar de dispositivo?",
+        "Premium de por vida permite sincronizar las partidas de WonderLang entre ordenador y móvil. Usa la misma cuenta y sincroniza antes de cambiar de dispositivo. Steam Cloud es una función independiente de Steam."
+      ],
+      [
+        "¿Está disponible en mi dispositivo?",
+        "Windows, macOS, Steam Deck y Android están disponibles ahora. iOS sigue en desarrollo. El acceso móvil es independiente de las ediciones estándar para ordenador."
+      ],
+      [
+        "¿Habrá más idiomas y actualizaciones?",
+        "Polyglot incluye los idiomas que se añadan en el futuro. Premium de por vida también incluye futuras expansiones y secuelas cuando se publiquen. El portugués europeo, el armenio oriental y el sueco están pendientes, sin fecha de lanzamiento garantizada."
+      ],
+      [
+        "¿Dónde puedo encontrar ayuda u otros jugadores?",
+        "Únete a la comunidad de Discord o contacta con nosotros. Para consultas sobre compras, escribe a orders@wonderlang.app."
+      ]
+    ],
+    "newsletterTag": "SIGUE EXPLORANDO",
+    "newsletterTitle": "La próxima aventura, en tu correo.",
+    "newsletterCopy": "Recibe contenido adicional y suscríbete a nuestro boletín para conocer las novedades del juego, los nuevos idiomas y algunas ofertas.",
+    "email": "Correo electrónico",
+    "subscribe": "Recibir el contenido adicional",
+    "footerCopy": "Un mundo por explorar. Un idioma por descubrir.",
+    "contact": "Contacto",
+    "community": "Únete a nuestro Discord",
+    "privacy": "Privacidad y medición",
+    "rights": "© WonderLang. Todos los derechos reservados.",
+    "consentTitle": "¿Nos ayudas a mejorar la aventura?",
+    "consentCopy": "Permite la medición opcional para comparar versiones del sitio y comprender las visitas, los clics hacia la tienda y las compras mediante un identificador aleatorio del navegador. Esta medición no recoge tu correo ni graba reproducciones de sesiones. MailerLite gestiona las suscripciones al boletín por separado. Puedes cambiar esta elección abajo.",
+    "accept": "Permitir la medición",
+    "reject": "No, gracias",
+    "privacyText": "La medición opcional vincula un identificador aleatorio del navegador con la versión del sitio que ves y las compras en esta tienda durante un periodo de conversión de 14 días. Incluye el idioma del sitio, el tipo de dispositivo, el país y la categoría de origen del tráfico, no tu nombre ni tu correo electrónico. Los datos esenciales del pago se procesan por separado para entregar las compras. No se graban reproducciones de sesiones. Rechazar la medición no impide comprar. Cambia tu elección con los botones de abajo para detener futuras mediciones opcionales en este navegador. Al suscribirte al boletín, tu correo se envía a MailerLite para gestionar la suscripción; puedes darte de baja desde cualquier boletín.",
+    "close": "Cerrar",
+    "preview": "Versión de vista previa — excluida de los resultados del experimento",
+    "fundNav": "Financia un idioma",
+    "fundNames": [
+      "Árabe",
+      "Armenio oriental",
+      "Ruso",
+      "Sueco",
+      "Tailandés",
+      "Neerlandés",
+      "Tagalo",
+      "Griego",
+      "Noruego",
+      "Irlandés (gaélico)",
+      "Hebreo",
+      "Galés",
+      "Finés",
+      "Esperanto",
+      "Chino cantonés",
+      "Islandés",
+      "Polaco",
+      "Hindi",
+      "Ucraniano",
+      "Checo",
+      "Turco",
+      "Vietnamita",
+      "Criollo haitiano",
+      "Gaélico escocés",
+      "Georgiano",
+      "Danés",
+      "Telugu",
+      "Latín"
+    ],
+    "fundStatuses": [
+      "Abierto a aportaciones",
+      "Financiado · En desarrollo",
+      "Financiado · Disponible"
+    ],
+    "fundTotal": "{amount} de {goal}",
+    "fundUpdated": "Importes comprobados el 24 de septiembre de 2026. No se actualizan en tiempo real.",
+    "fundTiers": [
+      [
+        "19 USD o más",
+        "Recibe el idioma elegido cuando se publique, si alcanza su objetivo de financiación."
+      ],
+      [
+        "30 USD o más",
+        "Recibe Polyglot ahora (Steam o sin DRM), y el idioma elegido cuando se publique si se financia."
+      ],
+      [
+        "60 USD o más",
+        "Recibe un Pase de por vida, y el idioma elegido cuando se publique si se financia."
+      ]
+    ],
+    "fundChoose": "Elige tu idioma en PayPal. Para proponer uno nuevo, selecciona «Other» e introduce su nombre; nosotros aportamos los primeros 500 USD a los nuevos fondos.",
+    "fundTerms": "Las aportaciones son donaciones, no reservas de compra, y no son reembolsables. El desarrollo de un idioma solo comienza cuando se alcanza su objetivo. Que esté financiado no significa que esté disponible: el armenio oriental y el sueco siguen en desarrollo.",
+    "gifTitles": [
+      "Construye frases durante el combate",
+      "Pon en práctica el vocabulario"
+    ],
+    "gifCopy": [
+      "Descubre un reto de construcción de frases en español durante un combate.",
+      "Descubre un reto de vocabulario alemán con respuestas escritas."
+    ],
+    "newsletterNote": "Al suscribirte, aceptas recibir correos de WonderLang. Tu correo se envía a MailerLite para gestionar tu suscripción. Puedes darte de baja en cualquier momento.",
+    "signupLoading": "Suscribiendo…",
+    "signupThanks": "¡Gracias!",
+    "signupSuccess": "Te has suscrito correctamente a nuestra lista de correo.",
+    "signupError": "No se ha podido completar la suscripción. Inténtalo de nuevo."
   }
 }

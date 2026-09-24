@@ -1,4 +1,5 @@
 import content from './content.json';
+import funding from './funding.json';
 import {metaAttribution,addAttribution} from '../shop/attribution.js';
 const q=new URLSearchParams(location.search), $=id=>document.getElementById(id);
 const storage={get(k){try{return localStorage.getItem(k)}catch{return null}},set(k,v){try{localStorage.setItem(k,v)}catch{}},remove(k){try{localStorage.removeItem(k)}catch{}}};
@@ -14,7 +15,10 @@ function render(){
  $('hero-title').textContent=t['hero'+variant];document.body.dataset.variant=variant;document.body.classList.toggle('variant-b',variant==='B');
  [['hero-main',variant==='B'],['hero-secondary',variant!=='B']].forEach(([id,buy])=>{const n=$(id);n.textContent=t[buy?'buy':'play'];n.href=buy?'#pricing':'#demo';n.dataset.event=buy?'shop_click':'demo_click'});
  $('stats').replaceChildren(...[0,2,4].map(i=>{const n=el('div');n.append(el('strong',t.stats[i]),el('span',t.stats[i+1]));return n}));
- cards('features',t.features);cards('benefits',t.benefits);
+ cards('features',t.features);cards('benefits',t.benefits);cards('funding-tiers',t.fundTiers);
+ $('gameplay-motion').replaceChildren(...['sentences','vocabulary'].map((name,i)=>{const n=el('figure'),img=el('img'),caption=el('figcaption');img.src='/testsite/assets/gameplay-'+name+'.gif';img.alt=t.gifCopy[i];img.loading='lazy';img.width=i?480:400;img.height=i?270:225;caption.append(el('h3',t.gifTitles[i]),el('p',t.gifCopy[i]));n.append(img,caption);return n}));
+ const usd=n=>new Intl.NumberFormat(lang,{style:'currency',currency:'USD',currencyDisplay:'code',maximumFractionDigits:0}).format(n);
+ $('funding-grid').replaceChildren(...funding.pools.map((pool,i)=>{const card=el('article',null,'funding-card'),bar=el('progress');bar.max=funding.goal;bar.value=pool.amount;bar.setAttribute('aria-label',t.fundNames[i]);card.append(el('h3',t.fundNames[i]),el('span',t.fundStatuses[pool.status],'fund-status status-'+pool.status),bar,el('p',t.fundTotal.replace('{amount}',usd(pool.amount)).replace('{goal}',usd(funding.goal))));return card}));
  $('gallery').replaceChildren(...['dialogue','sentences','combat'].map((name,i)=>{const n=el('figure'),img=el('img');img.src='/testsite/assets/'+name+'.webp';img.alt=t.galleryAlt[i];img.loading='lazy';n.append(img);return n}));
  const codes=['FR','ES','DE','IT','EN','BR','KO','JA','ZH','AR','RU'];
  $('language-grid').replaceChildren(...t.languageNames.map((name,i)=>{const n=el('article',null,'language-card'),copy=el('div');copy.append(el('strong',name),el('small',t.languageNotes[i]));n.append(el('span',codes[i],'glyph'),copy);return n}));
@@ -52,5 +56,11 @@ document.addEventListener('click',e=>{const a=e.target.closest('[data-event]');i
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')measure('exposure')});
 document.querySelectorAll('[data-consent]').forEach(n=>n.addEventListener('click',()=>choose(n.dataset.consent)));
 $('privacy-open').addEventListener('click',()=>$('privacy-dialog').showModal());$('privacy-close').addEventListener('click',()=>$('privacy-dialog').close());
-$('newsletter-form').addEventListener('submit',e=>e.preventDefault());
+// Keep the provider's original form ID, action and callback contract. Only a confirmed
+// MailerLite response may display success; ordinary clicks never simulate a signup.
+window.ml_webform_success_22154858=()=>{
+ document.querySelector('#mlb2-22154858 .row-form').style.display='none';
+ const success=document.querySelector('#mlb2-22154858 .row-success');success.style.display='block';success.focus();
+};
+fetch('https://assets.mailerlite.com/jsonp/1292227/forms/144956028970075999/takel').catch(()=>{});
 render();$('consent').hidden=preview||Boolean(consent);enroll();

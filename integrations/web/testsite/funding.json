@@ -1,0 +1,148 @@
+{
+  "source": "https://wonderlang.net/",
+  "checkedAt": "2026-09-24",
+  "currency": "USD",
+  "goal": 1000,
+  "pools": [
+    {
+      "name": "Arabic",
+      "amount": 1000,
+      "status": 2
+    },
+    {
+      "name": "Eastern Armenian",
+      "amount": 1000,
+      "status": 1
+    },
+    {
+      "name": "Russian",
+      "amount": 1000,
+      "status": 2
+    },
+    {
+      "name": "Swedish",
+      "amount": 1000,
+      "status": 1
+    },
+    {
+      "name": "Thai",
+      "amount": 806,
+      "status": 0
+    },
+    {
+      "name": "Dutch",
+      "amount": 710,
+      "status": 0
+    },
+    {
+      "name": "Tagalog",
+      "amount": 680,
+      "status": 0
+    },
+    {
+      "name": "Greek",
+      "amount": 675,
+      "status": 0
+    },
+    {
+      "name": "Norwegian",
+      "amount": 655,
+      "status": 0
+    },
+    {
+      "name": "Irish (Gaelic)",
+      "amount": 630,
+      "status": 0
+    },
+    {
+      "name": "Hebrew",
+      "amount": 620,
+      "status": 0
+    },
+    {
+      "name": "Welsh",
+      "amount": 605,
+      "status": 0
+    },
+    {
+      "name": "Finnish",
+      "amount": 590,
+      "status": 0
+    },
+    {
+      "name": "Esperanto",
+      "amount": 590,
+      "status": 0
+    },
+    {
+      "name": "Cantonese Chinese",
+      "amount": 560,
+      "status": 0
+    },
+    {
+      "name": "Icelandic",
+      "amount": 535,
+      "status": 0
+    },
+    {
+      "name": "Polish",
+      "amount": 530,
+      "status": 0
+    },
+    {
+      "name": "Hindi",
+      "amount": 530,
+      "status": 0
+    },
+    {
+      "name": "Ukrainian",
+      "amount": 530,
+      "status": 0
+    },
+    {
+      "name": "Czech",
+      "amount": 530,
+      "status": 0
+    },
+    {
+      "name": "Turkish",
+      "amount": 530,
+      "status": 0
+    },
+    {
+      "name": "Vietnamese",
+      "amount": 530,
+      "status": 0
+    },
+    {
+      "name": "Haitian Creole",
+      "amount": 530,
+      "status": 0
+    },
+    {
+      "name": "Scottish Gaelic",
+      "amount": 525,
+      "status": 0
+    },
+    {
+      "name": "Georgian",
+      "amount": 520,
+      "status": 0
+    },
+    {
+      "name": "Danish",
+      "amount": 515,
+      "status": 0
+    },
+    {
+      "name": "Telugu",
+      "amount": 510,
+      "status": 0
+    },
+    {
+      "name": "Latin",
+      "amount": 505,
+      "status": 0
+    }
+  ]
+}
