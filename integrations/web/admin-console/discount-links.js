@@ -4,24 +4,27 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 let currentData;
 const options=(values)=>Object.entries(values).map(([v,n])=>`<option value="${esc(v)}">${esc(n)}</option>`).join('');
 const languageNames={en:'English',fr:'Français',de:'Deutsch',es:'Español','es-MX':'Español (Latinoamérica)','pt-BR':'Português (Brasil)','pt-PT':'Português (Portugal)',it:'Italiano',nl:'Nederlands',sv:'Svenska',pl:'Polski',uk:'Українська',ru:'Русский',id:'Bahasa Indonesia',ko:'한국어',ja:'日本語','zh-CN':'简体中文','zh-TW':'繁體中文',ar:'العربية',hy:'Հայերեն'};
-const demoLinks=[];
+const demoLinks=[];const saleSelections={};
 export function demoDiscountLinks(path,options={}){
- const data={links:demoLinks,offers:{single:'Single language · PC/Mac',polyglot:'Polyglot · PC/Mac',premium:'Premium Lifetime Pass',mobile_monthly:'Mobile Monthly',mobile_permanent:'Mobile Permanent'},locales:Object.keys(languageNames),currencies:Object.keys(prices)};
+ const data={links:demoLinks,saleSelections,offers:{single:'Single language · PC/Mac',polyglot:'Polyglot · PC/Mac',premium:'Premium Lifetime Pass',mobile_monthly:'Mobile Monthly',mobile_permanent:'Mobile Permanent'},locales:Object.keys(languageNames),currencies:Object.keys(prices)};
  if((options.method||'GET')==='GET')return data;
+ if(path.endsWith('/website-sale')){const link=demoLinks.find(l=>path.includes(l.id));if(options.body.enabled)saleSelections[link.offer]=link.id;else if(saleSelections[link.offer]===link.id)delete saleSelections[link.offer];return {id:link.id,enabled:options.body.enabled};}
  if(path.endsWith('/active')){const link=demoLinks.find(l=>path.includes(l.id));link.active=options.body.active;return link;}
  const link={...options.body,active:true,ready:true,url:location.origin+'/shop/?campaign='+options.body.id};demoLinks.unshift(link);return link;
 }
-export function renderDiscountLinks(data){
+export function renderDiscountLinks(data,salesMode=false){
+ data={...data,salesMode,links:data.links.filter(link=>(link.channel||'newsletter')===(salesMode?'website':'newsletter'))};
  currentData=data;
  const rows=data.links.map(link=>{
   const expired=link.expiresAt&&Date.parse(link.expiresAt)<=Date.now();
+  const selected=data.saleSelections?.[link.offer]===link.id;
   const status=!link.ready?'Setup incomplete':expired?'Expired':link.active?'Active':'Inactive';
-  return `<tr><td><strong>${esc(link.name)}</strong><br>${esc(data.offers[link.offer])}<br><small>${esc(link.locale)} · ${esc(link.currency)}</small></td><td>${link.percentOff}%<br><small>${link.offer==='mobile_monthly'?(link.duration==='once'?'First payment':link.duration==='forever'?'Every payment':`${link.durationMonths} months`):'One purchase'}</small></td><td>${esc(status)}</td><td>${link.expiresAt?esc(new Date(link.expiresAt).toLocaleString()):'No expiry'}</td><td><input aria-label="Link for ${esc(link.name)}" readonly value="${esc(link.url)}"><button class="text-button" data-copy-discount="${link.id}">Copy link</button> <a href="${esc(link.url)}" target="_blank" rel="noopener">Preview</a></td><td>${!link.ready?`<button class="text-button" data-provision-discount="${link.id}">Retry setup</button>`:!expired?`<button class="text-button" data-toggle-discount="${link.id}" data-active="${!link.active}">${link.active?'Deactivate':'Activate'}</button>`:''} <button class="text-button" data-duplicate-discount="${link.id}">Duplicate</button></td></tr>`;
+  return `<tr data-discount-status="${esc(status.toLowerCase())}"><td><strong>${esc(link.name)}</strong><br>${esc(data.offers[link.offer])}<br><small>${esc(link.locale)} · ${esc(link.currency)}</small></td><td>${link.percentOff}%<br><small>${link.offer==='mobile_monthly'?(link.duration==='once'?'First payment':link.duration==='forever'?'Every payment':`${link.durationMonths} months`):'One purchase'}</small></td><td>${esc(status)}${selected?`<br><strong>${link.active&&!expired?'Live on website + demo':'Selected (not live)'}</strong>`:''}</td><td>${link.expiresAt?esc(new Date(link.expiresAt).toLocaleString()):'No expiry'}</td><td>${salesMode?`<a href="${esc(link.url)}" target="_blank" rel="noopener">Preview sale</a>`:`<input aria-label="Link for ${esc(link.name)}" readonly value="${esc(link.url)}"><button class="text-button" data-copy-discount="${link.id}">Copy link</button> <a href="${esc(link.url)}" target="_blank" rel="noopener">Preview</a>`}</td><td>${!link.ready?`<button class="text-button" data-provision-discount="${link.id}">Retry setup</button>`:!expired?`<button class="text-button" data-toggle-discount="${link.id}" data-active="${!link.active}">${link.active?'Deactivate':'Activate'}</button>`:''} ${salesMode&&(selected||(!expired&&link.ready&&link.active))?`<button class="text-button" data-sale-discount="${link.id}" data-enabled="${!selected}">${selected?'Unpublish sale':'Publish sale'}</button>`:''} <button class="text-button" data-duplicate-discount="${link.id}">Duplicate</button></td></tr>`;
  }).join('');
- return `<section class="page-intro"><p class="section-kicker">NEWSLETTER CAMPAIGNS</p><h2>Discount links</h2><p>Create reusable links to the normal Stripe checkout. Delivery, account access and sales reporting follow the existing website purchase flow.</p></section>
- <section class="panel"><header><div><h3>Create a discount link</h3><p class="panel-copy">The campaign name appears on Stripe checkout and its discount. Percentages apply to every supported currency. Existing product prices stay unchanged.</p></div></header>
+ return `<section class="page-intro"><p class="section-kicker">${salesMode?'WEBSITE AND DEMO':'NEWSLETTER CAMPAIGNS'}</p><h2>${salesMode?'Website sales':'Discount links'}</h2><p>${salesMode?'Create a sale, then click Publish sale. One sale per product can be published; publishing another replaces the previous selection. The website shop and demo update automatically. Inactive or expired sales show normal prices. Newsletter links are separate.':'Create reusable newsletter links to the normal Stripe checkout. These discounts do not appear in the public shop.'}</p><p>Delivery, account access and sales reporting follow the existing website purchase flow.</p></section>
+ <section class="panel"><header><div><h3>${salesMode?'Create a website sale':'Create a discount link'}</h3><p class="panel-copy">The campaign name appears on Stripe checkout and its discount. Percentages apply to every supported currency. Existing product prices stay unchanged.</p></div></header>
  <form id="discount-link-form" class="stack-form">
- <label>Campaign name (shown to buyers)<input name="name" required maxlength="40" placeholder="Autumn newsletter"></label>
+ <label>Campaign name (shown to buyers)<input name="name" required maxlength="40" placeholder="${salesMode?'Autumn sale':'Autumn newsletter'}"></label>
  <label>Product<select name="offer">${options(data.offers)}</select></label>
  <label>Discount (%)<input name="percentOff" type="number" min="1" max="100" step="1" value="20" required></label>
  <label>Default checkout language<select name="locale">${options(Object.fromEntries(data.locales.map(l=>[l,languageNames[l]||l])))}</select></label>
@@ -34,10 +37,10 @@ export function renderDiscountLinks(data){
  <label>Expiry date and time (your local time; optional)<input name="expiresAt" type="datetime-local"></label>
  <p class="panel-copy">Expiry and deactivation stop new checkouts. Unpaid Stripe sessions are closed automatically; deadline cleanup runs every minute. Already completed purchases and subscription discounts are honored. Monthly offers keep their existing three-day trial.</p>
  <details><summary>Preview all currency prices</summary><div id="discount-price-preview" class="table-wrap"></div></details>
- <button class="button primary" type="submit">Create discount link</button><p id="discount-create-result" role="status"></p>
+ <button class="button primary" type="submit">${salesMode?'Create sale':'Create discount link'}</button><p id="discount-create-result" role="status"></p>
  </form></section>
- <section class="panel spaced"><header><h3>Your links</h3><label>Filter<select id="discount-filter"><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select></label></header>
- <div class="table-wrap"><table id="discount-links-table"><thead><tr><th>Name / product</th><th>Discount</th><th>Status</th><th>Expires</th><th>Newsletter link</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No discount links yet.</td></tr>'}</tbody></table></div><p class="panel-copy">Latest 250 links. Use Duplicate to create a new campaign with different terms or dates.</p></section>`;
+ <section class="panel spaced"><header><h3>${salesMode?'Your website sales':'Your links'}</h3><label>Filter<select id="discount-filter"><option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="expired">Expired</option></select></label></header>
+ <div class="table-wrap"><table id="discount-links-table"><thead><tr><th>Name / product</th><th>Discount</th><th>Status</th><th>Expires</th><th>${salesMode?'Preview':'Newsletter link'}</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No discount links yet.</td></tr>'}</tbody></table></div><p class="panel-copy">Latest 250 links. Use Duplicate to create a new campaign with different terms or dates.</p></section>`;
 }
 export function bindDiscountLinks({api,toast,reload}){
  const form=document.getElementById('discount-link-form');if(!form)return;
@@ -54,16 +57,17 @@ export function bindDiscountLinks({api,toast,reload}){
  form.addEventListener('submit',async event=>{
   event.preventDefault();if(submitting)return;submitting=true;const button=form.querySelector('[type=submit]');button.disabled=true;
   try{
-   const f=new FormData(form);const body={id:requestId,name:String(f.get('name')).trim(),offer:f.get('offer'),percentOff:Number(f.get('percentOff')),locale:f.get('locale'),currency:f.get('currency'),duration:f.get('duration')||'once',expiresAt:f.get('expiresAt')?new Date(String(f.get('expiresAt'))).toISOString():null};
+   const f=new FormData(form);const body={channel:currentData.salesMode?'website':'newsletter',id:requestId,name:String(f.get('name')).trim(),offer:f.get('offer'),percentOff:Number(f.get('percentOff')),locale:f.get('locale'),currency:f.get('currency'),duration:f.get('duration')||'once',expiresAt:f.get('expiresAt')?new Date(String(f.get('expiresAt'))).toISOString():null};
    for(const key of ['delivery','learningLanguage','mobilePlatform'])if(f.get(key))body[key]=f.get(key);
    if(body.duration==='repeating')body.durationMonths=Number(f.get('durationMonths'));
    const result=await api('/admin-api/v1/discount-links',{method:'POST',body});
-   await reload();toast(`Created “${result.name}”. Copy its newsletter link below.`);
+   await reload();toast(currentData.salesMode?`Created “${result.name}”. Click Publish sale to show it on the website and demo.`:`Created “${result.name}”. Copy its newsletter link below.`);
   }catch(error){toast(error.message,true);}finally{submitting=false;button.disabled=false;}
  });
  document.querySelectorAll('[data-copy-discount]').forEach(button=>button.onclick=async()=>{const link=currentData.links.find(l=>l.id===button.dataset.copyDiscount);try{await navigator.clipboard.writeText(link.url);toast('Link copied.')}catch{toast('Select and copy the link from its field.',true)}});
  document.querySelectorAll('[data-toggle-discount]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await api(`/admin-api/v1/discount-links/${button.dataset.toggleDiscount}/active`,{method:'POST',body:{active:button.dataset.active==='true'}});await reload();toast('Link status updated.')}catch(error){toast(error.message,true);button.disabled=false}});
+ document.querySelectorAll('[data-sale-discount]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await api(`/admin-api/v1/discount-links/${button.dataset.saleDiscount}/website-sale`,{method:'POST',body:{enabled:button.dataset.enabled==='true'}});await reload();toast('Website sale updated.');}catch(error){toast(error.message,true);button.disabled=false}});
  document.querySelectorAll('[data-provision-discount]').forEach(button=>button.onclick=async()=>{button.disabled=true;try{await api(`/admin-api/v1/discount-links/${button.dataset.provisionDiscount}/provision`,{method:'POST',body:{}});await reload();toast('Link setup completed.')}catch(error){toast(error.message,true);button.disabled=false}});
  document.querySelectorAll('[data-duplicate-discount]').forEach(button=>button.onclick=()=>{const link=currentData.links.find(l=>l.id===button.dataset.duplicateDiscount);requestId=crypto.randomUUID();form.reset();for(const key of ['name','offer','percentOff','locale','currency','delivery','learningLanguage','mobilePlatform','duration','durationMonths'])if(link[key]!=null)form.elements[key].value=link[key];form.elements.expiresAt.value='';update();form.scrollIntoView({behavior:'smooth'});form.elements.name.focus();});
- document.getElementById('discount-filter').onchange=event=>{const value=event.target.value;document.querySelectorAll('#discount-links-table tbody tr').forEach(row=>{row.hidden=value!=='all'&&row.cells[2]?.textContent.toLowerCase()!==value;});};
+ document.getElementById('discount-filter').onchange=event=>{const value=event.target.value;document.querySelectorAll('#discount-links-table tbody tr').forEach(row=>{row.hidden=value!=='all'&&row.dataset.discountStatus!==value;});};
 }

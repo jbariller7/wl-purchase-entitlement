@@ -10,6 +10,7 @@ import type { WebsiteSessionRequest } from "./website-session.js";
 
 export const discountOffers = { single: "Single language · PC/Mac", polyglot: "Polyglot · PC/Mac", premium: "Premium Lifetime Pass", mobile_monthly: "Mobile Monthly", mobile_permanent: "Mobile Permanent" };
 export const discountLinkSchema = z.object({
+  channel: z.enum(["newsletter", "website"]).default("newsletter"),
   id: z.string().uuid(), name: z.string().trim().min(1).max(40),
   offer: z.enum(["single", "polyglot", "premium", "mobile_monthly", "mobile_permanent"]),
   percentOff: z.number().int().min(1).max(100),
@@ -56,16 +57,54 @@ export class DiscountLinks {
   private ref(id: string) { if(!z.string().uuid().safeParse(id).success) throw new HttpError(400,"Invalid discount link."); return this.db.collection("websiteDiscountLinks").doc(id); }
   async get(id:string): Promise<DiscountLink> { const snap=await this.ref(id).get(); if(!snap.exists) throw new HttpError(404,"Discount link not found."); return snap.data() as DiscountLink; }
   url(link:DiscountLink) { return `${this.origin}/shop/?campaign=${link.id}&lang=${encodeURIComponent(link.locale)}&currency=${link.currency}`; }
+  async saleSelections(): Promise<Record<string,string>> {
+    const snapshot=await this.db.collection("websiteSaleSelections").get();
+    return Object.fromEntries(snapshot.docs.filter(doc=>Object.hasOwn(discountOffers,doc.id)&&typeof doc.data().campaignId==="string").map(doc=>[doc.id,doc.data().campaignId]));
+  }
+  async saleCampaigns(now:Date) {
+    const selections=await this.saleSelections();
+    const result:DiscountLink[]=[];
+    for(const [offer,id] of Object.entries(selections)) {
+      try { const link=await this.get(id);assertDiscountAvailable(link,now);if(link.offer===offer && link.channel==="website")result.push(link); }
+      catch(error) { if(!(error instanceof HttpError && [404,410].includes(error.status)))throw error; }
+    }
+    return result;
+  }
+  async assertPublished(link:DiscountLink) {
+    if(link.channel!=="website")return;
+    const selected=await this.db.collection("websiteSaleSelections").doc(link.offer).get();
+    if(selected.data()?.campaignId!==link.id)throw new HttpError(410,"This sale is no longer published.");
+  }
+  async closeCampaignSessions(id:string,now:Date) {
+    const sessions=await this.db.collection("websiteDiscountSessions").where("campaignId","==",id).get();
+    for(const session of sessions.docs)await session.ref.update({closeAfter:now.toISOString()});
+    await this.closeDueSessions(now);
+  }
+  async setWebsiteSale(id:string,enabled:boolean,actor:AdminActor,now:Date) {
+    const link=await this.get(id);
+    if(link.channel!=="website")throw new HttpError(400,"Only website sales can be published here.");
+    if(enabled)assertDiscountAvailable(link,now);
+    const ref=this.db.collection("websiteSaleSelections").doc(link.offer);
+    const replaced=await this.db.runTransaction(async tx=>{
+      const old=await tx.get(ref),previous=old.data()?.campaignId;
+      if(enabled || previous===id){tx.set(ref,{campaignId:enabled?id:null,updatedAt:now.toISOString()});return previous!==id||!enabled?previous:null;}
+      return null;
+    });
+    if(replaced)await this.closeCampaignSessions(replaced,now);
+    await recordAdminAudit({db:this.db,actor,action:"discount-link.website-sale",targetType:"discount-link",targetId:id,summary:`${enabled?"Selected":"Removed"} ${link.name} for the website and demo`,now});
+    return {id,enabled};
+  }
   async list() {
     const snapshot=await this.db.collection("websiteDiscountLinks").orderBy("createdAt","desc").limit(250).get();
-    return {links:snapshot.docs.map(doc=>{const link=doc.data() as DiscountLink; return {...link,url:this.url(link)};}), offers:discountOffers,locales:Object.keys(locales),currencies:Object.keys(prices)};
+    const saleSelections=await this.saleSelections();
+    return {saleSelections,links:snapshot.docs.map(doc=>{const link=doc.data() as DiscountLink; return {...link,url:this.url(link)};}), offers:discountOffers,locales:Object.keys(locales),currencies:Object.keys(prices)};
   }
   async create(input:DiscountInput,actor:AdminActor,now:Date) {
     if(input.expiresAt && (Date.parse(input.expiresAt)<=now.getTime() || Date.parse(input.expiresAt)>now.getTime()+5*365*86400000)) throw new HttpError(400,"Expiry must be in the future and within five years.");
     const ref=this.ref(input.id);
     await this.db.runTransaction(async tx=>{
       const old=await tx.get(ref);
-      if(old.exists){ const saved=old.data() as DiscountLink; for(const key of Object.keys(input) as Array<keyof DiscountInput>) if(saved[key]!==input[key]) throw new HttpError(409,"This link was already created with different settings."); return; }
+      if(old.exists){ const saved=old.data() as DiscountLink; for(const key of Object.keys(input) as Array<keyof DiscountInput>) if((key==="channel"?(saved.channel??"newsletter"):saved[key])!==input[key]) throw new HttpError(409,"This link was already created with different settings."); return; }
       tx.create(ref,{...input,active:false,ready:false,couponId:`wl_campaign_${input.id}`,createdAt:now.toISOString(),updatedAt:now.toISOString()});
     });
     return this.provision(input.id,actor,now);
@@ -112,7 +151,7 @@ export class DiscountLinks {
   }
   async registerSession(link:DiscountLink,session:Stripe.Checkout.Session,now:Date) {
     await this.db.collection("websiteDiscountSessions").doc(session.id).set({campaignId:link.id,closeAfter:new Date(Math.min(session.expires_at*1000,link.expiresAt?Date.parse(link.expiresAt):Infinity)).toISOString()});
-    try { assertDiscountAvailable(await this.get(link.id),now); }
+    try { const fresh=await this.get(link.id);assertDiscountAvailable(fresh,now);await this.assertPublished(fresh); }
     catch(error) {
       const ref=this.db.collection("websiteDiscountSessions").doc(session.id);
       await ref.update({closeAfter:now.toISOString()});

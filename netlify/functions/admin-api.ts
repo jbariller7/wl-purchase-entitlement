@@ -131,9 +131,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     if (event.httpMethod === "GET") return json(200, await discounts.list());
     if (event.httpMethod === "POST") return json(201, await discounts.create(discountLinkSchema.parse(body(discountLinkSchema, event)), actor, now));
   }
-  const discountAction = path.match(/^\/v1\/discount-links\/([0-9a-f-]+)\/(active|provision)$/i);
+  const discountAction = path.match(/^\/v1\/discount-links\/([0-9a-f-]+)\/(active|provision|website-sale)$/i);
   if (event.httpMethod === "POST" && discountAction) {
     const discounts = new DiscountLinks(db);
+    if (discountAction[2] === "website-sale") return json(200, await discounts.setWebsiteSale(discountAction[1]!, body(z.object({enabled:z.boolean()}).strict(), event).enabled, actor, now));
     if (discountAction[2] === "provision") return json(200, await discounts.provision(discountAction[1]!, actor, now));
     return json(200, await discounts.setActive(discountAction[1]!, body(z.object({active:z.boolean()}).strict(), event).active, actor, now));
   }

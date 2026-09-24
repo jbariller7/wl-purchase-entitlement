@@ -15,3 +15,12 @@ Firestore collections: websiteDiscountLinks (admin-controlled campaign definitio
 Creation retries reserve a UUID and reuse a deterministic Stripe coupon ID and idempotency key. Incomplete setup can be retried from the admin list. Changes to terms require a new link, preventing a previously distributed campaign from silently changing price.
 
 Validation: discount-links.test.ts covers currencies, server enforcement, coupon provisioning, expiry/deactivation, subscription preservation and translation coverage. website-commerce.test.ts exercises the discounted path through normal order fulfillment and stable Stripe retry parameters. Existing conversion, delivery, refund and event-processor tests also run.
+
+
+## Website sales (separate from newsletter links)
+
+Use Admin → Website sales to create a named percentage discount with its product, options, expiry and subscription duration. Creation prepares the Stripe coupon but does not publish it. Click Publish sale to select it for that product on the normal website shop and demo menu. One published sale per product is supported; publishing another replaces that product's selection. Newsletter campaigns remain in Discount links and never appear automatically in the public shop.
+
+The shared shop fetches published sales on opening, on focus and every minute. Inactive, expired or missing campaigns revert to regular pricing; unavailable sale lookup also falls back to regular prices. Checkout validates the current selection and campaign availability again. Deactivation, expiry, replacement and unpublishing close outstanding unpaid sessions; completed purchases and subscription discounts are honored. Unpublishing leaves the record available for later publication. No demo rebuild is needed for subsequent sales changes.
+
+Sales reuse the existing Stripe fulfillment, entitlement, confirmation email and conversion reporting pipeline. All currency amounts use the regular regional price table and the selected percentage. Explicit newsletter links keep their campaign and do not stack with public sales. Website sale records use channel=website; old records with no channel are treated as newsletters. The selected campaign IDs live in websiteSaleSelections, one document per product.

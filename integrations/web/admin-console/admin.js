@@ -164,9 +164,10 @@ function majorAmount(currency, unitAmount) {
   return (Number(unitAmount) / (digits === 0 ? 1 : 100)).toFixed(digits);
 }
 
-const views = { overview: "Overview", customers: "Customers", discounts: "Discount links", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
+const views = { overview: "Overview", customers: "Customers", discounts: "Discount links", sales: "Website sales", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
 const endpoints = {
   discounts: "/admin-api/v1/discount-links",
+  sales: "/admin-api/v1/discount-links",
   overview: "/admin-api/v1/overview", billing: "/admin-api/v1/catalog", operations: "/admin-api/v1/operations",
   inventory: "/admin-api/v1/inventory", audit: "/admin-api/v1/audit", settings: "/admin-api/v1/session",
   secondPlatformRequests: "/admin-api/v1/second-platform-requests"
@@ -659,11 +660,11 @@ async function loadView(view) {
       state.secondPlatformRequests = result.requests || [];
       directory.result = accounts;
     }
-    else if (["discounts", "billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
+    else if (["discounts", "sales", "billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
     if (revision !== viewLoadRevision || state.view !== view) return;
-    const content = view === "discounts" ? renderDiscountLinks(data) : view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports() : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
+    const content = (view === "discounts" || view === "sales") ? renderDiscountLinks(data,view === "sales") : view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports() : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
     appNode.innerHTML = shell(content); bindShell(); bindView();
-    if (view === "discounts") bindDiscountLinks({ api, toast, reload: () => loadView("discounts") });
+    if (view === "discounts" || view === "sales") bindDiscountLinks({ api, toast, reload: () => loadView(view) });
     if (state.notice) {
       const notice = state.notice;
       state.notice = null;

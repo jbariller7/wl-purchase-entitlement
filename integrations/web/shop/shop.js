@@ -21,7 +21,9 @@ for(const value of Object.keys(prices))currencySelect.add(new Option(value,value
 languageSelect.value=lang;currencySelect.value=currency;
 languageSelect.closest('label').hidden=embedded&&query.get('parentLanguage')==='1';
 const rememberedOptions={};
-let campaign=null,campaignLoading=query.has('campaign'),campaignError=false;
+const publicSales=!query.has('campaign');
+let publicCampaigns={};
+let campaign=null,campaignLoading=query.has('campaign')||publicSales,campaignError=false;
 let category='desktop';
 function render(){
  const l=locales[lang],t=ui[lang];document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';
@@ -34,7 +36,9 @@ function render(){
  for(const [value,label] of [['desktop','PC / Mac'],['mobile',mobile[lang][4]],['both',mobile[lang][5]]]){const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-pressed',String(category===value));button.onclick=()=>{category=value;render()};tabs.append(button)}
  tabs.hidden=Boolean(campaign);tabs.style.display=campaign?"none":"";
  const offers=campaign?[campaign.offer]:category==='desktop'?['single','polyglot','premium']:category==='mobile'?['mobile_monthly','mobile_permanent','premium']:['premium'];
+ const explicitCampaign=campaign;
  offers.forEach(offer=>{
+ const campaign=explicitCampaign||publicCampaigns[offer];
  const card=document.createElement('article'),heading=document.createElement('h2'),price=document.createElement('div'),description=document.createElement('p'),buy=document.createElement('a'),options=rememberedOptions[offer]||{};rememberedOptions[offer]=options;
  const isMonthly=offer==='mobile_monthly',isMobile=offer.startsWith('mobile_'),index=['single','polyglot','premium'].indexOf(offer);
  heading.textContent=isMobile?mobile[lang][isMonthly?0:1]:l[offer];
@@ -43,6 +47,7 @@ function render(){
  if(campaign){const regular=document.createElement('del');regular.textContent=price.textContent;regular.style.fontSize='0.6em';const minor=stripeMinorAmount(currency,amount);price.textContent=new Intl.NumberFormat(lang,{style:'currency',currency}).format((minor-Math.round(minor*campaign.percentOff/100))/10**currencyFractionDigits(currency))+(isMonthly?mobile[lang][6]:'');price.append(document.createTextNode(` (−${campaign.percentOff}%) `),regular);}
  description.className='description';description.textContent=isMobile?mobile[lang][isMonthly?2:3]:l[offer+'Description'];
  card.append(heading,price,description);
+ if(campaign&&publicSales){const name=document.createElement('p');name.textContent=campaign.name;card.append(name);}
  if(campaign&&isMonthly){const terms=document.createElement('p');terms.textContent=discountText[lang][campaign.duration==='once'?1:campaign.duration==='forever'?2:3].replace('{MONTHS}',String(campaign.durationMonths));card.append(terms);}
  function update(){const params=new URLSearchParams({offer,lang,currency,...options});if(campaign)params.set('campaign',campaign.id);addAttribution(params,metaContext);for(const key of ['ttclid','gclid','gbraid','wbraid']){const value=query.get(key);if(value&&value.length<=255)params.set(key,value)}buy.href='/shop/checkout/?'+params}
  function choice(key,label,values){const wrapper=document.createElement('label'),text=document.createElement('span'),select=document.createElement('select');text.textContent=label;for(const [value,name]of values)select.add(new Option(name,value));if(campaign?.[key])options[key]=campaign[key];if(options[key])select.value=options[key];select.disabled=Boolean(campaign?.[key]);options[key]=select.value;select.onchange=()=>{options[key]=select.value;update()};wrapper.append(text,select);card.append(wrapper)}
@@ -65,7 +70,21 @@ if(gameEmbedded)document.addEventListener('keydown',event=>{
  if(event.key==='Escape'&&event.target.tagName!=='SELECT'){event.preventDefault();parent.postMessage({type:'wonderlang-shop-close'},'*');}
 });
 languageSelect.onchange=()=>{lang=languageSelect.value;render()};currencySelect.onchange=()=>{manualCurrency=true;currency=currencySelect.value;render()};render();
-if(campaignLoading)fetch('/.netlify/functions/website-discount?id='+encodeURIComponent(query.get('campaign')),{cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Offer unavailable');campaign=await response.json();campaignLoading=false;render();}).catch(()=>{campaignLoading=false;campaignError=true;render();});
+if(query.has('campaign'))fetch('/.netlify/functions/website-discount?id='+encodeURIComponent(query.get('campaign')),{cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Offer unavailable');campaign=await response.json();campaignLoading=false;render();}).catch(()=>{campaignLoading=false;campaignError=true;render();});
+if(publicSales){
+ async function refreshSales(){
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
+  try{
+   const response=await fetch('/.netlify/functions/website-discount?placement=website',{cache:'no-store',signal:controller.signal});
+   if(!response.ok)throw Error('Unavailable');
+   const data=await response.json();
+   publicCampaigns=Object.fromEntries(data.campaigns.filter(c=>!c.expiresAt||Date.parse(c.expiresAt)>Date.now()).map(c=>[c.offer,c]));
+  }catch{publicCampaigns={};}finally{clearTimeout(timeout);}
+  campaignLoading=false;render();
+ }
+ refreshSales();setInterval(refreshSales,60000);
+ window.addEventListener('focus',refreshSales);
+}
 const expectedParent=query.get('parentOrigin');
 window.addEventListener('message',event=>{
  if(event.source!==parent||!expectedParent||event.origin!==expectedParent||event.data?.type!=='wonderlang-shop-context')return;

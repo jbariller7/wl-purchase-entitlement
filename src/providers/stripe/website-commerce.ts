@@ -98,7 +98,7 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   const stripe=stripeClient(),origin=websiteStripeConfiguration().origin;
   const campaigns=request.campaignId?new DiscountLinks(store.firestore(),stripe,origin):null;
   const campaign=campaigns?await campaigns.get(request.campaignId!):null;
-  if(campaign) assertDiscountAvailable(campaign,new Date(),request);
+  if(campaign) {assertDiscountAvailable(campaign,new Date(),request);await campaigns!.assertPublished(campaign);}
   const price=await stripe.prices.retrieve(priceId,{expand:['currency_options']});
   assertWebsitePrice(price,request,true);
   const quote:Quote={request,priceId,claimHash:digest(claimSecret),createdAt:new Date().toISOString()};

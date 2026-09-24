@@ -15,11 +15,50 @@ function fixture(){
  const records=new Map<string,any>();let next=0;
  const ref=(path:string):any=>({id:path.split('/').at(-1),path,get:async()=>({exists:records.has(path),data:()=>records.get(path)}),set:async(v:any)=>records.set(path,v),create:async(v:any)=>{if(records.has(path))throw Error('Exists');records.set(path,v);},update:async(v:any)=>records.set(path,{...records.get(path),...v}),delete:async()=>records.delete(path)});
  const collection=(path:string,filters:any[]=[]):any=>({doc:(key:string)=>ref(path+'/'+(key||String(++next))),where:(...f:any[])=>collection(path,[...filters,f]),orderBy:()=>collection(path,filters),limit:()=>collection(path,filters),get:async()=>{const docs=[...records].filter(([p,v])=>p.startsWith(path+'/')&&!p.slice(path.length+1).includes('/')&&filters.every(([key,op,value])=>op==='=='?v[key]===value:v[key]<=value)).map(([p,v])=>({id:p.split('/').at(-1),ref:ref(p),data:()=>v}));return {docs,size:docs.length};}});
- const db={collection,runTransaction:async(fn:any)=>fn({get:(r:any)=>r.get(),create:(r:any,v:any)=>r.create(v),update:(r:any,v:any)=>r.update(v)})};
+ const db={collection,runTransaction:async(fn:any)=>fn({get:(r:any)=>r.get(),create:(r:any,v:any)=>r.create(v),update:(r:any,v:any)=>r.update(v),set:(r:any,v:any)=>r.set(v)})};
  const stripe={prices:{retrieve:vi.fn(async()=>({active:true,livemode:true,product:'prod_premium'}))},coupons:{create:vi.fn(async(..._args:unknown[])=>({id:'coupon'})),retrieve:vi.fn()},checkout:{sessions:{retrieve:vi.fn(async(id:string)=>({id,status:'open'})),expire:vi.fn(async()=>({status:'expired'}))}}};
  return {records,stripe,service:new DiscountLinks(db as unknown as Firestore,stripe as unknown as Stripe,'https://wonderlang.app')};
 }
 describe('discount campaigns',()=>{
+ it('selects demo sales per product and falls back after deactivation or expiry',async()=>{
+  const f=fixture();f.records.set('websiteDiscountLinks/'+id,{...link,channel:"website"});
+  await f.service.setWebsiteSale(id,true,actor,now);
+  expect((await f.service.saleCampaigns(now)).map(c=>c.id)).toEqual([id]);
+  expect((await f.service.list()).saleSelections.premium).toBe(id);
+  f.records.set('websiteDiscountLinks/'+id,{...link,channel:'website',active:false});
+  expect(await f.service.saleCampaigns(now)).toEqual([]);
+  await expect(f.service.setWebsiteSale(id,true,actor,now)).rejects.toThrow('no longer');
+  f.records.set('websiteDiscountLinks/'+id,{...link,channel:'website'});
+  expect(await f.service.saleCampaigns(new Date(link.expiresAt!))).toEqual([]);
+  await f.service.setWebsiteSale(id,false,actor,now);
+  expect((await f.service.get(id)).active).toBe(true);
+  expect(await f.service.saleCampaigns(now)).toEqual([]);
+ });
+ it('replaces only the selected product and ignores stale remove requests',async()=>{
+  const f=fixture(),second='550e8400-e29b-41d4-a716-446655440002',third='550e8400-e29b-41d4-a716-446655440003';
+  f.records.set('websiteDiscountLinks/'+id,{...link,channel:'website'});
+  f.records.set('websiteDiscountLinks/'+second,{...link,channel:'website',id:second});
+  f.records.set('websiteDiscountLinks/'+third,{...link,channel:'website',id:third,offer:'single'});
+  await f.service.setWebsiteSale(id,true,actor,now);
+  await f.service.setWebsiteSale(third,true,actor,now);
+  await f.service.setWebsiteSale(second,true,actor,now);
+  await f.service.setWebsiteSale(id,false,actor,now);
+  expect((await f.service.saleCampaigns(now)).map(c=>c.id).sort()).toEqual([second,third].sort());
+ });
+ it('keeps newsletter campaigns out of public sales and rejects unpublished checkout',async()=>{
+  const f=fixture();f.records.set('websiteDiscountLinks/'+id,link);
+  await expect(f.service.setWebsiteSale(id,true,actor,now)).rejects.toThrow('Only website sales');
+  expect(await f.service.saleCampaigns(now)).toEqual([]);
+  await expect(f.service.assertPublished(link)).resolves.toBeUndefined();
+  const sale={...link,channel:'website' as const};
+  await expect(f.service.assertPublished(sale)).rejects.toThrow('no longer published');
+  f.records.set('websiteDiscountLinks/'+id,sale);await f.service.setWebsiteSale(id,true,actor,now);
+  await expect(f.service.assertPublished(sale)).resolves.toBeUndefined();
+  f.records.set('websiteDiscountSessions/cs_public',{campaignId:id,closeAfter:link.expiresAt});
+  await f.service.setWebsiteSale(id,false,actor,now);
+  expect(f.stripe.checkout.sessions.expire).toHaveBeenCalledWith('cs_public');
+  await expect(f.service.registerSession(sale,{id:'cs_race',status:'open',expires_at:now.getTime()/1000+3600} as Stripe.Checkout.Session,now)).rejects.toThrow('no longer published');
+ });
  it('rejects new iOS campaigns and makes existing iOS campaign links unavailable',()=>{
   expect(discountLinkSchema.safeParse({...input,delivery:undefined,offer:'mobile_permanent',mobilePlatform:'ios'}).success).toBe(false);
   expect(()=>assertDiscountAvailable({...link,offer:'mobile_permanent',mobilePlatform:'ios'},now)).toThrow(/no longer available/);
