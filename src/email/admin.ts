@@ -2,6 +2,7 @@ import type {Firestore} from 'firebase-admin/firestore';
 import {confirmationTransport} from './purchase-confirmation.js';
 import {renderConfirmation} from './template.js';
 import {recordAdminAudit,type AdminActor} from '../admin/audit.js';
+import {HttpError} from '../http/auth.js';
 
 export async function orderEmailStatus(db:Firestore){
  const recent=await db.collection('orderEmailDeliveries').orderBy('startedAt','desc').limit(30).get();
@@ -19,6 +20,12 @@ export async function testOrderEmail(db:Firestore,actor:AdminActor){
   const sent=await transport.sendMail({from:{name:'WonderLang',address:'orders@wonderlang.app'},to:recipient,replyTo:'orders@wonderlang.app',subject:'TEST ONLY — WonderLang purchase email preview',text:'TEST ONLY. No purchase or charge.\n\n'+message.text,html:'<p>TEST ONLY. No purchase or charge.</p>'+message.html});
   if(!sent.accepted.length)throw new Error('Rejected');
   return {accepted:true,recipient,messageId:sent.messageId};
- }catch{throw new Error('The test email could not be confirmed. Check the SMTP credential, relay rule and Workspace email logs.');}
+ }catch(error){
+  // Report only allowlisted SMTP metadata, never provider responses or credentials.
+  const detail=error as {code?:string;responseCode?:number;command?:string};
+  const code=['EAUTH','ETIMEDOUT','ECONNECTION','ESOCKET','EDNS','EENVELOPE','EMESSAGE'].includes(detail?.code??'')?detail.code:'SMTP_ERROR';
+  const status=Number.isInteger(detail?.responseCode)&&detail.responseCode!>=400&&detail.responseCode!<=599?` (${detail.responseCode})`:'';
+  throw new HttpError(502,`The test email could not be confirmed: ${code}${status}. Check the SMTP credential, relay rule and Workspace email logs.`);
+ }
  finally{transport.close();}
 }
