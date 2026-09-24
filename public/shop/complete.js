@@ -1,9 +1,9 @@
 (async () => {
   const sessionId = new URLSearchParams(location.search).get('session_id');
-  if (!/^cs_live_[A-Za-z0-9]+$/.test(sessionId || '')) return location.replace('/account/');
+  if (!/^cs_live_[A-Za-z0-9]+$/.test(sessionId || '')) return;
   sessionStorage.setItem('wl-purchase-pending', sessionId);
   let metaDelivery=Promise.resolve();
-  const finish=()=>{Promise.race([metaDelivery,new Promise(resolve=>setTimeout(resolve,1500))]).finally(()=>location.replace('/account/'));};
+  const finish=()=>{ /* Keep the order confirmation visible after tracking. */ };
   const timeout=setTimeout(finish,4500);
   try {
     const recovery=JSON.parse(sessionStorage.getItem('wl-purchase:'+sessionId)||'{}');

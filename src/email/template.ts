@@ -1,6 +1,7 @@
 import catalog from '../../catalog/website-checkout-locales.json' with {type:'json'};
 import mobile from '../../catalog/website-mobile-locales.json' with {type:'json'};
 import {emailCopy, emailLocale} from './copy.js';
+import {webCopy} from './web-copy.js';
 import type {WebsiteSessionRequest} from '../providers/stripe/website-session.js';
 import {stripeMajorValue} from '../domain/regional-pricing.js';
 
@@ -21,7 +22,7 @@ export function privateDownloadUrl(value:string): string {
   throw new Error('The assigned download link needs review.');
  return url.href;
 }
-export function renderConfirmation(input:Confirmation) {
+export function renderConfirmation(input:Confirmation,channel:'email'|'web'='email') {
  const locale=emailLocale(input.request.locale,input.country), c=emailCopy[locale], p=catalog[locale], m=mobile[locale];
  const {offer,delivery,learningLanguage,mobilePlatform}=input.request;
  const isMobile=offer.startsWith('mobile_');
@@ -44,14 +45,17 @@ export function renderConfirmation(input:Confirmation) {
  if(offer==='premium' || mobilePlatform==='ios')add(c[10]);
  if(offer==='mobile_monthly')add(c[8]);
  if(!isMobile && !input.renewal){
-  if(!input.keys.length)throw new Error('Delivery is not ready.');
-  add(delivery==='steam'?c[6]:c[7]);
+  if(!input.keys.length && channel==='email')throw new Error('Delivery is not ready.');
+  add(!input.keys.length?webCopy[locale][1]:delivery==='steam'?c[6]:c[7]);
   for(const key of input.keys){
    if(delivery==='direct'){
     const url=privateDownloadUrl(key);paragraphs.push(url);parts.push(`<p style="overflow-wrap:anywhere"><a href="${escape(url)}">${escape(p.direct)}</a></p>`);
    }else{paragraphs.push(key);parts.push(`<p dir="ltr" style="font-family:monospace;font-size:20px;background:#f1edf7;padding:16px">${escape(key)}</p>`);}
   }
  }
- add(c[9]);
- return {locale,subject:c[0],text:paragraphs.join('\n\n'),html:`<!doctype html><html lang="${locale}" dir="${locale==='ar'?'rtl':'ltr'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f1f8;color:#251b35;font-family:Arial,sans-serif"><div style="max-width:600px;margin:24px auto;padding:28px;background:white;border-top:6px solid #edbc2d;border-radius:12px;font-size:16px;line-height:1.6;overflow-wrap:anywhere;word-wrap:break-word"><div style="font-weight:bold;letter-spacing:3px;color:#624184">WONDERLANG</div><h1 style="font-size:25px">${escape(c[0])}</h1>${parts.join('')}</div></body></html>`};
+ if(channel==='web'){
+  paragraphs.push(`${webCopy[locale][0]} orders@wonderlang.app`);
+  parts.push(`<p>${escape(webCopy[locale][0])} <a href="mailto:orders@wonderlang.app">orders@wonderlang.app</a></p>`);
+ }else add(c[9]);
+ return {locale,subject:c[0],contentHtml:parts.join(''),text:paragraphs.join('\n\n'),html:`<!doctype html><html lang="${locale}" dir="${locale==='ar'?'rtl':'ltr'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f4f1f8;color:#251b35;font-family:Arial,sans-serif"><div style="max-width:600px;margin:24px auto;padding:28px;background:white;border-top:6px solid #edbc2d;border-radius:12px;font-size:16px;line-height:1.6;overflow-wrap:anywhere;word-wrap:break-word"><div style="font-weight:bold;letter-spacing:3px;color:#624184">WONDERLANG</div><h1 style="font-size:25px">${escape(c[0])}</h1>${parts.join('')}</div></body></html>`};
 }

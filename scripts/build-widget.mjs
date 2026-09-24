@@ -9,6 +9,7 @@ await mkdir(projectPath("public/shop"), { recursive: true });
 await mkdir(projectPath("integrations/android/current-app-mirror/app/src/main/assets/js/plugins"), { recursive: true });
 
 await Promise.all([
+  build({entryPoints:[projectPath("integrations/web/shop/confirmation.js")],bundle:true,minify:true,format:"iife",target:["es2022"],outfile:projectPath("public/shop/confirmation.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/embed.js")],bundle:true,minify:true,format:"iife",target:["es2020"],outfile:projectPath("public/shop/embed.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/shop.js")],bundle:true,minify:true,format:"iife",target:["es2020"],outfile:projectPath("public/shop/shop.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/checkout.js")],bundle:true,minify:true,format:"esm",target:["es2022"],outfile:projectPath("public/shop/checkout.js")}),
