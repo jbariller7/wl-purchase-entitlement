@@ -1,3 +1,5 @@
+import countdownUnits from '../../../catalog/website-sale-countdown-units.json';
+import {remainingSaleTime} from './sale-countdown.js';
 import locales from '../../../catalog/website-checkout-locales.json';
 import prices from '../../../catalog/website-prices.json';
 import ui from '../../../catalog/website-shop-ui.json';
@@ -25,10 +27,41 @@ const publicSales=!query.has('campaign');
 let publicCampaigns={};
 let campaign=null,campaignLoading=query.has('campaign')||publicSales,campaignError=false;
 let category='desktop';
+const saleBanners=document.createElement('section');saleBanners.className='sale-banners';document.querySelector('main').prepend(saleBanners);
+function updateCountdowns(){
+ for(const timer of saleBanners.querySelectorAll('[data-sale-end]')){
+  const time=remainingSaleTime(timer.dataset.saleEnd);
+  if(!time)continue;
+  const units=countdownUnits[lang]||countdownUnits.en;
+  const numbers=new Intl.NumberFormat(lang);
+  timer.textContent=[time.days,time.hours,time.minutes].map((n,i)=>`${numbers.format(n)} ${units[i]}`).join(' · ');
+ }
+}
+function renderSaleBanners(){
+ saleBanners.replaceChildren();
+ const unique=new Set();
+ for(const sale of campaign?[campaign]:Object.values(publicCampaigns)){
+  const key=JSON.stringify([sale.name,sale.expiresAt]);if(unique.has(key))continue;unique.add(key);
+  const banner=document.createElement('div');banner.className='sale-banner';
+  const name=document.createElement('strong');name.textContent=sale.name;banner.append(name);
+  if(sale.expiresAt&&remainingSaleTime(sale.expiresAt)){
+   const timer=document.createElement('span');timer.className='sale-countdown';timer.dataset.saleEnd=sale.expiresAt;timer.setAttribute('role','timer');banner.append(timer);
+  }
+  saleBanners.append(banner);
+ }
+ saleBanners.hidden=!saleBanners.childElementCount;updateCountdowns();
+}
+setInterval(()=>{
+ let changed=false;
+ if(campaign?.expiresAt&&remainingSaleTime(campaign.expiresAt)?.expired){campaign=null;campaignError=true;changed=true;}
+ for(const [offer,sale] of Object.entries(publicCampaigns))if(sale.expiresAt&&remainingSaleTime(sale.expiresAt)?.expired){delete publicCampaigns[offer];changed=true;}
+ if(changed)render();else updateCountdowns();
+},1000);
 function render(){
  const l=locales[lang],t=ui[lang];document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';
  if(gameEmbedded)parent.postMessage({type:'wonderlang-shop-ready'},'*');
  document.getElementById('heading').textContent=t[0];document.getElementById('language-label').textContent=t[2];document.getElementById('currency-label').textContent=t[3];
+ renderSaleBanners();
  const grid=document.getElementById('offers');grid.replaceChildren();
  if(campaignLoading||campaignError){document.getElementById('status').textContent=campaignError?discountText[lang][0]:t[5];return;}
  if(campaign)document.getElementById('heading').textContent=campaign.name;
@@ -44,7 +77,7 @@ function render(){
  heading.textContent=isMobile?mobile[lang][isMonthly?0:1]:l[offer];
  const amount=isMonthly?REGIONAL_PRICES.monthly[currency]:isMobile?prices[currency][1]:prices[currency][index];
  price.className='price';price.textContent=new Intl.NumberFormat(lang,{style:'currency',currency}).format(stripeMinorAmount(currency,amount)/10**currencyFractionDigits(currency))+(isMonthly?mobile[lang][6]:'');
- if(campaign){const regular=document.createElement('del');regular.textContent=price.textContent;regular.style.fontSize='0.6em';const minor=stripeMinorAmount(currency,amount);price.textContent=new Intl.NumberFormat(lang,{style:'currency',currency}).format((minor-Math.round(minor*campaign.percentOff/100))/10**currencyFractionDigits(currency))+(isMonthly?mobile[lang][6]:'');price.append(document.createTextNode(` (−${campaign.percentOff}%) `),regular);}
+ if(campaign){price.classList.add('sale-price');const regular=document.createElement('del');regular.textContent=price.textContent;regular.style.fontSize='0.6em';const minor=stripeMinorAmount(currency,amount);price.textContent=new Intl.NumberFormat(lang,{style:'currency',currency}).format((minor-Math.round(minor*campaign.percentOff/100))/10**currencyFractionDigits(currency))+(isMonthly?mobile[lang][6]:'');price.append(document.createTextNode(` (−${campaign.percentOff}%) `),regular);}
  description.className='description';description.textContent=isMobile?mobile[lang][isMonthly?2:3]:l[offer+'Description'];
  card.append(heading,price,description);
  if(campaign&&publicSales){const name=document.createElement('p');name.textContent=campaign.name;card.append(name);}
