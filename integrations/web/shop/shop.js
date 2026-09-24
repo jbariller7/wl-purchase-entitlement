@@ -13,6 +13,7 @@ let lang=Object.hasOwn(locales,query.get('lang'))?query.get('lang'):Object.hasOw
 let currency=Object.hasOwn(prices,query.get('currency'))?query.get('currency'):'USD';
 let manualCurrency=query.has('currency');
 const embedded=query.get('embedded')==='1';
+const gameEmbedded=embedded&&query.get('gameEmbed')==='1'&&parent!==window;
 document.documentElement.classList.toggle('embedded',embedded);
 const languageSelect=document.getElementById('language'),currencySelect=document.getElementById('currency');
 for(const [value,label]of Object.entries(native))languageSelect.add(new Option(label,value));
@@ -24,6 +25,7 @@ let campaign=null,campaignLoading=query.has('campaign'),campaignError=false;
 let category='desktop';
 function render(){
  const l=locales[lang],t=ui[lang];document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';
+ if(gameEmbedded)parent.postMessage({type:'wonderlang-shop-ready'},'*');
  document.getElementById('heading').textContent=t[0];document.getElementById('language-label').textContent=t[2];document.getElementById('currency-label').textContent=t[3];
  const grid=document.getElementById('offers');grid.replaceChildren();
  if(campaignLoading||campaignError){document.getElementById('status').textContent=campaignError?discountText[lang][0]:t[5];return;}
@@ -48,10 +50,20 @@ function render(){
  if(!isMobile)choice('delivery',l.delivery,[['steam',l.steam],['direct',l.direct]]);
  if(isMobile)choice('mobilePlatform',mobile[lang][4],[['android','Android']]);
  if(isMonthly){const trial=document.createElement('p');trial.textContent=mobile[lang][7];card.append(trial)}
- buy.className='buy';buy.textContent=t[1];buy.target='_blank';buy.rel='noopener';update();card.append(buy);grid.append(card);
+ buy.className='buy';buy.textContent=t[1];buy.target='_blank';buy.rel='noopener';update();
+ if(gameEmbedded)buy.addEventListener('click',event=>{
+  event.preventDefault();
+  // The game validates this iframe's origin/source and opens its system browser.
+  // No payment, auth or private browser storage is hosted inside the game.
+  parent.postMessage({type:'wonderlang-shop-checkout',url:buy.href},'*');
+ });
+ card.append(buy);grid.append(card);
  });
  document.getElementById('status').textContent='';
 }
+if(gameEmbedded)document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&event.target.tagName!=='SELECT'){event.preventDefault();parent.postMessage({type:'wonderlang-shop-close'},'*');}
+});
 languageSelect.onchange=()=>{lang=languageSelect.value;render()};currencySelect.onchange=()=>{manualCurrency=true;currency=currencySelect.value;render()};render();
 if(campaignLoading)fetch('/.netlify/functions/website-discount?id='+encodeURIComponent(query.get('campaign')),{cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Offer unavailable');campaign=await response.json();campaignLoading=false;render();}).catch(()=>{campaignLoading=false;campaignError=true;render();});
 const expectedParent=query.get('parentOrigin');
