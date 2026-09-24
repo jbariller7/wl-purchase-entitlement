@@ -33,8 +33,14 @@ function updateCountdowns(){
   const time=remainingSaleTime(timer.dataset.saleEnd);
   if(!time)continue;
   const units=countdownUnits[lang]||countdownUnits.en;
-  const numbers=new Intl.NumberFormat(lang);
-  timer.textContent=[time.days,time.hours,time.minutes].map((n,i)=>`${numbers.format(n)} ${units[i]}`).join(' · ');
+  const numbers=new Intl.NumberFormat(lang,{minimumIntegerDigits:2,useGrouping:false});
+  const values=[time.days,time.hours,time.minutes,time.seconds];
+  if(!timer.childElementCount)for(let i=0;i<4;i++){
+   const cell=document.createElement('span');cell.className='countdown-cell';
+   const number=document.createElement('span');number.className='countdown-number';
+   const label=document.createElement('span');label.className='countdown-unit';cell.append(number,label);timer.append(cell);
+  }
+  [...timer.children].forEach((cell,i)=>{const value=numbers.format(values[i]);if(cell.firstChild.textContent!==value)cell.firstChild.textContent=value;cell.lastChild.textContent=units[i];});
  }
 }
 function renderSaleBanners(){
