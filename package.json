@@ -28,12 +28,14 @@
     "firebase-admin": "13.10.0",
     "google-auth-library": "^10.2.1",
     "googleapis": "^156.0.0",
+    "nodemailer": "^10.0.10",
     "stripe": "^18.5.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.2",
     "@types/node": "^22.15.30",
+    "@types/nodemailer": "^8.0.2",
     "esbuild": "^0.25.5",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",

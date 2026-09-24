@@ -11,6 +11,7 @@ import { paymentLinkId, routeLegacyOrder, routePremiumDesktopAccess, type Premiu
 import { stripeClient, withStripeClient } from "./client.js";
 import {websiteStripeClient} from './website-config.js';
 import { recordWebsitePayment } from "./website-commerce.js";
+import {queueCheckoutConfirmation, queueInvoiceConfirmation} from '../../email/purchase-confirmation.js';
 
 type Expandable = string | { id: string } | null | undefined;
 
@@ -183,6 +184,7 @@ async function checkoutCompleted(store: EntitlementStore, session: Stripe.Checko
   const metadata = metadataOf(session);
   if (metadata.wl_checkout_flow === "website-session-v1") {
     const purchase = await recordWebsitePayment(store, session, event);
+    if(purchase) await queueCheckoutConfirmation(store,session,event);
     const subscriptionId = objectId(session.subscription as Expandable);
     if (subscriptionId) await store.linkCheckoutContextToSubscription(session.id, subscriptionId, new Date(event.created * 1000));
     const context = await store.checkoutContext(session.id);
@@ -340,6 +342,7 @@ async function invoicePaid(store: EntitlementStore, invoice: Stripe.Invoice, eve
   if (!subscriptionId) return;
   const synced = await syncSubscription({ store, subscriptionId, event });
   if (!synced.subscription) return;
+  await queueInvoiceConfirmation(store,invoice,event,synced.subscription);
   let firstPaidInvoice = false;
   if (deploymentControls().AD_CONVERSIONS_ENABLED && event.livemode === true &&
       invoice.status === "paid" && invoice.amount_paid > 0 && invoice.billing_reason === "subscription_cycle") {

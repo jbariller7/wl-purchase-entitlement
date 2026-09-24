@@ -1,4 +1,5 @@
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
+import {orderEmailStatus,testOrderEmail} from '../../src/email/admin.js';
 import { DiscountLinks, discountLinkSchema } from "../../src/providers/stripe/discount-links.js";
 import type { Config } from "@netlify/functions";
 import { withLambda } from "@netlify/aws-lambda-compat";
@@ -299,7 +300,8 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if (event.httpMethod === "POST" && path === "/v1/imports/commit") {
     return json(200, await imports.commit({ actor, ...body(commitSchema, event), now }));
   }
-  if (event.httpMethod === "GET" && path === "/v1/operations") return json(200, await operations.operations());
+    if (event.httpMethod === "GET" && path === "/v1/operations") return json(200, {...await operations.operations(),orderEmails:await orderEmailStatus(db)});
+    if (event.httpMethod === "POST" && path === "/v1/order-emails/test") return json(200,await testOrderEmail(db,actor));
   const retryMatch = path.match(/^\/v1\/outbox\/([A-Za-z0-9_-]{1,128})\/retry$/);
   if (event.httpMethod === "POST" && retryMatch?.[1]) {
     await operations.retryOutbox({ actor, jobId: retryMatch[1], ...body(reasonSchema, event), now });

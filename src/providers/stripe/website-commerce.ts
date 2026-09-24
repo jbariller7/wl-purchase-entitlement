@@ -117,6 +117,10 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   }
   const parameters=websiteSessionParams(request,priceId,origin);
   parameters.metadata={...parameters.metadata,wl_request_id:request.requestId};
+  if(process.env.ORDER_EMAILS_ENABLED==='true' && Number.isFinite(Date.parse(process.env.ORDER_EMAILS_START_AT??''))){
+    parameters.metadata.wl_email_owner='workspace-v1';
+    if(parameters.subscription_data)parameters.subscription_data.metadata={...parameters.subscription_data.metadata,wl_email_owner:'workspace-v1'};
+  }
   if(parameters.subscription_data)parameters.subscription_data.metadata={...parameters.subscription_data.metadata,wl_request_id:request.requestId};
   if(campaign) {
     if(Date.now()-Date.parse(attempt.createdAt)>1800000) throw new HttpError(409,'This checkout attempt has expired. Please select your offer again.');

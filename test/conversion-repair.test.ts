@@ -19,6 +19,11 @@ it('the deployed scheduled handler also permits advertising-only delivery',async
  await scheduledWorker({} as never,{} as never);
  expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['meta_conversion','tiktok_conversion','google_conversion']);
 });
+it('allows email delivery without enabling legacy fulfillment or other side effects',async()=>{
+ Object.assign(process.env,{ORDER_EMAILS_ENABLED:'true',AD_CONVERSIONS_ENABLED:'false',OUTBOX_PROCESSING_ENABLED:'false'});resetEnvironmentForTests();
+ await scheduledWorker({} as never,{} as never);
+ expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['purchase_confirmation']);
+});
 it('includes first paid post-trial invoice but excludes a renewal and zero-value invoice',()=>{
  expect(stripeInvoiceAdDecision({paid:true,amountPaid:699,billingReason:'subscription_cycle',firstPaidInvoice:true}).send).toBe(true);
  expect(stripeInvoiceAdDecision({paid:true,amountPaid:699,billingReason:'subscription_cycle',firstPaidInvoice:false}).send).toBe(false);

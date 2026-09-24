@@ -20,7 +20,7 @@
   schedule = "* * * * *"
 
 [functions."outbox-worker"]
-  schedule = "*/5 * * * *"
+  schedule = "* * * * *"
 
 [functions."subscription-reconciliation"]
   # The worker checks hourly, while each healthy subscription is scheduled no

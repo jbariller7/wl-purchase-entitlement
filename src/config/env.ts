@@ -10,6 +10,7 @@ const controlsSchema = z.object({
   APPLE_WEBHOOKS_ENABLED: disabledByDefault,
   OUTBOX_PROCESSING_ENABLED: disabledByDefault,
   AD_CONVERSIONS_ENABLED: disabledByDefault,
+  ORDER_EMAILS_ENABLED: disabledByDefault,
   LEGACY_FULFILLMENT_ENABLED: disabledByDefault,
   SUBSCRIPTION_CANCELLATION_ENABLED: disabledByDefault,
   ACCOUNT_DELETION_PROCESSING_ENABLED: disabledByDefault,
