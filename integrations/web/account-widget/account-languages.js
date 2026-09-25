@@ -2,6 +2,7 @@
 // security workflows still require a separate full localization review.
 import {mobileSelectionText} from './mobile-selection-text.js';
 import {providerChoiceText} from './provider-choice-text.js';
+import {loginText} from './login-text.js';
 const source = [
   "WONDERLANG ACCOUNT", "Play anywhere. Keep your progress.", "Sign out", "YOUR ACCESS",
   "Account email", "Login methods", "Subscription", "Cloud saves", "Mobile platforms",
@@ -125,6 +126,8 @@ for (const [locale, value] of Object.entries(premiumCloudRequirement)) {
   if (dictionaries[locale]) dictionaries[locale]["Cloud save requires a Premium Lifetime Pass."] = value;
 }
 export function translateSummary(value, language) {
+  const loginIndex = loginText.en.indexOf(value);
+  if (loginIndex >= 0) return (loginText[language] || loginText.en)[loginIndex];
   if (value === providerChoiceText.en) return providerChoiceText[language] || providerChoiceText.en;
   const emailIndex = emailFlowText.en.indexOf(value);
   if (emailIndex >= 0) return (emailFlowText[language] || emailFlowText.en)[emailIndex];
@@ -173,7 +176,7 @@ export function installAccountLanguagePicker(root) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     let node;
     while ((node = walker.nextNode())) {
-      if (node.parentElement?.closest("select,script,style,input,[data-user-content],[data-field=email],[data-field=providers],.wl-status")) continue;
+      if (node.parentElement?.closest("select,script,style,input,[data-user-content],[data-field=email],[data-field=providers]")) continue;
       const previous = originals.get(node);
       const original = previous && node.nodeValue === previous.translated ? previous.original : node.nodeValue;
       const trimmed = original.trim();
