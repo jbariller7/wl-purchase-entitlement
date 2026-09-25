@@ -1,0 +1,13 @@
+{
+  "fallback": "page-67ecf711e23b3d3b17ca",
+  "current": "page-67ecf711e23b3d3b17ca",
+  "designs": [
+    {
+      "id": "page-67ecf711e23b3d3b17ca",
+      "variants": {
+        "A": "Adventure + demo first",
+        "B": "Language goal + editions first"
+      }
+    }
+  ]
+}

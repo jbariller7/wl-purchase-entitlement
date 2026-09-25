@@ -1,6 +1,6 @@
 import { withLambda,type LambdaHandler } from '@netlify/aws-lambda-compat';
 import { z } from 'zod';
-import { enroll,experimentToken,eventName,recordExperiment,withdraw } from '../../src/analytics/website-experiments.js';
+import { enroll,experimentToken,eventName,recordExperiment,withdraw,homepageConfiguration } from '../../src/analytics/website-experiments.js';
 import { firestore } from '../../src/infrastructure/firebase.js';
 import { json,errorResponse,parseJsonBody } from '../../src/http/response.js';
 import { consumeRateLimit } from '../../src/http/rate-limit.js';
@@ -12,6 +12,7 @@ const schema=z.discriminatedUnion('action',[
  z.object({action:z.literal('withdraw'),token:experimentToken}).strict()
 ]);
 export const lambdaHandler:LambdaHandler=async event=>{try{
+ if(event.httpMethod==='GET')return json(200,await homepageConfiguration(firestore()));
  if(event.httpMethod!=='POST')return json(405,{error:'Method not allowed'});
  if(requestHeader(event.headers,'origin')!=='https://wonderlang.app')throw new HttpError(403,'Invalid origin');
  if((event.body?.length||0)>1500)throw new HttpError(400,'Request too large');
