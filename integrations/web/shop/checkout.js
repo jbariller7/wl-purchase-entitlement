@@ -1,6 +1,6 @@
 import ui from '../../../catalog/website-shop-ui.json';
 import discountText from '../../../catalog/website-discount-locales.json';
-import {metaAttribution} from './attribution.js';
+import {browserMetaAttribution} from './checkout-attribution.js';
 const q=new URLSearchParams(location.search),locale=Object.hasOwn(ui,q.get('lang'))?q.get('lang'):'en',t=ui[locale];
 document.documentElement.lang=locale;document.documentElement.dir=locale==='ar'?'rtl':'ltr';document.getElementById('heading').textContent=t[5];
 try{
@@ -11,7 +11,7 @@ try{
  const storageKey='wl-checkout-attempt:'+JSON.stringify(selection);
  let attempt=JSON.parse(sessionStorage.getItem(storageKey)||'null');
  if(!attempt){
-  const attribution=metaAttribution(location.search,document.cookie);
+  const attribution=browserMetaAttribution();
   const gaCookie=document.cookie.split('; ').find(x=>x.startsWith('_ga='));
   const gaMatch=gaCookie?.match(/^_ga=GA\d+\.\d+\.(\d+\.\d+)$/);
   if(gaMatch)attribution.gaClientId=gaMatch[1];
