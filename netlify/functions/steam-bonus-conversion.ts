@@ -6,9 +6,10 @@ import {recordSteamBonus} from '../../src/ads/steam-bonus.js';
 import {consumeRateLimit} from '../../src/http/rate-limit.js';
 import {json,errorResponse,parseJsonBody} from '../../src/http/response.js';
 import {HttpError} from '../../src/http/auth.js';
-const schema=z.object({emailSha256:z.string().regex(/^[a-f0-9]{64}$/),
+const schema=z.object({emailSha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  launchId:z.string().uuid().optional(),
   fbp:z.string().regex(/^fb\.\d+\.\d+\.[\w.-]+$/).max(255).optional(),
-  fbc:z.string().regex(/^fb\.\d+\.\d+\.[\w.-]+$/).max(255).optional()}).strict();
+  fbc:z.string().regex(/^fb\.\d+\.\d+\.[\w.-]+$/).max(255).optional()}).strict().refine(x=>Boolean(x.emailSha256)!==Boolean(x.launchId));
 export const lambdaHandler:LambdaHandler=async event=>{
  const origin=event.headers.origin??'';
  const allowed=origin==='null'||/^chrome-extension:\/\/[a-z]{32}$/.test(origin)||
@@ -25,7 +26,7 @@ export const lambdaHandler:LambdaHandler=async event=>{
   if(!parsed.success)throw new HttpError(400,'Invalid request.');
   const db=firestore(),now=new Date(),ip=event.headers['x-nf-client-connection-ip'];
   await consumeRateLimit({db,namespace:'api',subject:ip??'unknown',policy:{action:'steam-bonus-conversion',limit:12,windowSeconds:3600},now});
-  return reply(json(200,await recordSteamBonus(db,{emailSha256:parsed.data.emailSha256,
+  return reply(json(200,await recordSteamBonus(db,{...(parsed.data.emailSha256?{emailSha256:parsed.data.emailSha256}:{}),...(parsed.data.launchId?{launchId:parsed.data.launchId}:{}),
     ...(parsed.data.fbp?{fbp:parsed.data.fbp}:{}),...(parsed.data.fbc?{fbc:parsed.data.fbc}:{}),
     ...(ip?{ipAddress:ip}:{}),...(event.headers['user-agent']?{userAgent:event.headers['user-agent'].slice(0,1024)}:{})},now)));
  }catch(error){return reply(errorResponse(error));}

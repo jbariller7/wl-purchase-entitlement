@@ -1,9 +1,11 @@
 import ui from '../../../catalog/website-shop-ui.json';
 import discountText from '../../../catalog/website-discount-locales.json';
 import {browserMetaAttribution} from './checkout-attribution.js';
+import {ensureShopMetaContext} from './shop-meta-context.js';
 const q=new URLSearchParams(location.search),locale=Object.hasOwn(ui,q.get('lang'))?q.get('lang'):'en',t=ui[locale];
 document.documentElement.lang=locale;document.documentElement.dir=locale==='ar'?'rtl':'ltr';document.getElementById('heading').textContent=t[5];
 try{
+ await ensureShopMetaContext();
  const selection={offer:q.get('offer'),locale,currency:q.get('currency')||'USD'};
  if(q.has('campaign'))selection.campaignId=q.get('campaign');
  if(/^[a-f0-9]{64}$/.test(q.get('experimentToken')||''))selection.experimentToken=q.get('experimentToken');

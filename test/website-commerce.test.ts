@@ -94,11 +94,13 @@ describe('website checkout runtime',()=>{
   const campaignId='550e8400-e29b-41d4-a716-446655440001';
   docs.set('websiteDiscountLinks/'+campaignId,{id:campaignId,name:'Newsletter offer',offer:'premium',percentOff:25,active:true,ready:true,couponId:'coupon_newsletter',expiresAt:null});
   api.checkout.sessions.create.mockResolvedValue({id:'cs_discount',status:'open',expires_at:Math.floor(Date.now()/1000)+3600,url:'https://checkout.stripe.com/c/pay/cs_discount'});
-  await startWebsiteCheckout(store,{...request,campaignId},secret);
+  const attribution={fbp:'fb.1.123.marketingBrowser',fbc:'fb.1.100.originalClick'};
+  await startWebsiteCheckout(store,{...request,campaignId,attribution},secret);
   const params=api.checkout.sessions.create.mock.calls[0]![0];
   expect(params.discounts).toEqual([{coupon:'coupon_newsletter'}]);
   expect(params.metadata).toMatchObject({wl_checkout_flow:'website-session-v1',wl_ads_owner:'entitlement-v2',wl_discount_link:campaignId,wl_request_id:request.requestId});
-  expect(store.saveCheckoutContext).toHaveBeenCalledWith('cs_discount',expect.any(Object),expect.any(Date));
+  expect(params.metadata).toMatchObject(attribution);
+  expect(store.saveCheckoutContext).toHaveBeenCalledWith('cs_discount',expect.objectContaining(attribution),expect.any(Date));
   expect(docs.has('websiteDiscountSessions/cs_discount')).toBe(true);
   api.checkout.sessions.listLineItems.mockResolvedValue({data:[{price:{id:'price_approved'},quantity:1}]});
   await recordWebsitePayment(store,{id:'cs_discount',livemode:true,payment_status:'paid',metadata:params.metadata,customer_details:{email:'Buyer@example.com'},payment_intent:'pi_discount',amount_total:4499,currency:'eur'} as unknown as Stripe.Checkout.Session,{id:'evt_discount',created:1789572000} as Stripe.Event);

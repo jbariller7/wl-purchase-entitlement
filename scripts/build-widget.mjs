@@ -11,6 +11,7 @@ await mkdir(projectPath("integrations/android/current-app-mirror/app/src/main/as
 
 await buildHomepage();
 await Promise.all([
+  build({entryPoints:[projectPath("integrations/web/shop/landing-attribution.js")],bundle:true,minify:true,format:"iife",target:["es2020"],outfile:projectPath("public/shop/landing-attribution.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/complete.js")],bundle:true,minify:true,format:"iife",target:["es2022"],outfile:projectPath("public/shop/complete.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/confirmation.js")],bundle:true,minify:true,format:"iife",target:["es2022"],outfile:projectPath("public/shop/confirmation.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/embed.js")],bundle:true,minify:true,format:"iife",target:["es2020"],outfile:projectPath("public/shop/embed.js")}),

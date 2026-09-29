@@ -5,7 +5,8 @@ import prices from '../../../catalog/website-prices.json';
 import ui from '../../../catalog/website-shop-ui.json';
 import mobile from '../../../catalog/website-mobile-locales.json';
 import discountText from '../../../catalog/website-discount-locales.json';
-import {metaAttribution,browserMetaAttribution,addAttribution} from './checkout-attribution.js';
+import {metaAttribution,browserMetaAttribution,addAttribution,marketingAllowed} from './checkout-attribution.js';
+import {ensureShopMetaContext} from './shop-meta-context.js';
 import {REGIONAL_PRICES,stripeMinorAmount,currencyFractionDigits} from '../../../src/domain/regional-pricing.ts';
 const native={en:'English',fr:'Français',de:'Deutsch',es:'Español','es-MX':'Español (Latinoamérica)','pt-BR':'Português (Brasil)','pt-PT':'Português (Portugal)',it:'Italiano',nl:'Nederlands',sv:'Svenska',pl:'Polski',uk:'Українська',ru:'Русский',id:'Bahasa Indonesia',ko:'한국어',ja:'日本語','zh-CN':'简体中文','zh-TW':'繁體中文',ar:'العربية',hy:'Հայերեն'};
 const query=new URLSearchParams(location.search);
@@ -13,16 +14,18 @@ let metaContext=browserMetaAttribution();
 let parentMetaContext={};
 let parentMarketingAllowed=true;
 function refreshBuyAttribution(){
- if(!parentMarketingAllowed||navigator.globalPrivacyControl===true||window.wlMarketingConsent===false)metaContext={};
+ const allowed=parentMarketingAllowed&&marketingAllowed();
+ if(!allowed){metaContext={};browserMetaAttribution('?metaOptOut=1');}
  else metaContext={...metaContext,...browserMetaAttribution(),...parentMetaContext};
  for(const buy of document.querySelectorAll('a.buy')){
   const url=new URL(buy.href);for(const key of ['fbp','fbc','fbclid'])url.searchParams.delete(key);
-  addAttribution(url.searchParams,metaContext);if(!parentMarketingAllowed)url.searchParams.set('metaOptOut','1');buy.href=url.href;
+  addAttribution(url.searchParams,metaContext);if(!allowed)url.searchParams.set('metaOptOut','1');else url.searchParams.delete('metaOptOut');buy.href=url.href;
  }
 }
 document.addEventListener('pointerdown',refreshBuyAttribution,true);
 document.addEventListener('click',refreshBuyAttribution,true);
 window.addEventListener('focus',refreshBuyAttribution);
+ensureShopMetaContext().then(refreshBuyAttribution);
 const browserLocale=navigator.language;
 let lang=Object.hasOwn(locales,query.get('lang'))?query.get('lang'):Object.hasOwn(locales,browserLocale)?browserLocale:Object.hasOwn(locales,browserLocale.split('-')[0])?browserLocale.split('-')[0]:'en';
 let currency=Object.hasOwn(prices,query.get('currency'))?query.get('currency'):'USD';
@@ -123,7 +126,7 @@ function render(){
  });
  card.append(buy);grid.append(card);
  });
- document.getElementById('status').textContent='';
+ document.getElementById('status').textContent='';refreshBuyAttribution();
 }
 if(gameEmbedded)document.addEventListener('keydown',event=>{
  if(event.key==='Escape'&&event.target.tagName!=='SELECT'){event.preventDefault();parent.postMessage({type:'wonderlang-shop-close'},'*');}

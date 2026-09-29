@@ -7,6 +7,18 @@ function database(){
    create:(ref:any,value:any)=>{if(documents.has(ref.path))throw new Error('duplicate create');documents.set(ref.path,value);}})};
  return {db:db as any,documents};
 }
+it('queues the owner-requested first-launch proxy once per installation with zero revenue',async()=>{
+ const {db,documents}=database(),now=new Date('2026-09-29T12:00:00Z');
+ const input={launchId:'550e8400-e29b-41d4-a716-446655440000',ipAddress:'192.0.2.1',userAgent:'NW.js'};
+ const first=await recordSteamBonus(db,input,now);
+ expect(first.eventId).toBe('desktop-launch-v1:'+input.launchId);
+ expect(await recordSteamBonus(db,input,now)).toEqual(first);
+ expect(documents.size).toBe(2);
+ const job=[...documents.values()].find(x=>x.kind==='meta_conversion');
+ expect(job.payload).toMatchObject({eventName:'Purchase',value:0,conversionKind:'desktop_first_launch_proxy'});
+ expect(job.payload.emailSha256).toBeUndefined();
+ await expect(recordSteamBonus(db,{...input,emailSha256:'a'.repeat(64)},now)).rejects.toThrow('Exactly one');
+});
 it('queues one zero-value Steam proxy and returns the same browser ID on response-lost retries',async()=>{
  const {db,documents}=database(),now=new Date('2026-09-22T12:00:00Z');
  const input={emailSha256:'a'.repeat(64),ipAddress:'192.0.2.1',userAgent:'NW.js'};

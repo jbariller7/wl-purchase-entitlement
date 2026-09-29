@@ -1,6 +1,6 @@
 /*:
 * @target MZ
-* @plugindesc (v3.2) Desktop-only Pixel events (FB, TT, Google, Reddit) + Title Screen Bonus Content Form.
+* @plugindesc (v3.3) Retried desktop Meta PDF/first-launch proxies + Title Screen Bonus Content Form.
 * @author WonderLang
 *
 * @param pixelId
@@ -238,6 +238,8 @@ catch (_) { }
 return txt;
 }
 
+let metaScript = null;
+let metaScriptStarted = 0;
 function injectFacebookPixel(id, advancedMatching = null) {
 try {
 if (!isDesktopDeployment() || !id) return;
@@ -250,16 +252,25 @@ fbq.loaded = true;
 fbq.version = '2.0';
 window.fbq = fbq;
 window._fbq = fbq;
-const s = document.createElement('script');
-s.async = true;
-s.src = 'https://connect.facebook.net/en_US/fbevents.js';
-document.head.appendChild(s);
 }
+// A queued fbq stub is not a loaded Pixel. Retry blocked/failed downloads.
+if (!window.fbq.callMethod && (!metaScript || Date.now() - metaScriptStarted > 15000)) {
+if (metaScript) metaScript.remove();
+metaScript = document.createElement('script');
+metaScript.async = true;
+metaScript.src = 'https://connect.facebook.net/en_US/fbevents.js';
+metaScriptStarted = Date.now();
+const loadingScript = metaScript;
+metaScript.onerror = () => { loadingScript.remove(); if (metaScript === loadingScript) metaScript = null; };
+document.head.appendChild(metaScript);
+}
+window.__wlMetaInitialized = window.__wlMetaInitialized || {};
 if (advancedMatching) {
 window.fbq('init', id, advancedMatching);
-} else {
+} else if (!window.__wlMetaInitialized[id]) {
 window.fbq('init', id);
 }
+window.__wlMetaInitialized[id] = true;
 } catch (e) { }
 }
 
@@ -349,15 +360,15 @@ _Scene_Boot_start.call(this);
 try {
 if (!isDesktopDeployment()) return;
 if (typeof localStorage === 'undefined') return;
+const isDemo = isDemoVersion();
 if (!ALWAYS_FIRE) {
-if (localStorage.getItem(FLAG_KEY)) return;
+if (isDemo && localStorage.getItem(FLAG_KEY)) return;
 if (SKIP_IF_SAVES && hasExistingSave()) return;
 }
 
-const isDemo = isDemoVersion();
-// A launch is not a payment. Keep the owner's PDF-claim Purchase proxy below,
-// but never assign fabricated revenue to installed/restored desktop copies.
-if (!isDemo) return;
+// Owner-requested first-launch Purchase proxy. It is not a verified receipt:
+// retain zero revenue, a distinct kind and one stable installation event ID.
+if (!isDemo) { queueDesktopLaunchConversion(); return; }
 const fbEvent = isDemo ? EVENT_DEMO_FB : EVENT_FULL_FB;
 const ttEvent = isDemo ? EVENT_DEMO_TT : EVENT_FULL_TT;
 const googleLabel = isDemo ? GOOGLE_TRIAL_LABEL : GOOGLE_PURCHASE_LABEL;
@@ -401,53 +412,107 @@ if (!ALWAYS_FIRE) localStorage.setItem(FLAG_KEY, '1');
 };
 
 const BONUS_REPORT_KEY = 'wl_steam_bonus_conversion_v1';
-let bonusReportInFlight = false;
-let nextBonusReportAt = 0;
-async function flushSteamBonusConversion() {
-if (bonusReportInFlight || Date.now() < nextBonusReportAt || !isDesktopDeployment()) return;
-let pending;
-try { pending = JSON.parse(localStorage.getItem(BONUS_REPORT_KEY) || 'null'); } catch (_) { return; }
-if (!pending || pending.sent || !/^[a-f0-9]{64}$/.test(pending.emailSha256)) return;
-bonusReportInFlight = true;
-try {
-const payload = { emailSha256: pending.emailSha256 };
-for (const [key, cookie] of [['fbp', '_fbp'], ['fbc', '_fbc']]) {
-const entry = document.cookie.split('; ').find(x => x.startsWith(cookie + '='));
-if (entry) { const value = decodeURIComponent(entry.slice(cookie.length + 1)); if (/^fb\.\d+\.\d+\.[\w.-]+$/.test(value) && value.length <= 255) payload[key] = value; }
+const LAUNCH_REPORT_KEY = 'wl_desktop_launch_conversion_v1';
+const reportInFlight = new Set();
+const reportRetryAt = {};
+function readReport(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; } }
+function saveReport(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+function reportId(report) { return report.emailSha256 ? 'steam-bonus-v1:' + report.emailSha256 : 'desktop-launch-v1:' + report.launchId; }
+function reportCookies() {
+const result = {};
+try { for (const [key, cookie] of [['fbp', '_fbp'], ['fbc', '_fbc']]) {
+const entry = document.cookie.split(';').map(x => x.trim()).find(x => x.startsWith(cookie + '='));
+if (entry) { const value = decodeURIComponent(entry.slice(cookie.length + 1)); if (/^fb\.\d+\.\d+\.[\w.-]+$/.test(value) && value.length <= 255) result[key] = value; }
+} } catch (_) {}
+return result;
 }
+async function flushDesktopReport(key) {
+if (!isDesktopDeployment() || reportInFlight.has(key) || Date.now() < (reportRetryAt[key] || 0)) return;
+let pending = readReport(key);
+if (!pending || pending.sent || !(pending.emailSha256 ? /^[a-f0-9]{64}$/.test(pending.emailSha256) : /^[a-f0-9-]{36}$/i.test(pending.launchId || ''))) return;
+reportInFlight.add(key);
+const eventId = reportId(pending);
+const persist = () => { if (reportId(readReport(key) || {}) === eventId) saveReport(key, pending); };
+try {
+// Load the Pixel while trying the durable server queue. Browser fallback runs
+// even if the API is down; both channels use exactly the same event ID.
+injectFacebookPixel(PIXEL_ID, pending.emailSha256 ? {em: pending.emailSha256} : null);
+if (!pending.serverQueued) {
+try {
 const controller = new AbortController();
-const timeout = setTimeout(() => controller.abort(), 10000);
+const timeout = setTimeout(() => controller.abort(), 15000);
 let response;
 try { response = await fetch('https://wonderlang.app/.netlify/functions/steam-bonus-conversion', {
-method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), signal: controller.signal
+method: 'POST', headers: {'Content-Type': 'application/json'},
+body: JSON.stringify({...reportCookies(), ...(pending.emailSha256 ? {emailSha256:pending.emailSha256} : {launchId:pending.launchId})}), signal: controller.signal
 }); } finally { clearTimeout(timeout); }
 if (!response.ok) throw new Error('Reporting deferred');
 const result = await response.json();
-if (result.eventId !== 'steam-bonus-v1:' + pending.emailSha256) throw new Error('Invalid reporting response');
-if (result.trackBrowser === true) {
-injectFacebookPixel(PIXEL_ID, {em: pending.emailSha256});
-if (typeof window.fbq === 'function') window.fbq('track', 'Purchase', {
-currency: 'USD', value: 0, content_ids: ['WonderLang_Bonus'], content_type: 'product', conversion_kind: 'steam_pdf_proxy'
-}, {eventID: result.eventId});
+if (result.eventId !== eventId) throw new Error('Invalid reporting response');
+pending.serverQueued = true;
+pending.serverAttempts = 0;
+// An already recorded claim from another device must not fire a new Pixel
+// event outside Meta's deduplication window.
+if (result.trackBrowser === false) pending.browserSuppressed = true;
+persist();
+} catch (_) { pending.serverAttempts = (pending.serverAttempts || 0) + 1; }
 }
-localStorage.setItem(BONUS_REPORT_KEY, JSON.stringify({...pending, sent: true}));
-} catch (_) { nextBonusReportAt = Date.now() + 15 * 60 * 1000; }
-finally { bonusReportInFlight = false; }
+if (!pending.browserQueued && !pending.browserSuppressed && PIXEL_ID) {
+injectFacebookPixel(PIXEL_ID);
+if (typeof window.fbq?.callMethod === 'function') {
+const pdf = Boolean(pending.emailSha256);
+window.fbq('track', 'Purchase', {currency:'USD', value:0,
+content_ids:[pdf ? 'WonderLang_Bonus' : 'WonderLang_Full_Game'], content_type:'product',
+conversion_kind:pdf ? 'steam_pdf_proxy' : 'desktop_first_launch_proxy'}, {eventID:eventId});
+// Queued in the loaded SDK, not a claim of an independently verified receipt.
+pending.browserQueued = true;
+persist();
+}
+}
+pending.sent = Boolean(pending.serverQueued && (pending.browserQueued || pending.browserSuppressed || !PIXEL_ID));
+persist();
+reportRetryAt[key] = Date.now() + (pending.serverQueued ? 15000 : Math.min(300000, 30000 * 2 ** Math.min(4, (pending.serverAttempts || 1) - 1)));
+} finally { reportInFlight.delete(key); }
 }
 async function queueSteamBonusConversion(email) {
-const bytes = new TextEncoder().encode(String(email).trim().toLowerCase());
-const digest = await crypto.subtle.digest('SHA-256', bytes);
-const emailSha256 = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
-let previous; try { previous = JSON.parse(localStorage.getItem(BONUS_REPORT_KEY) || 'null'); } catch (_) {}
-if (previous?.emailSha256 !== emailSha256) {
-localStorage.setItem(BONUS_REPORT_KEY, JSON.stringify({emailSha256, sent: false}));
-nextBonusReportAt = 0;
+if (!isDesktopDeployment()) return;
+const normalized = String(email).trim().toLowerCase();
+let emailSha256;
+// NW.js local/chrome-extension origins can lack Web Crypto's secure-context
+// subtle API. Node crypto is available in desktop builds and persists the hash
+// synchronously before the form redirects or the player closes the game.
+if (typeof require === 'function') {
+try { emailSha256 = require('crypto').createHash('sha256').update(normalized).digest('hex'); } catch (_) {}
 }
-await flushSteamBonusConversion();
+if (!emailSha256) {
+const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
+emailSha256 = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
-window.addEventListener('online', () => { flushSteamBonusConversion().catch(() => {}); });
-setTimeout(() => { flushSteamBonusConversion().catch(() => {}); }, 5000);
-setInterval(() => { flushSteamBonusConversion().catch(() => {}); }, 60000);
+const previous = readReport(BONUS_REPORT_KEY);
+if (previous?.emailSha256 !== emailSha256) saveReport(BONUS_REPORT_KEY, {emailSha256, sent:false});
+reportRetryAt[BONUS_REPORT_KEY] = 0;
+await flushDesktopReport(BONUS_REPORT_KEY);
+}
+function queueDesktopLaunchConversion() {
+if (!readReport(LAUNCH_REPORT_KEY)) {
+const bytes = typeof require === 'function' ? require('crypto').randomBytes(16) : crypto.getRandomValues(new Uint8Array(16));
+bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
+const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+const launchId = hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+saveReport(LAUNCH_REPORT_KEY, {launchId, sent:false});
+}
+flushDesktopReport(LAUNCH_REPORT_KEY).catch(() => {});
+}
+function flushDesktopReports(reset=false) {
+for (const key of [BONUS_REPORT_KEY, LAUNCH_REPORT_KEY]) {
+if (reset) reportRetryAt[key] = 0;
+flushDesktopReport(key).catch(() => {});
+}
+}
+window.addEventListener('online', () => flushDesktopReports(true));
+window.addEventListener('focus', () => flushDesktopReports(true));
+setTimeout(() => flushDesktopReports(), 5000);
+setInterval(() => flushDesktopReports(), 15000);
 
 const BonusHUD = {
 _btnRoot: null,
