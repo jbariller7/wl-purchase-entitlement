@@ -1,3 +1,4 @@
+import { runImportBatches } from "./import-runner.js";
 import { initializeApp } from "firebase/app";
 import { renderDiscountLinks, bindDiscountLinks, demoDiscountLinks } from "./discount-links.js";
 import {renderExperiments,bindExperiments,demoExperiments} from './experiments.js';
@@ -291,10 +292,12 @@ function renderBilling(data) {
   <section class="panel spaced"><header><div><p class="section-kicker">APPROVED REGIONAL PRICES</p><h3>Storefront price reference</h3></div></header><p class="panel-copy">Amounts are shown in major currency units. Monthly and Polyglot values are references for Google Play and App Store Connect; Premium values are for Stripe.</p>${table(["Currency", "Monthly (native)", "Polyglot (native)", "Premium (Stripe)"], regionalRows)}</section>`;
 }
 
-function renderImports() {
+function renderImports(data = {}) {
+  state.importJobs = data.imports || [];
   return `${pageIntro("CUSTOMER MIGRATION", "Import without surprises.", "Paste CSV or choose a file, validate every row, then type a confirmation before anything is applied.", '<button class="button secondary" data-action="download-template">Download template</button>')}
   <section class="panel form-panel"><header><div><p class="section-kicker">CSV DRY RUN</p><h3>Purchase and entitlement import</h3></div><span class="state-pill">Maximum 500 rows</span></header><form id="import-form" class="stack-form"><label>CSV file<input id="import-file" type="file" accept=".csv,text/csv"></label><label>CSV rows<textarea name="csv" class="code-input" rows="12" required placeholder="email,kind,externalId,mobilePlatform,startsAt,endsAt,note&#10;person@example.com,mobile_polyglot_permanent,order_123,android,,,Historical permanent purchase"></textarea></label><button class="button primary">Validate import</button></form><div id="import-preview"></div></section>
-  <section class="panel info-strip"><strong>Unknown email?</strong><p>The record waits for that exact verified email to sign in with Google or Apple. The importer never creates insecure placeholder accounts.</p></section>`;
+  <section class="panel form-panel"><header><h3>Recent imports</h3></header><p>Progress is saved after each row. If a request times out or you close this page, resume the same import here.</p><div id="import-progress" role="status" aria-live="polite"></div>${table(["Created", "Records", "Progress", "Applied to accounts", "Awaiting first sign-in", "Action"], state.importJobs.map(j => [formatDate(j.createdAt), j.records, j.progressKnown === false ? "Interrupted — progress was not recorded by the old importer" : `${j.processed} / ${j.records} · ${j.state}`, j.progressKnown === false ? "Unknown" : j.applied, j.progressKnown === false ? "Unknown" : j.pending, j.state !== "complete" && (j.started || Date.parse(j.expiresAt) > Date.now()) ? htmlCell(`<button class="button secondary" data-resume-import="${escapeHtml(j.previewId)}">${j.started ? "Resume import" : "Review import"}</button>`) : "—"]))}</section>
+  <section class="panel info-strip"><strong>Unknown email?</strong><p>The record waits for that exact verified email to sign in with Google, Apple or an email link. The importer never creates insecure placeholder accounts.</p></section>`;
 }
 
 function renderOperations(data) {
@@ -379,7 +382,7 @@ async function api(path, options = {}) {
   }
   const response = await fetch(path, { method: options.method || "GET", headers, ...(options.body ? { body: JSON.stringify(options.body) } : {}) });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || `Request failed (${response.status}).`);
+  if (!response.ok) { const error = new Error(body.error || `Request failed (${response.status}).`); error.status = response.status; throw error; }
   return body;
 }
 function demoApi(path, options) {
@@ -570,11 +573,12 @@ function demoApi(path, options) {
     addDemoAudit("stripe.refund.create", "paymentIntent", payment.id, `Refunded ${majorAmount(payment.currency, preview.amount)} ${payment.currency} in the safe demo`);
     return { refundId: `re_demo_${crypto.randomUUID()}`, status: "succeeded", amount: preview.amount, currency: preview.currency };
   }
+  if (path === "/admin-api/v1/imports") return { imports: [] };
   if (path.includes("imports/preview")) return { previewId: crypto.randomUUID(), confirmationPhrase: "IMPORT 1 RECORD", summary: { records: 1, existingAccounts: 0, pendingFirstSignIn: 1, entitlements: 1, discounts: 0 }, rows: options.body?.rows || [], warnings: ["Unknown emails wait for verified first sign-in."] };
   if (path.includes("imports/commit")) {
     const preview = demoConfirmed(options, state.previews.import);
     addDemoAudit("import.commit", "import", preview.previewId, "Applied one fictional import row in the safe demo");
-    return { imported: preview.summary?.records || 1 };
+    return { state: "complete", records: preview.summary.records, processed: preview.summary.records, applied: 0, pending: preview.summary.records };
   }
   if (method === "POST" && /\/outbox\/[^/]+\/retry$/.test(path)) {
     const id = decodeURIComponent(path.split("/").at(-2) || "");
@@ -663,9 +667,10 @@ async function loadView(view) {
       state.secondPlatformRequests = result.requests || [];
       directory.result = accounts;
     }
+    else if (view === "imports") data = await api("/admin-api/v1/imports");
     else if (["discounts", "sales", "experiments", "billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
     if (revision !== viewLoadRevision || state.view !== view) return;
-    const content = view === "experiments" ? renderExperiments(data) : (view === "discounts" || view === "sales") ? renderDiscountLinks(data,view === "sales") : view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports() : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
+    const content = view === "experiments" ? renderExperiments(data) : (view === "discounts" || view === "sales") ? renderDiscountLinks(data,view === "sales") : view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports(data) : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
     appNode.innerHTML = shell(content); bindShell(); bindView();
     if(view === "experiments") bindExperiments({api,toast,reload:()=>loadView(view)});
     if (view === "discounts" || view === "sales") bindDiscountLinks({ api, toast, reload: () => loadView(view) });
@@ -829,6 +834,11 @@ function bindView() {
   document.querySelectorAll("[data-refund]").forEach((b) => b.addEventListener("click", () => refundFlow(b)));
   document.querySelector("#price-form")?.addEventListener("submit", priceFlow);
   document.querySelector("#import-form")?.addEventListener("submit", importFlow);
+  document.querySelectorAll("[data-resume-import]").forEach(button => button.addEventListener("click", () => {
+    const job = state.importJobs.find(j => j.previewId === button.dataset.resumeImport);
+    if (job.started) startImport(job.previewId, job.confirmationPhrase);
+    else showImportConfirmation(job);
+  }));
   document.querySelector("#import-file")?.addEventListener("change", async (event) => { const file = event.target.files?.[0]; if (file) document.querySelector('[name="csv"]').value = await file.text(); });
   document.querySelector('[data-action="download-template"]')?.addEventListener("click", downloadTemplate);
   document.querySelector("[data-run-stripe-diagnostic]")?.addEventListener("click", async (event) => {
@@ -962,8 +972,51 @@ function parseCsv(text) {
   const headers = cells(lines[0]); const required = ["email", "kind", "externalId", "mobilePlatform", "startsAt", "endsAt", "note"]; if (required.some((h) => !headers.includes(h))) throw new Error(`CSV header must include: ${required.join(", ")}.`);
   return lines.slice(1).map((line) => { const values = cells(line); return Object.fromEntries(headers.map((h, i) => [h, values[i] || undefined])); }).map((r) => ({ email: r.email, kind: r.kind, externalId: r.externalId, note: r.note, ...(r.mobilePlatform ? { mobilePlatform: r.mobilePlatform } : {}), ...(r.startsAt ? { startsAt: new Date(r.startsAt).toISOString() } : {}), ...(r.endsAt ? { endsAt: new Date(r.endsAt).toISOString() } : {}) }));
 }
+let activeImport = null;
+function showImportConfirmation(p) {
+  if (activeImport) return toast("An import is already running. Its progress is being saved.", true);
+  const holder = document.querySelector("#import-preview");
+  holder.innerHTML = `${p.summary ? `<div class="preview-summary">${Object.entries(p.summary).map(([k,v]) => `<div><span>${escapeHtml(k)}</span><strong>${Number(v)}</strong></div>`).join("")}</div>` : `<p>${Number(p.records)} saved records are ready for confirmation.</p>`}${confirmPanel("Import is ready", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-import")}`;
+  holder.querySelector("#confirm-import").addEventListener("submit", e => {
+    e.preventDefault();
+    const phrase = new FormData(e.currentTarget).get("phrase");
+    if (phrase.trim() !== p.confirmationPhrase) return toast("The confirmation phrase does not match.", true);
+    startImport(p.previewId, phrase);
+  });
+}
+async function startImport(previewId, confirmationPhrase) {
+  if (activeImport) return toast("An import is already running. Its progress is being saved.", true);
+  activeImport = previewId;
+  const renderProgress = p => {
+    const holder = document.querySelector("#import-progress");
+    if (holder) holder.innerHTML = `<p><strong>${Number(p.processed)} / ${Number(p.records)} records processed</strong> — ${Number(p.applied)} applied to accounts; ${Number(p.pending)} awaiting first sign-in.</p><progress max="${Number(p.records)}" value="${Number(p.processed)}" style="width:100%"></progress><p>${p.busy ? "Waiting for the previous request to finish safely…" : "Keep this page open to continue. You can resume later without uploading the file again."}</p>`;
+  };
+  document.querySelector("#import-preview")?.replaceChildren();
+  document.querySelectorAll("[data-resume-import], #import-form button").forEach(b => b.disabled = true);
+  try {
+    const result = await runImportBatches({ api, previewId, confirmationPhrase, onProgress: renderProgress });
+    state.notice = { message: `Import completed: ${result.records} records — ${result.applied} applied to accounts, ${result.pending} awaiting first sign-in.`, error: false };
+  } catch (error) {
+    state.notice = { message: `Import paused: ${error.message} Completed rows are saved. Use Resume import; do not upload the file again.`, error: true };
+  } finally {
+    activeImport = null;
+    if (state.view === "imports") await loadView("imports");
+    else toast(state.notice.message, state.notice.error);
+  }
+}
 async function importFlow(event) {
-  event.preventDefault(); try { const rows = parseCsv(new FormData(event.currentTarget).get("csv")); const p = await api("/admin-api/v1/imports/preview", { method: "POST", body: { rows } }); state.previews.import = p; document.querySelector("#import-preview").innerHTML = `<div class="preview-summary">${Object.entries(p.summary).map(([k,v]) => `<div><span>${escapeHtml(k)}</span><strong>${Number(v)}</strong></div>`).join("")}</div>${confirmPanel("Import is ready", (p.warnings || []).join(" "), p.confirmationPhrase, "confirm-import")}`; toast("Import preview ready."); document.querySelector("#confirm-import").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/imports/commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Import completed.")) loadView("imports"); }); } catch (error) { toast(error.message, true); }
+  event.preventDefault();
+  if (activeImport) return toast("Wait for the current import to finish.", true);
+  const button = event.currentTarget.querySelector("button");
+  button.disabled = true;
+  try {
+    const rows = parseCsv(new FormData(event.currentTarget).get("csv"));
+    const p = await api("/admin-api/v1/imports/preview", { method: "POST", body: { rows } });
+    state.previews.import = p;
+    if (state.view === "imports") showImportConfirmation(p);
+    toast("Import preview ready.");
+  } catch (error) { toast(error.message, true); }
+  finally { button.disabled = false; }
 }
 function downloadTemplate() { const csv = "email,kind,externalId,mobilePlatform,startsAt,endsAt,note\nperson@example.com,mobile_polyglot_permanent,order_123,android,,,Historical permanent purchase\n"; const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); const a = document.createElement("a"); a.href = url; a.download = "wonderlang-import-template.csv"; a.click(); URL.revokeObjectURL(url); }
 

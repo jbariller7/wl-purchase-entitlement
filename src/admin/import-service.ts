@@ -4,7 +4,7 @@ import type { Auth } from "firebase-admin/auth";
 import type { Product } from "../domain/model.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { sha256 } from "../infrastructure/ids.js";
-import { recordAdminAudit, type AdminActor } from "./audit.js";
+import type { AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
 import { chapterMigrationGrant, isLegacyChapterProduct } from "../domain/legacy-chapter-migration.js";
 import { safeErrorMessage } from "../infrastructure/safe-error.js";
@@ -33,6 +33,38 @@ export interface AdminImportRow {
 interface NormalizedImportRow extends AdminImportRow {
   email: string;
   startsAt: string;
+}
+
+interface ImportJob {
+  actorUid: string;
+  state: string;
+  expiresAt: string;
+  createdAt: string;
+  confirmationPhrase: string;
+  rows: NormalizedImportRow[];
+  processingAt?: string;
+  confirmedAt?: string;
+  leaseOwner?: string | null;
+  leaseExpiresAt?: string | null;
+  processed?: number;
+  applied?: number;
+  pending?: number;
+  lastError?: string | null;
+  result?: { records: number; applied: number; pending: number };
+}
+
+function importProgress(previewId: string, job: ImportJob) {
+  return {
+    previewId, state: job.state, records: job.rows.length,
+    progressKnown: job.state === "complete" || typeof job.processed === "number" || job.state === "preview",
+    processed: job.state === "complete" ? job.rows.length : job.processed ?? 0,
+    applied: job.result?.applied ?? job.applied ?? 0,
+    pending: job.result?.pending ?? job.pending ?? 0,
+    createdAt: job.createdAt, expiresAt: job.expiresAt,
+    confirmationPhrase: job.confirmationPhrase,
+    started: Boolean(job.confirmedAt || job.processingAt || job.state !== "preview"),
+    lastError: job.lastError ?? null
+  };
 }
 
 const productByKind: Partial<Record<AdminImportKind, Product>> = {
@@ -102,7 +134,14 @@ export class AdminImportService {
 
   async preview(input: { actor: AdminActor; rows: AdminImportRow[]; now: Date }): Promise<Record<string, unknown>> {
     const rows = normalizeImportRows(input.rows, input.now);
-    const resolutions = await Promise.all(rows.map(async (row) => ({ row, uid: await userUidByEmail(this.auth, row.email) })));
+    const emails = [...new Set(rows.map((row) => row.email))];
+    const uids = new Map<string, string>();
+    // Firebase supports 100 identifiers per lookup; avoid hundreds of parallel requests.
+    for (let offset = 0; offset < emails.length; offset += 100) {
+      const result = await this.auth.getUsers(emails.slice(offset, offset + 100).map((email) => ({ email })));
+      for (const user of result.users) if (user.email) uids.set(normalizedEmail(user.email), user.uid);
+    }
+    const resolutions = rows.map((row) => ({ row, uid: uids.get(row.email) }));
     const previewId = randomUUID();
     const expiresAt = new Date(input.now.getTime() + 30 * 60 * 1000);
     const confirmationPhrase = `IMPORT ${rows.length} RECORD${rows.length === 1 ? "" : "S"}`;
@@ -197,38 +236,92 @@ export class AdminImportService {
     });
   }
 
+  async recent(actor: AdminActor): Promise<Record<string, unknown>> {
+    const snapshot = await this.db.collection("adminImportPreviews").orderBy("createdAt", "desc").limit(20).get();
+    return { imports: snapshot.docs.filter((doc) => doc.data().actorUid === actor.uid)
+      .map((doc) => importProgress(doc.id, doc.data() as ImportJob)) };
+  }
+
+  async status(actor: AdminActor, previewId: string): Promise<Record<string, unknown>> {
+    const snapshot = await this.db.collection("adminImportPreviews").doc(previewId).get();
+    if (!snapshot.exists) throw new HttpError(404, "Import not found.");
+    const job = snapshot.data() as ImportJob;
+    if (job.actorUid !== actor.uid) throw new HttpError(403, "This import belongs to another administrator.");
+    return importProgress(previewId, job);
+  }
+
   async commit(input: { actor: AdminActor; previewId: string; confirmationPhrase: string; now: Date }): Promise<Record<string, unknown>> {
     const ref = this.db.collection("adminImportPreviews").doc(input.previewId);
+    const leaseOwner = randomUUID();
+    const started = Date.now();
+    const currentTime = () => new Date(input.now.getTime() + Date.now() - started);
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) throw new HttpError(404, "Import preview not found.");
-      const data = snapshot.data() as { actorUid: string; state: string; expiresAt: string; confirmationPhrase: string; rows: NormalizedImportRow[]; result?: Record<string, unknown> };
+      const data = snapshot.data() as ImportJob;
       if (data.actorUid !== input.actor.uid) throw new HttpError(403, "This import preview belongs to another administrator.");
       if (data.state === "complete") return data;
-      if (data.state !== "preview" && data.state !== "failed") throw new HttpError(409, "This import is already processing.");
-      if (Date.parse(data.expiresAt) <= input.now.getTime()) throw new HttpError(410, "Import preview expired. Upload the file again.");
       if (input.confirmationPhrase.trim() !== data.confirmationPhrase) throw new HttpError(400, "The confirmation phrase does not match.");
-      transaction.update(ref, { state: "processing", processingAt: input.now.toISOString(), lastError: null });
-      return data;
-    });
-    if (preview.state === "complete" && preview.result) return preview.result;
-    let applied = 0;
-    let pending = 0;
-    try {
-      for (const row of preview.rows) {
-        const uid = await userUidByEmail(this.auth, row.email);
-        if (uid) { await this.applyRow(uid, row, input.actor.uid, input.now); applied += 1; }
-        else { await this.holdPending(row, input.actor.uid, input.now); pending += 1; }
+      // Expiry limits unconfirmed previews, never recovery of an approved import.
+      if (data.state === "preview" && !data.confirmedAt && Date.parse(data.expiresAt) <= input.now.getTime()) {
+        throw new HttpError(410, "Import preview expired. Upload the file again.");
       }
-      const result = { records: preview.rows.length, applied, pending };
-      await ref.update({ state: "complete", completedAt: new Date().toISOString(), result });
-      await recordAdminAudit({
-        db: this.db, actor: input.actor, action: "import.commit", targetType: "import", targetId: input.previewId,
-        summary: `Imported ${preview.rows.length} purchase records`, metadata: result, now: input.now
+      // Older versions had no lease or cursor. Their stable external IDs allow safe replay,
+      // but wait for any original invocation to finish before taking over.
+      const leaseUntil = data.leaseExpiresAt ? Date.parse(data.leaseExpiresAt)
+        : data.leaseOwner === undefined && data.state === "processing" && data.processingAt
+          ? Date.parse(data.processingAt) + 120_000 : 0;
+      if (leaseUntil > input.now.getTime()) return data;
+      const claimed: ImportJob = { ...data, state: "processing", leaseOwner,
+        leaseExpiresAt: new Date(currentTime().getTime() + 120_000).toISOString(),
+        confirmedAt: data.confirmedAt ?? data.processingAt ?? input.now.toISOString(),
+        processingAt: currentTime().toISOString(), lastError: null,
+        processed: data.processed ?? 0, applied: data.applied ?? 0, pending: data.pending ?? 0 };
+      transaction.set(ref, claimed);
+      return claimed;
+    });
+    if (preview.state === "complete") return importProgress(input.previewId, preview);
+    if (preview.leaseOwner !== leaseOwner) return { ...importProgress(input.previewId, preview), busy: true, retryAfterMs: 3000 };
+    let job = preview;
+    try {
+      // Bound each HTTP request, and checkpoint every row, including before a hard timeout.
+      for (let count = 0; count < 5 && Date.now() - started < 8_000 && (job.processed ?? 0) < job.rows.length; count++) {
+        const index = job.processed ?? 0;
+        const row = job.rows[index]!;
+        const uid = await userUidByEmail(this.auth, row.email);
+        if (uid) await this.applyRow(uid, row, input.actor.uid, currentTime());
+        else await this.holdPending(row, input.actor.uid, currentTime());
+        job = await this.db.runTransaction(async (transaction) => {
+          const data = (await transaction.get(ref)).data() as ImportJob;
+          if (data.leaseOwner !== leaseOwner || (data.processed ?? 0) !== index) throw new HttpError(409, "Import continued in another session. Refresh its progress.");
+          const next = { ...data, processed: index + 1, applied: (data.applied ?? 0) + (uid ? 1 : 0), pending: (data.pending ?? 0) + (uid ? 0 : 1) };
+          transaction.update(ref, { processed: next.processed, applied: next.applied, pending: next.pending });
+          return next;
+        });
+      }
+      job = await this.db.runTransaction(async (transaction) => {
+        const data = (await transaction.get(ref)).data() as ImportJob;
+        if (data.leaseOwner !== leaseOwner) throw new HttpError(409, "Import continued in another session. Refresh its progress.");
+        const complete = data.processed === data.rows.length;
+        const result = { records: data.rows.length, applied: data.applied ?? 0, pending: data.pending ?? 0 };
+        const update = { state: complete ? "complete" : "processing", leaseOwner: null, leaseExpiresAt: null,
+          ...(complete ? { result, completedAt: currentTime().toISOString() } : {}) };
+        transaction.update(ref, update);
+        if (complete) {
+          const audit = this.db.collection("adminAudit").doc(`import-${input.previewId}`);
+          transaction.set(audit, { id: audit.id, actorUid: input.actor.uid, actorEmail: input.actor.email,
+            action: "import.commit", targetType: "import", targetId: input.previewId,
+            summary: `Imported ${data.rows.length} purchase records`, metadata: result, createdAt: currentTime().toISOString() });
+        }
+        return { ...data, ...update };
       });
-      return result;
+      return importProgress(input.previewId, job);
     } catch (error) {
-      await ref.update({ state: "failed", failedAt: new Date().toISOString(), lastError: safeErrorMessage(error, "Unknown error") }).catch(() => undefined);
+      await this.db.runTransaction(async (transaction) => {
+        const data = (await transaction.get(ref)).data() as ImportJob;
+        if (data.leaseOwner === leaseOwner) transaction.update(ref, { state: "failed", leaseOwner: null, leaseExpiresAt: null,
+          failedAt: currentTime().toISOString(), lastError: safeErrorMessage(error, "Unknown error") });
+      }).catch(() => undefined);
       throw error;
     }
   }

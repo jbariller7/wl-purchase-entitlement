@@ -180,6 +180,7 @@ describe("administrator interface route contract", () => {
       ["/admin-api/v1/refunds/preview", 'path === "/v1/refunds/preview"'],
       ["/admin-api/v1/refunds/commit", 'path === "/v1/refunds/commit"'],
       ["/admin-api/v1/imports/preview", 'path === "/v1/imports/preview"'],
+      ["/admin-api/v1/imports", 'path === "/v1/imports"'],
       ["/admin-api/v1/imports/commit", 'path === "/v1/imports/commit"'],
       ["/admin-api/v1/operations", 'path === "/v1/operations"'],
       ["/admin-api/v1/inventory", 'path === "/v1/inventory"'],
@@ -188,7 +189,7 @@ describe("administrator interface route contract", () => {
       ["/admin-api/v1/session", 'path === "/v1/session"']
     ] as const;
     for (const [clientRoute, serverRoute] of exactRoutes) {
-      expect(admin).toContain(clientRoute);
+      expect(admin + read("integrations/web/admin-console/import-runner.js")).toContain(clientRoute);
       expect(api).toContain(serverRoute);
     }
     for (const dynamicRoute of [

@@ -95,6 +95,7 @@ function secured(event: HandlerEvent, response: HandlerResponse): HandlerRespons
 }
 
 function adminRateLimitPolicy(method: string, path: string): RateLimitPolicy {
+  if (method === "POST" && path === "/v1/imports/commit") return { action: "admin-import-chunk", limit: 300, windowSeconds: 10 * 60 };
   if (path.endsWith("/commit")) return { action: "admin-commit", limit: 10, windowSeconds: 60 * 60 };
   if (method === "POST") return { action: "admin-write", limit: 30, windowSeconds: 10 * 60 };
   return { action: "admin-read", limit: 180, windowSeconds: 60 };
@@ -304,8 +305,13 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     }));
   }
   if (event.httpMethod === "POST" && path === "/v1/imports/commit") {
-    return json(200, await imports.commit({ actor, ...body(commitSchema, event), now }));
+    const input = body(commitSchema.extend({ protocolVersion: z.number().optional() }), event);
+    if (input.protocolVersion !== 2) throw new HttpError(409, "The importer has been updated. Reload the admin page and resume your saved import in Imports. Do not upload it again.");
+    return json(200, await imports.commit({ actor, ...input, now }));
   }
+  if (event.httpMethod === "GET" && path === "/v1/imports") return json(200, await imports.recent(actor));
+  const importStatusMatch = path.match(/^\/v1\/imports\/([0-9a-f-]{36})$/i);
+  if (event.httpMethod === "GET" && importStatusMatch?.[1]) return json(200, await imports.status(actor, importStatusMatch[1]));
     if (event.httpMethod === "GET" && path === "/v1/operations") return json(200, {...await operations.operations(),orderEmails:await orderEmailStatus(db)});
     if (event.httpMethod === "POST" && path === "/v1/order-emails/test") return json(200,await testOrderEmail(db,actor));
   const retryMatch = path.match(/^\/v1\/outbox\/([A-Za-z0-9_-]{1,128})\/retry$/);
