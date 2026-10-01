@@ -28,9 +28,9 @@ async function shop(extra=''){
   before(node){nodes.set(node.id,node)}
  }
  for(const key of ['language','currency','heading','language-label','currency-label','offers','status'])nodes.set(key,new Element());
- const context=vm.createContext({locales,prices,ui,mobile,discountText,countdownUnits,metaAttribution,addAttribution,remainingSaleTime,REGIONAL_PRICES,stripeMinorAmount,currencyFractionDigits,URLSearchParams,Intl,AbortController,setTimeout,clearTimeout,setInterval(){},
+ const context=vm.createContext({locales,prices,ui,mobile,discountText,countdownUnits,metaAttribution,addAttribution,browserMetaAttribution:()=>({}),marketingAllowed:()=>true,ensureShopMetaContext:async()=>({}),remainingSaleTime,REGIONAL_PRICES,stripeMinorAmount,currencyFractionDigits,URL,URLSearchParams,Intl,AbortController,setTimeout,clearTimeout,setInterval(){},
   location:{search:'?lang=fr&currency=EUR'+extra},navigator:{language:'fr-FR'},
-  document:{documentElement:{classList:{toggle(){}}},createElement:()=>new Element(),getElementById:id=>nodes.get(id),querySelector:()=>new Element()},
+  document:{addEventListener(){},querySelectorAll:()=>[],documentElement:{classList:{toggle(){}}},createElement:()=>new Element(),getElementById:id=>nodes.get(id),querySelector:()=>new Element()},
   Option:class{constructor(text,value){this.text=text;this.value=value}},
   window:{addEventListener(){}},parent:{},ResizeObserver:class{observe(){}},
   fetch:url=>{requests.push(url);return Promise.reject(new Error('Unavailable'))}

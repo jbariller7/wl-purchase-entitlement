@@ -20,3 +20,9 @@ it('leaves older desktop checkouts to the existing legacy reporter',async()=>{
  await processStripeEvent(store as any,{type:'checkout.session.completed',created:1790000000,livemode:true,data:{object:{id:'cs_older',mode:'payment',payment_status:'paid',metadata:{wl_checkout_flow:'website-session-v1'}}}} as any);
  expect(store.enqueue).not.toHaveBeenCalled();
 });
+it('does not queue marketing events when checkout carried an explicit opt-out',async()=>{
+ process.env.AD_CONVERSIONS_ENABLED='true';resetEnvironmentForTests();mocks.record.mockResolvedValue({offer:'polyglot'});
+ const store={checkoutContext:vi.fn().mockResolvedValue({metaOptOut:'1'}),enqueue:vi.fn()};
+ await processStripeEvent(store as any,{type:'checkout.session.completed',created:1790000000,livemode:true,data:{object:{id:'cs_optout',mode:'payment',payment_status:'paid',amount_total:1000,currency:'usd',metadata:{wl_checkout_flow:'website-session-v1',wl_ads_owner:'entitlement-v2'}}}} as any);
+ expect(store.enqueue).not.toHaveBeenCalledWith('meta_conversion',expect.anything(),expect.anything(),expect.anything());
+});

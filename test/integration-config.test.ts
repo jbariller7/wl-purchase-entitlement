@@ -32,7 +32,7 @@ describe("isolated integration configuration", () => {
     for (const privateField of ["userCode", "pollSecret", "deviceLabel", "approvedUid"]) expect(operationsSummary).not.toContain(privateField);
     expect(admin).toContain("Privacy-safe device-code activity");
     expect(admin).toContain("Codes, polling secrets, device labels and player identities never appear in Operations.");
-    expect(admin).toContain("Number(r.keyCount || 0)");
+    expect(admin).toContain("Keys and customer emails stay on the server and are never displayed here.");
     expect(admin).not.toContain("(r.keys || []).length");
     expect(admin).toContain("refundableAmount > 0");
     expect(admin).toContain("Number(options.body?.amount)");
@@ -66,7 +66,7 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("Object.hasOwn(cell, TRUSTED_HTML_CELL)");
     expect(admin).not.toContain('Object.hasOwn(cell, "html")');
     expect(admin).not.toContain('String(cell).startsWith("<")');
-    expect(admin).toContain("No key inventory records in this environment.");
+    expect(admin).toContain("Google Sheets inventory is unavailable");
     expect(admin).toContain("APPROVED REGIONAL PRICES");
     expect(admin).toContain("Mobile Monthly and Polyglot Permanent prices remain managed in Google Play and App Store Connect.");
     expect(admin).toContain("Premium values are for Stripe");
@@ -131,7 +131,7 @@ describe("isolated integration configuration", () => {
   it("schedules the outbox worker while keeping processing disabled by default", () => {
     const netlify = read("netlify.toml");
     const example = read(".env.example");
-    expect(netlify).toMatch(/\[functions\."outbox-worker"\][\s\S]*schedule\s*=\s*"\*\/5 \* \* \* \*"/);
+    expect(netlify).toMatch(/\[functions\."outbox-worker"\]\s*schedule\s*=\s*"\* \* \* \* \*"/);
     expect(example).toMatch(/^OUTBOX_PROCESSING_ENABLED=false$/m);
     expect(example).toMatch(/^LEGACY_FULFILLMENT_ENABLED=false$/m);
     expect(example).toMatch(/^ACCOUNT_DELETION_PROCESSING_ENABLED=false$/m);

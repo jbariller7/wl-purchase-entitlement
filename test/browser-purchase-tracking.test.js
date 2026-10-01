@@ -1,7 +1,21 @@
 import {afterEach,expect,it,vi} from 'vitest';
-import {verifiedConversion,reportMetaPurchase,loadMetaPixel} from '../integrations/web/shop/purchase-tracking.js';
+import {verifiedConversion,reportMetaPurchase,loadMetaPixel,restoreMetaCookies} from '../integrations/web/shop/purchase-tracking.js';
 const sessionId='cs_live_example';
 const conversion={transactionId:sessionId,value:41.99,currency:'USD',meta:{pixelId:'552284573796131',eventId:sessionId,eventName:'Purchase',product:'premium',emailSha256:'a'.repeat(64)}};
+it('retries a previous unacknowledged handoff with the same ID instead of permanently suppressing it',async()=>{
+ const win=browser(),options={win,doc:{},nav:{},load:async()=>{},now:1000};
+ win.localStorage.setItem('wl-meta-purchase:'+sessionId,'1');
+ expect(await reportMetaPurchase(conversion,options)).toBe(true);
+ expect(await reportMetaPurchase(conversion,{...options,now:2000})).toBe(false);
+ expect(await reportMetaPurchase(conversion,{...options,now:13000})).toBe(true);
+ expect(win.fbq.mock.calls.filter(x=>x[0]==='trackSingle').map(x=>x[4])).toEqual([{eventID:sessionId},{eventID:sessionId}]);
+});
+it('restores the original browser/click cookies without creating invented or expired identifiers',()=>{
+ const writes=[],doc={set cookie(v){writes.push(v)}};
+ restoreMetaCookies({fbp:'fb.1.1000.original',fbc:'fb.1.1000.realClick'},doc,2000);
+ expect(writes).toHaveLength(2);expect(writes[0]).toContain('_fbp=fb.1.1000.original');expect(writes[1]).toContain('_fbc=fb.1.1000.realClick');
+ restoreMetaCookies({fbp:'invalid',fbc:'fb.1.1000.realClick'},doc,100*86400000);expect(writes).toHaveLength(2);
+});
 afterEach(()=>vi.useRealTimers());
 it('waits for the measured 3.3-second production verification instead of cancelling at 2 seconds',async()=>{
  vi.useFakeTimers();

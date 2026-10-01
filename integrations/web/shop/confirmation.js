@@ -1,7 +1,8 @@
 import {emailCopy,emailLocale} from '../../../src/email/copy';
 import {webCopy} from '../../../src/email/web-copy';
+import {readRecovery} from './purchase-recovery.js';
 const sessionId=new URLSearchParams(location.search).get('session_id');
-let recovery={};try{recovery=JSON.parse(sessionStorage.getItem('wl-purchase:'+sessionId)||'{}');}catch{}
+const recovery=readRecovery(sessionId);
 const locale=emailLocale(recovery.locale||new URLSearchParams(location.search).get('lang'));
 const copy=emailCopy[locale];
 document.documentElement.lang=locale;document.documentElement.dir=locale==='ar'?'rtl':'ltr';

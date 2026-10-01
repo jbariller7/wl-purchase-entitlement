@@ -1,8 +1,8 @@
 import {beforeEach,expect,it,vi} from 'vitest';
 import {createHash} from 'node:crypto';
-const mocks=vi.hoisted(()=>({retrieve:vi.fn(),get:vi.fn(),limit:vi.fn(),origin:'https://wonderlang.test'}));
+const mocks=vi.hoisted(()=>({retrieve:vi.fn(),get:vi.fn(),set:vi.fn().mockResolvedValue(undefined),limit:vi.fn(),origin:'https://wonderlang.test'}));
 vi.mock('../src/providers/stripe/website-config.js',()=>({websiteStripeConfiguration:()=>({origin:mocks.origin}),websiteStripeClient:()=>({checkout:{sessions:{retrieve:mocks.retrieve}}})}));
-vi.mock('../src/infrastructure/firebase.js',()=>({firestore:()=>({collection:()=>({doc:()=>({get:mocks.get})})})}));
+vi.mock('../src/infrastructure/firebase.js',()=>({firestore:()=>({collection:()=>({doc:()=>({get:mocks.get,set:mocks.set})})})}));
 vi.mock('../src/http/rate-limit.js',()=>({consumeRateLimit:mocks.limit}));
 import {lambdaHandler} from '../netlify/functions/website-conversion.js';
 const secret='x'.repeat(43);
@@ -35,6 +35,27 @@ it('rejects unrelated origin or incorrect recovery secret',async()=>{
  expect((await call({sessionId:session.id,claimSecret:secret},'https://attacker.test')).statusCode).toBe(403);
  expect(mocks.retrieve).not.toHaveBeenCalled();
  expect((await call({sessionId:session.id,claimSecret:'a'.repeat(43)})).statusCode).toBe(404);
+});
+it('accepts the scoped return token without browser storage and rejects the claim hash as a token',async()=>{
+ const token=createHash('sha256').update('wonderlang-conversion-v1:'+secret).digest('hex');
+ mocks.get.mockResolvedValue({data:()=>({sessionId:session.id,claimHash:createHash('sha256').update(secret).digest('hex'),conversionTokenHash:createHash('sha256').update(token).digest('hex')})});
+ expect((await call({sessionId:session.id,conversionToken:token})).statusCode).toBe(200);
+ expect((await call({sessionId:session.id,conversionToken:createHash('sha256').update(secret).digest('hex')})).statusCode).toBe(404);
+ expect((await call({sessionId:session.id,conversionToken:token,claimSecret:secret})).statusCode).toBe(400);
+ mocks.retrieve.mockResolvedValue({...session,status:'open',payment_status:'unpaid'});
+ expect(JSON.parse((await call({sessionId:session.id,conversionToken:token})).body).conversion).toBeNull();
+});
+it('returns original matching identifiers only to the purchase owner and honors checkout opt-out',async()=>{
+ vi.stubEnv('META_PIXEL_ID','552284573796131');vi.stubEnv('AD_CONVERSIONS_ENABLED','true');
+ try{
+ const attribution={fbp:'fb.1.123.originalBrowser',fbc:'fb.1.123.'+'X'.repeat(650)};
+ const quote={sessionId:session.id,claimHash:createHash('sha256').update(secret).digest('hex'),request:{attribution}};
+ mocks.get.mockResolvedValue({data:()=>quote});
+ mocks.retrieve.mockResolvedValue({...session,mode:'payment',created:Math.floor(Date.now()/1000),metadata:{...session.metadata,wl_ads_owner:'entitlement-v2'}});
+ expect(JSON.parse((await call({sessionId:session.id,claimSecret:secret})).body).conversion.meta).toMatchObject(attribution);
+ mocks.get.mockResolvedValue({data:()=>({...quote,request:{attribution:{metaOptOut:'1'}}})});
+ expect(JSON.parse((await call({sessionId:session.id,claimSecret:secret})).body).conversion.meta).toBeUndefined();
+ }finally{vi.unstubAllEnvs()}
 });
 it('does not report free trials, incomplete checkouts, or sandbox purchases',async()=>{
  for(const fields of [{amount_total:0,payment_status:'no_payment_required'},{status:'open',payment_status:'unpaid'}]){

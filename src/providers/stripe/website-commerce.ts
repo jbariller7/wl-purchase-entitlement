@@ -12,7 +12,7 @@ import { websiteSessionSchema, websiteSessionParams, websiteAttribution, assertW
 import { DiscountLinks, assertDiscountAvailable, applyDiscountToSession } from "./discount-links.js";
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const id=(v:string|{id:string}|null|undefined)=>typeof v==='string'?v:v?.id;
-interface Quote {request:WebsiteSessionRequest;priceId:string;claimHash:string;sessionId?:string;createdAt:string;experimentToken?:string|null;}
+interface Quote {request:WebsiteSessionRequest;priceId:string;claimHash:string;conversionTokenHash?:string;sessionId?:string;createdAt:string;experimentToken?:string|null;}
 interface WebsiteOrder extends Quote {sessionId:string;buyerEmail:string;sourceEventId:string;sourceEventCreated:number;claimedByUid?:string;}
 // Shared by browser purchase discovery and the account refresh used by native apps.
 // Keep delivery/key lookups out of sign-in: only reconcile verified purchases here.
@@ -103,7 +103,8 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   const price=await stripe.prices.retrieve(priceId,{expand:['currency_options']});
   assertWebsitePrice(price,request,true);
   const enrollment=request.experimentToken?await validEnrollment(store.firestore(),request.experimentToken):null;
-  const quote:Quote={request,priceId,claimHash:digest(claimSecret),createdAt:new Date().toISOString(),...(request.experimentToken?{experimentToken:enrollment?.events?.exposure?request.experimentToken:null}:{})};
+  const conversionToken=digest('wonderlang-conversion-v1:'+claimSecret);
+  const quote:Quote={request,priceId,claimHash:digest(claimSecret),conversionTokenHash:digest(conversionToken),createdAt:new Date().toISOString(),...(request.experimentToken?{experimentToken:enrollment?.events?.exposure?request.experimentToken:null}:{})};
   const ref=store.firestore().collection('websiteCheckoutRequests').doc(request.requestId);
   const attempt=await store.firestore().runTransaction(async tx=>{const previous=await tx.get(ref);if(previous.exists){const p=previous.data() as Quote;if(p.claimHash!==quote.claimHash||JSON.stringify(p.request)!==JSON.stringify(request)||p.priceId!==priceId)throw new HttpError(409,'Checkout request cannot be reused with different options.');return p;}tx.create(ref,quote);return quote;});
   const previousSession=attempt.sessionId;
@@ -119,6 +120,9 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
     throw new HttpError(409,'This checkout has expired. Please select your offer again.');
   }
   const parameters=websiteSessionParams(request,priceId,origin);
+  // Keep pre-migration retries byte-for-byte stable. New returns no longer
+  // depend on sessionStorage surviving Stripe/wallet/browser handoffs.
+  if(attempt.conversionTokenHash)parameters.success_url+=`#conversion_token=${conversionToken}`;
   parameters.metadata={...parameters.metadata,wl_request_id:request.requestId};
   // Freeze attribution with the original attempt so retrying Stripe's same
   // idempotency key cannot change its parameters after expiry or withdrawal.

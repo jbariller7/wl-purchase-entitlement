@@ -1,6 +1,7 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import type {EntitlementStore} from '../src/infrastructure/entitlement-store.js';
 import type Stripe from 'stripe';
+import {createHash} from 'node:crypto';
 const api=vi.hoisted(()=>({prices:{retrieve:vi.fn()},checkout:{sessions:{create:vi.fn(),retrieve:vi.fn(),listLineItems:vi.fn()}}}));
 vi.mock('../src/providers/stripe/website-config.js',()=>({websiteStripeClient:()=>api,websiteStripeConfiguration:()=>({origin:'https://wonderlang.app'}),websitePriceId:()=> 'price_approved'}));
 import {startWebsiteCheckout,recordWebsitePayment} from '../src/providers/stripe/website-commerce.js';
@@ -24,6 +25,21 @@ beforeEach(()=>{
  api.checkout.sessions.create.mockResolvedValue({id:'cs_live_new',url:'https://checkout.stripe.com/c/pay/cs_live_new'});
 });
 describe('website checkout runtime',()=>{
+ it('puts only a separately scoped conversion receipt in the Stripe return fragment',async()=>{
+  const {store,docs}=database();await startWebsiteCheckout(store,request,secret);
+  const params=api.checkout.sessions.create.mock.calls[0]![0];
+  const token=new URLSearchParams(new URL(params.success_url).hash.slice(1)).get('conversion_token')!;
+  expect(token).toMatch(/^[a-f0-9]{64}$/);expect(params.success_url).not.toContain(secret);
+  const quote=docs.get('websiteCheckoutRequests/'+request.requestId);
+  expect(createHash('sha256').update(token).digest('hex')).toBe(quote.conversionTokenHash);
+  expect(createHash('sha256').update(token).digest('hex')).not.toBe(quote.claimHash);
+ });
+ it('preserves a long click ID in the reporting context without exceeding Stripe metadata limits',async()=>{
+  const {store}=database(),attribution={fbc:'fb.1.123.'+'X'.repeat(650)};
+  await startWebsiteCheckout(store,{...request,attribution},secret);
+  expect(api.checkout.sessions.create.mock.calls[0]![0].metadata.fbc).toBeUndefined();
+  expect(store.saveCheckoutContext).toHaveBeenCalledWith('cs_live_new',expect.objectContaining(attribution),expect.any(Date));
+ });
  it('carries only verified experiment enrollments into Stripe and deduplicates paid attribution',async()=>{
   const {store,docs}=database(),token='b'.repeat(64),at=Date.now();
   docs.set('websiteExperimentEnrollments/'+token,{experimentId:'hero',variant:'B',createdAt:at-1000,locale:'fr',device:'mobile',country:'FR',source:'direct',events:{exposure:true}});

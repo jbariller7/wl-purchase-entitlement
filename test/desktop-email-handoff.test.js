@@ -6,7 +6,7 @@ function storage(){const data=new Map();return {getItem:k=>data.get(k)||null,set
 function harness(url){
  const context=vm.createContext({HTMLElement:class{},location:new URL(url),URL,URLSearchParams,history:{replaceState:vi.fn()},document:{title:''},sessionStorage:storage(),localStorage:storage(),DESKTOP_HANDOFF_KEY:'handoff',DESKTOP_REDIRECT_KEY:'redirect',sendSignInLinkToEmail:vi.fn().mockResolvedValue(),isSignInWithEmailLink:()=>true,signInWithEmailLink:vi.fn().mockResolvedValue(),demoMode:false,setTimeout:vi.fn(),window:{close:vi.fn()}});
  vm.runInContext(source.slice(source.indexOf('function desktopHandoffFromLocation()'),source.indexOf('function escapeHtml'))+source.slice(source.indexOf('class WonderLangAccount extends'),source.indexOf('customElements.define("wonderlang-account"'))+'\nglobalThis.Widget=WonderLangAccount;globalThis.restore=desktopHandoffFromLocation;',context);
- const page=new context.Widget();page.auth={currentUser:{uid:'confirmed-user'}};page.querySelector=()=>({});page.status=vi.fn();page.fail=e=>{throw e};return{context,page};
+ const page=new context.Widget();page.auth={currentUser:{uid:'confirmed-user'}};page.querySelector=()=>({removeAttribute(){},setAttribute(){}});page.status=vi.fn();page.fail=e=>{throw e};return{context,page};
 }
 it('carries desktop approval through an email link opened in a new browser session',async()=>{
  const initial=harness('https://wonderlang.app/account/');

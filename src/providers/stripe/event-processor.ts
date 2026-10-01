@@ -152,6 +152,7 @@ async function enqueueAdConversion(input: {
 }): Promise<void> {
   if (!deploymentControls().AD_CONVERSIONS_ENABLED || input.event.livemode !== true) return;
   const context = input.context ?? {};
+  if(context.metaOptOut==='1')return;
   const contextString = (key: string): string | undefined => {
     const value = context[key];
     return typeof value === "string" && value ? value : undefined;

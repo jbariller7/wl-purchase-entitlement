@@ -1,24 +1,42 @@
-import {verifiedConversion,reportMetaPurchase} from './purchase-tracking.js';
+import {verifiedConversion,reportMetaPurchase,loadMetaPixel} from './purchase-tracking.js';
+import {readRecovery,saveRecovery,conversionCredential} from './purchase-recovery.js';
 
 (async()=>{
  const sessionId=new URLSearchParams(location.search).get('session_id');
  if(!/^cs_live_[A-Za-z0-9]+$/.test(sessionId||''))return;
- let recovery;
- try{
-  sessionStorage.setItem('wl-purchase-pending',sessionId);
-  recovery=JSON.parse(sessionStorage.getItem('wl-purchase:'+sessionId)||'{}');
- }catch{return;}
- if(!recovery.claimSecret)return;
+ const recovery=readRecovery(sessionId),credential=conversionCredential(recovery,location.hash);
+ if(!credential)return;
+ saveRecovery(sessionId,{...recovery,...credential});
+ // Remove the narrowly scoped receipt before loading third-party scripts.
+ if(location.hash)history.replaceState(null,'',location.pathname+location.search);
+ try{sessionStorage.setItem('wl-purchase-pending',sessionId)}catch{}
+ if(recovery.marketingAllowed===false)window.wlMarketingConsent=false;
  try{if(recovery.locale)localStorage.setItem('wonderlang-account-language',recovery.locale)}catch{}
- const conversion=await verifiedConversion(sessionId,recovery.claimSecret);
+ let conversion,busy=false,lastStatus;
+ const until=Date.now()+5*60000;
+ const sendMeta=async()=>{
+  if(busy||Date.now()>until)return;
+  busy=true;
+  try{
+   conversion=conversion||await verifiedConversion(sessionId,credential);
+   if(conversion?.meta){
+    const sent=await reportMetaPurchase(conversion);
+    const pixelStatus=sent?'handed_off':'unavailable';
+    if(pixelStatus!==lastStatus&&(sent||!lastStatus)){
+     lastStatus=pixelStatus;
+     fetch('/.netlify/functions/website-conversion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId,...credential,pixelStatus}),keepalive:true}).catch(()=>{});
+    }
+   }
+  }finally{busy=false;}
+ };
+ // Verification and pixel loading overlap. Retry after a lost connection or
+ // tab switch, even if fbq accepted an earlier call without a delivery ACK.
+ if(recovery.marketingAllowed===true&&navigator.globalPrivacyControl!==true&&window.wlMarketingConsent!==false)loadMetaPixel(window,document).catch(()=>{});
+ window.addEventListener('online',sendMeta);
+ window.addEventListener('focus',sendMeta);
+ for(const delay of [12000,30000,60000])setTimeout(sendMeta,delay);
+ await sendMeta();
  if(!conversion)return;
- // Retry a temporarily unavailable pixel with the same server event ID.
- const sendMeta=()=>reportMetaPurchase(conversion);
- sendMeta().then(sent=>{if(!sent){
-  window.addEventListener('online',sendMeta,{once:true});
-  window.addEventListener('focus',sendMeta,{once:true});
-  setTimeout(sendMeta,5000);
- }});
  window.dataLayer=window.dataLayer||[];
  function gtag(){window.dataLayer.push(arguments)}
  gtag('consent','default',{ad_storage:'denied',analytics_storage:'denied',ad_user_data:'denied',ad_personalization:'denied'});

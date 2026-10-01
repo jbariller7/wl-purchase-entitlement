@@ -14,9 +14,10 @@ export const websiteSessionSchema = z.object({
   campaignId: z.string().uuid().optional(),
   experimentToken: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   attribution: z.object({
+    metaOptOut:z.literal('1').optional(),
     gaClientId: z.string().regex(/^\d+\.\d+$/).max(100).optional(),
     fbp: z.string().max(255).optional(),
-    fbc: z.string().max(255).optional(),
+    fbc: z.string().regex(/^fb\.\d+\.\d+\.[\w.-]+$/).max(4096).optional(),
     ttclid: z.string().max(255).optional(),
     ttp: z.string().max(255).optional()
   }).strict().optional(),
@@ -43,7 +44,9 @@ export function websiteSessionParams(request: WebsiteSessionRequest, priceId: st
   const monthly=request.offer==="mobile_monthly";
   const metadata={wl_checkout_flow:"website-session-v1",wl_ads_owner:"entitlement-v2",wl_website_offer:request.offer,wl_locale:request.locale,
     wl_desktop_delivery:request.delivery??"",wl_learning_language:request.learningLanguage??"",wl_mobile_platform:request.mobilePlatform??"later",
-    ...websiteAttribution(request)};
+    // Stripe metadata has a 500-character limit. Keep longer genuine click
+    // IDs intact in checkoutContexts, which is the server reporting source.
+    ...Object.fromEntries(Object.entries(websiteAttribution(request)).filter(([,value])=>value.length<=500))};
   const m=mobileText[request.locale as keyof typeof mobileText];
   const summary=request.offer==="mobile_monthly" ? `${m[2]} ${m[7]}` : request.offer==="mobile_permanent" ? m[3] : l[`${request.offer as "single"|"polyglot"|"premium"}Description`];
   // Render the same allowlisted selections carried in metadata; no extra questions.

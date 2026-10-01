@@ -12,7 +12,7 @@ export const lambdaHandler:LambdaHandler=async event=>{
   if(event.httpMethod==='GET'){websiteStripeConfiguration();return json(200,{enabled:true});}
   if(event.httpMethod!=='POST')return json(405,{error:'Method not allowed'});
   if(event.headers.origin!==websiteStripeConfiguration().origin)throw new HttpError(403,'Invalid checkout origin.');
-  if(!event.body||event.body.length>5000||event.isBase64Encoded)throw new HttpError(400,'Invalid checkout request.');
+  if(!event.body||event.body.length>8000||event.isBase64Encoded)throw new HttpError(400,'Invalid checkout request.');
   let payload:unknown;try{payload=JSON.parse(event.body)}catch{throw new HttpError(400,'Invalid JSON request.');}
   if(!payload||typeof payload!=='object'||Array.isArray(payload))throw new HttpError(400,'Invalid checkout request.');
   const {claimSecret,...selection}=payload as Record<string,unknown>;

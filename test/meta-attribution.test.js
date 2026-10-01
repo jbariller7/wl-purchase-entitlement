@@ -1,5 +1,12 @@
 import {expect,it} from 'vitest';
 import {metaAttribution,addAttribution,captureMetaAttribution} from '../integrations/web/shop/checkout-attribution.js';
+it('keeps long genuine click IDs intact through every shop hop',()=>{
+ const click='A'.repeat(650)+'_aem_example',attribution=metaAttribution('?fbclid='+click,'',1234);
+ expect(attribution.fbc).toBe('fb.1.1234.'+click);
+ const params=new URLSearchParams();addAttribution(params,attribution);
+ expect(metaAttribution(params.toString(),'')).toEqual(attribution);
+ expect(metaAttribution('?fbclid='+('A'.repeat(5000)),'')).toEqual({});
+});
 it('carries the marketing-site cookies through the cross-domain shop and checkout',()=>{
  const marketing=metaAttribution('', '_fbp=fb.1.1700000000000.browser; _fbc=fb.1.1700000000000.click');
  const params=new URLSearchParams();addAttribution(params,marketing);
