@@ -8,7 +8,7 @@ All routes are under `/testsite/`: `features/`, `study-tips/`, `crafting-the-gam
 
 English, French and Spanish page copy, navigation, form labels and form results are manually authored in `integrations/web/testsite/pages-content.js` and `page-render.js`. The language selector preserves a contact draft. The existing newsletter, donation pools and checkout remain on the homepage. Old checkout links and obsolete confirmation pages are not copied. Public release information keeps iOS, European Portuguese, Eastern Armenian and Swedish pending.
 
-All 12 gallery images and seven feature images/animations are hosted locally. `page-assets.json` records source URLs. Four media videos retain their YouTube destinations; the original Kickstarter footage is labelled archival. Links open YouTube rather than loading tracking embeds before interaction.
+All 12 gallery images, seven feature images/animations and five About-page illustrations are hosted locally. `page-assets.json` records source URLs. Four media videos retain their YouTube destinations; the original Kickstarter footage is labelled archival. Links open YouTube rather than loading tracking embeds before interaction.
 
 The terms retain the published March 2025 provisions, with manually authored French/Spanish translations; this migration is not a legal review. The privacy description now covers the operational account, purchase, cloud-save, support and measurement services instead of claiming only newsletter email collection and no service-provider sharing.
 
