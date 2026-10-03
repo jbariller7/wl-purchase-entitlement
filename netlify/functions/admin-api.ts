@@ -1,4 +1,6 @@
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
+import {listContacts} from '../../src/contact/service.js';
+import {recordAdminAudit} from '../../src/admin/audit.js';
 import {orderEmailStatus,testOrderEmail} from '../../src/email/admin.js';
 import { DiscountLinks, discountLinkSchema } from "../../src/providers/stripe/discount-links.js";
 import type { Config } from "@netlify/functions";
@@ -121,6 +123,19 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const path = routePath(event);
   const now = new Date();
   await consumeRateLimit({ db, namespace: "admin", subject: token.uid, policy: adminRateLimitPolicy(event.httpMethod, path), now });
+  if(event.httpMethod==='GET'&&path==='/v1/contacts')return json(200,await listContacts(db,event.queryStringParameters?.cursor));
+  const contactMatch=path.match(/^\/v1\/contacts\/([0-9a-f-]{36})$/i);
+  if(event.httpMethod==='POST'&&contactMatch){
+    const input=body(z.union([z.object({status:z.enum(['new','read','resolved'])}).strict(),z.object({retryEmail:z.literal(true)}).strict()]),event);
+    const ref=db.collection('contactMessages').doc(contactMatch[1]!);
+    await db.runTransaction(async tx=>{
+      const doc=await tx.get(ref);if(!doc.exists)throw new HttpError(404,'Message not found');
+      if('retryEmail'in input){if(doc.data()?.emailState!=='failed')throw new HttpError(409,'Only failed delivery can be retried');tx.update(ref,{emailState:'queued',attempts:0,nextAttemptAt:now.toISOString(),lastError:null})}
+      else tx.update(ref,{status:input.status,updatedAt:now.toISOString()});
+    });
+    await recordAdminAudit({db,actor,action:'contact.update',targetType:'contact',targetId:contactMatch[1]!,summary:'retryEmail'in input?'Retried contact email forwarding':'Marked contact '+input.status,now});
+    return json(200,{ok:true});
+  }
   const operations = new AdminOperationsService(db, firebaseAuth());
   const billing = new AdminBillingService(db);
   const diagnostics = new AdminProviderDiagnosticService(db);

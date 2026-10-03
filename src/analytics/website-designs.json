@@ -1,6 +1,6 @@
 {
   "fallback": "page-67ecf711e23b3d3b17ca",
-  "current": "page-645387686d75544e77bf",
+  "current": "page-96578dd65b38461d0188",
   "designs": [
     {
       "id": "page-67ecf711e23b3d3b17ca",
@@ -11,6 +11,13 @@
     },
     {
       "id": "page-645387686d75544e77bf",
+      "variants": {
+        "A": "Adventure + demo first",
+        "B": "Language goal + editions first"
+      }
+    },
+    {
+      "id": "page-96578dd65b38461d0188",
       "variants": {
         "A": "Adventure + demo first",
         "B": "Language goal + editions first"

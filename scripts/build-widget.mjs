@@ -2,6 +2,7 @@ import { build } from "esbuild";
 import { copyFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { buildHomepage } from './build-homepage.mjs';
+import { buildPages } from './build-pages.mjs';
 
 const projectPath = (relativePath) => fileURLToPath(new URL(`../${relativePath}`, import.meta.url));
 
@@ -10,6 +11,7 @@ await mkdir(projectPath("public/shop"), { recursive: true });
 await mkdir(projectPath("integrations/android/current-app-mirror/app/src/main/assets/js/plugins"), { recursive: true });
 
 await buildHomepage();
+await buildPages();
 await Promise.all([
   build({entryPoints:[projectPath("integrations/web/shop/landing-attribution.js")],bundle:true,minify:true,format:"iife",target:["es2020"],outfile:projectPath("public/shop/landing-attribution.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/complete.js")],bundle:true,minify:true,format:"iife",target:["es2022"],outfile:projectPath("public/shop/complete.js")}),

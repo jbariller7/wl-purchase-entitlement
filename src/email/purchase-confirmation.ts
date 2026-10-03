@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
-import nodemailer from 'nodemailer';
+import {confirmationTransport} from './transport.js';
+export {confirmationTransport} from './transport.js';
 import type Stripe from 'stripe';
 import type {EntitlementStore} from '../infrastructure/entitlement-store.js';
 import type {OutboxJob} from '../domain/model.js';
@@ -24,14 +25,6 @@ export async function queueInvoiceConfirmation(store:EntitlementStore,invoice:St
  await store.enqueue('purchase_confirmation',`invoice:${invoice.id}`,{invoiceId:invoice.id,subscriptionId:subscription.id},new Date());
 }
 const objectId=(value:string|{id:string}|null)=>typeof value==='string'?value:value?.id;
-export function confirmationTransport(){
- const pass=process.env.ORDER_EMAIL_SMTP_PASSWORD;
- if(!pass)throw new Error('Order email SMTP password is not configured.');
- return nodemailer.createTransport({host:'smtp-relay.gmail.com',port:587,secure:false,requireTLS:true,
-  auth:{user:'jonathan@wonderlang.app',pass},tls:{minVersion:'TLSv1.2',rejectUnauthorized:true},
-  connectionTimeout:15000,greetingTimeout:15000,socketTimeout:20000,logger:false,debug:false,
-  disableFileAccess:true,disableUrlAccess:true});
-}
 export async function sendPurchaseConfirmation(job:OutboxJob,store:EntitlementStore):Promise<Record<string,unknown>>{
  const db=store.firestore(),ref=db.collection('orderEmailDeliveries').doc(job.id);
  const previous=await ref.get();
