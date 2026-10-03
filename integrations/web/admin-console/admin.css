@@ -133,6 +133,12 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
 .stack-form input:focus, .stack-form select:focus, .stack-form textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px #1b705015; }
 .stack-form textarea { min-height: 90px; resize: vertical; line-height: 1.45; }
 .stack-form .code-input { min-height: 240px; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.sale-product-picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; }
+.sale-product-picker legend { padding: 0 6px; color: var(--muted); font-size: 12px; font-weight: 800; }
+.stack-form .sale-product-picker label { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); cursor: pointer; }
+.sale-product-picker label:has(input:checked) { background: #edf7f0; border-color: var(--green); }
+.stack-form .sale-product-picker input { width: 18px; height: 18px; min-height: 18px; flex: 0 0 18px; padding: 0; accent-color: var(--green); }
+.sale-product-picker .text-button { justify-self: start; }
 .field-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
 .price-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
 .price-card { display: grid; min-height: 200px; align-content: center; padding: 30px; border: 1px solid var(--line); border-radius: 17px; background: #fff; box-shadow: var(--shadow); }

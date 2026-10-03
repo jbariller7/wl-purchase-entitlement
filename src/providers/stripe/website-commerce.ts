@@ -9,7 +9,7 @@ import type { LedgerGrant, LegacyOrder } from "../../domain/model.js";
 import { SHEET_TAB_BY_PRODUCT, routePremiumDesktopAccess } from "../../legacy/catalog.js";
 import {websiteDelivery} from '../../legacy/website-delivery.js';
 import { websiteSessionSchema, websiteSessionParams, websiteAttribution, assertWebsitePrice, type WebsiteSessionRequest } from "./website-session.js";
-import { DiscountLinks, assertDiscountAvailable, applyDiscountToSession } from "./discount-links.js";
+import { DiscountLinks, assertDiscountAvailable, applyDiscountToSession, discountForOffer } from "./discount-links.js";
 const digest=(s:string)=>createHash('sha256').update(s).digest('hex');
 const id=(v:string|{id:string}|null|undefined)=>typeof v==='string'?v:v?.id;
 interface Quote {request:WebsiteSessionRequest;priceId:string;claimHash:string;conversionTokenHash?:string;sessionId?:string;createdAt:string;experimentToken?:string|null;}
@@ -98,7 +98,7 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   if(!priceId)throw new HttpError(503,'This website offer is not configured.');
   const stripe=stripeClient(),origin=websiteStripeConfiguration().origin;
   const campaigns=request.campaignId?new DiscountLinks(store.firestore(),stripe,origin):null;
-  const campaign=campaigns?await campaigns.get(request.campaignId!):null;
+  const campaign=campaigns?discountForOffer(await campaigns.get(request.campaignId!),request.offer):null;
   if(campaign) {assertDiscountAvailable(campaign,new Date(),request);await campaigns!.assertPublished(campaign);}
   const price=await stripe.prices.retrieve(priceId,{expand:['currency_options']});
   assertWebsitePrice(price,request,true);

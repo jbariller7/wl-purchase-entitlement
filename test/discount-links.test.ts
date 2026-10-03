@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
 import type { Firestore } from "firebase-admin/firestore";
-import { DiscountLinks, discountLinkSchema, assertDiscountAvailable, applyDiscountToSession, type DiscountLink } from "../src/providers/stripe/discount-links.js";
+import { DiscountLinks, discountLinkSchema, assertDiscountAvailable, applyDiscountToSession, discountForOffer, type DiscountLink } from "../src/providers/stripe/discount-links.js";
+import { websitePriceId } from '../src/providers/stripe/website-config.js';
 import { websiteSessionSchema, websiteSessionParams } from "../src/providers/stripe/website-session.js";
 import prices from "../catalog/website-prices.json" with {type:"json"};
 import locales from "../catalog/website-checkout-locales.json" with {type:"json"};
@@ -20,6 +21,80 @@ function fixture(){
  return {records,stripe,service:new DiscountLinks(db as unknown as Firestore,stripe as unknown as Stripe,'https://wonderlang.app')};
 }
 describe('discount campaigns',()=>{
+ it('validates multiple website products without broadening newsletter links',()=>{
+  const multi={...input,channel:'website',offers:['premium','mobile_monthly'],duration:'repeating',durationMonths:3,mobilePlatform:'android'};
+  expect(discountLinkSchema.safeParse(multi).success).toBe(true);
+  for(const changes of [{offers:[]},{offers:['premium','premium']},{offers:['polyglot']},{channel:'newsletter'},{offers:['premium'],duration:'forever'}])expect(discountLinkSchema.safeParse({...multi,...changes}).success).toBe(false);
+ });
+ it('provisions each product once with separate monthly terms and currency-independent coupons',async()=>{
+  const f=fixture(),offers=['premium','mobile_monthly','mobile_permanent'] as const;
+  f.stripe.prices.retrieve.mockImplementation(async(...args:unknown[])=>({active:true,livemode:true,product:'prod_'+args[0]}));
+  const multi=discountLinkSchema.parse({...input,channel:'website',offers:[...offers],duration:'repeating',durationMonths:3,mobilePlatform:'android'});
+  const created=await f.service.create(multi,actor,now);
+  await f.service.create({...multi,offers:[...offers]},actor,now);
+  expect(f.stripe.coupons.create).toHaveBeenCalledTimes(3);
+  for(const [i,offer] of offers.entries()){
+   expect(f.stripe.coupons.create.mock.calls[i]![0]).toMatchObject({id:created.couponIds![offer],name:input.name,percent_off:25,duration:offer==='mobile_monthly'?'repeating':'once',applies_to:{products:['prod_'+websitePriceId(offer)]}});
+   const projected=discountForOffer(created,offer);
+   expect(projected.durationMonths).toBe(offer==='mobile_monthly'?3:undefined);
+   expect(projected.delivery).toBe(offer==='premium'?'steam':undefined);
+   expect(projected.mobilePlatform).toBe(offer==='premium'?undefined:'android');
+   for(const currency of Object.keys(prices)){
+    const request=websiteSessionSchema.parse({offer,delivery:offer==='premium'?'steam':undefined,mobilePlatform:offer==='premium'?undefined:'android',locale:'en',currency,requestId:id});
+    expect(()=>assertDiscountAvailable(created,now,request)).not.toThrow();
+    const params=websiteSessionParams(request,websitePriceId(offer),'https://wonderlang.app');
+    applyDiscountToSession(params,created,'https://wonderlang.app',now);
+    expect(params.discounts).toEqual([{coupon:created.couponIds![offer]}]);
+    expect(params.metadata).toMatchObject({wl_website_offer:offer,wl_discount_link:id,wl_ads_owner:'entitlement-v2',wl_checkout_flow:'website-session-v1'});
+    expect(params.currency).toBe(currency.toLowerCase());
+    if(offer==='mobile_monthly')expect(params.subscription_data?.trial_period_days).toBe(3);
+   }
+  }
+  const other=websiteSessionSchema.parse({offer:'polyglot',delivery:'steam',locale:'en',currency:'USD',requestId:id});
+  expect(()=>assertDiscountAvailable(created,now,other)).toThrow('does not match');
+ });
+ it('keeps incomplete multi-product setup unpublished and recovers an interrupted Stripe creation',async()=>{
+  const f=fixture(),multi=discountLinkSchema.parse({...input,channel:'website',offers:['premium','mobile_permanent']});
+  f.stripe.coupons.create.mockResolvedValueOnce({id:'coupon'}).mockRejectedValueOnce(Error('network error'));
+  f.stripe.coupons.retrieve.mockRejectedValueOnce(Error('coupon not found'));
+  await expect(f.service.create(multi,actor,now)).rejects.toThrow('network error');
+  expect(await f.service.get(id)).toMatchObject({ready:false,active:false});
+  await expect(f.service.setWebsiteSale(id,true,actor,now)).rejects.toThrow('no longer');
+  f.stripe.coupons.create.mockRejectedValueOnce(Error('coupon already exists'));
+  f.stripe.coupons.retrieve.mockResolvedValueOnce({valid:true,metadata:{wl_discount_link:id},percent_off:25,duration:'once',applies_to:{products:['prod_premium']}});
+  expect(await f.service.provision(id,actor,now)).toMatchObject({ready:true,active:true,couponIds:{premium:`wl_campaign_${id}`,mobile_permanent:`wl_campaign_${id}_mobile_permanent`}});
+ });
+ it('publishes all selected products and replaces only overlapping product sessions',async()=>{
+  const f=fixture(),second='550e8400-e29b-41d4-a716-446655440002';
+  const multi=await f.service.create(discountLinkSchema.parse({...input,channel:'website',offers:['premium','mobile_monthly'],duration:'forever',mobilePlatform:'android'}),actor,now);
+  await f.service.setWebsiteSale(id,true,actor,now);
+  const publicSales=await f.service.saleCampaigns(now);
+  expect(publicSales.map(c=>[c.offer,c.duration])).toEqual([['premium','once'],['mobile_monthly','forever']]);
+  for(const offer of ['premium','mobile_monthly'] as const){
+   const projected=discountForOffer(multi,offer);
+   await expect(f.service.assertPublished(projected)).resolves.toBeUndefined();
+   await f.service.registerSession(projected,{id:'cs_'+offer,status:'open',expires_at:now.getTime()/1000+3600} as Stripe.Checkout.Session,now);
+  }
+  f.records.set('websiteDiscountLinks/'+second,{...link,id:second,channel:'website'});
+  await f.service.setWebsiteSale(second,true,actor,now);
+  expect(f.stripe.checkout.sessions.expire).toHaveBeenCalledExactlyOnceWith('cs_premium');
+  expect(f.records.has('websiteDiscountSessions/cs_mobile_monthly')).toBe(true);
+  expect((await f.service.saleCampaigns(now)).map(c=>[c.offer,c.id])).toEqual([['premium',second],['mobile_monthly',id]]);
+  await expect(f.service.assertPublished(discountForOffer(multi,'premium'))).rejects.toThrow('no longer published');
+  await f.service.setWebsiteSale(id,false,actor,now);
+  expect((await f.service.saleCampaigns(now)).map(c=>c.id)).toEqual([second]);
+  expect(f.stripe.checkout.sessions.expire).toHaveBeenCalledWith('cs_mobile_monthly');
+ });
+ it('deactivation and expiry stop every product in a campaign',async()=>{
+  const f=fixture();await f.service.create(discountLinkSchema.parse({...input,channel:'website',offers:['premium','mobile_permanent']}),actor,now);
+  await f.service.setWebsiteSale(id,true,actor,now);
+  expect(await f.service.saleCampaigns(now)).toHaveLength(2);
+  expect(await f.service.saleCampaigns(new Date(input.expiresAt!))).toEqual([]);
+  await f.service.setActive(id,false,actor,now);
+  expect(await f.service.saleCampaigns(now)).toEqual([]);
+  await f.service.setActive(id,true,actor,now);
+  expect(await f.service.saleCampaigns(now)).toHaveLength(2);
+ });
  it('selects demo sales per product and falls back after deactivation or expiry',async()=>{
   const f=fixture();f.records.set('websiteDiscountLinks/'+id,{...link,channel:"website"});
   await f.service.setWebsiteSale(id,true,actor,now);

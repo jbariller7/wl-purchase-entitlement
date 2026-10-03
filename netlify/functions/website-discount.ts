@@ -1,5 +1,5 @@
 import { withLambda, type LambdaHandler } from "@netlify/aws-lambda-compat";
-import { DiscountLinks, assertDiscountAvailable } from "../../src/providers/stripe/discount-links.js";
+import { DiscountLinks, assertDiscountAvailable, campaignOffers, discountForOffer } from "../../src/providers/stripe/discount-links.js";
 import { firestore } from "../../src/infrastructure/firebase.js";
 import { errorResponse, json } from "../../src/http/response.js";
 function publicCampaign(link:Awaited<ReturnType<DiscountLinks["get"]>>) {
@@ -12,7 +12,7 @@ export const lambdaHandler: LambdaHandler = async event => {
     if(event.queryStringParameters?.placement==="website") return json(200,{campaigns:(await new DiscountLinks(firestore()).saleCampaigns(new Date())).map(publicCampaign)});
     const link=await new DiscountLinks(firestore()).get(event.queryStringParameters?.id??"");
     assertDiscountAvailable(link,new Date());
-    return json(200,publicCampaign(link));
+    return json(200,{...publicCampaign(link),...(campaignOffers(link).length>1?{variants:campaignOffers(link).map(offer=>publicCampaign(discountForOffer(link,offer)))}:{})});
   } catch(error) { return errorResponse(error); }
 };
 export default withLambda(lambdaHandler);

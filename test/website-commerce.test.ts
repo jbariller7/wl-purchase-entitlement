@@ -25,6 +25,21 @@ beforeEach(()=>{
  api.checkout.sessions.create.mockResolvedValue({id:'cs_live_new',url:'https://checkout.stripe.com/c/pay/cs_live_new'});
 });
 describe('website checkout runtime',()=>{
+ it('checks publication and selects the coupon for a secondary product in a shared sale',async()=>{
+  const {store,docs}=database(),campaignId='550e8400-e29b-41d4-a716-446655440001';
+  docs.set('websiteDiscountLinks/'+campaignId,{id:campaignId,channel:'website',offer:'single',offers:['single','premium'],name:'Shared sale',percentOff:20,duration:'once',locale:'en',currency:'USD',couponId:'coupon_single',couponIds:{single:'coupon_single',premium:'coupon_premium'},active:true,ready:true});
+  // Only the secondary product is published; the primary product was replaced.
+  docs.set('websiteSaleSelections/premium',{campaignId});
+  api.checkout.sessions.create.mockResolvedValueOnce({id:'cs_live_sale',url:'https://checkout.stripe.com/c/pay/cs_live_sale',status:'open',expires_at:Math.floor(Date.now()/1000)+3600});
+  await startWebsiteCheckout(store,{...request,campaignId},secret);
+  const params=api.checkout.sessions.create.mock.calls[0]![0];
+  expect(params.discounts).toEqual([{coupon:'coupon_premium'}]);
+  expect(params.metadata).toMatchObject({wl_website_offer:'premium',wl_desktop_delivery:'steam',wl_discount_link:campaignId,wl_ads_owner:'entitlement-v2'});
+  expect(docs.get('websiteDiscountSessions/cs_live_sale')).toMatchObject({campaignId,offer:'premium'});
+  docs.set('websiteSaleSelections/premium',{campaignId:'other'});
+  await expect(startWebsiteCheckout(store,{...request,campaignId,requestId:'550e8400-e29b-41d4-a716-446655440002'},secret)).rejects.toThrow('no longer published');
+  expect(api.checkout.sessions.create).toHaveBeenCalledOnce();
+ });
  it('puts only a separately scoped conversion receipt in the Stripe return fragment',async()=>{
   const {store,docs}=database();await startWebsiteCheckout(store,request,secret);
   const params=api.checkout.sessions.create.mock.calls[0]![0];

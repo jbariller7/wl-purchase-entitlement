@@ -97,10 +97,10 @@ function render(){
  tabs.replaceChildren();
  for(const [value,label] of [['desktop','PC / Mac'],['mobile',mobile[lang][4]],['both',mobile[lang][5]]]){const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-pressed',String(category===value));button.onclick=()=>{category=value;render()};tabs.append(button)}
  tabs.hidden=Boolean(campaign);tabs.style.display=campaign?"none":"";
- const offers=campaign?[campaign.offer]:category==='desktop'?['single','polyglot','premium']:category==='mobile'?['mobile_monthly','mobile_permanent','premium']:['premium'];
+ const offers=campaign?(campaign.variants||[campaign]).map(c=>c.offer):category==='desktop'?['single','polyglot','premium']:category==='mobile'?['mobile_monthly','mobile_permanent','premium']:['premium'];
  const explicitCampaign=campaign;
  offers.forEach(offer=>{
- const campaign=explicitCampaign||publicCampaigns[offer];
+ const campaign=explicitCampaign?.variants?.find(c=>c.offer===offer)||explicitCampaign||publicCampaigns[offer];
  const card=document.createElement('article'),heading=document.createElement('h2'),price=document.createElement('div'),description=document.createElement('p'),buy=document.createElement('a'),options=rememberedOptions[offer]||{};rememberedOptions[offer]=options;
  const isMonthly=offer==='mobile_monthly',isMobile=offer.startsWith('mobile_'),index=['single','polyglot','premium'].indexOf(offer);
  heading.textContent=isMobile?mobile[lang][isMonthly?0:1]:l[offer];
