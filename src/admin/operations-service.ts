@@ -2,6 +2,9 @@ import { LegacyKeyInventoryDiagnosticService } from "../legacy/key-inventory-dia
 import { randomUUID } from "node:crypto";
 import { FieldValue, type Firestore, type Query } from "firebase-admin/firestore";
 import type { Auth, UserRecord } from "firebase-admin/auth";
+import type { DecodedIdToken } from "firebase-admin/auth";
+import { accountEmails, restoreAccountEmail } from "../identity/account-email.js";
+import { claimWebsiteOrder } from "../providers/stripe/website-commerce.js";
 import type { LedgerGrant, Product, Provider } from "../domain/model.js";
 import { summarizeSubscription } from "../domain/account-summary.js";
 import { HttpError } from "../http/auth.js";
@@ -33,7 +36,9 @@ function safeOperationalTimestamp(value: unknown): string | null {
 function publicUser(user: UserRecord) {
   return {
     uid: user.uid,
-    email: user.email ?? null,
+    email: accountEmails(user)[0] ?? null,
+    primaryEmail: user.email ?? null,
+    providerEmails: accountEmails(user),
     emailVerified: user.emailVerified,
     disabled: user.disabled,
     providers: user.providerData.map((provider) => provider.providerId),
@@ -274,7 +279,7 @@ export class AdminOperationsService {
         const user = users.get(String(row.uid ?? ""));
         return {
           time: row.startsAt,
-          customer: user?.email ?? String(row.uid ?? "Unknown account"),
+          customer: (user ? accountEmails(user)[0] : null) ?? String(row.uid ?? "Unknown account"),
           event: String(row.product ?? "entitlement"),
           amount: null,
           state: row.state
@@ -291,7 +296,22 @@ export class AdminOperationsService {
     if (value.includes("@")) {
       try { return this.customerDetail((await this.auth.getUserByEmail(value.toLowerCase())).uid); }
       catch (error) {
-        if ((error as { code?: string }).code === "auth/user-not-found") throw new HttpError(404, "No WonderLang account uses that exact email address.");
+        if ((error as { code?: string }).code === "auth/user-not-found") {
+          // Firebase getUserByEmail only searches the primary email. Separate
+          // provider accounts may expose the address only in providerData.
+          let cursor: string | undefined;
+          const matches = new Set<string>();
+          for (let page = 0; page < 10; page++) {
+            const result = await this.auth.listUsers(1000, cursor);
+            for (const user of result.users) if (accountEmails(user).includes(value.toLowerCase())) matches.add(user.uid);
+            cursor = result.pageToken;
+            if (!cursor) break;
+          }
+          if (cursor) throw new HttpError(409, "Use the account directory to search this provider email; the lookup limit was reached.");
+          if (matches.size > 1) throw new HttpError(409, "Multiple accounts use this provider email. Search the account directory and select the correct UID.");
+          if (matches.size === 1) return this.customerDetail([...matches][0]!);
+          throw new HttpError(404, "No WonderLang account uses that exact email address.");
+        }
         throw error;
       }
     }
@@ -503,6 +523,21 @@ export class AdminOperationsService {
       now: input.now
     });
     return { user: publicUser(updated), sessionsRevoked: true, requiresFreshProviderSignIn: true };
+  }
+
+  async reconcileWebsitePurchase(input: { actor: AdminActor; uid: string; sessionId: string; reason: string; now: Date }): Promise<Record<string, unknown>> {
+    const original = await this.auth.getUser(input.uid);
+    if (original.disabled) throw new HttpError(409, "This account is disabled.");
+    const user = await restoreAccountEmail(this.auth, original);
+    if (!user.email || !user.emailVerified) throw new HttpError(409, "The account needs a verified email before its purchase can be linked. No accounts were merged.");
+    // Same exact-email, live-payment, refund/dispute and single-owner checks as
+    // self-service claiming. Never create a manual grant or resend fulfillment.
+    await recordAdminAudit({ db: this.db, actor: input.actor, action: "purchase.reconcile.requested", targetType: "user", targetId: input.uid,
+      summary: "Requested verified website purchase reconciliation", metadata: { sessionId: input.sessionId, reason: input.reason, emailRestored: !original.emailVerified && user.emailVerified }, now: input.now });
+    await claimWebsiteOrder(this.store, { uid: user.uid, email: user.email, email_verified: true } as DecodedIdToken, input.sessionId);
+    await recordAdminAudit({ db: this.db, actor: input.actor, action: "purchase.reconcile.completed", targetType: "user", targetId: input.uid,
+      summary: "Linked the original Stripe purchase", metadata: { sessionId: input.sessionId }, now: input.now });
+    return this.customerDetail(input.uid);
   }
 
   async revokeAdminGrant(input: { actor: AdminActor; grantId: string; reason: string; now: Date }): Promise<Record<string, unknown>> {

@@ -1,5 +1,5 @@
 import {beforeEach, expect, it, vi} from 'vitest';
-const m = vi.hoisted(() => ({identity: {uid: 'mobile', email: 'buyer@example.com', email_verified: true} as any, claim: vi.fn(), effective: vi.fn(), imports: vi.fn()}));
+const m = vi.hoisted(() => ({identity: {uid: 'mobile', email: 'buyer@example.com', email_verified: true} as any, authUser: {providerData: []} as any, claim: vi.fn(), effective: vi.fn(), imports: vi.fn()}));
 vi.mock('../src/http/auth.js', async original => ({...await original<any>(), requireUser: async () => m.identity}));
 vi.mock('../src/http/app-check.js', () => ({requireAppCheck: vi.fn()}));
 vi.mock('../src/http/rate-limit.js', () => ({consumeRateLimit: vi.fn()}));
@@ -9,7 +9,7 @@ vi.mock('../src/admin/import-service.js', () => ({AdminImportService: class {cla
 vi.mock('../src/premium/second-platform-request-service.js', () => ({SecondPlatformRequestService: class {get = async () => null;}}));
 vi.mock('../src/providers/stripe/website-commerce.js', () => ({claimMatchingWebsitePurchases: m.claim}));
 vi.mock('../src/infrastructure/firebase.js', () => ({
-  firebaseAppCheck: () => ({}), firebaseAuth: () => ({getUser: async () => ({providerData: []})}), firebaseStorage: vi.fn(),
+  firebaseAppCheck: () => ({}), firebaseAuth: () => ({getUser: async () => m.authUser}), firebaseStorage: vi.fn(),
   firestore: () => ({collection: () => ({doc: () => ({collection: () => ({get: async () => ({docs: []})})})})})
 }));
 vi.mock('../src/infrastructure/entitlement-store.js', () => ({EntitlementStore: class {
@@ -23,6 +23,7 @@ const refresh = async () => await lambdaHandler({path: '/api/v1/me', httpMethod:
 beforeEach(() => {
   vi.clearAllMocks();
   m.identity = {uid: 'mobile', email: 'buyer@example.com', email_verified: true};
+  m.authUser = {providerData: []};
   m.claim.mockResolvedValue(undefined);
   m.effective.mockResolvedValue({mobilePlatforms: [], cloudSave: false});
 });
@@ -37,4 +38,13 @@ it('allows unverified accounts to refresh without claiming email purchases', asy
   m.identity.email_verified = false;
   expect((await refresh()).statusCode).toBe(200);
   expect(m.claim).not.toHaveBeenCalled();
+});
+it('claims the lifetime purchase for a Google Gmail sign-in with a missing primary email', async () => {
+  m.identity = {uid:'mobile',firebase:{sign_in_provider:'google.com'}};
+  m.authUser = {uid:'mobile',disabled:false,emailVerified:false,providerData:[{providerId:'google.com',uid:'google-subject',email:'buyer@gmail.com'}]};
+  m.claim.mockImplementation(async()=>{m.effective.mockResolvedValue({accessKind:'premium_lifetime',mobilePlatforms:['android','ios'],cloudSave:true});});
+  const response=await refresh();
+  expect(response.statusCode).toBe(200);
+  expect(m.claim).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({uid:'mobile',email:'buyer@gmail.com',email_verified:true}));
+  expect(JSON.parse(response.body)).toMatchObject({email:'buyer@gmail.com',emailVerified:true,entitlements:{accessKind:'premium_lifetime',cloudSave:true}});
 });

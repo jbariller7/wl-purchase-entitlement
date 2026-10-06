@@ -599,8 +599,8 @@ class WonderLangAccount extends HTMLElement {
       // Email recovery also works when the buyer closed Stripe's return tab.
       // A delivery/claim retry must not prevent account sign-in from rendering.
       this.websitePurchases=[];
-      if(!demoMode && user.emailVerified){try{this.websitePurchases=(await this.request('/api/v1/website/purchases',{method:'POST',body:{}})).purchases||[];}catch(error){purchaseError=error;}}
       this.account = await this.request("/api/v1/me");
+      if(!demoMode && this.account.emailVerified){try{this.websitePurchases=(await this.request('/api/v1/website/purchases',{method:'POST',body:{}})).purchases||[];}catch(error){purchaseError=error;}}
       const ent = this.account.entitlements;
       void this.loadCloudProfiles();
       const access = ent.accessKind === "premium_lifetime" ? "Premium Lifetime Pass"

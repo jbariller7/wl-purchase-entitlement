@@ -1,4 +1,5 @@
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
+import { resolveAccountIdentity } from "../../src/identity/account-email.js";
 import type { Config } from "@netlify/functions";
 import { withLambda } from "@netlify/aws-lambda-compat";
 import type { HandlerEvent, HandlerResponse, LambdaHandler } from "@netlify/aws-lambda-compat";
@@ -261,7 +262,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     throw new HttpError(405, "Method Not Allowed");
   }
 
-  const user = await requireUser(requestHeader(event.headers, "authorization"));
+  let user = await requireUser(requestHeader(event.headers, "authorization"));
   await requireAppCheck(
     requestHeader(event.headers, "x-firebase-appcheck"),
     firebaseAppCheck(),
@@ -281,6 +282,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   });
 
   const reviewers = new ReviewerAccounts(db, firebaseAuth());
+  user = await resolveAccountIdentity(user, firebaseAuth());
   await reviewers.recordLogin(user, now);
   if (event.httpMethod === "POST" && path === "/v1/reviewer/mobile-link") {
     return json(200, await reviewers.mobileLink(user, now));
@@ -350,6 +352,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     return json(200, {
       uid: user.uid,
       email: user.email ?? null,
+      emailVerified: user.email_verified === true,
       linkedLoginProviders: authUser.providerData.map((provider) => provider.providerId).filter((provider) => provider !== "firebase"),
       entitlements,
       subscription: summarizeSubscription(grants),

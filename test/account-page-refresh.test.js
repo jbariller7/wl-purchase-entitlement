@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { dictionaries, languages, translateSummary } from "../integrations/web/account-widget/account-languages.js";
-import { friendlyLoginProvider } from "../integrations/web/account-widget/provider-labels.js";
+import { friendlyLoginProvider, formatLoginProviders } from "../integrations/web/account-widget/provider-labels.js";
 const source = readFileSync(new URL("../integrations/web/account-widget/wonderlang-account.js", import.meta.url), "utf8");
 function widget() {
-  const context = vm.createContext({HTMLElement: class {}, location: {href:""}, encodeURIComponent, demoMode: false, friendlyLoginProvider});
+  const context = vm.createContext({HTMLElement: class {}, location: {href:""}, encodeURIComponent, demoMode: false, friendlyLoginProvider, formatLoginProviders});
   vm.runInContext(source.slice(source.indexOf("class WonderLangAccount extends"), source.indexOf('customElements.define("wonderlang-account"')) + "\nglobalThis.Widget = WonderLangAccount;", context);
   const page = new context.Widget();
   let status;
@@ -14,6 +14,26 @@ function widget() {
   return {page, context, status:()=>status};
 }
 describe("account page refresh", () => {
+  it("loads purchases using server-verified identity even when the browser primary email is missing", async () => {
+    const {page,context}=widget();
+    context.sessionStorage={getItem:()=>null};
+    const nodes={};
+    page.querySelector=selector=>nodes[selector] ||= {removeAttribute(){},remove(){}};
+    page.config={accountApiReady:true};
+    page.loadCloudProfiles=async()=>{};
+    page.loadDeviceApproval=async()=>{};
+    page.fail=vi.fn();
+    page.request=vi.fn(async path=>path==='/api/v1/me'?{
+      email:'buyer@gmail.com',emailVerified:true,linkedLoginProviders:['google.com'],
+      entitlements:{accessKind:'premium_lifetime',premiumLifetime:true,cloudSave:true,mobilePlatforms:['android'],permanentMobilePlatforms:['android'],pcMacAccess:true,futureContent:true},
+      cloudSave:{profileCount:0}
+    }:{purchases:[]});
+    await page.renderUser({uid:'google-account',email:null,emailVerified:false,providerData:[{providerId:'google.com'}]});
+    expect(page.request.mock.calls.map(([path])=>path)).toEqual(['/api/v1/me','/api/v1/website/purchases']);
+    expect(nodes['[data-field="access"]'].textContent).toBe('Premium Lifetime Pass');
+    expect(nodes['[data-field="email"]'].textContent).toBe('buyer@gmail.com');
+    expect(page.fail).not.toHaveBeenCalled();
+  });
   it("shows connected methods and only offers missing methods, including email aliases", () => {
     const {page} = widget();
     const nodes = {};

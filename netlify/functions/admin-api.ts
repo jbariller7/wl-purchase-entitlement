@@ -224,6 +224,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     return json(200, await operations.updateUserAccess({ actor, uid: accessMatch[1], ...body(accessSchema, event), now }));
   }
   const repairEmailMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/repair-email$/);
+  const reconcilePurchaseMatch = path.match(/^\/v1\/customers\/([A-Za-z0-9_-]{1,128})\/reconcile-website-purchase$/);
+  if (event.httpMethod === "POST" && reconcilePurchaseMatch?.[1]) {
+    const input = body(z.object({ sessionId: z.string().regex(/^cs_live_[A-Za-z0-9_]+$/).max(255), reason }).strict(), event);
+    return json(200, await operations.reconcileWebsitePurchase({ actor, uid: reconcilePurchaseMatch[1], ...input, now }));
+  }
   if (event.httpMethod === "POST" && repairEmailMatch?.[1]) {
     return json(200, await operations.repairCustomerEmail({
       actor,
