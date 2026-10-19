@@ -91,7 +91,7 @@ Firebase CLI install instructions: https://firebase.google.com/docs/cli
         <p>These are your cloud backups, not the saves currently on this device. Sync from the game to update them.</p>
         <div data-field="profiles-list" aria-live="polite"></div>
       </section>
-      <div class="wl-website-link"><a href="https://wonderlang.net/" target="_blank" rel="noopener noreferrer">wonderlang.net <span aria-hidden="true">\u2197</span></a></div>
+      <div class="wl-website-link"><a href="https://wonderlang.app/" target="_blank" rel="noopener noreferrer">wonderlang.app <span aria-hidden="true">\u2197</span></a></div>
       <button type="button" data-action="portal" class="wl-secondary">Manage Stripe subscription</button>
       <div class="wl-provider-grid wl-security-actions">
         <button type="button" data-action="restore" class="wl-secondary">Restore mobile purchases</button>

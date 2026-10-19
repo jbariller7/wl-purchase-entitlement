@@ -11,6 +11,7 @@
 
 [context.production.environment]
   GA4_MEASUREMENT_ID = "G-YEGW7C2JRR"
+  WEBSITE_LAUNCH = "true"
 
 [functions]
   node_bundler = "esbuild"
@@ -52,6 +53,16 @@
 
 [[redirects]]
   from = "/"
+  to = "/account/"
+  status = 302
+
+[[redirects]]
+  from = "/login"
+  to = "/account/"
+  status = 302
+
+[[redirects]]
+  from = "/login/"
   to = "/account/"
   status = 302
 

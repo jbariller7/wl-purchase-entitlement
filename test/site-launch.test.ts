@@ -47,6 +47,13 @@ describe('public website launch preparation',()=>{
   expect(redirects).not.toContain('/*');
   for(const route of ['account','admin','shop'])await expect(access(out+'/'+route+'/index.html')).resolves.toBeUndefined();
  });
+ it('enables production launch and retains an explicit login route',async()=>{
+  const config=await readFile('netlify.toml','utf8');
+  expect(config).toMatch(/\[context.production.environment\][\s\S]*?WEBSITE_LAUNCH = "true"/);
+  expect(config).toMatch(/from = "\/login\/"\s+to = "\/account\/"\s+status = 302/);
+  const html=await readFile(out+'/index.html','utf8');
+  expect(html).toContain('href="/account/" data-t="account"');
+ });
  it('indexes only marketing routes in the future sitemap and blocks indexing of the local launch preview',async()=>{
   const sitemap=await readFile(out+'/sitemap.xml','utf8');
   expect((sitemap.match(/<url>/g)||[]).length).toBe((slugs.length+1)*3);

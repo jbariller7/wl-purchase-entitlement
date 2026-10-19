@@ -53,7 +53,7 @@ describe("account page refresh", () => {
     }
   });
   it("replaces purchase cards with the website and loads configuration without the removed controls", () => {
-    expect(source).toContain('href="https://wonderlang.net/"');
+    expect(source).toContain('href="https://wonderlang.app/"');
     for (const removed of ['class="wl-offers"', 'data-action="premium"', 'data-action="discounted-premium"', 'data-field="monthly-price"', 'data-field="premium-platform"', 'data-field="cancel-confirm"']) {
       expect(source).not.toContain(removed);
     }

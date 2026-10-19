@@ -61,6 +61,6 @@ await Promise.all([
   )
 ]);
 
-// Disabled until the owner chooses the public launch. Preview work remains at
-// /testsite/ and the existing root redirect stays in effect in ordinary builds.
+// Production enables the public homepage in netlify.toml. Other build contexts
+// retain /testsite/ unless they explicitly enable the same launch build.
 if(process.env.WEBSITE_LAUNCH==='true')await buildSiteLaunch({outDir:projectPath('public'),preview:false});
