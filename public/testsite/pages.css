@@ -4,3 +4,6 @@
 @media(max-width:760px){body[data-page] .site-header{flex-wrap:wrap}body[data-page] .site-header nav{flex:0 0 100%;order:3;flex-direction:row;flex-wrap:wrap;gap:16px}body[data-page] .header-tools{order:2}body[data-page] .site-header .brand{order:1}}
 
 .about-art{max-width:520px;margin:24px auto}.about-art-0{max-width:300px}.about-art-1{max-width:320px}.about-art-2{max-width:260px}.about-art-4{max-width:120px}.about-art .screenshot img{background:transparent}
+
+.policy-draft{padding:18px 22px;border:1px solid #d8b876;border-left:4px solid #a26a00;border-radius:8px;background:#fff8e9;color:#5d4318!important;font-size:15px!important;line-height:1.7;overflow-wrap:anywhere}
+.page-toc{max-height:calc(100vh - 60px);overflow-y:auto}@media(max-width:760px){.page-toc{max-height:none;overflow:visible}body[data-page] .header-tools a{display:inline;font-size:12px}}

@@ -10,6 +10,7 @@
     "build": "tsc -p tsconfig.build.json && node scripts/build-widget.mjs",
     "build:server": "tsc -p tsconfig.build.json",
     "build:widget": "node scripts/build-widget.mjs",
+    "prepare:site-launch": "node scripts/build-widget.mjs && node scripts/build-site-launch.mjs",
     "check": "tsc --noEmit && vitest run",
     "dev": "netlify dev",
     "import:legacy-keys": "tsx scripts/import-legacy-keys.ts",

@@ -36,7 +36,9 @@ function render(){
 let frame=null,frameContext='';
 function updateShop(){
  const url=new URL('/shop/',location.origin);url.searchParams.set('lang',lang);
- if(consent==='yes'){addAttribution(url.searchParams,metaAttribution(location.search,document.cookie));for(const key of ['ttclid','gclid','gbraid','wbraid']){const value=q.get(key);if(value&&value.length<=255)url.searchParams.set(key,value)}}
+ const allowed=consent==='yes'&&navigator.globalPrivacyControl!==true&&q.get('metaOptOut')!=='1';
+ if(allowed){addAttribution(url.searchParams,metaAttribution(location.search,document.cookie));for(const key of ['ttclid','gclid','gbraid','wbraid']){const value=q.get(key);if(value&&value.length<=255)url.searchParams.set(key,value)}}
+ else url.searchParams.set('metaOptOut','1');
  if(enrollment)url.searchParams.set('experimentToken',enrollment.token);
  $('shop-fallback').href=url.href;
  const context=(enrollment?.token||'')+':'+consent;
@@ -75,5 +77,6 @@ window.ml_webform_success_22154858=()=>{
  const success=document.querySelector('#mlb2-22154858 .row-success');success.style.display='block';success.focus();
 };
 fetch('https://assets.mailerlite.com/jsonp/1292227/forms/144956028970075999/takel').catch(()=>{});
-if(preview){render()}else{loadDefault().then(enroll)}
+// The page must remain usable if configuration is slow or unavailable.
+render();if(!preview){loadDefault().then(enroll)}
 $('consent').hidden=preview||Boolean(consent);

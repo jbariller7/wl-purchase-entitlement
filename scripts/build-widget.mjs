@@ -3,6 +3,7 @@ import { copyFile, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { buildHomepage } from './build-homepage.mjs';
 import { buildPages } from './build-pages.mjs';
+import { buildSiteLaunch } from './build-site-launch.mjs';
 
 const projectPath = (relativePath) => fileURLToPath(new URL(`../${relativePath}`, import.meta.url));
 
@@ -59,3 +60,7 @@ await Promise.all([
     projectPath("integrations/android/current-app-mirror/app/src/main/assets/js/plugins/WonderLangAccountCloudSync.js")
   )
 ]);
+
+// Disabled until the owner chooses the public launch. Preview work remains at
+// /testsite/ and the existing root redirect stays in effect in ordinary builds.
+if(process.env.WEBSITE_LAUNCH==='true')await buildSiteLaunch({outDir:projectPath('public'),preview:false});

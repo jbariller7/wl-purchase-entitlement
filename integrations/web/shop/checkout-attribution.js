@@ -35,4 +35,7 @@ export function browserMetaAttribution(search=location.search) {
  try{if(storage&&!storage.getItem(META_CONTEXT_KEY)&&session?.getItem(META_CONTEXT_KEY))storage.setItem(META_CONTEXT_KEY,session.getItem(META_CONTEXT_KEY))}catch{storage=session}
  return captureMetaAttribution(search,cookies,storage||session);
 }
-export function marketingAllowed(search=location.search){return navigator.globalPrivacyControl!==true&&window.wlMarketingConsent!==false&&new URLSearchParams(search).get('metaOptOut')!=='1'}
+export function marketingAllowed(search=location.search){
+ let rejected=false;try{rejected=localStorage.getItem('wl_measurement')==='no'}catch{}
+ return !rejected&&navigator.globalPrivacyControl!==true&&window.wlMarketingConsent!==false&&new URLSearchParams(search).get('metaOptOut')!=='1';
+}
