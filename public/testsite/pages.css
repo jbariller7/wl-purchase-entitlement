@@ -7,3 +7,7 @@
 
 .policy-draft{padding:18px 22px;border:1px solid #d8b876;border-left:4px solid #a26a00;border-radius:8px;background:#fff8e9;color:#5d4318!important;font-size:15px!important;line-height:1.7;overflow-wrap:anywhere}
 .page-toc{max-height:calc(100vh - 60px);overflow-y:auto}@media(max-width:760px){.page-toc{max-height:none;overflow:visible}body[data-page] .header-tools a{display:inline;font-size:12px}}
+
+/* Shared fix for current and retained homepage designs: expand the mobile
+   menu below the header instead of squeezing links into its last column. */
+@media(max-width:760px){body:not([data-page]) .site-header #site-nav{flex:0 0 100%;order:4;justify-content:flex-start;gap:8px 20px}body:not([data-page]) .site-header #site-nav a{padding:8px 0;min-height:36px}}
