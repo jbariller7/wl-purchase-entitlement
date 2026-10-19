@@ -11,15 +11,22 @@ describe('public website launch preparation',()=>{
  const out=resolve('dist/site-launch');
  beforeAll(async()=>{await buildSiteLaunch({outDir:out,preview:true})},60000);
  it('does not activate the root while publication notes remain',async()=>{
-  expect(launchBlockers().length).toBeGreaterThan(0);
-  await expect(buildSiteLaunch({outDir:resolve('dist/blocked-launch'),preview:false})).rejects.toThrow('Launch not activated');
+  const status=source.status;
+  try {
+   source.status='draft';
+   expect(launchBlockers().length).toBeGreaterThan(0);
+   await expect(buildSiteLaunch({outDir:resolve('dist/blocked-launch'),preview:false})).rejects.toThrow('Launch not activated');
+  } finally {source.status=status}
+  expect(launchBlockers()).toEqual([]);
   await expect(access('public/index.html')).rejects.toThrow();
  });
  it('preserves the full English source and every translated paragraph',()=>{
   expect(pages['privacy-policy'].en).toEqual(source.en);
   for(const lang of ['fr','es']){
    expect(pages['privacy-policy'][lang].sections.map((s:string[])=>s.length)).toEqual(source.en.sections.map(s=>s.length));
-   expect(pages['privacy-policy'][lang].draftNotice).toBeTruthy();
+   expect(pages['privacy-policy'][lang].draftNotice).toBeUndefined();
+   expect(pages['privacy-policy'][lang].effectiveDate).toContain('2026');
+   expect(JSON.stringify(pages['privacy-policy'][lang])).not.toMatch(/Before publication|Avant publication|Antes de publicar/);
   }
  });
  it('serves localized supporting pages without requiring JavaScript for the policy text',async()=>{

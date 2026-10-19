@@ -4,11 +4,11 @@ The public homepage has NOT been switched. Ordinary builds still publish the mar
 
 ## Privacy update
 
-The live source `https://lp.wonderlang.net/privacy-policy` was fetched directly on 19 October, because search returned an older cached policy. The complete English text is in `integrations/web/testsite/privacy-policy.json`; French and Spanish were manually translated in `privacy-translations.js`. The preview marks the text as a draft and preserves the source's six unfinished publication notes, without treating them as instructions or asserting the missing facts.
+The owner supplied the finalized WonderLang Privacy Policy, effective 19 October 2026, in this conversation. It supersedes the unfinished draft fetched from `https://lp.wonderlang.net/privacy-policy`. The complete English wording is in `integrations/web/testsite/privacy-policy.json`; its scope paragraph is displayed as the page introduction. French and Spanish were manually translated in `privacy-translations.js`. All twelve numbered sections and the provider links are retained. Draft banners and publication notes have been removed; the displayed date is the effective date.
 
-Before public launch, obtain the finalized policy and reconcile the opening paragraph (newsletter-only use/no third-party sharing) with the later account, payment, analytics and advertising disclosures. Outstanding source notes concern analytics/advertising bases and controls, objection/deletion procedures, retention, international processing, US-state rights, and children. This migration does not verify those app/backend claims. The updated text mainly describes apps and explicitly says it does not replace website cookie/newsletter notices; the public website needs an approved notice covering its own processing too.
+The policy records the owner's stated retention periods, manual deletion within 72 hours of a verified request, SDK disclosures and age policy. Publishing this text does not change or independently audit backend retention, deletion jobs, native SDK settings or consent controls. The owner explicitly requested that the homepage's existing “9 and up” audience wording remain unchanged; the supplied 16+ wording appears in the privacy policy only.
 
-Replace the English draft and manually update both translations. Remove the draft notices and update the displayed date, then set the policy JSON `status` to `approved`. The launch builder refuses activation while the status is a draft or the English publication notes remain. Do not simply delete notes and mark approval without resolving their content.
+The policy source is now marked `approved`. The builder still rejects a future draft or unresolved English publication notes. This status approves the policy text for publication; it does not activate the marketing homepage at the domain root.
 
 ## Prepared launch build
 
@@ -29,7 +29,7 @@ The prepared homepage passes explicit opt-out to the shop until measurement is a
 
 ## Before activation
 
-1. Resolve the privacy draft above and approve the finalized EN/FR/ES copy.
+1. Review the finalized privacy page in English, French and Spanish. Confirm that operational processes continue to meet the owner-supplied commitments.
 2. Review Preview A and Preview B in Admin → website experiments. Select/promote the desired default deliberately; do not accidentally reset an active experiment. The launch build preserves all registered designs and the server's current default. Use the newest prepared version for the immediate-render and explicit opt-out handoff fixes.
 3. Confirm release facts. The live wonderlang.net homepage still says iOS, European Portuguese, Eastern Armenian and Swedish are coming soon; iOS beta access is described as available on request. No public iOS release was inferred. Funding totals on the new site are explicitly dated 24 September; refresh them from the actual donation register before launch if they changed.
 4. Verify one authorized real purchase end-to-end, including a discounted offer: Stripe payment → entitlement/key/delivery → order email → browser confirmation → Meta receipt/deduplication → admin visibility. No test sale, email, subscription or customer grant was created during this preparation.
