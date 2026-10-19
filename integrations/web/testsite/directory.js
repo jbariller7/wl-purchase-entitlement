@@ -30,6 +30,8 @@ document.addEventListener('wonderlang-page-rendered',renderDirectory);renderDire
 // Never forward identifiers to email, social or other third-party links.
 document.addEventListener('click',event=>{
  const a=event.target.closest('a[href]');if(!a)return;
+ // In-page navigation must not acquire a new query string and reload the page.
+ if(a.getAttribute('href')?.startsWith('#'))return;
  const target=new URL(a.href,location.href),query=new URLSearchParams(location.search);
  const publicRoute=document.body.dataset.publicSite==='true'&&(target.pathname==='/'||slugs.some(slug=>target.pathname==='/'+slug+'/')||target.pathname.startsWith('/versions/'));
  if(target.origin!==location.origin||(!publicRoute&&!/^\/(testsite|shop)\//.test(target.pathname)))return;
