@@ -1,0 +1,78 @@
+{
+  "status": "Illustrative placeholders; prices and inclusions are not final.",
+  "basis": "Original WonderLang-style supporter, single-language and Polyglot reward structure, adapted for Beyond. Exact historic tier amounts were not verified.",
+  "tiers": [
+    {
+      "id": "supporter",
+      "name": "A little magic",
+      "price": 5,
+      "label": "Supporter",
+      "text": "Help a new language-learning adventure take shape.",
+      "items": [
+        "Campaign updates",
+        "A heartfelt thank-you from the team"
+      ]
+    },
+    {
+      "id": "early",
+      "name": "Early adventurer",
+      "price": 15,
+      "label": "Early-bird placeholder",
+      "text": "Start your next chapter with one language of your choice.",
+      "items": [
+        "Beyond: one Wave 1 target language",
+        "Digital PC / Mac copy",
+        "Campaign updates"
+      ]
+    },
+    {
+      "id": "adventurer",
+      "name": "The next adventure",
+      "price": 20,
+      "label": "Single-language edition",
+      "text": "A full adventure in the language you want to spend more time with.",
+      "items": [
+        "Beyond: one Wave 1 target language",
+        "Digital PC / Mac copy",
+        "Campaign updates"
+      ]
+    },
+    {
+      "id": "polyglot",
+      "name": "The polyglot adventure",
+      "price": 35,
+      "label": "Polyglot edition",
+      "text": "Explore Beyond in all seven launch languages.",
+      "items": [
+        "Beyond: all seven Wave 1 languages",
+        "Digital PC / Mac copy",
+        "Campaign updates"
+      ]
+    },
+    {
+      "id": "all-platforms",
+      "name": "Beyond, wherever you play",
+      "price": 60,
+      "label": "Higher-tier placeholder",
+      "text": "Continue your learning adventure at home and on the go.",
+      "items": [
+        "Beyond: all seven Wave 1 languages",
+        "PC, Mac, Android and iOS access",
+        "Cross-platform cloud saves",
+        "Campaign updates"
+      ]
+    },
+    {
+      "id": "champion",
+      "name": "Bring your language Beyond",
+      "price": 1000,
+      "label": "Highest-tier placeholder",
+      "text": "Choose an additional language for the adventure.",
+      "items": [
+        "Everything in the all-platforms tier",
+        "Choose an additional target language",
+        "Planned within a few weeks of release"
+      ]
+    }
+  ]
+}
