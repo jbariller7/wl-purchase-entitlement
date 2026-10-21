@@ -1,78 +1,663 @@
 {
-  "status": "Illustrative placeholders; prices and inclusions are not final.",
-  "basis": "Original WonderLang-style supporter, single-language and Polyglot reward structure, adapted for Beyond. Exact historic tier amounts were not verified.",
+  "status": "Campaign preview; four tier prices and add-ons are explicitly marked drafts.",
   "tiers": [
     {
       "id": "supporter",
-      "name": "A little magic",
+      "name": "The Supporter",
       "price": 5,
-      "label": "Supporter",
-      "text": "Help a new language-learning adventure take shape.",
+      "emoji": "💜",
+      "label": "A little magic",
+      "text": "Help bring this new language-learning adventure to life.",
       "items": [
-        "Campaign updates",
-        "A heartfelt thank-you from the team"
-      ]
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates."
+      ],
+      "inherits": null,
+      "conditions": [],
+      "draftPrice": true,
+      "badge": "",
+      "capabilities": [],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates."
+      ],
+      "allConditions": [],
+      "allCapabilities": [],
+      "inheritsName": null,
+      "inheritanceText": "Support the project; no game license included."
     },
     {
       "id": "early",
-      "name": "Early adventurer",
-      "price": 15,
-      "label": "Early-bird placeholder",
-      "text": "Start your next chapter with one language of your choice.",
+      "name": "Early Bird Adventurer",
+      "price": 24,
+      "emoji": "🌱",
+      "label": "First steps",
+      "text": "Be among the first to embark, with a special Kickstarter discount.",
       "items": [
-        "Beyond: one Wave 1 target language",
-        "Digital PC / Mac copy",
-        "Campaign updates"
-      ]
+        "One digital copy of WonderLang Beyond.",
+        "Choose one platform: PC/Mac, Android, or iOS.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription."
+      ],
+      "inherits": "supporter",
+      "conditions": [
+        "Limited to the first 200 backers."
+      ],
+      "draftPrice": true,
+      "badge": "Limited to the first 200 backers",
+      "capabilities": [
+        "beyond",
+        "single"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "Choose one platform: PC/Mac, Android, or iOS.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription."
+      ],
+      "allConditions": [
+        "Limited to the first 200 backers."
+      ],
+      "allCapabilities": [
+        "beyond",
+        "single"
+      ],
+      "inheritsName": "The Supporter",
+      "inheritanceText": "Everything in The Supporter."
     },
     {
       "id": "adventurer",
-      "name": "The next adventure",
-      "price": 20,
-      "label": "Single-language edition",
-      "text": "A full adventure in the language you want to spend more time with.",
+      "name": "The Adventurer",
+      "price": 29,
+      "emoji": "🗺️",
+      "label": "Your adventure begins",
+      "text": "Explore a fantasy world, uncover mysteries, and grow your language skills.",
       "items": [
-        "Beyond: one Wave 1 target language",
-        "Digital PC / Mac copy",
-        "Campaign updates"
-      ]
+        "One digital copy of WonderLang Beyond.",
+        "Choose one platform: PC/Mac, Android, or iOS.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription."
+      ],
+      "inherits": "supporter",
+      "conditions": [],
+      "draftPrice": false,
+      "badge": "",
+      "capabilities": [
+        "beyond",
+        "single"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "Choose one platform: PC/Mac, Android, or iOS.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription."
+      ],
+      "allConditions": [],
+      "allCapabilities": [
+        "beyond",
+        "single"
+      ],
+      "inheritsName": "The Supporter",
+      "inheritanceText": "Same game benefits as the Early Bird; available beyond the first 200 backers."
     },
     {
-      "id": "polyglot",
-      "name": "The polyglot adventure",
-      "price": 35,
-      "label": "Polyglot edition",
-      "text": "Explore Beyond in every launch language, including languages unlocked through stretch goals.",
+      "id": "multiplatform",
+      "name": "Multiplatform Adventurer",
+      "price": 39,
+      "emoji": "🎒",
+      "label": "Play wherever you go",
+      "text": "Start on your computer. Continue on your phone. Keep your progress.",
       "items": [
-        "Beyond: all launch languages and unlocked language goals",
-        "Digital PC / Mac copy",
-        "Campaign updates"
-      ]
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves."
+      ],
+      "inherits": "adventurer",
+      "conditions": [],
+      "draftPrice": false,
+      "badge": "",
+      "capabilities": [
+        "multi"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves."
+      ],
+      "allConditions": [],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi"
+      ],
+      "inheritsName": "The Adventurer",
+      "inheritanceText": "Everything in The Adventurer."
     },
     {
-      "id": "all-platforms",
-      "name": "Beyond, wherever you play",
-      "price": 60,
-      "label": "Higher-tier placeholder",
-      "text": "Continue your learning adventure at home and on the go.",
+      "id": "complete",
+      "name": "The Complete Adventure",
+      "price": 54,
+      "emoji": "📚",
+      "label": "Two worlds to explore",
+      "text": "Discover the complete original WonderLang and WonderLang Beyond.",
       "items": [
-        "Beyond: all launch languages and unlocked language goals",
-        "PC, Mac, Android and iOS access",
-        "Cross-platform cloud saves",
-        "Campaign updates"
-      ]
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games."
+      ],
+      "inherits": "multiplatform",
+      "conditions": [],
+      "draftPrice": false,
+      "badge": "",
+      "capabilities": [
+        "original"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves.",
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games."
+      ],
+      "allConditions": [],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi",
+        "original"
+      ],
+      "inheritsName": "Multiplatform Adventurer",
+      "inheritanceText": "Everything in Multiplatform Adventurer."
     },
     {
-      "id": "champion",
-      "name": "Bring your language Beyond",
-      "price": 1000,
-      "label": "Highest-tier placeholder",
-      "text": "Choose an additional language for the adventure.",
+      "id": "lifetime",
+      "name": "Lifetime Language Pass",
+      "price": 79,
+      "emoji": "✨",
+      "label": "A lifetime of adventures",
+      "text": "Join the WonderLang universe for life, now and in the future.",
       "items": [
-        "Everything in the all-platforms tier",
-        "Choose an additional target language",
-        "Planned within a few weeks of release"
-      ]
+        "Lifetime access to future WonderLang games and sequels.",
+        "All future expansions and updates.",
+        "Access across all supported platforms."
+      ],
+      "inherits": "complete",
+      "conditions": [
+        "No subscriptions or additional purchases required for the included WonderLang games and content."
+      ],
+      "draftPrice": false,
+      "badge": "Long-term value",
+      "capabilities": [
+        "lifetime"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves.",
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games.",
+        "Lifetime access to future WonderLang games and sequels.",
+        "All future expansions and updates.",
+        "Access across all supported platforms."
+      ],
+      "allConditions": [
+        "No subscriptions or additional purchases required for the included WonderLang games and content."
+      ],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi",
+        "original",
+        "lifetime"
+      ],
+      "inheritsName": "The Complete Adventure",
+      "inheritanceText": "Everything in The Complete Adventure."
+    },
+    {
+      "id": "citizen",
+      "name": "Honorary Citizen",
+      "price": 129,
+      "emoji": "🏅",
+      "label": "Your place in the world",
+      "text": "Be recognized among the people who made Beyond possible.",
+      "items": [
+        "Special recognition in the game’s credits.",
+        "Your name in the in-game Hall of Fame."
+      ],
+      "inherits": "lifetime",
+      "conditions": [],
+      "draftPrice": true,
+      "badge": "",
+      "capabilities": [
+        "recognition"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves.",
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games.",
+        "Lifetime access to future WonderLang games and sequels.",
+        "All future expansions and updates.",
+        "Access across all supported platforms.",
+        "Special recognition in the game’s credits.",
+        "Your name in the in-game Hall of Fame."
+      ],
+      "allConditions": [
+        "No subscriptions or additional purchases required for the included WonderLang games and content."
+      ],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi",
+        "original",
+        "lifetime",
+        "recognition"
+      ],
+      "inheritsName": "Lifetime Language Pass",
+      "inheritanceText": "Everything in Lifetime Language Pass."
+    },
+    {
+      "id": "council",
+      "name": "Council Member",
+      "price": 199,
+      "emoji": "🗳️",
+      "label": "Help shape the adventure",
+      "text": "Join exclusive development polls and name a character in Beyond.",
+      "items": [
+        "Participation in exclusive development polls.",
+        "Influence certain creative decisions.",
+        "Name a character after yourself or someone else."
+      ],
+      "inherits": "citizen",
+      "conditions": [
+        "Character names must fit the family-friendly game world and are subject to developer approval."
+      ],
+      "draftPrice": true,
+      "badge": "",
+      "capabilities": [
+        "council"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves.",
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games.",
+        "Lifetime access to future WonderLang games and sequels.",
+        "All future expansions and updates.",
+        "Access across all supported platforms.",
+        "Special recognition in the game’s credits.",
+        "Your name in the in-game Hall of Fame.",
+        "Participation in exclusive development polls.",
+        "Influence certain creative decisions.",
+        "Name a character after yourself or someone else."
+      ],
+      "allConditions": [
+        "No subscriptions or additional purchases required for the included WonderLang games and content.",
+        "Character names must fit the family-friendly game world and are subject to developer approval."
+      ],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi",
+        "original",
+        "lifetime",
+        "recognition",
+        "council"
+      ],
+      "inheritsName": "Honorary Citizen",
+      "inheritanceText": "Everything in Honorary Citizen."
+    },
+    {
+      "id": "legend",
+      "name": "Legend of WonderLang",
+      "price": 399,
+      "emoji": "🧙",
+      "label": "Become part of the game",
+      "text": "Bring your own character into the world as a custom NPC.",
+      "items": [
+        "Collaborate with the developer to create a custom NPC.",
+        "Inspired by yourself, a loved one, your pet, or an original character.",
+        "Your NPC becomes part of WonderLang Beyond."
+      ],
+      "inherits": "council",
+      "conditions": [
+        "Appearance, personality, and implementation are developed together to fit the game’s visual style, story, and family-friendly setting."
+      ],
+      "draftPrice": false,
+      "badge": "Create your character",
+      "capabilities": [
+        "npc"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves.",
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games.",
+        "Lifetime access to future WonderLang games and sequels.",
+        "All future expansions and updates.",
+        "Access across all supported platforms.",
+        "Special recognition in the game’s credits.",
+        "Your name in the in-game Hall of Fame.",
+        "Participation in exclusive development polls.",
+        "Influence certain creative decisions.",
+        "Name a character after yourself or someone else.",
+        "Collaborate with the developer to create a custom NPC.",
+        "Inspired by yourself, a loved one, your pet, or an original character.",
+        "Your NPC becomes part of WonderLang Beyond."
+      ],
+      "allConditions": [
+        "No subscriptions or additional purchases required for the included WonderLang games and content.",
+        "Character names must fit the family-friendly game world and are subject to developer approval.",
+        "Appearance, personality, and implementation are developed together to fit the game’s visual style, story, and family-friendly setting."
+      ],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi",
+        "original",
+        "lifetime",
+        "recognition",
+        "council",
+        "npc"
+      ],
+      "inheritsName": "Council Member",
+      "inheritanceText": "Everything in Council Member."
+    },
+    {
+      "id": "master",
+      "name": "Game Master",
+      "price": 599,
+      "emoji": "📜",
+      "label": "Create a character and a quest",
+      "text": "Help design a unique side quest connected to your custom NPC.",
+      "items": [
+        "Your custom NPC, plus a unique side quest.",
+        "Collaborate on the story, objectives, and character interactions.",
+        "Other players can discover your quest in Beyond."
+      ],
+      "inherits": "legend",
+      "conditions": [
+        "Final quest design and scope are agreed with the developer to fit the story, gameplay, and technical constraints."
+      ],
+      "draftPrice": false,
+      "badge": "Your own quest",
+      "capabilities": [
+        "quest"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves.",
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games.",
+        "Lifetime access to future WonderLang games and sequels.",
+        "All future expansions and updates.",
+        "Access across all supported platforms.",
+        "Special recognition in the game’s credits.",
+        "Your name in the in-game Hall of Fame.",
+        "Participation in exclusive development polls.",
+        "Influence certain creative decisions.",
+        "Name a character after yourself or someone else.",
+        "Collaborate with the developer to create a custom NPC.",
+        "Inspired by yourself, a loved one, your pet, or an original character.",
+        "Your NPC becomes part of WonderLang Beyond.",
+        "Your custom NPC, plus a unique side quest.",
+        "Collaborate on the story, objectives, and character interactions.",
+        "Other players can discover your quest in Beyond."
+      ],
+      "allConditions": [
+        "No subscriptions or additional purchases required for the included WonderLang games and content.",
+        "Character names must fit the family-friendly game world and are subject to developer approval.",
+        "Appearance, personality, and implementation are developed together to fit the game’s visual style, story, and family-friendly setting.",
+        "Final quest design and scope are agreed with the developer to fit the story, gameplay, and technical constraints."
+      ],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi",
+        "original",
+        "lifetime",
+        "recognition",
+        "council",
+        "npc",
+        "quest"
+      ],
+      "inheritsName": "Legend of WonderLang",
+      "inheritanceText": "Everything in Legend of WonderLang."
+    },
+    {
+      "id": "hero",
+      "name": "Language Hero",
+      "price": 1250,
+      "emoji": "🌍",
+      "label": "Champion a language",
+      "text": "Help bring a language you love into the WonderLang universe.",
+      "items": [
+        "Sponsor one additional language for either WonderLang game.",
+        "Special acknowledgment for bringing that language to the game."
+      ],
+      "inherits": "lifetime",
+      "conditions": [
+        "Separate reward path: includes the Lifetime Language Pass and sponsorship, not the Honorary Citizen, Council Member, custom NPC, or quest benefits.",
+        "Choose one additional language for either the original WonderLang or WonderLang Beyond.",
+        "Language selection requires technical feasibility, available resources, and mutual agreement with the developer.",
+        "The target is a few weeks after Beyond’s initial launch; the precise timeline will be confirmed for the chosen language."
+      ],
+      "draftPrice": false,
+      "badge": "Language sponsorship",
+      "capabilities": [
+        "sponsor"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves.",
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games.",
+        "Lifetime access to future WonderLang games and sequels.",
+        "All future expansions and updates.",
+        "Access across all supported platforms.",
+        "Sponsor one additional language for either WonderLang game.",
+        "Special acknowledgment for bringing that language to the game."
+      ],
+      "allConditions": [
+        "No subscriptions or additional purchases required for the included WonderLang games and content.",
+        "Separate reward path: includes the Lifetime Language Pass and sponsorship, not the Honorary Citizen, Council Member, custom NPC, or quest benefits.",
+        "Choose one additional language for either the original WonderLang or WonderLang Beyond.",
+        "Language selection requires technical feasibility, available resources, and mutual agreement with the developer.",
+        "The target is a few weeks after Beyond’s initial launch; the precise timeline will be confirmed for the chosen language."
+      ],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi",
+        "original",
+        "lifetime",
+        "sponsor"
+      ],
+      "inheritsName": "Lifetime Language Pass",
+      "inheritanceText": "Includes the Lifetime Language Pass. Separate sponsorship path; no custom NPC or quest."
+    },
+    {
+      "id": "god",
+      "name": "Language God",
+      "price": 1500,
+      "emoji": "👑",
+      "label": "Leave your ultimate mark",
+      "text": "Sponsor a language, create a character, and help design their quest.",
+      "items": [
+        "Everything in Game Master, including your custom NPC and side quest.",
+        "Sponsor one additional language for either WonderLang game.",
+        "Special acknowledgment for sponsoring the selected language."
+      ],
+      "inherits": "master",
+      "conditions": [
+        "Choose one additional language for either the original WonderLang or WonderLang Beyond.",
+        "Language selection requires technical feasibility, available resources, and mutual agreement with the developer.",
+        "The target is a few weeks after Beyond’s initial launch; the precise timeline will be confirmed for the chosen language.",
+        "Custom NPC and quest design remain subject to mutual agreement and creative and technical constraints."
+      ],
+      "draftPrice": false,
+      "badge": "The ultimate reward",
+      "capabilities": [
+        "sponsor"
+      ],
+      "allItems": [
+        "Our heartfelt thanks.",
+        "Access to Kickstarter campaign updates.",
+        "One digital copy of WonderLang Beyond.",
+        "PC/Mac: choose a Steam key or a DRM-free direct download.",
+        "All available learning languages and all future language updates at no additional cost.",
+        "Permanent access. No subscription.",
+        "Beyond on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices.",
+        "Cross-platform cloud saves.",
+        "The complete original WonderLang, in addition to Beyond.",
+        "Both games on PC/Mac, Android, and iOS.",
+        "Unlimited personal mobile devices and cross-platform cloud saves for both games.",
+        "Lifetime access to future WonderLang games and sequels.",
+        "All future expansions and updates.",
+        "Access across all supported platforms.",
+        "Special recognition in the game’s credits.",
+        "Your name in the in-game Hall of Fame.",
+        "Participation in exclusive development polls.",
+        "Influence certain creative decisions.",
+        "Name a character after yourself or someone else.",
+        "Collaborate with the developer to create a custom NPC.",
+        "Inspired by yourself, a loved one, your pet, or an original character.",
+        "Your NPC becomes part of WonderLang Beyond.",
+        "Your custom NPC, plus a unique side quest.",
+        "Collaborate on the story, objectives, and character interactions.",
+        "Other players can discover your quest in Beyond.",
+        "Everything in Game Master, including your custom NPC and side quest.",
+        "Sponsor one additional language for either WonderLang game.",
+        "Special acknowledgment for sponsoring the selected language."
+      ],
+      "allConditions": [
+        "No subscriptions or additional purchases required for the included WonderLang games and content.",
+        "Character names must fit the family-friendly game world and are subject to developer approval.",
+        "Appearance, personality, and implementation are developed together to fit the game’s visual style, story, and family-friendly setting.",
+        "Final quest design and scope are agreed with the developer to fit the story, gameplay, and technical constraints.",
+        "Choose one additional language for either the original WonderLang or WonderLang Beyond.",
+        "Language selection requires technical feasibility, available resources, and mutual agreement with the developer.",
+        "The target is a few weeks after Beyond’s initial launch; the precise timeline will be confirmed for the chosen language.",
+        "Custom NPC and quest design remain subject to mutual agreement and creative and technical constraints."
+      ],
+      "allCapabilities": [
+        "beyond",
+        "single",
+        "multi",
+        "original",
+        "lifetime",
+        "recognition",
+        "council",
+        "npc",
+        "quest",
+        "sponsor"
+      ],
+      "inheritsName": "Game Master",
+      "inheritanceText": "Everything in Game Master."
+    }
+  ],
+  "addons": [
+    {
+      "id": "platform-upgrade",
+      "emoji": "📱",
+      "name": "Multiplatform upgrade",
+      "price": 10,
+      "text": "Take your Beyond copy to PC/Mac, Android, and iOS, with unlimited personal mobile devices and cloud saves.",
+      "requires": "beyond",
+      "blockedBy": "multi",
+      "included": "Already included in Multiplatform Adventurer and all higher game-access tiers.",
+      "applies": "For Early Bird or The Adventurer."
+    },
+    {
+      "id": "original-upgrade",
+      "emoji": "📚",
+      "name": "Add the original WonderLang",
+      "price": 15,
+      "text": "Add the complete original game on PC/Mac, Android, and iOS, with all languages and future language updates.",
+      "requires": "multi",
+      "blockedBy": "original",
+      "included": "Already included in The Complete Adventure and all tiers with the Lifetime Language Pass.",
+      "applies": "For Multiplatform Adventurer. Single-platform backers need the multiplatform upgrade first. Existing owners can keep their original copy."
+    },
+    {
+      "id": "lifetime-upgrade",
+      "emoji": "✨",
+      "name": "Upgrade to lifetime access",
+      "price": 25,
+      "text": "Add future WonderLang games, sequels, expansions, and updates across supported platforms.",
+      "requires": "original",
+      "blockedBy": "lifetime",
+      "included": "Already included in Lifetime Language Pass and every tier above it.",
+      "applies": "For The Complete Adventure. Lower tiers need the preceding access upgrades first."
     }
   ]
 }
