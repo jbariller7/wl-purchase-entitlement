@@ -3,7 +3,7 @@ const player=document.querySelector('#campaign-trailer');
 document.querySelector('#watch-trailer').addEventListener('click',()=>{player.scrollIntoView({behavior:'smooth',block:'center'});player.play().catch(()=>{});});
 const dialog=document.querySelector('#reward-preview');
 let rewardData;
-async function loadRewards(){return rewardData??=await fetch('rewards.json?v=rewards-20261021').then(r=>{if(!r.ok)throw Error('Rewards unavailable');return r.json();});}
+async function loadRewards(){return rewardData??=await fetch('rewards.json?v=confirmed-rewards-20261021').then(r=>{if(!r.ok)throw Error('Rewards unavailable');return r.json();});}
 async function showReward(id){
  try{
   await loadRewards();
@@ -36,10 +36,10 @@ async function updateAddonEligibility(){
   for(const addon of data.addons){
    const card=document.querySelector('[data-addon="'+addon.id+'"]'),status=card.querySelector('.addon-status');
    let state,text;
-   if(caps.includes(addon.blockedBy)){state='included';text='Already included in your reward · no add-on needed.';}
-   else if(!caps.includes('beyond')){state='unavailable';text='Choose a game reward first. The Supporter does not include a game copy.';}
-   else if(caps.includes(addon.requires)){state='available';text='Available for '+tier.name+' · +€'+addon.price+' (draft).';}
-   else{state='unavailable';text=addon.requires==='multi'?'Requires multiplatform access first.':'Requires The Complete Adventure or the preceding access upgrades first.';}
+   if(addon.blockedBy && caps.includes(addon.blockedBy)){state='included';text='Already included in your reward · no add-on needed.';}
+   else if(addon.requires && !caps.includes(addon.requires)){state='unavailable';text='Requires a Beyond game reward. Support the Adventure does not include a Beyond copy.';}
+   else if(addon.isGift){state='available';text='Additional gift license for another person · +€'+addon.price+'.';}
+   else{state='available';text='Available alongside '+tier.name+' · +€'+addon.price+'.';}
    card.dataset.status=state;status.textContent=text;
   }
  }catch{document.querySelectorAll('.addon-status').forEach(e=>e.textContent='See eligibility and included benefits below.');}

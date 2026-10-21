@@ -1,11 +1,11 @@
 {
-  "status": "Campaign preview; four tier prices and add-ons are explicitly marked drafts.",
+  "status": "Current campaign reward plan confirmed from the final shared conversation.",
   "tiers": [
     {
       "id": "supporter",
-      "name": "The Supporter",
+      "name": "Support the Adventure",
       "price": 5,
-      "emoji": "💜",
+      "emoji": "❤️",
       "label": "A little magic",
       "text": "Help bring this new language-learning adventure to life.",
       "items": [
@@ -14,7 +14,7 @@
       ],
       "inherits": null,
       "conditions": [],
-      "draftPrice": true,
+      "draftPrice": false,
       "badge": "",
       "capabilities": [],
       "allItems": [
@@ -29,8 +29,8 @@
     {
       "id": "early",
       "name": "Early Bird Adventurer",
-      "price": 24,
-      "emoji": "🌱",
+      "price": 19,
+      "emoji": "⚡",
       "label": "First steps",
       "text": "Be among the first to embark, with a special Kickstarter discount.",
       "items": [
@@ -44,7 +44,7 @@
       "conditions": [
         "Limited to the first 200 backers."
       ],
-      "draftPrice": true,
+      "draftPrice": false,
       "badge": "Limited to the first 200 backers",
       "capabilities": [
         "beyond",
@@ -66,14 +66,14 @@
         "beyond",
         "single"
       ],
-      "inheritsName": "The Supporter",
-      "inheritanceText": "Everything in The Supporter."
+      "inheritsName": "Support the Adventure",
+      "inheritanceText": "Everything in Support the Adventure."
     },
     {
       "id": "adventurer",
       "name": "The Adventurer",
       "price": 29,
-      "emoji": "🗺️",
+      "emoji": "🎮",
       "label": "Your adventure begins",
       "text": "Explore a fantasy world, uncover mysteries, and grow your language skills.",
       "items": [
@@ -105,14 +105,14 @@
         "beyond",
         "single"
       ],
-      "inheritsName": "The Supporter",
+      "inheritsName": "Support the Adventure",
       "inheritanceText": "Same game benefits as the Early Bird; available beyond the first 200 backers."
     },
     {
       "id": "multiplatform",
       "name": "Multiplatform Adventurer",
       "price": 39,
-      "emoji": "🎒",
+      "emoji": "🌍",
       "label": "Play wherever you go",
       "text": "Start on your computer. Continue on your phone. Keep your progress.",
       "items": [
@@ -194,7 +194,7 @@
       "id": "lifetime",
       "name": "Lifetime Language Pass",
       "price": 79,
-      "emoji": "✨",
+      "emoji": "👑",
       "label": "A lifetime of adventures",
       "text": "Join the WonderLang universe for life, now and in the future.",
       "items": [
@@ -244,7 +244,7 @@
     {
       "id": "citizen",
       "name": "Honorary Citizen",
-      "price": 129,
+      "price": 149,
       "emoji": "🏅",
       "label": "Your place in the world",
       "text": "Be recognized among the people who made Beyond possible.",
@@ -254,7 +254,7 @@
       ],
       "inherits": "lifetime",
       "conditions": [],
-      "draftPrice": true,
+      "draftPrice": false,
       "badge": "",
       "capabilities": [
         "recognition"
@@ -295,8 +295,8 @@
     {
       "id": "council",
       "name": "Council Member",
-      "price": 199,
-      "emoji": "🗳️",
+      "price": 249,
+      "emoji": "🎩",
       "label": "Help shape the adventure",
       "text": "Join exclusive development polls and name a character in Beyond.",
       "items": [
@@ -308,7 +308,7 @@
       "conditions": [
         "Character names must fit the family-friendly game world and are subject to developer approval."
       ],
-      "draftPrice": true,
+      "draftPrice": false,
       "badge": "",
       "capabilities": [
         "council"
@@ -355,7 +355,7 @@
       "id": "legend",
       "name": "Legend of WonderLang",
       "price": 399,
-      "emoji": "🧙",
+      "emoji": "🌟",
       "label": "Become part of the game",
       "text": "Bring your own character into the world as a custom NPC.",
       "items": [
@@ -419,7 +419,7 @@
       "id": "master",
       "name": "Game Master",
       "price": 599,
-      "emoji": "📜",
+      "emoji": "🎲",
       "label": "Create a character and a quest",
       "text": "Help design a unique side quest connected to your custom NPC.",
       "items": [
@@ -488,7 +488,7 @@
       "id": "hero",
       "name": "Language Hero",
       "price": 1250,
-      "emoji": "🌍",
+      "emoji": "🌐",
       "label": "Champion a language",
       "text": "Help bring a language you love into the WonderLang universe.",
       "items": [
@@ -627,9 +627,31 @@
   ],
   "addons": [
     {
+      "id": "original-single",
+      "emoji": "🎮",
+      "name": "Original WonderLang — Single Platform",
+      "price": 20,
+      "text": "The complete original game on your choice of PC/Mac, Android, or iOS. All learning languages and future language updates included.",
+      "requires": null,
+      "blockedBy": "original",
+      "included": "The original game is already included from The Complete Adventure, including Language Hero and Language God.",
+      "applies": "Choose this or the original-game multiplatform add-on. If you already own the original game, you do not need to buy it again."
+    },
+    {
+      "id": "original-multi",
+      "emoji": "📚",
+      "name": "Original WonderLang — Multiplatform",
+      "price": 30,
+      "text": "The original game on PC/Mac, Android, and iOS, including cross-platform cloud saves and all learning languages.",
+      "requires": null,
+      "blockedBy": "original",
+      "included": "Already included from The Complete Adventure and in every tier with the Lifetime Language Pass.",
+      "applies": "An alternative to the original-game single-platform add-on, not an upgrade that needs both purchases. Existing owners can keep their original license."
+    },
+    {
       "id": "platform-upgrade",
       "emoji": "📱",
-      "name": "Multiplatform upgrade",
+      "name": "Beyond Multiplatform Upgrade",
       "price": 10,
       "text": "Take your Beyond copy to PC/Mac, Android, and iOS, with unlimited personal mobile devices and cloud saves.",
       "requires": "beyond",
@@ -638,26 +660,38 @@
       "applies": "For Early Bird or The Adventurer."
     },
     {
-      "id": "original-upgrade",
-      "emoji": "📚",
-      "name": "Add the original WonderLang",
-      "price": 15,
-      "text": "Add the complete original game on PC/Mac, Android, and iOS, with all languages and future language updates.",
-      "requires": "multi",
-      "blockedBy": "original",
-      "included": "Already included in The Complete Adventure and all tiers with the Lifetime Language Pass.",
-      "applies": "For Multiplatform Adventurer. Single-platform backers need the multiplatform upgrade first. Existing owners can keep their original copy."
+      "id": "soundtrack",
+      "emoji": "🎵",
+      "name": "Digital Soundtrack",
+      "price": 10,
+      "text": "A digital copy of the WonderLang Beyond soundtrack.",
+      "requires": null,
+      "blockedBy": null,
+      "included": "The standalone soundtrack download is an optional extra, not listed among the reward-tier benefits.",
+      "applies": "Available alongside any reward. A fully commissioned original score depends on the €80,000 stretch goal."
     },
     {
-      "id": "lifetime-upgrade",
-      "emoji": "✨",
-      "name": "Upgrade to lifetime access",
+      "id": "artbook",
+      "emoji": "🎨",
+      "name": "Digital Artbook",
+      "price": 8,
+      "text": "A digital collection of concept art, illustrations, and behind-the-scenes content.",
+      "requires": null,
+      "blockedBy": null,
+      "included": "The standalone digital artbook is an optional extra, not listed among the reward-tier benefits.",
+      "applies": "Available alongside any reward."
+    },
+    {
+      "id": "gift-copy",
+      "emoji": "🎁",
+      "name": "Extra Copy of WonderLang Beyond",
       "price": 25,
-      "text": "Add future WonderLang games, sequels, expansions, and updates across supported platforms.",
-      "requires": "original",
-      "blockedBy": "lifetime",
-      "included": "Already included in Lifetime Language Pass and every tier above it.",
-      "applies": "For The Complete Adventure. Lower tiers need the preceding access upgrades first."
+      "text": "An additional single-platform digital copy to gift to someone, with all learning languages.",
+      "requires": null,
+      "blockedBy": null,
+      "included": "A separate license for another person. This adds a gift copy rather than duplicating your personal device access.",
+      "applies": "Choose PC/Mac, Android, or iOS for the gift copy. Available alongside any reward.",
+      "isGift": true
     }
   ]
 }
