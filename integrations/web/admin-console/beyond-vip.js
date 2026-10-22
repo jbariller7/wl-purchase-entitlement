@@ -1,18 +1,57 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const eur=n=>new Intl.NumberFormat('en',{style:'currency',currency:'EUR'}).format(n/100);
-export function renderVip(data){return `<section class="panel"><h2>Beyond VIP reservations</h2><p>Verified Stripe payments only. Each reservation records the payer email, chosen tier, normal and VIP prices, payment reference, and refund or dispute status. The US$1 fee is separate from the later Kickstarter pledge.</p><p>Refund requests: jonathan@wonderlang.app. Issue the refund in Stripe; the reservation becomes ineligible when the refund is recorded. Send secret reward links only to eligible reservations.</p><label>Search loaded reservations<input id="vip-search" type="search" placeholder="Email or reward tier"></label><button class="button secondary" id="vip-export">Export loaded records (CSV)</button><div id="vip-rows">${rows(data.reservations||[])}</div>${data.nextCursor?`<button class="button secondary" id="vip-more" data-cursor="${esc(data.nextCursor)}">Load older reservations</button>`:''}</section>`}
-function rows(list){return list.length?list.map(r=>`<details class="panel vip-row"><summary><strong>${esc(r.email)}</strong> · ${esc(r.tierName)} · ${esc(r.state)} ${r.eligible?'· VIP eligible':''}</summary><p>Normal ${eur(r.normalEurCents)} · VIP ${eur(r.vipEurCents)} · 30% off</p><p>Paid ${new Intl.NumberFormat('en',{style:'currency',currency:String(r.chargedCurrency).toUpperCase()}).format(r.chargedAmount/10**new Intl.NumberFormat('en',{style:'currency',currency:String(r.chargedCurrency).toUpperCase()}).resolvedOptions().maximumFractionDigits)} · ${esc(r.createdAt)}</p><p>Stripe session: ${esc(r.id)}</p><a href="https://dashboard.stripe.com/payments/${encodeURIComponent(r.stripePaymentIntentId)}" target="_blank" rel="noopener noreferrer">Open payment in Stripe</a> <button class="button secondary" data-vip-refresh="${esc(r.id)}">Refresh payment status</button></details>`).join(''):'<p>No paid VIP reservations yet.</p>'}
+const endpoint='/admin-api/v1/beyond-vip';
+export function vipFilterQuery(filters,cursor){
+ const p=new URLSearchParams();for(const k of ['tier','state','q'])if(filters[k])p.set(k,filters[k]);if(cursor)p.set('cursor',cursor);return p.size?'?'+p:'';
+}
+export function vipCsv(records){
+ const cell=v=>{let s=String(v??'');if(/^[\s]*[=+@\-]/.test(s)||/^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
+ const keys=['email','tierId','tierName','normalEurCents','vipEurCents','reservationAmount','reservationCurrency','chargedAmount','chargedCurrency','amountRefunded','state','eligible','createdAt','stripeSessionId','stripePaymentIntentId','termsVersion'];
+ return '\uFEFF'+[keys.map(cell).join(','),...records.map(r=>keys.map(k=>cell(r[k])).join(','))].join('\r\n');
+}
+export async function allFilteredVipRecords(api,filters,progress=()=>{}){
+ const found=new Map(),seen=new Set();let cursor;
+ do{
+  const page=await api(endpoint+vipFilterQuery(filters,cursor));
+  for(const r of page.reservations||[])found.set(r.id,r);
+  progress(found.size);cursor=page.nextCursor;
+  if(cursor){if(seen.has(cursor))throw Error('Export stopped because the pagination cursor did not advance.');seen.add(cursor)}
+ }while(cursor);
+ return [...found.values()];
+}
+export function renderVip(data){
+ const f=data.filters||{},tiers=data.tiers||[];
+ return `<section class="panel"><h2>Beyond VIP reservations</h2><p>Every verified US$1 reservation is saved here with the checkout email, selected reward and payment reference. The reservation fee is separate from the later Kickstarter pledge.</p><form id="vip-filters" class="stack-form"><div class="definition-grid"><label>Reward tier<select name="tier"><option value="">All rewards</option>${tiers.map(t=>`<option value="${esc(t.id)}" ${f.tier===t.id?'selected':''}>${esc(t.name)}</option>`).join('')}</select></label><label>Payment status<select name="state"><option value="">All statuses</option>${['paid','refunded','disputed'].map(s=>`<option value="${s}" ${f.state===s?'selected':''}>${s==='paid'?'Paid / VIP eligible':s[0].toUpperCase()+s.slice(1)}</option>`).join('')}</select></label><label>Email contains<input name="q" type="search" value="${esc(f.q||'')}" placeholder="Customer email"></label></div><button class="button primary">Apply filters</button></form><p id="vip-count" role="status"></p><button class="button secondary" id="vip-export">Export all matching reservations (CSV)</button><p class="panel-copy">Export includes every matching record across all database pages, not just the records currently displayed.</p><div id="vip-rows"></div><button class="button secondary" id="vip-more" hidden>Load more matching reservations</button><p class="panel-copy">Refund requests: jonathan@wonderlang.app. Issue refunds in Stripe and use Refresh payment status to check eligibility. Refunded or disputed reservations are not eligible for secret rewards.</p></section>`;
+}
+function rows(list){return list.length?list.map(r=>{
+ const currency=String(r.chargedCurrency).toUpperCase(),fmt=new Intl.NumberFormat('en',{style:'currency',currency}),paid=fmt.format(r.chargedAmount/10**fmt.resolvedOptions().maximumFractionDigits);
+ return `<details class="panel vip-row"><summary><strong>${esc(r.email)}</strong> · ${esc(r.tierName)} · ${esc(r.state)} ${r.eligible?'· VIP eligible':''}</summary><p>Normal ${eur(r.normalEurCents)} · VIP ${eur(r.vipEurCents)} · 30% off</p><p>Paid ${esc(paid)} · ${esc(r.createdAt)}</p><p>Stripe session: ${esc(r.id)}</p><a href="https://dashboard.stripe.com/payments/${encodeURIComponent(r.stripePaymentIntentId)}" target="_blank" rel="noopener noreferrer">Open payment in Stripe</a> <button class="button secondary" data-vip-refresh="${esc(r.id)}">Refresh payment status</button></details>`;
+ }).join(''):'<p>No matching paid reservations.</p>'}
 export function bindVip({api,toast},initial){
- const loaded=[...(initial.reservations||[])];
- const filter=()=>{const q=document.getElementById('vip-search').value.toLowerCase();document.querySelectorAll('.vip-row').forEach(e=>e.hidden=!e.textContent.toLowerCase().includes(q))};
- document.getElementById('vip-search').addEventListener('input',filter);
- document.getElementById('vip-rows').addEventListener('click',async e=>{const b=e.target.closest('[data-vip-refresh]');if(!b)return;b.disabled=true;try{const result=await api('/admin-api/v1/beyond-vip/'+encodeURIComponent(b.dataset.vipRefresh)+'/refresh',{method:'POST',body:{}});Object.assign(loaded.find(r=>r.id===b.dataset.vipRefresh),result);document.getElementById('vip-rows').innerHTML=rows(loaded);toast('Stripe payment status refreshed.');filter()}catch(error){toast(error.message,true)}finally{b.disabled=false}});
- document.getElementById('vip-more')?.addEventListener('click',async e=>{const b=e.currentTarget;b.disabled=true;try{const data=await api('/admin-api/v1/beyond-vip?cursor='+encodeURIComponent(b.dataset.cursor));loaded.push(...data.reservations);document.getElementById('vip-rows').innerHTML=rows(loaded);if(data.nextCursor)b.dataset.cursor=data.nextCursor;else b.remove();filter()}catch(error){toast(error.message,true)}finally{b.disabled=false}});
- document.getElementById('vip-export').addEventListener('click',()=>{
-  // Prevent formula execution when the CSV is opened in a spreadsheet.
-  const cell=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&").replace(/"/g,'""')+'"';
-  const keys=['email','tierId','tierName','normalEurCents','vipEurCents','reservationAmount','reservationCurrency','chargedAmount','chargedCurrency','state','eligible','createdAt','stripeSessionId','stripePaymentIntentId','termsVersion'];
-  const csv=[keys.map(cell).join(','),...loaded.map(r=>keys.map(k=>cell(r[k])).join(','))].join('\r\n');
-  const url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='WonderLang-Beyond-VIP-reservations.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ let filters=initial.filters||{},loaded=[...(initial.reservations||[])],cursor=initial.nextCursor,busy=false;
+ const form=document.getElementById('vip-filters'),more=document.getElementById('vip-more'),count=document.getElementById('vip-count'),exportButton=document.getElementById('vip-export');
+ const render=()=>{document.getElementById('vip-rows').innerHTML=rows(loaded);more.hidden=!cursor;count.textContent=loaded.length+' matching reservation(s) displayed.'+(cursor?' More records are available.':' All matching records loaded.');};
+ const readFilters=()=>Object.fromEntries(new FormData(form));
+ async function load(reset){
+  if(busy)return;busy=true;more.disabled=true;
+  try{
+   if(reset){filters=readFilters();loaded=[];cursor=undefined}
+   let pages=0;
+   do{const page=await api(endpoint+vipFilterQuery(filters,cursor));loaded.push(...page.reservations);cursor=page.nextCursor;pages++;}while(cursor&&!loaded.length&&pages<20);
+   render();
+  }catch(error){toast(error.message,true)}finally{busy=false;more.disabled=false}
+ }
+ form.addEventListener('submit',e=>{e.preventDefault();load(true)});more.addEventListener('click',()=>load(false));
+ document.getElementById('vip-rows').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-vip-refresh]');if(!b||busy)return;b.disabled=true;
+  try{await api(endpoint+'/'+encodeURIComponent(b.dataset.vipRefresh)+'/refresh',{method:'POST',body:{}});await load(true);toast('Stripe payment status refreshed.')}catch(error){toast(error.message,true)}finally{b.disabled=false}
  });
+ exportButton.addEventListener('click',async()=>{
+  if(busy)return;busy=true;exportButton.disabled=true;
+  try{
+   const chosen=readFilters(),records=await allFilteredVipRecords(api,chosen,n=>count.textContent='Preparing export: '+n+' matching record(s)…');
+   const url=URL.createObjectURL(new Blob([vipCsv(records)],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download='WonderLang-Beyond-VIP-'+(chosen.tier||'all-rewards')+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast(records.length+' matching reservation(s) exported.');
+  }catch(error){toast(error.message,true)}finally{busy=false;exportButton.disabled=false;render()}
+ });
+ render();if(cursor&&!loaded.length)load(false);
 }

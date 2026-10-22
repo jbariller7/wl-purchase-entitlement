@@ -21,7 +21,7 @@ Cancellation and a reservation refund can be requested anytime by emailing jonat
 
 ## Administration
 
-The existing verified administrator authentication and App Check boundaries protect `GET /admin-api/v1/beyond-vip` and record refresh. Firestore client rules deny access to all collections, including VIP data. The admin view supports paginated loading, email/tier search in loaded records, CSV export, a Stripe Dashboard payment link, and status refresh. CSV export neutralizes spreadsheet formulas. Secret reward links must be sent later to eligible reservations; this implementation does not send campaign emails or subscribe customers to a newsletter.
+The existing verified administrator authentication and App Check boundaries protect `GET /admin-api/v1/beyond-vip` and record refresh. Firestore client rules deny access to all collections, including VIP data. The admin view supports server-side reward-tier, payment-state, and email filters, paginated loading, a Stripe Dashboard payment link, and status refresh. CSV export traverses all pages with the chosen filters, including empty scan pages; it is not limited to displayed records. The bounded scans avoid requiring new Firestore composite indexes. CSV export neutralizes spreadsheet formulas. Secret reward links must be sent later to eligible reservations; this implementation does not send campaign emails or subscribe customers to a newsletter.
 
 Issue requested reservation refunds through Stripe Dashboard. Webhooks then invalidate VIP eligibility. The refresh button and reconciliation also verify the latest Stripe state.
 

@@ -2,7 +2,7 @@ import {createHash,randomBytes,randomUUID,timingSafeEqual} from 'node:crypto';
 import type Stripe from 'stripe';
 import type {Firestore} from 'firebase-admin/firestore';
 import {HttpError} from '../http/auth.js';
-import {VIP_FLOW,VIP_TERMS,vipTier} from './catalog.js';
+import {VIP_FLOW,VIP_TERMS,vipTier,vipTiers} from './catalog.js';
 
 const hash=(v:string)=>createHash('sha256').update(v).digest('hex');
 const objectId=(v:any):string|undefined=>typeof v==='string'?v:v?.id;
@@ -129,11 +129,20 @@ export async function vipStatus(db:Firestore,stripe:Stripe,sessionId:string,toke
  return syncVipSession(db,stripe,sessionId,'verified-return');
 }
 
-export async function listVipReservations(db:Firestore,cursor?:string){
+export async function listVipReservations(db:Firestore,cursor?:string,filters:{tier?:string;state?:string;q?:string}={}){
+ const tier=filters.tier?.trim()||'',state=filters.state?.trim()||'',q=filters.q?.trim().toLowerCase()||'';
+ if(tier&&!vipTier(tier))throw new HttpError(400,'Unknown reward tier.');
+ if(state&&!['paid','refunded','disputed'].includes(state))throw new HttpError(400,'Unknown payment status.');
+ if(q.length>254)throw new HttpError(400,'Search is too long.');
+ // Scan bounded chronological pages rather than depending on new composite
+ // indexes. The cursor always advances past scanned records, including pages
+ // with no matches. Exports follow every page with the same filters.
  let query=db.collection('beyondVipReservations').orderBy('createdAt','desc').limit(101);
  if(cursor){if(!/^cs_live_[A-Za-z0-9]+$/.test(cursor))throw new HttpError(400,'Invalid cursor');const doc=await db.collection('beyondVipReservations').doc(cursor).get();if(!doc.exists)throw new HttpError(400,'Invalid cursor');query=query.startAfter(doc);}
  const rows=(await query.get()).docs;
- return {reservations:rows.slice(0,100).map(d=>({id:d.id,...d.data()})),nextCursor:rows.length>100?rows[99]!.id:null};
+ const scanned=rows.slice(0,100);
+ return {reservations:scanned.filter(d=>{const r=d.data();return (!tier||r.tierId===tier)&&(!state||r.state===state)&&(!q||String(r.email??'').toLowerCase().includes(q));}).map(d=>({id:d.id,...d.data()})),
+  nextCursor:rows.length>100?rows[99]!.id:null,scanned:scanned.length,filters:{tier,state,q},tiers:vipTiers.map(t=>({id:t.id,name:t.name}))};
 }
 
 export async function reconcileVipReservations(db:Firestore,stripe:Stripe){

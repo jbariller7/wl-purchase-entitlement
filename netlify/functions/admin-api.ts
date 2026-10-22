@@ -125,7 +125,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const path = routePath(event);
   const now = new Date();
   await consumeRateLimit({ db, namespace: "admin", subject: token.uid, policy: adminRateLimitPolicy(event.httpMethod, path), now });
-  if(event.httpMethod==='GET'&&path==='/v1/beyond-vip')return json(200,await listVipReservations(db,event.queryStringParameters?.cursor));
+  if(event.httpMethod==='GET'&&path==='/v1/beyond-vip'){
+    const q=event.queryStringParameters??{};
+    return json(200,await listVipReservations(db,q.cursor,{...(q.tier?{tier:q.tier}:{}),...(q.state?{state:q.state}:{}),...(q.q?{q:q.q}:{})}));
+  }
   const vipRefresh=path.match(/^\/v1\/beyond-vip\/(cs_live_[A-Za-z0-9]+)\/refresh$/);
   if(event.httpMethod==='POST'&&vipRefresh){
     if(!(await db.collection('beyondVipReservations').doc(vipRefresh[1]!).get()).exists)throw new HttpError(404,'Reservation not found.');
