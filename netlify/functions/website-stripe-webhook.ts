@@ -7,6 +7,7 @@ import {EntitlementStore} from '../../src/infrastructure/entitlement-store.js';
 import {firestore} from '../../src/infrastructure/firebase.js';
 import {sha256} from '../../src/infrastructure/ids.js';
 import {safeErrorMessage} from '../../src/infrastructure/safe-error.js';
+import {isVipStripeEvent,processVipStripeEvent} from '../../src/beyond-vip/service.js';
 
 const objectId=(value:any):string|undefined=>typeof value==='string'?value:value?.id;
 const website=(value:any)=>value?.metadata?.wl_checkout_flow==='website-session-v1';
@@ -36,6 +37,10 @@ export const lambdaHandler:LambdaHandler=async request=>{
  if(!event.livemode)return {statusCode:400,body:'Website checkout expects live events'};
  const store=new EntitlementStore(firestore());
  try{
+  if(await isVipStripeEvent(event,stripe)){
+   await processVipStripeEvent(firestore(),stripe,event);
+   return {statusCode:200,body:'VIP reservation recorded'};
+  }
   if(!await isWebsiteStripeEvent(event,stripe))return {statusCode:200,body:'Not a website checkout event'};
   const decision=await store.beginProviderEvent({provider:'stripe',providerEventId:event.id,eventType:event.type,eventCreated:event.created,payloadSha256:sha256(raw),now:new Date()});
   if(decision==='duplicate')return {statusCode:200,body:'Duplicate accepted'};

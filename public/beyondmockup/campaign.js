@@ -9,8 +9,9 @@ async function showReward(id){
   await loadRewards();
   const tier=rewardData.tiers.find(r=>r.id===id);if(!tier)return;
   document.querySelector('#reward-dialog-title').textContent=tier.emoji+' '+tier.name;
-  const price=document.querySelector('#reward-dialog-price');price.replaceChildren(document.createTextNode('€'+tier.price.toLocaleString('en')));
-  const hint=document.createElement('small');hint.textContent=tier.draftPrice?'Draft price · awaiting confirmation':'Pledge tier · campaign preview';price.append(hint);
+  const price=document.querySelector('#reward-dialog-price');price.replaceChildren(document.createTextNode('VIP €'+(tier.vipPriceCents/100).toLocaleString('en',{minimumFractionDigits:2})));
+  const hint=document.createElement('small');hint.textContent='Normal €'+tier.price.toLocaleString('en')+' · Same reward, 30% off';price.append(hint);
+  document.querySelector('#reward-dialog-checkout').href=tier.checkoutUrl;
   document.querySelector('#reward-dialog-description').textContent=tier.text;
   const list=document.querySelector('#reward-dialog-items');list.replaceChildren(...tier.allItems.map(t=>{const li=document.createElement('li');li.textContent=t;return li;}));
   const conditions=document.querySelector('#reward-dialog-conditions');conditions.replaceChildren(...tier.allConditions.map(t=>{const p=document.createElement('p');p.textContent=t;return p;}));

@@ -1,4 +1,6 @@
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
+import {listVipReservations,syncVipSession} from '../../src/beyond-vip/service.js';
+import {websiteStripeClient} from '../../src/providers/stripe/website-config.js';
 import {listContacts} from '../../src/contact/service.js';
 import {recordAdminAudit} from '../../src/admin/audit.js';
 import {orderEmailStatus,testOrderEmail} from '../../src/email/admin.js';
@@ -123,6 +125,14 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const path = routePath(event);
   const now = new Date();
   await consumeRateLimit({ db, namespace: "admin", subject: token.uid, policy: adminRateLimitPolicy(event.httpMethod, path), now });
+  if(event.httpMethod==='GET'&&path==='/v1/beyond-vip')return json(200,await listVipReservations(db,event.queryStringParameters?.cursor));
+  const vipRefresh=path.match(/^\/v1\/beyond-vip\/(cs_live_[A-Za-z0-9]+)\/refresh$/);
+  if(event.httpMethod==='POST'&&vipRefresh){
+    if(!(await db.collection('beyondVipReservations').doc(vipRefresh[1]!).get()).exists)throw new HttpError(404,'Reservation not found.');
+    const result=await syncVipSession(db,websiteStripeClient(),vipRefresh[1]!,'admin-refresh');
+    await recordAdminAudit({db,actor,action:'beyond-vip.refresh',targetType:'vip-reservation',targetId:vipRefresh[1]!,summary:'Refreshed VIP reservation payment status from Stripe',now});
+    return json(200,result);
+  }
   if(event.httpMethod==='GET'&&path==='/v1/contacts')return json(200,await listContacts(db,event.queryStringParameters?.cursor));
   const contactMatch=path.match(/^\/v1\/contacts\/([0-9a-f-]{36})$/i);
   if(event.httpMethod==='POST'&&contactMatch){

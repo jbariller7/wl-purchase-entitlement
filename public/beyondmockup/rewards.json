@@ -17,6 +17,8 @@
       "draftPrice": false,
       "badge": "",
       "capabilities": [],
+      "vipPriceCents": 350,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=supporter",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates."
@@ -25,49 +27,6 @@
       "allCapabilities": [],
       "inheritsName": null,
       "inheritanceText": "Support the project; no game license included."
-    },
-    {
-      "id": "early",
-      "name": "Early Bird Adventurer",
-      "price": 19,
-      "emoji": "⚡",
-      "label": "First steps",
-      "text": "Be among the first to embark, with a special Kickstarter discount.",
-      "items": [
-        "One digital copy of WonderLang Beyond.",
-        "Choose one platform: PC/Mac, Android, or iOS.",
-        "PC/Mac: choose a Steam key or a DRM-free direct download.",
-        "All available learning languages and all future language updates at no additional cost.",
-        "Permanent access. No subscription."
-      ],
-      "inherits": "supporter",
-      "conditions": [
-        "Limited to the first 200 backers."
-      ],
-      "draftPrice": false,
-      "badge": "Limited to the first 200 backers",
-      "capabilities": [
-        "beyond",
-        "single"
-      ],
-      "allItems": [
-        "Our heartfelt thanks.",
-        "Access to Kickstarter campaign updates.",
-        "One digital copy of WonderLang Beyond.",
-        "Choose one platform: PC/Mac, Android, or iOS.",
-        "PC/Mac: choose a Steam key or a DRM-free direct download.",
-        "All available learning languages and all future language updates at no additional cost.",
-        "Permanent access. No subscription."
-      ],
-      "allConditions": [
-        "Limited to the first 200 backers."
-      ],
-      "allCapabilities": [
-        "beyond",
-        "single"
-      ],
-      "inheritsName": "Support the Adventure",
-      "inheritanceText": "Everything in Support the Adventure."
     },
     {
       "id": "adventurer",
@@ -91,6 +50,8 @@
         "beyond",
         "single"
       ],
+      "vipPriceCents": 2030,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=adventurer",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -106,7 +67,7 @@
         "single"
       ],
       "inheritsName": "Support the Adventure",
-      "inheritanceText": "Same game benefits as the Early Bird; available beyond the first 200 backers."
+      "inheritanceText": "Everything in Support the Adventure."
     },
     {
       "id": "multiplatform",
@@ -127,6 +88,8 @@
       "capabilities": [
         "multi"
       ],
+      "vipPriceCents": 2730,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=multiplatform",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -166,6 +129,8 @@
       "capabilities": [
         "original"
       ],
+      "vipPriceCents": 3780,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=complete",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -211,6 +176,8 @@
       "capabilities": [
         "lifetime"
       ],
+      "vipPriceCents": 5530,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=lifetime",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -259,6 +226,8 @@
       "capabilities": [
         "recognition"
       ],
+      "vipPriceCents": 10430,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=citizen",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -313,6 +282,8 @@
       "capabilities": [
         "council"
       ],
+      "vipPriceCents": 17430,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=council",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -372,6 +343,8 @@
       "capabilities": [
         "npc"
       ],
+      "vipPriceCents": 27930,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=legend",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -436,6 +409,8 @@
       "capabilities": [
         "quest"
       ],
+      "vipPriceCents": 41930,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=master",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -507,6 +482,8 @@
       "capabilities": [
         "sponsor"
       ],
+      "vipPriceCents": 87500,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=hero",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -568,6 +545,8 @@
       "capabilities": [
         "sponsor"
       ],
+      "vipPriceCents": 105000,
+      "checkoutUrl": "/.netlify/functions/beyond-vip?tier=god",
       "allItems": [
         "Our heartfelt thanks.",
         "Access to Kickstarter campaign updates.",
@@ -657,7 +636,7 @@
       "requires": "beyond",
       "blockedBy": "multi",
       "included": "Already included in Multiplatform Adventurer and all higher game-access tiers.",
-      "applies": "For Early Bird or The Adventurer."
+      "applies": "For The Adventurer."
     },
     {
       "id": "soundtrack",
