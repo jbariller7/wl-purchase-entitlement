@@ -47,3 +47,6 @@ footer .footer-reserve{display:block;width:calc(100% - 36px);max-width:370px;mar
 @media(max-width:1240px){.story-layout{grid-template-columns:minmax(0,760px) 270px;gap:26px}.story-toc{display:none}}
 @media(max-width:980px){.story-layout{display:block;max-width:810px}.reward-sidebar{display:none}}
 @media(max-width:650px){.shot-frame{aspect-ratio:16/9;height:auto;padding:18px}.shot-frame strong{font-size:20px}.full-rewards .featured-title{padding:22px 20px 0}.full-rewards .reward-body{padding:20px}.full-rewards .reward-card ul.included-rewards{font-size:16px}.audience-entry{display:block;text-align:center}.audience-entry a{display:block;margin:10px 0}.story-feature-list li{font-size:17px}}
+
+/* Parent-tier references replace repeated reward inventories. */
+.reward-card .reward-body>.reward-inheritance{font-size:16px;color:#674381;margin:20px 0 12px;padding-top:15px;border-top:1px solid #eee1f3}.reward-sidebar .reward-body>.reward-inheritance{font-size:13px}.reward-inheritance strong{font-weight:700}
