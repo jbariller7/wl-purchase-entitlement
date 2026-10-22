@@ -1,8 +1,8 @@
 /* Small, centered character interludes; the actual GIFs remain uploadable assets. */
-.chapter-sprite{display:flex;justify-content:center;align-items:flex-end;min-height:112px;margin:18px auto 4px;line-height:0;pointer-events:none}
+.chapter-sprite{display:flex;justify-content:center;align-items:flex-end;min-height:56px;margin:10px auto 2px;line-height:0;pointer-events:none}
 .chapter-sprite picture{display:block;flex:none}
-.chapter-sprite img{display:block;width:112px;height:112px;max-width:none;margin:0;object-fit:contain;border-radius:0}
-.chapter-sprite.walker img{width:88px;height:88px}
-.chapter-sprite.closing-musicians{margin:28px auto 0;min-height:112px}
-.chapter-sprite.closing-musicians img{width:224px;height:112px}
-@media(max-width:650px){.chapter-sprite{margin-top:12px}}
+.chapter-sprite img{display:block;width:56px;height:56px;max-width:none;margin:0;object-fit:contain;border-radius:0}
+.chapter-sprite.walker img{width:44px;height:44px}
+.chapter-sprite.closing-musicians{margin:16px auto 0;min-height:56px}
+.chapter-sprite.closing-musicians img{width:112px;height:56px}
+@media(max-width:650px){.chapter-sprite{margin-top:8px}}
