@@ -64,8 +64,7 @@ export async function syncVipSession(db:Firestore,stripe:Stripe,sessionId:string
  const price=line?.[0]?.price,product=price?.product as Stripe.Product|undefined;
  const baseCurrency=session.currency_conversion?.source_currency??session.currency;
  const baseAmount=session.currency_conversion?.amount_total??session.amount_total;
- const baseSubtotal=session.currency_conversion?.amount_subtotal??session.amount_subtotal;
- if(session.mode!=='payment'||baseCurrency!=='usd'||baseAmount!==100||baseSubtotal!==100||
+ if(session.mode!=='payment'||baseCurrency!=='usd'||baseAmount!==100||
   session.total_details?.amount_discount||line?.length!==1||session.line_items?.has_more||line[0]?.quantity!==1||
   price?.unit_amount!==100||price.currency!=='usd'||!product||typeof product==='string'||product.metadata.wl_checkout_flow!==VIP_FLOW||product.metadata.wl_vip_tier!==tier.id){
   throw new Error('VIP payment amount, price or product does not match the reservation');

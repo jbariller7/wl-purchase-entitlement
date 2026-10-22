@@ -71,6 +71,10 @@ describe('Beyond VIP paid reservation contract',()=>{
   const f=fixture();f.session.presentment_details={presentment_amount:150,presentment_currency:'cad'};
   await syncVipSession(f.db,f.api,f.session.id,'evt');expect(f.docs.get('beyondVipReservations/'+f.session.id)).toMatchObject({chargedAmount:150,chargedCurrency:'cad',reservationCurrency:'usd'});
  });
+ it('uses the verified final inclusive-tax price rather than assuming a net subtotal',async()=>{
+  const f=fixture();f.session.amount_subtotal=83;f.session.total_details.amount_tax=17;
+  expect(await syncVipSession(f.db,f.api,f.session.id,'evt_tax')).toMatchObject({eligible:true});
+ });
  it('accepts Stripe localized totals only when the original source charge is exactly US$1',async()=>{
   const f=fixture();f.session.currency='cad';f.session.amount_total=150;f.session.amount_subtotal=150;f.session.currency_conversion={source_currency:'usd',amount_total:100,amount_subtotal:100,fx_rate:'1.50'};
   await syncVipSession(f.db,f.api,f.session.id,'evt');expect(f.docs.get('beyondVipReservations/'+f.session.id)).toMatchObject({reservationAmount:100,reservationCurrency:'usd',chargedAmount:150,chargedCurrency:'cad'});
