@@ -50,3 +50,6 @@ footer .footer-reserve{display:block;width:calc(100% - 36px);max-width:370px;mar
 
 /* Parent-tier references replace repeated reward inventories. */
 .reward-card .reward-body>.reward-inheritance{font-size:16px;color:#674381;margin:20px 0 12px;padding-top:15px;border-top:1px solid #eee1f3}.reward-sidebar .reward-body>.reward-inheritance{font-size:13px}.reward-inheritance strong{font-weight:700}
+
+/* Compact full-map preview, preserving the complete treetop illustration. */
+#story .compact-map{width:100%;max-width:360px;margin:28px auto}#story .compact-map img{width:100%;height:auto}
