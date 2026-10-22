@@ -18,6 +18,7 @@ Cancellation and a reservation refund can be requested anytime by emailing jonat
 5. Save exactly one `beyondVipReservations/<Stripe-session-id>` record per verified payment. Record email, tier, normal/VIP prices, fee and actual presentment currency, Stripe references, accepted terms, and eligibility/refund/dispute state. Retries use the same document, and refunded records cannot be reactivated by a late completion event.
 6. Refund and dispute notifications update the same record. The scheduled reconciliation runs every 10 minutes to recover missed paid checkout notifications, including customers who never returned. Active records are rechecked daily; expired and refunded attempts stop polling. No provider payment is initiated by reconciliation.
 7. The return page requires a high-entropy token and independently verifies payment; it returns no email or other payer details. Opening the page is never proof of payment.
+8. Only after the paid reservation has been verified and saved, show the thank-you message, campaign dates (November 10 to December 10, 2026), and invitation to follow the project on Kickstarter. An eight-second visible countdown redirects to the fixed WonderLang Beyond Kickstarter URL. Buyers can open it immediately or pause the redirect. Pending, failed, refunded, disputed, and unverified requests do not redirect. The page sends no checkout credentials or payer details to Kickstarter (`no-referrer`).
 
 ## Administration
 
