@@ -629,7 +629,7 @@
     {
       "id": "original-single",
       "emoji": "🎮",
-      "name": "Original WonderLang — Single Platform",
+      "name": "Original WonderLang: Single Platform",
       "price": 20,
       "text": "The complete original game on your choice of PC/Mac, Android, or iOS. All learning languages and future language updates included.",
       "requires": null,
@@ -640,7 +640,7 @@
     {
       "id": "original-multi",
       "emoji": "📚",
-      "name": "Original WonderLang — Multiplatform",
+      "name": "Original WonderLang: Multiplatform",
       "price": 30,
       "text": "The original game on PC/Mac, Android, and iOS, including cross-platform cloud saves and all learning languages.",
       "requires": null,
