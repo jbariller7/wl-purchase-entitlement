@@ -1,4 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
+const controls=vi.hoisted(()=>({AD_CONVERSIONS_ENABLED:true}));
+vi.mock('../src/config/env.js',()=>({deploymentControls:()=>controls}));
+import {vipAttribution} from '../src/beyond-vip/attribution.js';
 import {createHash} from 'node:crypto';
 import {VIP_FLOW,VIP_TERMS,vipTiers} from '../src/beyond-vip/catalog.js';
 import {createVipCheckout,syncVipSession,vipStatus,processVipStripeEvent,isVipStripeEvent,reconcileVipReservations} from '../src/beyond-vip/service.js';
@@ -6,7 +9,7 @@ const attemptId='87c65c00-c2e0-4e22-9275-a7f582404217';
 function fixture(){
  const docs=new Map<string,any>();
  const snap=(path:string)=>({id:path.split('/').at(-1),exists:docs.has(path),data:()=>docs.get(path)});
- const ref=(path:string):any=>({path,get:async()=>snap(path),create:async(v:any)=>{if(docs.has(path))throw Error('exists');docs.set(path,v)},update:async(v:any)=>docs.set(path,{...docs.get(path),...v})});
+ const ref=(path:string):any=>({path,id:path.split('/').at(-1),get:async()=>snap(path),create:async(v:any)=>{if(docs.has(path))throw Error('exists');docs.set(path,v)},update:async(v:any)=>docs.set(path,{...docs.get(path),...v})});
  const db:any={
   collection:(name:string)=>({
    doc:(id:string)=>ref(name+'/'+id),
@@ -14,7 +17,7 @@ function fixture(){
     get:async()=>({docs:[...docs].filter(([path,v])=>path.startsWith(name+'/')&&v[key]===value).map(([path])=>snap(path))})
    })})
   }),
-  runTransaction:async(fn:any)=>fn({get:(r:any)=>r.get(),set:(r:any,v:any)=>docs.set(r.path,v),update:(r:any,v:any)=>docs.set(r.path,{...docs.get(r.path),...v})})
+  runTransaction:async(fn:any)=>fn({get:(r:any)=>r.get(),create:(r:any,v:any)=>{if(docs.has(r.path))throw Error('exists');docs.set(r.path,v)},set:(r:any,v:any)=>docs.set(r.path,v),update:(r:any,v:any)=>docs.set(r.path,{...docs.get(r.path),...v})})
  };
  const metadata={wl_checkout_flow:VIP_FLOW,wl_vip_tier:'adventurer',wl_vip_attempt:attemptId,wl_terms:VIP_TERMS};
  const charge:any={id:'ch_paid',paid:true,amount:100,currency:'usd',amount_refunded:0,disputed:false};
@@ -107,5 +110,43 @@ describe('Beyond VIP paid reservation contract',()=>{
   expect(await reconcileVipReservations(f.db,f.api)).toEqual({synced:1,failed:0});
   expect(f.docs.get('beyondVipReservations/'+f.session.id)).toMatchObject({email:'buyer@example.com',eligible:true,source:'scheduled-reconciliation'});
   expect(Date.parse(f.docs.get('beyondVipCheckoutAttempts/'+attemptId).nextCheckAt)).toBeGreaterThan(Date.now());
+ });
+});
+
+describe('VIP Meta purchase reporting',()=>{
+ function tracked(){const f=fixture();f.charge.created=Math.floor(Date.now()/1000)-30;Object.assign(f.docs.get('beyondVipCheckoutAttempts/'+attemptId),{metaTrackingVersion:1,attribution:{fbp:'fb.1.123.browser',fbc:'fb.1.123.click'}});return f;}
+ const jobs=(f:ReturnType<typeof fixture>)=>[...f.docs].filter(([k])=>k.startsWith('outbox/')).map(([,v])=>v);
+ it('atomically queues one USD 1 Purchase across webhook, return and reconciliation retries',async()=>{
+  const f=tracked();
+  for(const source of ['evt_1','verified-return','scheduled-reconciliation'])await syncVipSession(f.db,f.api,f.session.id,source);
+  expect(jobs(f)).toHaveLength(1);
+  expect(jobs(f)[0]).toMatchObject({kind:'meta_conversion',state:'pending',payload:{eventName:'Purchase',eventId:'beyond-vip:'+f.session.id,eventTime:f.charge.created,value:1,currency:'USD',product:'WonderLang_Beyond_VIP_adventurer',conversionKind:'beyond_vip_reservation',fbp:'fb.1.123.browser',fbc:'fb.1.123.click',emailSha256:createHash('sha256').update('buyer@example.com').digest('hex')}});
+  expect(JSON.stringify(jobs(f))).not.toContain('Buyer@');
+  expect(f.docs.get('beyondVipReservations/'+f.session.id).metaConversionEventId).toBe('beyond-vip:'+f.session.id);
+ });
+ it.each(['pending','refund','dispute','optout','old','historical','disabled'])('does not report %s',async kind=>{
+  const f=tracked(),attempt=f.docs.get('beyondVipCheckoutAttempts/'+attemptId);
+  if(kind==='pending')f.session.payment_status='unpaid';
+  if(kind==='refund')f.charge.amount_refunded=100;
+  if(kind==='dispute')f.charge.disputed=true;
+  if(kind==='optout')attempt.attribution={metaOptOut:'1'};
+  if(kind==='old')f.charge.created-=8*86400;
+  if(kind==='historical')delete attempt.metaTrackingVersion;
+  if(kind==='disabled')controls.AD_CONVERSIONS_ENABLED=false;
+  try{await syncVipSession(f.db,f.api,f.session.id,'evt');expect(jobs(f)).toHaveLength(0);}finally{controls.AD_CONVERSIONS_ENABLED=true;}
+ });
+ it('reports the verified USD base fee when Stripe charges a local equivalent',async()=>{
+  const f=tracked();f.session.currency='cad';f.session.amount_total=150;f.session.currency_conversion={source_currency:'usd',amount_total:100};
+  await syncVipSession(f.db,f.api,f.session.id,'evt');expect(jobs(f)[0].payload).toMatchObject({value:1,currency:'USD'});
+ });
+ it('does not recreate a conversion after its delivery record is removed',async()=>{
+  const f=tracked();await syncVipSession(f.db,f.api,f.session.id,'evt');for(const key of f.docs.keys())if(key.startsWith('outbox/'))f.docs.delete(key);
+  await syncVipSession(f.db,f.api,f.session.id,'retry');expect(jobs(f)).toHaveLength(0);
+ });
+ it('captures bounded attribution and honors both GPC and explicit opt-out',()=>{
+  expect(vipAttribution({fbc:'fb.1.123.click'},{'x-nf-client-connection-ip':'192.0.2.1','user-agent':'Browser',cookie:'_fbp=fb.1.123.browser'})).toEqual({fbp:'fb.1.123.browser',fbc:'fb.1.123.click',ipAddress:'192.0.2.1',userAgent:'Browser'});
+  expect(vipAttribution({fbc:'fb.1.123.click'},{'sec-gpc':'1'})).toEqual({metaOptOut:'1'});
+  expect(vipAttribution({metaOptOut:'1'},{})).toEqual({metaOptOut:'1'});
+  expect(vipAttribution({fbc:'bad'},{'x-nf-client-connection-ip':'invalid'})).toEqual({});
  });
 });

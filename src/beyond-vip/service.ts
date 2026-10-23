@@ -3,6 +3,9 @@ import type Stripe from 'stripe';
 import type {Firestore} from 'firebase-admin/firestore';
 import {HttpError} from '../http/auth.js';
 import {VIP_FLOW,VIP_TERMS,vipTier,vipTiers} from './catalog.js';
+import {stableDocumentId} from '../infrastructure/ids.js';
+import {deploymentControls} from '../config/env.js';
+import type {VipAttribution} from './attribution.js';
 
 const hash=(v:string)=>createHash('sha256').update(v).digest('hex');
 const objectId=(v:any):string|undefined=>typeof v==='string'?v:v?.id;
@@ -10,14 +13,14 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
 export const isVipObject=(v:any)=>v?.metadata?.wl_checkout_flow===VIP_FLOW;
 const money=(n:number)=>(n/100).toFixed(2);
 
-export async function createVipCheckout(db:Firestore,stripe:Stripe,tierId:string,origin:string){
+export async function createVipCheckout(db:Firestore,stripe:Stripe,tierId:string,origin:string,attribution:VipAttribution={}){
  const tier=vipTier(tierId);if(!tier)throw new HttpError(400,'Choose an available VIP reward.');
  const attemptId=randomUUID(),token=randomBytes(32).toString('hex');
  const ref=db.collection('beyondVipCheckoutAttempts').doc(attemptId);
  const now=new Date().toISOString();
  // Persist before exposing a payment page. A failed database write prevents checkout.
  await ref.create({tierId:tier.id,tierName:tier.name,normalEurCents:tier.normal,vipEurCents:tier.vip,
-  tokenHash:hash(token),termsVersion:VIP_TERMS,createdAt:now,paymentState:'open',nextCheckAt:new Date(Date.now()+600000).toISOString()});
+  metaTrackingVersion:1,attribution,tokenHash:hash(token),termsVersion:VIP_TERMS,createdAt:now,paymentState:'open',nextCheckAt:new Date(Date.now()+600000).toISOString()});
  const metadata={wl_checkout_flow:VIP_FLOW,wl_vip_tier:tier.id,wl_vip_attempt:attemptId,wl_terms:VIP_TERMS};
  const session=await stripe.checkout.sessions.create({mode:'payment',locale:'auto',
   line_items:[{quantity:1,price_data:{currency:'usd',unit_amount:100,tax_behavior:'inclusive',product_data:{
@@ -85,12 +88,25 @@ export async function syncVipSession(db:Firestore,stripe:Stripe,sessionId:string
  if(charge.disputed){const disputes=await stripe.disputes.list({charge:charge.id,limit:1});disputeState=disputes.data[0]?.status??'needs_response';}
  let state=charge.amount_refunded>0?'refunded':disputeState&&disputeState!=='won'?'disputed':'paid';
  const ref=db.collection('beyondVipReservations').doc(session.id),now=new Date().toISOString();
+ const eventTime=charge.created??session.created;
+ const eventId='beyond-vip:'+session.id;
+ const conversionRef=db.collection('outbox').doc(stableDocumentId('meta_conversion','meta:'+eventId));
+ const track=attempt.metaTrackingVersion===1&&attempt.attribution?.metaOptOut!=='1'&&deploymentControls().AD_CONVERSIONS_ENABLED
+  &&Number.isFinite(eventTime)&&eventTime<=Date.now()/1000&&eventTime>Date.now()/1000-7*86400;
  const presentment=(session as Stripe.Checkout.Session & {presentment_details?:{presentment_amount:number;presentment_currency:string}}).presentment_details;
  await db.runTransaction(async tx=>{
   const old=(await tx.get(ref)).data();
+  const conversion=track?await tx.get(conversionRef):null;
   // A completion fetched before a concurrent refund must never re-enable VIP access.
   if(old?.state==='refunded')state='refunded';
   if(old?.state==='disputed'&&state==='paid'&&disputeState!=='won')state='disputed';
+  const enqueue=track&&state==='paid'&&!conversion?.exists&&!old?.metaConversionEventId;
+  if(enqueue)tx.create(conversionRef,{id:conversionRef.id,kind:'meta_conversion',dedupeKey:'meta:'+eventId,
+   createdAt:now,notBefore:now,attemptCount:0,state:'pending',payload:{
+    eventName:'Purchase',eventId,eventTime,eventSourceUrl:'https://wonderlang.app/beyondmockup/',
+    emailSha256:hash(email),...attempt.attribution,value:1,currency:'USD',
+    product:'WonderLang_Beyond_VIP_'+tier.id,conversionKind:'beyond_vip_reservation'
+   }});
   tx.set(ref,{campaign:'WonderLang Beyond',email,tierId:tier.id,tierName:tier.name,
    normalEurCents:attempt.normalEurCents,vipEurCents:attempt.vipEurCents,discountPercent:30,
    reservationAmount:baseAmount,reservationCurrency:baseCurrency,
@@ -99,6 +115,7 @@ export async function syncVipSession(db:Firestore,stripe:Stripe,sessionId:string
    stripeSessionId:session.id,stripePaymentIntentId:pi.id,stripeChargeId:charge.id,
    termsVersion:VIP_TERMS,termsAccepted:true,feeSeparateFromPledge:true,
    createdAt:old?.createdAt??new Date(session.created*1000).toISOString(),updatedAt:now,source,
+   metaConversionEventId:old?.metaConversionEventId??(enqueue||conversion?.exists?eventId:null),
    secretRewardLinkSentAt:old?.secretRewardLinkSentAt??null
   });
   tx.update(attemptRef,{paymentState:state,nextCheckAt:state==='refunded'?null:new Date(Date.now()+86400000).toISOString()});

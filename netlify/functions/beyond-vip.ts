@@ -3,6 +3,7 @@ import type {Config} from '@netlify/functions';
 import {firestore} from '../../src/infrastructure/firebase.js';
 import {websiteStripeClient,websiteStripeConfiguration} from '../../src/providers/stripe/website-config.js';
 import {createVipCheckout,vipStatus} from '../../src/beyond-vip/service.js';
+import {vipAttribution} from '../../src/beyond-vip/attribution.js';
 import {vipTier} from '../../src/beyond-vip/catalog.js';
 import {consumeRateLimit} from '../../src/http/rate-limit.js';
 import {HttpError} from '../../src/http/auth.js';
@@ -19,7 +20,7 @@ export const lambdaHandler:LambdaHandler=async event=>{
   await consumeRateLimit({db,namespace:'api',subject:event.headers['x-nf-client-connection-ip']??'unknown',policy:{action:status?'vip-status':'vip-checkout',limit:status?60:15,windowSeconds:600},now:new Date()});
   const stripe=websiteStripeClient();
   if(status)return {statusCode:200,headers:{...headers,'content-type':'application/json'},body:JSON.stringify(await vipStatus(db,stripe,q.session_id??'',q.token??''))};
-  const url=await createVipCheckout(db,stripe,q.tier!,websiteStripeConfiguration().origin);
+  const url=await createVipCheckout(db,stripe,q.tier!,websiteStripeConfiguration().origin,vipAttribution(q,event.headers));
   return {statusCode:303,headers:{...headers,location:url},body:''};
  }catch(error){
   const code=error instanceof HttpError?error.status:503;
