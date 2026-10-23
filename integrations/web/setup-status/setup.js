@@ -69,7 +69,7 @@ function render(data) {
     <section class="content-grid"><article class="panel"><header><p class="eyebrow">CONNECTIONS</p><h2>Provider readiness</h2></header><div class="status-list">${Object.entries(configLabels).map(([key, [title, copy]]) => `<div><i class="${data.configuration[key] ? "ready" : "waiting"}"></i><span><strong>${title}</strong><small>${copy}</small></span><b>${data.configuration[key] ? "Ready" : "Required"}</b></div>`).join("")}</div></article>
     <article class="panel"><header><p class="eyebrow">KILL SWITCHES</p><h2>Side-effect controls</h2></header><div class="status-list controls">${Object.entries(controlLabels).map(([key, title]) => `<div><i class="${data.controls[key] ? "enabled" : "waiting"}"></i><span><strong>${title}</strong><small>${data.controls[key] ? "Enabled intentionally" : "Off"}</small></span><b>${data.controls[key] ? "On" : "Off"}</b></div>`).join("")}</div></article></section>
     <section class="panel next"><header><p class="eyebrow">NEXT GATE</p><h2>${nextGate}</h2></header><ol>${nextSteps}</ol><div class="actions"><button id="refresh" type="button">Refresh status</button><a href="/admin/">Open operations console</a></div></section>
-    <footer>Deploy ${escapeHtml(data.deploy || "pending commit metadata")} · Auto-refreshes every 15 seconds</footer>
+    <footer>Deploy ${escapeHtml(data.deploy || "pending commit metadata")} · Auto-refreshes every 5 minutes while visible</footer>
   </main>`;
   document.querySelector("#refresh")?.addEventListener("click", load);
 }
@@ -95,4 +95,4 @@ async function load() {
 }
 
 load();
-setInterval(load, 15_000);
+setInterval(() => { if (!document.hidden && navigator.onLine !== false) load(); }, 300_000);

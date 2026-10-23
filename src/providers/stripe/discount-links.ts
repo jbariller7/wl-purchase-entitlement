@@ -82,10 +82,15 @@ export class DiscountLinks {
   }
   async saleCampaigns(now:Date) {
     const selections=await this.saleSelections();
+    // One read per distinct campaign, even when it covers all five offers.
+    const links=new Map(await Promise.all([...new Set(Object.values(selections))].map(async id=>{
+      try {const link=await this.get(id);assertDiscountAvailable(link,now);return [id,link] as const;}
+      catch(error){if(!(error instanceof HttpError && [404,410].includes(error.status)))throw error;return [id,null] as const;}
+    })));
     const result:DiscountLink[]=[];
     for(const [offer,id] of Object.entries(selections)) {
-      try { const link=await this.get(id);assertDiscountAvailable(link,now);if(campaignOffers(link).includes(offer as DiscountOffer) && link.channel==="website")result.push(discountForOffer(link,offer as DiscountOffer)); }
-      catch(error) { if(!(error instanceof HttpError && [404,410].includes(error.status)))throw error; }
+      const link=links.get(id);
+      if(link && link.channel==='website' && campaignOffers(link).includes(offer as DiscountOffer))result.push(discountForOffer(link,offer as DiscountOffer));
     }
     return result;
   }

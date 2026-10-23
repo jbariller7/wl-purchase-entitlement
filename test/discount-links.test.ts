@@ -21,6 +21,17 @@ function fixture(){
  return {records,stripe,service:new DiscountLinks(db as unknown as Firestore,stripe as unknown as Stripe,'https://wonderlang.app')};
 }
 describe('discount campaigns',()=>{
+ it('reads a shared campaign once while preserving every published offer',async()=>{
+  const f=fixture();
+  const multi={...link,channel:'website',offers:['premium','polyglot'],couponIds:{premium:'coupon_p',polyglot:'coupon_l'}} as DiscountLink;
+  f.records.set('websiteSaleSelections/premium',{campaignId:id});
+  f.records.set('websiteSaleSelections/polyglot',{campaignId:id});
+  f.records.set('websiteDiscountLinks/'+id,multi);
+  const get=vi.spyOn(f.service,'get');
+  const results=await f.service.saleCampaigns(now);
+  expect(get).toHaveBeenCalledTimes(1);
+  expect(results.map(r=>r.offer)).toEqual(['premium','polyglot']);
+ });
  it('validates multiple website products without broadening newsletter links',()=>{
   const multi={...input,channel:'website',offers:['premium','mobile_monthly'],duration:'repeating',durationMonths:3,mobilePlatform:'android'};
   expect(discountLinkSchema.safeParse(multi).success).toBe(true);

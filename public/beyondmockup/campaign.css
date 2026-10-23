@@ -74,3 +74,6 @@ footer .footer-reserve{display:block;width:calc(100% - 36px);max-width:370px;mar
  .full-rewards .normal-price s{font-size:26px!important}
  .full-rewards .vip-checkout{font-size:16px!important}
 }
+
+/* Campaign preview: context above the campaign dates. */
+.campaign-preview{max-width:780px;margin:24px auto 20px;font-size:17px;line-height:1.65;color:#51485b}.campaign-preview p{margin:10px 0}.campaign-preview a{color:#68438c;text-underline-offset:3px}.campaign-preview a:hover{color:#482467}

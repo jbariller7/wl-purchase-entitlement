@@ -594,6 +594,11 @@ export class EntitlementStore {
     for (const candidate of candidates.docs) {
       if (leased.length >= limit) break;
       if (allowedKinds && !allowedKinds.includes(candidate.data().kind as OutboxKind)) continue;
+      // Skip obvious future/leased jobs before opening a transaction. Eligibility
+      // is still checked again atomically below before any job is claimed.
+      const preview = candidate.data() as OutboxJob & { leaseExpiresAt?: string };
+      if (Date.parse(preview.notBefore) > now.getTime()) continue;
+      if (preview.state === 'processing' && (!preview.leaseExpiresAt || Date.parse(preview.leaseExpiresAt) > now.getTime())) continue;
       const job = await this.db.runTransaction(async (transaction): Promise<OutboxJob | undefined> => {
         const fresh = await transaction.get(candidate.ref);
         if (!fresh.exists) return undefined;

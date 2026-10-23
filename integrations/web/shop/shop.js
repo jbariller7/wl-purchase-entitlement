@@ -1,3 +1,4 @@
+import {createSalesRefresh} from './sales-refresh.js';
 import countdownUnits from '../../../catalog/website-sale-countdown-units.json';
 import {remainingSaleTime} from './sale-countdown.js';
 import locales from '../../../catalog/website-checkout-locales.json';
@@ -132,20 +133,25 @@ if(gameEmbedded)document.addEventListener('keydown',event=>{
  if(event.key==='Escape'&&event.target.tagName!=='SELECT'){event.preventDefault();parent.postMessage({type:'wonderlang-shop-close'},'*');}
 });
 languageSelect.onchange=()=>{lang=languageSelect.value;render()};currencySelect.onchange=()=>{manualCurrency=true;currency=currencySelect.value;render()};render();
-if(query.has('campaign'))fetch('/.netlify/functions/website-discount?id='+encodeURIComponent(query.get('campaign')),{cache:'no-store'}).then(async response=>{if(!response.ok)throw Error('Offer unavailable');campaign=await response.json();campaignLoading=false;render();}).catch(()=>{campaignLoading=false;campaignError=true;render();});
+if(query.has('campaign'))fetch('/.netlify/functions/website-discount?id='+encodeURIComponent(query.get('campaign'))).then(async response=>{if(!response.ok)throw Error('Offer unavailable');campaign=await response.json();campaignLoading=false;render();}).catch(()=>{campaignLoading=false;campaignError=true;render();});
 if(publicSales){
- async function refreshSales(){
+ const refreshSales=createSalesRefresh({load:async()=>{
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
   try{
-   const response=await fetch('/.netlify/functions/website-discount?placement=website',{cache:'no-store',signal:controller.signal});
+   const response=await fetch('/.netlify/functions/website-discount?placement=website',{signal:controller.signal});
    if(!response.ok)throw Error('Unavailable');
    const data=await response.json();
    publicCampaigns=Object.fromEntries(data.campaigns.filter(c=>!c.expiresAt||Date.parse(c.expiresAt)>Date.now()).map(c=>[c.offer,c]));
-  }catch{publicCampaigns={};}finally{clearTimeout(timeout);}
-  campaignLoading=false;render();
- }
- refreshSales();setInterval(refreshSales,60000);
+   const ttl=Number(response.headers.get('x-discount-cache-seconds')??1800);
+   const age=Number(response.headers.get('age')??0);
+   return Math.max(1,Math.min(1800,Number.isFinite(ttl-age)?ttl-age:1800));
+  }catch(error){publicCampaigns={};throw error;}
+  finally{clearTimeout(timeout);campaignLoading=false;render();}
+ }});
+ refreshSales();setInterval(refreshSales,60000); // Local eligibility check, not a network request.
  window.addEventListener('focus',refreshSales);
+ window.addEventListener('online',refreshSales);
+ document.addEventListener('visibilitychange',refreshSales);
 }
 const expectedParent=query.get('parentOrigin');
 window.addEventListener('message',event=>{

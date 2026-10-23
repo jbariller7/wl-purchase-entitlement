@@ -29,7 +29,8 @@
   schedule = "17 * * * *"
 
 [functions."beyond-vip-reconciliation"]
-  schedule = "*/10 * * * *"
+  # Payment webhooks remain immediate; this is only the recovery sweep.
+  schedule = "*/30 * * * *"
 
 [functions."cloud-storage-monitor"]
   schedule = "43 2 * * *"

@@ -36,7 +36,8 @@ async function shop(extra=''){
   fetch:url=>{requests.push(url);return Promise.reject(new Error('Unavailable'))}
  });
  const source=readFileSync(new URL('../integrations/web/shop/shop.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'');
- vm.runInContext(source,context);
+ const refreshSource=readFileSync(new URL('../integrations/web/shop/sales-refresh.js',import.meta.url),'utf8').replace('export function','function');
+ vm.runInContext(refreshSource+'\n'+source,context);
  await new Promise(setImmediate);return {nodes,requests};
 }
 describe('shop Buy navigation',()=>{
