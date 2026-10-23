@@ -77,3 +77,14 @@ footer .footer-reserve{display:block;width:calc(100% - 36px);max-width:370px;mar
 
 /* Campaign preview: context above the campaign dates. */
 .campaign-preview{max-width:780px;margin:24px auto 20px;font-size:17px;line-height:1.65;color:#51485b}.campaign-preview p{margin:10px 0}.campaign-preview a{color:#68438c;text-underline-offset:3px}.campaign-preview a:hover{color:#482467}
+
+/* Paired campaign links, stacked on small screens. */
+.preview-actions{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px auto 8px;max-width:740px}
+.campaign-preview .preview-button{display:flex;flex-direction:column;justify-content:center;gap:4px;min-height:90px;padding:17px 20px;border-radius:14px;text-decoration:none;border:1px solid transparent;box-shadow:0 4px 14px #56347312;transition:transform .18s ease,box-shadow .18s ease}
+.preview-button>span{font-size:19px;font-weight:700;line-height:1.25}.preview-button small{font-size:14px;line-height:1.4;font-weight:400}.preview-button small span{margin-left:4px}
+.campaign-preview .preview-original{background:linear-gradient(125deg,#fff0d6,#ffe5d8);border-color:#edcba5;color:#67462d}
+.campaign-preview .preview-kickstarter{background:linear-gradient(125deg,#79509e,#623b89);border-color:#68418c;color:#fff}
+.campaign-preview .preview-original:hover{color:#56351e}.campaign-preview .preview-kickstarter:hover{color:#fff}
+.campaign-preview .preview-button:hover{transform:translateY(-2px);box-shadow:0 7px 18px #56347324}
+@media(max-width:600px){.preview-actions{grid-template-columns:1fr;gap:12px}.campaign-preview .preview-button{min-height:80px}.preview-button>span{font-size:18px}}
+@media(prefers-reduced-motion:reduce){.campaign-preview .preview-button{transition:none}.campaign-preview .preview-button:hover{transform:none}}
