@@ -1,0 +1,24 @@
+.wl-language-control{display:flex;align-items:center;justify-content:flex-end;gap:.65rem;flex-wrap:wrap;padding:.65rem max(20px,calc((100vw - 1440px)/2));background:#faf8fc;border-bottom:1px solid #e8e0ee;color:#42344d;font:16px Calibri,Arial,sans-serif}
+.wl-language-control label{font-weight:700}
+.wl-language-control select{font:inherit;max-width:100%;padding:.45rem 2rem .45rem .65rem;background:#fff;border:1px solid #b9a9c8;border-radius:8px;color:#302639}
+.wl-language-control select:focus-visible{outline:3px solid #8b62ae;outline-offset:3px}
+#wl-language-status{font-size:14px;flex-basis:100%;text-align:end}
+#wl-language-status:empty{display:none}
+html[lang]:not([lang="en"]) .ks-header{height:auto;min-height:74px;gap:14px;flex-wrap:wrap;padding-block:14px}
+html[lang]:not([lang="en"]) .tabs>div{flex-wrap:wrap}
+html[lang]:not([lang="en"]) .reward-price-row{flex-wrap:wrap}
+html[dir="rtl"] body{font-family:Tahoma,Arial,sans-serif}
+html[dir="rtl"] .story-toc,html[dir="rtl"] .main-story,html[dir="rtl"] .reward-sidebar{text-align:right}
+html[dir="rtl"] video,html[dir="rtl"] .trailer-wrap{direction:ltr}
+html[dir="rtl"] .reward-price,html[dir="rtl"] s,html[dir="rtl"] time{unicode-bidi:isolate}
+html[lang="ko"] body{font-family:Calibri,"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif;word-break:keep-all;overflow-wrap:anywhere}
+video::cue{font-family:Calibri,Arial,sans-serif;background:rgba(0,0,0,.8);color:white}
+html[lang="ko"] video::cue{font-family:Calibri,"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+.gameplay-screenshot figcaption.screenshot-footer{font-size:16px;line-height:1.5;color:#5d5265;margin:12px 3px 0;text-align:start;overflow-wrap:break-word}
+.gameplay-screenshot figcaption.screenshot-footer strong{color:#493551}
+.gameplay-screenshot figcaption.screenshot-footer em{unicode-bidi:isolate}
+@media(max-width:600px){.wl-language-control{justify-content:center}.wl-language-control label{font-size:15px}.wl-language-control select{max-width:70vw}video::cue{font-size:14px}}
+
+html[lang="ja"] body,html[lang="ja"] video::cue{font-family:Calibri,"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif}
+html[lang="zh-CN"] body,html[lang="zh-CN"] video::cue{font-family:Calibri,"Microsoft YaHei","PingFang SC",sans-serif}
+html[lang="ar"] video::cue{font-family:Tahoma,Arial,sans-serif}

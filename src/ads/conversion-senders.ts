@@ -22,7 +22,7 @@ function asConversion(payload: Record<string, unknown>): ConversionPayload {
   return payload as unknown as ConversionPayload;
 }
 
-export async function sendMetaConversion(raw: Record<string, unknown>): Promise<void> {
+export async function sendMetaConversion(raw: Record<string, unknown>): Promise<Record<string,unknown>> {
   const configuration = metaConversionEnv();
   const pixel = configuration.META_PIXEL_ID;
   const token = configuration.META_ACCESS_TOKEN;
@@ -61,6 +61,8 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
   if (!response.ok) throw new Error(`Meta conversion failed (${response.status}).`);
   const result = await response.json() as { events_received?: number; error?: unknown };
   if (result.error || result.events_received !== 1) throw new Error("Meta did not acknowledge the conversion.");
+  return {provider:'meta',eventsReceived:1,pixelId:pixel,eventId:event.eventId,eventName:event.eventName,
+    acceptedAt:new Date().toISOString(),matchFields:Object.keys(userData),testEvent:Boolean(configuration.META_TEST_EVENT_CODE)};
 }
 
 export async function sendTikTokConversion(raw: Record<string, unknown>): Promise<void> {

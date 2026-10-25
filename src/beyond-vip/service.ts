@@ -116,11 +116,17 @@ export async function syncVipSession(db:Firestore,stripe:Stripe,sessionId:string
    termsVersion:VIP_TERMS,termsAccepted:true,feeSeparateFromPledge:true,
    createdAt:old?.createdAt??new Date(session.created*1000).toISOString(),updatedAt:now,source,
    metaConversionEventId:old?.metaConversionEventId??(enqueue||conversion?.exists?eventId:null),
+   metaTrackingState:attempt.attribution?.metaOptOut==='1'?'opted_out':attempt.metaTrackingVersion!==1?'historical':!deploymentControls().AD_CONVERSIONS_ENABLED?'disabled':!track?'outside_window':'eligible',
    secretRewardLinkSentAt:old?.secretRewardLinkSentAt??null
   });
   tx.update(attemptRef,{paymentState:state,nextCheckAt:state==='refunded'?null:new Date(Date.now()+86400000).toISOString()});
  });
- return {state,eligible:state==='paid',tierName:tier.name};
+ const pixelId=process.env.META_PIXEL_ID;
+ const conversion=state==='paid'&&track&&Date.now()/1000-eventTime<86400&&/^\d+$/.test(pixelId??'')?{
+  eventName:'Purchase',eventId,pixelId,value:1,currency:'USD',product:'WonderLang_Beyond_VIP_'+tier.id,
+  eventTime,emailSha256:hash(email),fbp:attempt.attribution?.fbp,fbc:attempt.attribution?.fbc
+ }:null;
+ return {state,eligible:state==='paid',tierName:tier.name,conversion};
 }
 
 export async function processVipStripeEvent(db:Firestore,stripe:Stripe,event:Stripe.Event){
@@ -138,12 +144,33 @@ export async function processVipStripeEvent(db:Firestore,stripe:Stripe,event:Str
  }
 }
 
-export async function vipStatus(db:Firestore,stripe:Stripe,sessionId:string,token:string){
+export async function vipStatus(db:Firestore,stripe:Stripe,sessionId:string,token:string,optOut=false){
  if(!/^cs_live_[A-Za-z0-9]+$/.test(sessionId)||!/^[0-9a-f]{64}$/.test(token))throw new HttpError(404,'Reservation not found.');
  const sessions=await db.collection('beyondVipCheckoutAttempts').where('sessionId','==',sessionId).limit(1).get();
  const attempt=sessions.docs[0]?.data();
  if(!attempt||typeof attempt.tokenHash!=='string'||attempt.tokenHash.length!==64||!timingSafeEqual(Buffer.from(attempt.tokenHash,'hex'),Buffer.from(hash(token),'hex')))throw new HttpError(404,'Reservation not found.');
- return syncVipSession(db,stripe,sessionId,'verified-return');
+ // Withdrawal is allowed only after the private return credential is verified.
+ if(optOut)await sessions.docs[0]!.ref.update({attribution:{metaOptOut:'1'}});
+ const result=await syncVipSession(db,stripe,sessionId,'verified-return');
+ return optOut?{...result,conversion:null}:result;
+}
+
+export async function vipMetaDelivery(db:Firestore,reservation:Record<string,any>){
+ const eventId=reservation.metaConversionEventId;
+ if(!eventId)return {status:reservation.metaTrackingState??'not_queued',eventId:null,completedAt:null,attempts:0};
+ const snapshot=await db.collection('outbox').doc(stableDocumentId('meta_conversion','meta:'+eventId)).get();
+ if(!snapshot.exists)return {status:'record_unavailable',eventId,completedAt:null,attempts:null};
+ const job=snapshot.data()!;
+ return {status:job.result?.suppressed?'opted_out':job.state==='complete'?'accepted':job.state,eventId,completedAt:job.result?.suppressed?null:job.completedAt??null,
+  attempts:job.attemptCount??0,nextAttemptAt:job.state==='pending'?job.notBefore:null,
+  receipt:job.result?.provider==='meta'?{pixelId:job.result.pixelId,eventsReceived:job.result.eventsReceived,matchFields:job.result.matchFields,testEvent:job.result.testEvent}:null};
+}
+
+export async function vipMetaSuppressed(db:Firestore,eventId:string){
+ if(!/^beyond-vip:cs_live_[A-Za-z0-9]+$/.test(eventId))throw new Error('Invalid VIP conversion ID');
+ const rows=await db.collection('beyondVipCheckoutAttempts').where('sessionId','==',eventId.slice('beyond-vip:'.length)).limit(1).get();
+ if(!rows.docs.length)throw new Error('Cannot verify VIP conversion privacy choice');
+ return rows.docs[0]!.data().attribution?.metaOptOut==='1';
 }
 
 export async function listVipReservations(db:Firestore,cursor?:string,filters:{tier?:string;state?:string;q?:string}={}){
@@ -158,7 +185,9 @@ export async function listVipReservations(db:Firestore,cursor?:string,filters:{t
  if(cursor){if(!/^cs_live_[A-Za-z0-9]+$/.test(cursor))throw new HttpError(400,'Invalid cursor');const doc=await db.collection('beyondVipReservations').doc(cursor).get();if(!doc.exists)throw new HttpError(400,'Invalid cursor');query=query.startAfter(doc);}
  const rows=(await query.get()).docs;
  const scanned=rows.slice(0,100);
- return {reservations:scanned.filter(d=>{const r=d.data();return (!tier||r.tierId===tier)&&(!state||r.state===state)&&(!q||String(r.email??'').toLowerCase().includes(q));}).map(d=>({id:d.id,...d.data()})),
+ const matching=scanned.filter(d=>{const r=d.data();return (!tier||r.tierId===tier)&&(!state||r.state===state)&&(!q||String(r.email??'').toLowerCase().includes(q));});
+ const reservations=await Promise.all(matching.map(async d=>{const r=d.data();return {id:d.id,...r,metaDelivery:await vipMetaDelivery(db,r)};}));
+ return {reservations,
   nextCursor:rows.length>100?rows[99]!.id:null,scanned:scanned.length,filters:{tier,state,q},tiers:vipTiers.map(t=>({id:t.id,name:t.name}))};
 }
 

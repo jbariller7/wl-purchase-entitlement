@@ -1,13 +1,21 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const eur=n=>new Intl.NumberFormat('en',{style:'currency',currency:'EUR'}).format(n/100);
 const endpoint='/admin-api/v1/beyond-vip';
+export function vipMetaLabel(delivery){
+ if(delivery?.receipt?.testEvent)return 'Accepted as a Meta test event';
+ return ({accepted:'Accepted by Meta',pending:'Queued / retry scheduled',processing:'Sending',failed:'Delivery failed',opted_out:'Not sent: privacy opt-out',historical:'Not sent: predates tracking',disabled:'Not sent: tracking disabled',outside_window:'Not sent: outside reporting window',record_unavailable:'Delivery record no longer available',not_queued:'No delivery record',eligible:'Not queued'})[delivery?.status]||'No delivery record';
+}
 export function vipFilterQuery(filters,cursor){
  const p=new URLSearchParams();for(const k of ['tier','state','q'])if(filters[k])p.set(k,filters[k]);if(cursor)p.set('cursor',cursor);return p.size?'?'+p:'';
 }
 export function vipCsv(records){
  const cell=v=>{let s=String(v??'');if(/^[\s]*[=+@\-]/.test(s)||/^[\t\r\n]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"'};
  const keys=['email','tierId','tierName','normalEurCents','vipEurCents','reservationAmount','reservationCurrency','chargedAmount','chargedCurrency','amountRefunded','state','eligible','createdAt','stripeSessionId','stripePaymentIntentId','termsVersion'];
- return '\uFEFF'+[keys.map(cell).join(','),...records.map(r=>keys.map(k=>cell(r[k])).join(','))].join('\r\n');
+ const metaKeys=['metaStatus','metaEventId','metaAcceptedAt','metaAttempts','metaMatchFields','metaTestEvent'];
+ return '\uFEFF'+[[...keys,...metaKeys].map(cell).join(','),...records.map(r=>[...keys.map(k=>cell(r[k])),...[
+  vipMetaLabel(r.metaDelivery),r.metaDelivery?.eventId,r.metaDelivery?.completedAt,r.metaDelivery?.attempts,
+  r.metaDelivery?.receipt?.matchFields?.join(';'),r.metaDelivery?.receipt?.testEvent
+ ].map(cell)].join(','))].join('\r\n');
 }
 export async function allFilteredVipRecords(api,filters,progress=()=>{}){
  const found=new Map(),seen=new Set();let cursor;
@@ -25,7 +33,7 @@ export function renderVip(data){
 }
 function rows(list){return list.length?list.map(r=>{
  const currency=String(r.chargedCurrency).toUpperCase(),fmt=new Intl.NumberFormat('en',{style:'currency',currency}),paid=fmt.format(r.chargedAmount/10**fmt.resolvedOptions().maximumFractionDigits);
- return `<details class="panel vip-row"><summary><strong>${esc(r.email)}</strong> · ${esc(r.tierName)} · ${esc(r.state)} ${r.eligible?'· VIP eligible':''}</summary><p>Normal ${eur(r.normalEurCents)} · VIP ${eur(r.vipEurCents)} · 30% off</p><p>Paid ${esc(paid)} · ${esc(r.createdAt)}</p><p>Stripe session: ${esc(r.id)}</p><a href="https://dashboard.stripe.com/payments/${encodeURIComponent(r.stripePaymentIntentId)}" target="_blank" rel="noopener noreferrer">Open payment in Stripe</a> <button class="button secondary" data-vip-refresh="${esc(r.id)}">Refresh payment status</button></details>`;
+ return `<details class="panel vip-row"><summary><strong>${esc(r.email)}</strong> · ${esc(r.tierName)} · ${esc(r.state)} ${r.eligible?'· VIP eligible':''}</summary><p>Normal ${eur(r.normalEurCents)} · VIP ${eur(r.vipEurCents)} · 30% off</p><p>Paid ${esc(paid)} · ${esc(r.createdAt)}</p><p>Stripe session: ${esc(r.id)}</p><p><strong>Meta: ${esc(vipMetaLabel(r.metaDelivery))}</strong><br>Event ID: ${esc(r.metaDelivery?.eventId||'None')}<br>Attempts: ${esc(r.metaDelivery?.attempts??'Unknown')}${r.metaDelivery?.completedAt?'<br>Accepted at: '+esc(r.metaDelivery.completedAt):''}${r.metaDelivery?.nextAttemptAt?'<br>Next attempt: '+esc(r.metaDelivery.nextAttemptAt):''}${r.metaDelivery?.receipt?'<br>Matching fields supplied: '+esc(r.metaDelivery.receipt.matchFields?.join(', ')||'None'):''}</p><p class="panel-copy">Accepted means the server received Meta�s acknowledgement. It does not confirm ad attribution or browser delivery. Apply filters again to refresh this view.</p><a href="https://dashboard.stripe.com/payments/${encodeURIComponent(r.stripePaymentIntentId)}" target="_blank" rel="noopener noreferrer">Open payment in Stripe</a> <button class="button secondary" data-vip-refresh="${esc(r.id)}">Refresh payment status</button></details>`;
  }).join(''):'<p>No matching paid reservations.</p>'}
 export function bindVip({api,toast},initial){
  let filters=initial.filters||{},loaded=[...(initial.reservations||[])],cursor=initial.nextCursor,busy=false;

@@ -15,6 +15,7 @@ await buildHomepage();
 await buildPages();
 await Promise.all([
   build({entryPoints:[projectPath("integrations/web/beyond-vip/attribution.js")],bundle:true,minify:true,format:"iife",target:["es2020"],outfile:projectPath("public/beyondmockup/vip-attribution.js")}),
+  build({entryPoints:[projectPath("integrations/web/beyond-vip/return-tracking.js")],bundle:true,minify:true,format:"iife",target:["es2020"],outfile:projectPath("public/beyondmockup/vip-return-tracking.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/landing-attribution.js")],bundle:true,minify:true,format:"iife",target:["es2020"],outfile:projectPath("public/shop/landing-attribution.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/complete.js")],bundle:true,minify:true,format:"iife",target:["es2022"],outfile:projectPath("public/shop/complete.js")}),
   build({entryPoints:[projectPath("integrations/web/shop/confirmation.js")],bundle:true,minify:true,format:"iife",target:["es2022"],outfile:projectPath("public/shop/confirmation.js")}),

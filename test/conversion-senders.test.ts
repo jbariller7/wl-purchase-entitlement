@@ -47,7 +47,10 @@ describe("advertising conversion delivery", () => {
       .mockResolvedValueOnce(new Response('{"events_received":1}', { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ code: 0, message: "OK" }), { status: 200 }));
 
-    await sendMetaConversion(payload);
+    const receipt = await sendMetaConversion(payload);
+    expect(receipt).toMatchObject({provider:"meta",eventsReceived:1,eventId:payload.eventId,testEvent:true});
+    expect(JSON.stringify(receipt)).not.toContain(payload.emailSha256);
+    expect(JSON.stringify(receipt)).not.toContain(payload.ipAddress);
     await sendTikTokConversion(payload);
 
     expect(fetch).toHaveBeenCalledTimes(2);

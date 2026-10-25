@@ -3,6 +3,7 @@ import {sendGoogleConversion} from "../ads/google-conversion.js";
 import type { OutboxJob, OutboxKind, LegacyOrder } from "../domain/model.js";
 import {sendPurchaseConfirmation} from '../email/purchase-confirmation.js';
 import { sendMetaConversion, sendTikTokConversion } from "../ads/conversion-senders.js";
+import {vipMetaSuppressed} from '../beyond-vip/service.js';
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { firestore } from "../infrastructure/firebase.js";
 import { firebaseAuth, firebaseStorage } from "../infrastructure/firebase.js";
@@ -24,8 +25,10 @@ async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<
       return;
     case "meta_conversion":
       if (!deploymentControls().AD_CONVERSIONS_ENABLED) throw new Error("Ad conversion delivery is disabled.");
-      await sendMetaConversion(job.payload);
-      return;
+      if(job.payload.conversionKind==='beyond_vip_reservation'&&await vipMetaSuppressed(store.firestore(),String(job.payload.eventId))){
+        return {provider:'meta',suppressed:true,reason:'privacy_opt_out'};
+      }
+      return sendMetaConversion(job.payload);
     case "tiktok_conversion":
       if (!deploymentControls().AD_CONVERSIONS_ENABLED) throw new Error("Ad conversion delivery is disabled.");
       await sendTikTokConversion(job.payload);

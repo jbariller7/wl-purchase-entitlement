@@ -7,12 +7,14 @@ const target='https://www.kickstarter.com/projects/jonathan-wonderlang/wonderlan
 async function page(data,{search='?session_id=cs_live_fixture&token=fixture',ok=true}={}){
  const elements=new Map();
  const element=id=>{if(!elements.has(id))elements.set(id,{hidden:true,textContent:'',listeners:{},addEventListener(event,fn){this.listeners[event]=fn;}});return elements.get(id);};
+ element('beyond-language-config').textContent=JSON.stringify({messages:JSON.parse(readFileSync(new URL('../public/beyondmockup/i18n/reservations/en.json',import.meta.url),'utf8')).text});
+ const purchase=vi.fn(),history={replaceState:vi.fn()};
  const pending=new Map();let sequence=0;
  const replace=vi.fn(),fetch=vi.fn().mockResolvedValue({ok,json:async()=>data});
- runInNewContext(source,{document:{getElementById:element},location:{search,replace},URLSearchParams,encodeURIComponent,fetch,
+ runInNewContext(source,{document:{getElementById:element,addEventListener:vi.fn()},window:{addEventListener:vi.fn(),wlVipMeta:{purchase,allowed:()=>true}},history,Intl,location:{search,replace,pathname:'/beyondmockup/reserved.html'},URLSearchParams,encodeURIComponent,fetch,
   setTimeout(fn,delay){expect(delay).toBe(1000);pending.set(++sequence,fn);return sequence;},clearTimeout(id){pending.delete(id);}});
  for(let i=0;i<10;i++)await Promise.resolve();
- return {element,replace,fetch,pending,tick(){const [id,fn]=pending.entries().next().value;pending.delete(id);fn();}};
+ return {element,replace,fetch,pending,purchase,history,tick(){const [id,fn]=pending.entries().next().value;pending.delete(id);fn();}};
 }
 describe('Verified VIP return page',()=>{
  it('thanks only a verified paid buyer, then redirects to the exact Kickstarter page after eight seconds',async()=>{
@@ -42,4 +44,18 @@ describe('Verified VIP return page',()=>{
   p.tick();p.element('reservation-stay').listeners.click();
   expect(p.pending.size).toBe(0);expect(p.replace).not.toHaveBeenCalled();expect(p.element('reservation-countdown').textContent).toMatch(/paused/);
  });
+});
+
+it('passes only verified paid conversion data to the pixel and strips the private URL first',async()=>{
+ const conversion={eventId:'beyond-vip:cs_live_fixture'};
+ const p=await page({eligible:true,state:'paid',tierName:'Adventurer',conversion});
+ expect(p.history.replaceState).toHaveBeenCalledWith(null,'','/beyondmockup/reserved.html');
+ expect(p.purchase).toHaveBeenCalledWith(conversion);
+ expect(p.history.replaceState.mock.invocationCallOrder[0]).toBeLessThan(p.purchase.mock.invocationCallOrder[0]);
+ const unpaid=await page({eligible:false,state:'pending',conversion});
+ expect(unpaid.purchase).not.toHaveBeenCalled();
+});
+it('forwards an explicit privacy opt-out to verification and suppresses browser Purchase',async()=>{
+ const p=await page({eligible:true,state:'paid',conversion:{}},{search:'?session_id=cs_live_fixture&token=fixture&metaOptOut=1'});
+ expect(p.fetch.mock.calls[0][0]).toContain('metaOptOut=1');expect(p.purchase).not.toHaveBeenCalled();
 });

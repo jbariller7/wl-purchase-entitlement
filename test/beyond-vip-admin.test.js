@@ -25,3 +25,8 @@ describe('VIP administrator filters and export',()=>{
   const p=new URLSearchParams(vipFilterQuery({tier:'hero',q:'a+b@example.com'},'cs_live_next').slice(1));expect(p.get('q')).toBe('a+b@example.com');expect(p.get('cursor')).toBe('cs_live_next');
  });
 });
+
+it('exports Meta delivery status and deduplication ID alongside payment fields',()=>{
+ const csv=vipCsv([{email:'buyer@example.com',metaDelivery:{status:'accepted',eventId:'beyond-vip:cs_live_123',completedAt:'2026-10-24',attempts:1,receipt:{matchFields:['em','fbp'],testEvent:false}}}]);
+ expect(csv).toContain('Accepted by Meta');expect(csv).toContain('beyond-vip:cs_live_123');expect(csv).toContain('em;fbp');
+});

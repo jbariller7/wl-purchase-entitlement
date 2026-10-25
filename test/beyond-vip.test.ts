@@ -4,11 +4,11 @@ vi.mock('../src/config/env.js',()=>({deploymentControls:()=>controls}));
 import {vipAttribution} from '../src/beyond-vip/attribution.js';
 import {createHash} from 'node:crypto';
 import {VIP_FLOW,VIP_TERMS,vipTiers} from '../src/beyond-vip/catalog.js';
-import {createVipCheckout,syncVipSession,vipStatus,processVipStripeEvent,isVipStripeEvent,reconcileVipReservations} from '../src/beyond-vip/service.js';
+import {createVipCheckout,syncVipSession,vipStatus,processVipStripeEvent,isVipStripeEvent,reconcileVipReservations,vipMetaDelivery,vipMetaSuppressed} from '../src/beyond-vip/service.js';
 const attemptId='87c65c00-c2e0-4e22-9275-a7f582404217';
 function fixture(){
  const docs=new Map<string,any>();
- const snap=(path:string)=>({id:path.split('/').at(-1),exists:docs.has(path),data:()=>docs.get(path)});
+ const snap=(path:string)=>({id:path.split('/').at(-1),exists:docs.has(path),data:()=>docs.get(path),ref:{update:async(v:any)=>docs.set(path,{...docs.get(path),...v})}});
  const ref=(path:string):any=>({path,id:path.split('/').at(-1),get:async()=>snap(path),create:async(v:any)=>{if(docs.has(path))throw Error('exists');docs.set(path,v)},update:async(v:any)=>docs.set(path,{...docs.get(path),...v})});
  const db:any={
   collection:(name:string)=>({
@@ -149,4 +149,38 @@ describe('VIP Meta purchase reporting',()=>{
   expect(vipAttribution({metaOptOut:'1'},{})).toEqual({metaOptOut:'1'});
   expect(vipAttribution({fbc:'bad'},{'x-nf-client-connection-ip':'invalid'})).toEqual({});
  });
+});
+
+describe('Verified browser VIP conversion and delivery status',()=>{
+ function ready(){const f=fixture();f.charge.created=Math.floor(Date.now()/1000)-5;Object.assign(f.docs.get('beyondVipCheckoutAttempts/'+attemptId),{metaTrackingVersion:1,attribution:{fbp:'fb.1.123.browser'},tokenHash:createHash('sha256').update('a'.repeat(64)).digest('hex')});return f;}
+ it('returns the same event ID as the server job with USD 1 and only hashed matching data',async()=>{
+  vi.stubEnv('META_PIXEL_ID','552284573796131');
+  try{const f=ready();const result=await vipStatus(f.db,f.api,f.session.id,'a'.repeat(64));
+   const job=[...f.docs].find(([k])=>k.startsWith('outbox/'))![1];
+   expect(result.conversion).toMatchObject({eventId:job.payload.eventId,eventName:'Purchase',value:1,currency:'USD',pixelId:'552284573796131'});
+   expect(JSON.stringify(result)).not.toContain('buyer@example.com');
+   expect(result.conversion?.emailSha256).toMatch(/^[a-f0-9]{64}$/);
+   const record=f.docs.get('beyondVipReservations/'+f.session.id);
+   expect(await vipMetaDelivery(f.db,record)).toMatchObject({status:'pending',eventId:job.payload.eventId});
+   job.state='complete';job.completedAt='2026-10-24T12:00:00Z';job.result={provider:'meta',eventsReceived:1,pixelId:'552284573796131',matchFields:['em','fbp'],testEvent:false};
+   expect(await vipMetaDelivery(f.db,record)).toMatchObject({status:'accepted',receipt:{eventsReceived:1,matchFields:['em','fbp'],testEvent:false}});
+  }finally{vi.unstubAllEnvs();}
+ });
+ it('requires the private credential before persisting withdrawal and suppresses both conversion channels',async()=>{
+  vi.stubEnv('META_PIXEL_ID','552284573796131');
+  try{const f=ready();await expect(vipStatus(f.db,f.api,f.session.id,'b'.repeat(64),true)).rejects.toThrow();
+   expect(f.docs.get('beyondVipCheckoutAttempts/'+attemptId).attribution.metaOptOut).toBeUndefined();
+   const r=await vipStatus(f.db,f.api,f.session.id,'a'.repeat(64),true);
+   expect(r.conversion).toBeNull();expect([...f.docs.keys()].some(k=>k.startsWith('outbox/'))).toBe(false);
+   expect(await vipMetaDelivery(f.db,f.docs.get('beyondVipReservations/'+f.session.id))).toMatchObject({status:'opted_out'});
+  }finally{vi.unstubAllEnvs();}
+ });
+});
+
+it('checks the latest privacy choice immediately before server delivery',async()=>{
+ const f=fixture(),id='beyond-vip:'+f.session.id;
+ expect(await vipMetaSuppressed(f.db,id)).toBe(false);
+ f.docs.get('beyondVipCheckoutAttempts/'+attemptId).attribution={metaOptOut:'1'};
+ expect(await vipMetaSuppressed(f.db,id)).toBe(true);
+ await expect(vipMetaSuppressed(f.db,'beyond-vip:cs_live_unknown')).rejects.toThrow(/privacy/);
 });
