@@ -22,3 +22,27 @@ html[lang="ko"] video::cue{font-family:Calibri,"Malgun Gothic","Apple SD Gothic 
 html[lang="ja"] body,html[lang="ja"] video::cue{font-family:Calibri,"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif}
 html[lang="zh-CN"] body,html[lang="zh-CN"] video::cue{font-family:Calibri,"Microsoft YaHei","PingFang SC",sans-serif}
 html[lang="ar"] video::cue{font-family:Tahoma,Arial,sans-serif}
+
+/* Three small signup stops use the same existing MailerLite form. */
+.beyond-newsletter{margin:30px 0;padding:26px 30px;border:1px solid #dfd2e8;border-radius:20px;background:linear-gradient(120deg,#fff9ee,#f5eef9);color:#41334c;box-shadow:0 5px 20px #69448408}
+#newsletter-top{max-width:900px;margin:28px auto 34px}
+.newsletter-heading{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+.newsletter-heading img{flex:none;object-fit:contain}
+.beyond-newsletter h2{font-size:27px;line-height:1.2;margin:0 0 7px;color:#67467d}
+.beyond-newsletter .newsletter-heading p,.main-story .beyond-newsletter .newsletter-heading p{font-size:17px;line-height:1.45;margin:0}
+.beyond-newsletter label{display:block;font-weight:700;font-size:15px;margin:0 0 7px}
+.newsletter-input-row{display:flex;flex-wrap:wrap;gap:10px;align-items:stretch}
+.newsletter-input-row .ml-field-group{flex:1 1 220px;min-width:0}
+.newsletter-input-row input{box-sizing:border-box;width:100%;height:48px;border:1px solid #b9a5c8;border-radius:9px;background:#fff;padding:10px 13px;color:#33263d;font:18px Calibri,Arial,sans-serif}
+.newsletter-input-row button{min-height:48px;max-width:100%;padding:10px 20px;border:0;border-radius:9px;background:#765091;color:white;font-family:inherit;font-weight:700;font-size:17px;line-height:1.3;cursor:pointer}
+.newsletter-input-row button:hover{background:#603b7b}
+.newsletter-input-row button:focus-visible,.newsletter-input-row input:focus-visible{outline:3px solid #bda0d1;outline-offset:3px}
+.beyond-newsletter .newsletter-note,.main-story .beyond-newsletter .newsletter-note{font-size:13px;line-height:1.5;color:#766782;margin:12px 0 0}
+.beyond-newsletter .loading,.beyond-newsletter .row-success,.beyond-newsletter .d-none,.beyond-newsletter [hidden]{display:none}
+.beyond-newsletter .newsletter-confirmed{display:block}
+.beyond-newsletter .row-success{padding:18px;border:1px solid #c8dccc;border-radius:12px;background:#f3faf3}
+.beyond-newsletter .row-success h3{color:#356245;margin:0 0 8px}
+.beyond-newsletter .row-success p{margin:0;font-size:17px;line-height:1.5}
+.beyond-newsletter .ml-server-error,.beyond-newsletter .ml-field-error-message{color:#9d303b;font-size:15px;line-height:1.5;margin-top:8px}
+.beyond-newsletter .ml-error input{border-color:#9d303b}
+@media(max-width:600px){.beyond-newsletter{padding:21px 18px;border-radius:16px}.beyond-newsletter h2{font-size:24px}.newsletter-heading{align-items:flex-start;gap:12px}.newsletter-heading img{width:40px;height:40px}.newsletter-input-row{display:block}.newsletter-input-row .ml-form-embedSubmit{margin-top:10px}.newsletter-input-row button{width:100%}}

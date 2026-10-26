@@ -156,7 +156,7 @@
     X-Robots-Tag = "noindex, nofollow"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-Content-Type-Options = "nosniff"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' https://connect.facebook.net; style-src 'self'; img-src 'self' data: https://www.facebook.com; media-src 'self'; connect-src 'self' https://www.facebook.com https://connect.facebook.net; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' https://connect.facebook.net https://groot.mailerlite.com https://assets.mlcdn.com https://static.mailerlite.com https://assets.mailerlite.com; style-src 'self'; img-src 'self' data: https://www.facebook.com; media-src 'self'; connect-src 'self' https://www.facebook.com https://connect.facebook.net https://assets.mailerlite.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self' https://assets.mailerlite.com"
 
 [[headers]]
   for = "/beyondmockup/reserved.html"
