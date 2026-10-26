@@ -51,7 +51,7 @@ describe('shop Buy navigation',()=>{
    expect(new URL(button.href,'https://example.com').searchParams.get('currency')).toBe('EUR');
   }
   expect(nodes.get('status').textContent).toBe('');
-  expect(requests).toEqual(['/.netlify/functions/website-discount?placement=website','/.netlify/functions/website-prices']);
+  expect(requests).toEqual(['/.netlify/functions/website-discount?placement=website&id=public-sales-v2','/.netlify/functions/website-prices']);
  });
  it('preserves mobile platform and product selection in the checkout request',async()=>{
   const {nodes}=await shop();nodes.get('platform-tabs').children[1].onclick();

@@ -1,9 +1,9 @@
 import {describe,it,expect} from 'vitest';
 import {publicDiscountHeaders} from '../src/http/public-discount-cache.js';
 describe('public discount cache',()=>{
- it('shares public responses for at most thirty minutes with isolated query variants',()=>{
+ it('shares public responses for at most one minute with isolated query variants',()=>{
   const h=publicDiscountHeaders([]);
-  expect(h['netlify-cdn-cache-control']).toContain('durable, max-age=1800');
+  expect(h['netlify-cdn-cache-control']).toBe('public, max-age=60, must-revalidate');
   expect(h['netlify-vary']).toBe('query=placement|id');
   expect(h['cache-control']).toBe('public, max-age=0, must-revalidate');
  });

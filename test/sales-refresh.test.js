@@ -1,10 +1,10 @@
 import {describe,it,expect,vi} from 'vitest';
 import {createSalesRefresh} from '../integrations/web/shop/sales-refresh.js';
 describe('shop refresh scheduling',()=>{
- it('refreshes once per thirty minutes despite focus and timer events',async()=>{
+ it('caps old thirty-minute feed hints to one minute despite focus and timer events',async()=>{
   let time=0;const load=vi.fn(async()=>1800);
   const refresh=createSalesRefresh({load,now:()=>time,visible:()=>true,online:()=>true});
-  await refresh();for(time=60000;time<1800000;time+=60000)await refresh();
+  await refresh();for(time=1000;time<60000;time+=1000)await refresh();
   expect(load).toHaveBeenCalledTimes(1);await refresh();expect(load).toHaveBeenCalledTimes(2);
  });
  it('does not fetch while hidden or offline, and resumes when due',async()=>{

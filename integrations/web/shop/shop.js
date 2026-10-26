@@ -141,13 +141,13 @@ if(publicSales){
  const refreshSales=createSalesRefresh({load:async()=>{
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),8000);
   try{
-   const response=await fetch('/.netlify/functions/website-discount?placement=website',{signal:controller.signal});
+   const response=await fetch('/.netlify/functions/website-discount?placement=website&id=public-sales-v2',{signal:controller.signal});
    if(!response.ok)throw Error('Unavailable');
    const data=await response.json();
    publicCampaigns=Object.fromEntries(data.campaigns.filter(c=>!c.expiresAt||Date.parse(c.expiresAt)>Date.now()).map(c=>[c.offer,c]));
-   const ttl=Number(response.headers.get('x-discount-cache-seconds')??1800);
+   const ttl=Number(response.headers.get('x-discount-cache-seconds')??60);
    const age=Number(response.headers.get('age')??0);
-   return Math.max(1,Math.min(1800,Number.isFinite(ttl-age)?ttl-age:1800));
+   return Math.max(1,Math.min(60,Number.isFinite(ttl-age)?ttl-age:60));
   }catch(error){publicCampaigns={};throw error;}
   finally{clearTimeout(timeout);campaignLoading=false;render();}
  }});
