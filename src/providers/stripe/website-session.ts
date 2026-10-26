@@ -70,9 +70,9 @@ export function websiteSessionParams(request: WebsiteSessionRequest, priceId: st
     metadata
   };
 }
-export function assertWebsitePrice(price: Stripe.Price, request: WebsiteSessionRequest, live: boolean): void {
+export function assertWebsitePrice(price: Stripe.Price, request: WebsiteSessionRequest, live: boolean, desktopPrices: Record<string,string[]> = prices): void {
   const index=["single","polyglot","premium"].indexOf(request.offer);
-  const expected=request.offer==="mobile_monthly"?REGIONAL_PRICES.monthly[request.currency]!:request.offer==="mobile_permanent"?REGIONAL_PRICES.polyglot[request.currency]!:prices[request.currency as keyof typeof prices][index]!;
+  const expected=request.offer==="mobile_monthly"?REGIONAL_PRICES.monthly[request.currency]!:request.offer==="mobile_permanent"?REGIONAL_PRICES.polyglot[request.currency]!:desktopPrices[request.currency]![index]!;
   const option=price.currency_options?.[request.currency.toLowerCase()];
   const monthly=request.offer==="mobile_monthly";
   if(!price.active || price.livemode!==live || price.type!==(monthly?"recurring":"one_time") || (monthly && (price.recurring?.interval!=="month" || price.recurring.interval_count!==1)) || !option || option.tax_behavior!=="inclusive" || option.unit_amount!==stripeMinorAmount(request.currency,expected))throw new Error("Configured Stripe price does not match the approved website offer.");

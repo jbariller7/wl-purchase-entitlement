@@ -42,6 +42,8 @@ languageSelect.closest('label').hidden=embedded&&query.get('parentLanguage')==='
 const rememberedOptions={};
 const publicSales=!query.has('campaign');
 let publicCampaigns={};
+const mobilePermanentPrices=Object.fromEntries(Object.entries(prices).map(([code,values])=>[code,values[1]]));
+let pricesLoading=true,pricesError=false;
 let campaign=null,campaignLoading=query.has('campaign')||publicSales,campaignError=false;
 let category='desktop';
 const saleBanners=document.createElement('section');saleBanners.className='sale-banners';document.querySelector('main').prepend(saleBanners);
@@ -86,6 +88,7 @@ function render(){
  document.getElementById('heading').textContent=t[0];document.getElementById('language-label').textContent=t[2];document.getElementById('currency-label').textContent=t[3];
  renderSaleBanners();
  const grid=document.getElementById('offers');grid.replaceChildren();
+ if(pricesLoading||pricesError){document.getElementById('status').textContent=pricesError?discountText[lang][0]:t[5];return;}
  if(campaignLoading||campaignError){document.getElementById('status').textContent=campaignError?discountText[lang][0]:t[5];return;}
  if(campaign)document.getElementById('heading').textContent=campaign.name;
  let tabs=document.getElementById('platform-tabs');
@@ -105,7 +108,7 @@ function render(){
  const card=document.createElement('article'),heading=document.createElement('h2'),price=document.createElement('div'),description=document.createElement('p'),buy=document.createElement('a'),options=rememberedOptions[offer]||{};rememberedOptions[offer]=options;
  const isMonthly=offer==='mobile_monthly',isMobile=offer.startsWith('mobile_'),index=['single','polyglot','premium'].indexOf(offer);
  heading.textContent=isMobile?mobile[lang][isMonthly?0:1]:l[offer];
- const amount=isMonthly?REGIONAL_PRICES.monthly[currency]:isMobile?prices[currency][1]:prices[currency][index];
+ const amount=isMonthly?REGIONAL_PRICES.monthly[currency]:isMobile?mobilePermanentPrices[currency]:prices[currency][index];
  price.className='price';price.textContent=new Intl.NumberFormat(lang,{style:'currency',currency}).format(stripeMinorAmount(currency,amount)/10**currencyFractionDigits(currency))+(isMonthly?mobile[lang][6]:'');
  if(campaign){price.classList.add('sale-price');const regular=document.createElement('del');regular.textContent=price.textContent;regular.style.fontSize='0.6em';const minor=stripeMinorAmount(currency,amount);price.textContent=new Intl.NumberFormat(lang,{style:'currency',currency}).format((minor-Math.round(minor*campaign.percentOff/100))/10**currencyFractionDigits(currency))+(isMonthly?mobile[lang][6]:'');price.append(document.createTextNode(` (−${campaign.percentOff}%) `),regular);}
  description.className='description';description.textContent=isMobile?mobile[lang][isMonthly?2:3]:l[offer+'Description'];
@@ -167,3 +170,19 @@ window.addEventListener('message',event=>{
 if(embedded&&parent!==window&&expectedParent)parent.postMessage({type:'wonderlang-shop-ready'},expectedParent);
 new ResizeObserver(()=>{if(parent!==window)parent.postMessage({type:'wonderlang-shop-height',height:Math.ceil(document.querySelector('main').getBoundingClientRect().height)+4},expectedParent||'*')}).observe(document.querySelector('main'));
 if(!manualCurrency)fetch('/shop/location.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(x=>{if(!manualCurrency&&x&&Object.hasOwn(prices,x.currency)){currency=x.currency;currencySelect.value=currency;render()}}).catch(()=>{});
+
+let priceRefreshRunning=false,lastPriceRefresh=0;
+async function refreshWebsitePrices(){
+ if(priceRefreshRunning||Date.now()-lastPriceRefresh<60000)return;
+ priceRefreshRunning=true;
+ try{
+  const response=await fetch('/.netlify/functions/website-prices',{cache:'no-store',signal:AbortSignal.timeout(10000)});
+  if(!response.ok)throw Error('Prices unavailable');
+  const data=await response.json();
+  for(const code of Object.keys(prices))if(!Array.isArray(data.prices?.[code])||data.prices[code].length!==3||data.prices[code].some(v=>!Number.isFinite(Number(v))||Number(v)<=0))throw Error('Invalid prices');
+  Object.assign(prices,data.prices);pricesError=false;lastPriceRefresh=Date.now();
+ }catch{pricesError=true;}finally{pricesLoading=false;priceRefreshRunning=false;render();}
+}
+refreshWebsitePrices();window.addEventListener('focus',refreshWebsitePrices);window.addEventListener('online',refreshWebsitePrices);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refreshWebsitePrices();});
+setInterval(refreshWebsitePrices,60000);

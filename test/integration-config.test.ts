@@ -69,7 +69,7 @@ describe("isolated integration configuration", () => {
     expect(admin).toContain("Google Sheets inventory is unavailable");
     expect(admin).toContain("APPROVED REGIONAL PRICES");
     expect(admin).toContain("Mobile Monthly and Polyglot Permanent prices remain managed in Google Play and App Store Connect.");
-    expect(admin).toContain("Premium values are for Stripe");
+    expect(admin).toContain("Current website prices");
   });
 
   it("uses validated per-tab key-inventory thresholds in alerts and the admin UI", () => {
@@ -239,7 +239,7 @@ describe("isolated integration configuration", () => {
     expect(widget).toContain("if (demoMode) return this.demoRequest(path, options)");
     expect(widget).toContain("no real sign-in, purchase, save, or deletion can occur.");
     expect(widget).not.toContain('this.request("/api/v1/checkout"');
-    expect(widget).toContain('href="https://wonderlang.net/"');
+    expect(widget).toContain('href="https://wonderlang.app/"');
     expect(widget).toContain("const ACCOUNT_DELETION_RECOVERY_DAYS = 30;");
     expect(widget).toContain("recoveryDays: ACCOUNT_DELETION_RECOVERY_DAYS");
     expect(widget).not.toContain("recoveryDays: 14");

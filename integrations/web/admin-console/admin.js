@@ -1,3 +1,5 @@
+import websiteDefaultPrices from '../../../catalog/website-prices.json';
+import {currencyFractionDigits} from '../../../src/domain/regional-pricing.ts';
 import { runImportBatches } from "./import-runner.js";
 import {renderVip,bindVip} from './beyond-vip.js';
 import {renderContacts,bindContacts} from './contacts.js';
@@ -153,19 +155,23 @@ const demoInventoryComparison = {
     delta: { available: 0, assigned: 0, total: 0 }, matches: true
   }))
 };
+for(const [index,kind] of ['single','polyglot','premium'].entries()){
+ demoCatalog.regionalPrices[kind]=Object.fromEntries(Object.entries(websiteDefaultPrices).map(([code,values])=>[code,values[index]]));
+ demoCatalog[kind]={stripePriceId:'price_demo_'+kind,unitAmount:Number(websiteDefaultPrices.USD[index])*100,currency:'USD',recurring:false};
+}
 const demoAudit = { entries: [{ id: "audit_demo", actorEmail: "owner@wonderlang.net", action: "catalog.price.change", targetType: "catalog", targetId: "monthly", summary: "Changed monthly price for new checkouts", createdAt: new Date().toISOString() }] };
 const ZERO_DECIMAL_CURRENCIES = new Set(["CLP", "JPY", "KRW", "VND"]);
 
 function minorAmount(currency, majorAmount) {
   const normalizedCurrency = String(currency || "").trim().toUpperCase();
   const value = Number(majorAmount);
-  return Math.round(value * (ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? 1 : 100));
+  return Math.round(value * 10 ** currencyFractionDigits(normalizedCurrency));
 }
 
 function majorAmount(currency, unitAmount) {
   const normalizedCurrency = String(currency || "").trim().toUpperCase();
-  const digits = ZERO_DECIMAL_CURRENCIES.has(normalizedCurrency) ? 0 : 2;
-  return (Number(unitAmount) / (digits === 0 ? 1 : 100)).toFixed(digits);
+  const digits = currencyFractionDigits(normalizedCurrency);
+  return (Number(unitAmount) / 10 ** digits).toFixed(digits);
 }
 
 const views = { overview: "Overview", customers: "Customers", contacts: "Contacts", vip: "Beyond VIP", discounts: "Discount links", sales: "Website sales", experiments: "Website A/B tests", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
@@ -287,15 +293,18 @@ function renderCustomers() {
 }
 
 function renderBilling(data) {
-  const labels = { monthly: "MOBILE MONTHLY", polyglot: "POLYGLOT PERMANENT", premium: "PREMIUM LIFETIME" };
-  const cards = ["monthly", "polyglot", "premium"].map((kind) => { const offer = data[kind]; const channel = kind === "premium" ? `Stripe: ${escapeHtml(offer.stripePriceId)}` : "Managed in Google Play / App Store Connect"; return `<article class="price-card"><p>${labels[kind]}</p><strong>${formatMoney(offer.unitAmount, offer.currency)}</strong><span>${kind === "monthly" ? "per month" : "one time"}</span><small>${channel}</small></article>`; }).join("");
-  const regional = data.regionalPrices || {};
-  const currencies = [...new Set(["USD", ...Object.keys(regional.monthly || {}), ...Object.keys(regional.polyglot || {}), ...Object.keys(regional.premium || {})])].sort((a, b) => a === "USD" ? -1 : b === "USD" ? 1 : a.localeCompare(b));
-  const regionalRows = currencies.map((currency) => [currency, regional.monthly?.[currency] ?? "—", regional.polyglot?.[currency] ?? "—", regional.premium?.[currency] ?? "—"]);
-  return `${pageIntro("BILLING CONTROL", "Storefront prices stay in their proper channel.", "Premium Lifetime is website-only and uses Stripe. Mobile Monthly and Polyglot Permanent are sold natively in Google Play and the App Store.")}
-  <section class="price-grid">${cards}</section><section class="split-grid"><article class="panel form-panel"><header><div><p class="section-kicker">PREMIUM STRIPE PRICE</p><h3>Preview a Premium Lifetime price</h3></div></header><form id="price-form" class="stack-form"><input type="hidden" name="kind" value="premium"><div class="field-row"><label>Amount<input name="amount" inputmode="decimal" required placeholder="59.99"></label><label>Currency<input name="currency" value="USD" maxlength="3" required></label></div><button class="button primary">Preview change</button></form><div id="price-preview"></div></article>
-  <article class="panel policy-card"><header><div><p class="section-kicker">POLICY</p><h3>What changes—and what does not</h3></div></header><ul class="policy-list"><li>This editor changes only the website-only Premium Lifetime Stripe price.</li><li>Mobile Monthly and Polyglot Permanent prices remain managed in Google Play and App Store Connect.</li><li>Only new Premium checkouts use the new price.</li><li>Old Stripe Prices remain available for webhook and refund history.</li><li>Historical Stripe subscriptions remain recognized; they are never silently migrated.</li><li>Historical chapter purchases completed by ${formatDate(data.notes?.legacyChapterUpgradeCutoff || "2026-08-24T23:59:59.999Z")} receive a separate, idempotent Polyglot Permanent grant for their original mobile platform.</li><li>A second typed confirmation is required.</li><li>Test deployments refuse every live Stripe key.</li></ul></article></section>
-  <section class="panel spaced"><header><div><p class="section-kicker">APPROVED REGIONAL PRICES</p><h3>Storefront price reference</h3></div></header><p class="panel-copy">Amounts are shown in major currency units. Monthly and Polyglot values are references for Google Play and App Store Connect; Premium values are for Stripe.</p>${table(["Currency", "Monthly (native)", "Polyglot (native)", "Premium (Stripe)"], regionalRows)}</section>`;
+  const labels={single:'Single Language · PC/Mac',polyglot:'Polyglot · PC/Mac',premium:'Lifetime Pass'};
+  const kinds=Object.keys(labels),regional=data.regionalPrices||{},currencies=Object.keys(regional.premium||{USD:'59.99'});
+  const cards=kinds.map(kind=>{const offer=data[kind];return `<article class="price-card"><p>${labels[kind]}</p><strong>${offer?formatMoney(offer.unitAmount,offer.currency):'—'}</strong><span>one time</span><small>Live website checkout</small></article>`}).join('');
+  return `${pageIntro('BILLING CONTROL','Edit website prices.','Change desktop product prices and Lifetime Pass prices. The website and demo load these prices automatically.')}
+  <section class="price-grid">${cards}</section><section class="panel form-panel"><h3>Preview a price change</h3>
+  <form id="price-form" class="stack-form"><label>Product<select name="kind">${kinds.map(k=>`<option value="${k}">${labels[k]}</option>`).join('')}</select></label>
+  <label>Change method<select name="mode" id="price-mode"><option value="amount">Set one currency price</option><option value="percent">Adjust all currencies by a percentage</option></select></label>
+  <div id="price-amount-fields" class="field-row"><label>Amount<input name="amount" inputmode="decimal" required></label><label>Currency<select name="currency">${currencies.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select></label></div>
+  <label id="price-percent-field" hidden>Percentage change<input name="percentChange" type="number" min="-99.99" max="1000" step="0.01" disabled placeholder="-10 or 10"><small>Use -10 to reduce every currency price by 10%, or 10 to increase it by 10%. Prices are rounded to the precision supported by Stripe.</small></label>
+  <button class="button primary">Preview change</button></form><div id="price-preview"></div></section>
+  <section class="panel spaced"><h3>How changes apply</h3><p>Changes apply to new website and demo checkouts, including newsletter links and public sales. Discounts apply to the updated base price. Open Stripe checkouts retain their quoted price. This is a permanent base-price change; use Sales for temporary promotions.</p><p>Mobile Monthly and Polyglot Permanent prices remain managed in Google Play and App Store Connect. Mobile website offers are unchanged by this editor.</p><p>Historical chapter purchases completed by the existing migration cutoff retain their import-only upgrade rules.</p></section>
+  <section class="panel spaced"><p class="section-kicker">APPROVED REGIONAL PRICES</p><h3>Current website prices</h3>${table(['Currency',...kinds.map(k=>labels[k])],currencies.map(c=>[c,...kinds.map(k=>regional[k]?.[c]??'—')]))}</section>`;
 }
 
 function renderImports(data = {}) {
@@ -527,33 +536,21 @@ function demoApi(path, options) {
   if (path.includes("inventory")) return demoInventory;
   if (path.includes("audit")) return demoAudit;
   if (path.includes("session")) return { actor: { uid: "demo_admin", email: state.user.email }, providers: ["google.com"], capabilities: Object.keys(views), controls: { APP_ENVIRONMENT: "test", STRIPE_WEBHOOKS_ENABLED: false, GOOGLE_PLAY_WEBHOOKS_ENABLED: false, APPLE_WEBHOOKS_ENABLED: false, OUTBOX_PROCESSING_ENABLED: false, AD_CONVERSIONS_ENABLED: false, LEGACY_FULFILLMENT_ENABLED: false, SUBSCRIPTION_CANCELLATION_ENABLED: false, ACCOUNT_DELETION_PROCESSING_ENABLED: false, STRIPE_MUTATIONS_ENABLED: false, APP_CHECK_ENFORCEMENT_ENABLED: false, SUBSCRIPTION_RECONCILIATION_ENABLED: false, CLOUD_STORAGE_MONITORING_ENABLED: false, CLOUD_SAVE_CLEANUP_ENABLED: false, DEVICE_SIGN_IN_ENABLED: false, DEVICE_SIGN_IN_CLEANUP_ENABLED: false, ADMIN_BOOTSTRAP_ENABLED: false } };
-  if (path.includes("price-preview")) {
-    const kind = String(options.body?.kind || "monthly").toLowerCase();
-    const currency = String(options.body?.currency || "USD").toUpperCase();
-    const unitAmount = Number(options.body?.unitAmount);
-    return {
-      previewId: crypto.randomUUID(),
-      kind,
-      unitAmount,
-      currency,
-      confirmationPhrase: `CHANGE ${kind.toUpperCase()} TO ${majorAmount(currency, unitAmount)} ${currency}`,
-      warning: "Existing subscribers keep their current price."
-    };
+  if(path.includes('price-preview')){
+    const {kind,percentChange,unitAmount,currency}=options.body;
+    const current=demoCatalog.regionalPrices[kind];
+    const proposed={...current};
+    if(percentChange!==undefined){for(const [code,value] of Object.entries(current))proposed[code]=majorAmount(code,Math.round(minorAmount(code,value)*(1+percentChange/100)/(code==='KWD'?10:1))*(code==='KWD'?10:1));}
+    else proposed[currency]=majorAmount(currency,unitAmount);
+    return {previewId:crypto.randomUUID(),kind,proposed,changes:Object.keys(current).filter(code=>current[code]!==proposed[code]).map(currency=>({currency,before:current[currency],after:proposed[currency]})),confirmationPhrase:percentChange!==undefined?`CHANGE ${kind.toUpperCase()} BY ${percentChange}%`:`CHANGE ${kind.toUpperCase()} TO ${majorAmount(currency,unitAmount)} ${currency}`,warning:'Preview mode: these changes affect simulated prices only.'};
   }
-  if (path.includes("price-commit")) {
-    const preview = demoConfirmed(options, state.previews.price);
-    const kind = preview.kind;
-    if (!demoCatalog[kind]) throw new Error("Unknown demo catalog offer.");
-    demoCatalog.regionalPrices[kind][preview.currency] = majorAmount(preview.currency, preview.unitAmount);
-    demoCatalog[kind] = {
-      ...demoCatalog[kind],
-      unitAmount: minorAmount("USD", demoCatalog.regionalPrices[kind].USD),
-      currency: "USD",
-      stripePriceId: `price_demo_${crypto.randomUUID()}`
-    };
-    demoCatalog.revision += 1;
-    addDemoAudit("catalog.price.change", "catalog", kind, `Changed demo ${kind} price for new checkouts`);
-    return demoCatalog[kind];
+  if(path.includes('price-commit')){
+    const preview=demoConfirmed(options,state.previews.price);
+    demoCatalog.regionalPrices[preview.kind]=preview.proposed;
+    demoCatalog[preview.kind].unitAmount=minorAmount('USD',preview.proposed.USD);
+    demoCatalog.revision++;
+    addDemoAudit('catalog.price.change','catalog',preview.kind,'Changed simulated website prices');
+    return demoCatalog;
   }
   if (path.includes("refunds/preview")) {
     const requestedAmount = Number(options.body?.amount);
@@ -844,6 +841,15 @@ function bindView() {
   }));
   document.querySelectorAll("[data-refund]").forEach((b) => b.addEventListener("click", () => refundFlow(b)));
   document.querySelector("#price-form")?.addEventListener("submit", priceFlow);
+  for(const eventName of ['input','change'])document.querySelector('#price-form')?.addEventListener(eventName,()=>document.querySelector('#price-preview').replaceChildren());
+  document.querySelector('#price-mode')?.addEventListener('change',event=>{
+    const percent=event.target.value==='percent';
+    document.querySelector('#price-amount-fields').hidden=percent;
+    document.querySelector('#price-percent-field').hidden=!percent;
+    for(const name of ['amount','currency']){const input=document.querySelector(`#price-form [name="${name}"]`);input.disabled=percent;input.required=!percent;}
+    const input=document.querySelector('#price-form [name="percentChange"]');input.disabled=!percent;input.required=percent;
+    document.querySelector('#price-preview').replaceChildren();
+  });
   document.querySelector("#import-form")?.addEventListener("submit", importFlow);
   document.querySelectorAll("[data-resume-import]").forEach(button => button.addEventListener("click", () => {
     const job = state.importJobs.find(j => j.previewId === button.dataset.resumeImport);
@@ -953,9 +959,17 @@ function bindView() {
 }
 
 async function priceFlow(event) {
-  event.preventDefault(); const f = new FormData(event.currentTarget); const currency = String(f.get("currency")).toUpperCase(); const amount = minorAmount(currency, f.get("amount"));
-  try { const p = await api("/admin-api/v1/catalog/price-preview", { method: "POST", body: { kind: f.get("kind"), unitAmount: amount, currency } }); state.previews.price = p; document.querySelector("#price-preview").innerHTML = confirmPanel("Price preview", p.warning, p.confirmationPhrase, "confirm-price"); toast("Price preview ready."); document.querySelector("#confirm-price").addEventListener("submit", async (e) => { e.preventDefault(); const phrase = new FormData(e.currentTarget).get("phrase"); if (await mutate("/admin-api/v1/catalog/price-commit", { previewId: p.previewId, confirmationPhrase: phrase }, "Price changed for new checkouts.")) loadView("billing"); }); } catch (error) { toast(error.message, true); }
+ event.preventDefault();
+ const form=event.currentTarget,f=new FormData(form),button=form.querySelector('button');button.disabled=true;
+ try {
+  const currency=String(f.get('currency')||'USD').toUpperCase();
+  const body=f.get('mode')==='percent'?{kind:f.get('kind'),percentChange:Number(f.get('percentChange'))}:{kind:f.get('kind'),currency,unitAmount:minorAmount(currency,f.get('amount'))};
+  const p=await api('/admin-api/v1/catalog/price-preview',{method:'POST',body});state.previews.price=p;
+  document.querySelector('#price-preview').innerHTML=table(['Currency','Current price','New price','Difference'],(p.changes||[]).map(c=>{const delta=minorAmount(c.currency,c.after)-minorAmount(c.currency,c.before);return [c.currency,formatMoney(minorAmount(c.currency,c.before),c.currency),formatMoney(minorAmount(c.currency,c.after),c.currency),(delta>0?'+':'')+formatMoney(delta,c.currency)]}))+confirmPanel('Price preview',p.warning,p.confirmationPhrase,'confirm-price');
+  document.querySelector('#confirm-price').addEventListener('submit',async e=>{e.preventDefault();const phrase=new FormData(e.currentTarget).get('phrase');if(await mutate('/admin-api/v1/catalog/price-commit',{previewId:p.previewId,confirmationPhrase:phrase},'Prices changed for new checkouts.'))loadView('billing');});
+ }catch(error){toast(error.message,true);}finally{button.disabled=false;}
 }
+
 async function refundFlow(button) {
   const currencyCode = String(button.dataset.currency || "USD").toUpperCase();
   const currency = escapeHtml(currencyCode);

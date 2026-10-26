@@ -1,3 +1,4 @@
+import {WebsiteCatalogService} from '../../catalog/website-service.js';
 import { createHash } from "node:crypto";
 import { validEnrollment,recordExperiment } from '../../analytics/website-experiments.js';
 import type Stripe from "stripe";
@@ -94,14 +95,15 @@ export async function startWebsiteCheckout(store:EntitlementStore,request:Websit
   // Apply only to new checkouts; historical paid iOS orders remain claimable.
   if(request.offer.startsWith('mobile_') && request.mobilePlatform==='ios')throw new HttpError(410,'This mobile platform is not available for purchase yet.');
   if(!/^[A-Za-z0-9_-]{43}$/.test(claimSecret))throw new HttpError(400,'Invalid purchase recovery secret.');
-  const priceId=websitePriceId(request.offer);
+  const liveCatalog=request.offer.startsWith('mobile_')?null:await new WebsiteCatalogService(store.firestore()).get();
+  const priceId=request.offer.startsWith('mobile_')?websitePriceId(request.offer):liveCatalog!.priceIds[request.offer as 'single'|'polyglot'|'premium'];
   if(!priceId)throw new HttpError(503,'This website offer is not configured.');
   const stripe=stripeClient(),origin=websiteStripeConfiguration().origin;
   const campaigns=request.campaignId?new DiscountLinks(store.firestore(),stripe,origin):null;
   const campaign=campaigns?discountForOffer(await campaigns.get(request.campaignId!),request.offer):null;
   if(campaign) {assertDiscountAvailable(campaign,new Date(),request);await campaigns!.assertPublished(campaign);}
   const price=await stripe.prices.retrieve(priceId,{expand:['currency_options']});
-  assertWebsitePrice(price,request,true);
+  assertWebsitePrice(price,request,true,liveCatalog?.prices);
   const enrollment=request.experimentToken?await validEnrollment(store.firestore(),request.experimentToken):null;
   const conversionToken=digest('wonderlang-conversion-v1:'+claimSecret);
   const quote:Quote={request,priceId,claimHash:digest(claimSecret),conversionTokenHash:digest(conversionToken),createdAt:new Date().toISOString(),...(request.experimentToken?{experimentToken:enrollment?.events?.exposure?request.experimentToken:null}:{})};

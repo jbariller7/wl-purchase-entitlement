@@ -1,7 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type Stripe from "stripe";
 import { randomUUID } from "node:crypto";
-import { CatalogService, type CatalogOfferKind } from "../catalog/service.js";
+import { WebsiteCatalogService, assertDesktopKind, proposedWebsitePrices, type DesktopKind } from "../catalog/website-service.js";
 import { deploymentControls } from "../config/env.js";
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { stripeClient } from "../providers/stripe/client.js";
@@ -10,7 +10,7 @@ import { ownedWebsitePayment } from '../providers/stripe/website-admin-payments.
 import { recordAdminAudit, type AdminActor } from "./audit.js";
 import { HttpError } from "../http/auth.js";
 import { LEGACY_CHAPTER_FULL_UPGRADE_CUTOFF } from "../domain/catalog.js";
-import { stripeMajorAmount } from "../domain/regional-pricing.js";
+import { stripeMajorAmount, stripeMinorAmount } from "../domain/regional-pricing.js";
 import { safeErrorMessage } from "../infrastructure/safe-error.js";
 
 type RefundReason = "duplicate" | "fraudulent" | "requested_by_customer";
@@ -19,15 +19,11 @@ function phraseAmount(amount: number, currency: string): string {
   return `${stripeMajorAmount(currency, amount)} ${currency.toUpperCase()}`;
 }
 
-export function priceChangeConfirmationPhrase(kind: CatalogOfferKind, unitAmount: number, currency: string): string {
+export function priceChangeConfirmationPhrase(kind: DesktopKind, unitAmount: number, currency: string): string {
   return `CHANGE ${kind.toUpperCase()} TO ${phraseAmount(unitAmount, currency)}`;
 }
 
-export function assertWebsiteStripePriceKind(kind: CatalogOfferKind): asserts kind is "premium" {
-  if (kind !== "premium") {
-    throw new HttpError(400, "Mobile Monthly and Polyglot Permanent prices are managed in Google Play and App Store Connect. Only the website-only Premium Lifetime Stripe price can be changed here.");
-  }
-}
+export function assertWebsiteStripePriceKind(kind: string): asserts kind is DesktopKind { assertDesktopKind(kind); }
 
 async function chargeForPaymentIntent(payment: Stripe.PaymentIntent, client:Stripe = stripeClient()): Promise<Stripe.Charge> {
   const charge = payment.latest_charge;
@@ -36,16 +32,16 @@ async function chargeForPaymentIntent(payment: Stripe.PaymentIntent, client:Stri
 }
 
 export class AdminBillingService {
-  private readonly catalog: CatalogService;
+  private readonly catalog: WebsiteCatalogService;
   private readonly store: EntitlementStore;
 
   constructor(private readonly db: Firestore) {
-    this.catalog = new CatalogService(db);
+    this.catalog = new WebsiteCatalogService(db);
     this.store = new EntitlementStore(db);
   }
 
   async catalogStatus(): Promise<Record<string, unknown>> {
-    const catalog = await this.catalog.get();
+    const catalog = await this.catalog.status();
     return {
       ...catalog,
       notes: {
@@ -59,30 +55,29 @@ export class AdminBillingService {
 
   async previewPriceChange(input: {
     actor: AdminActor;
-    kind: CatalogOfferKind;
-    unitAmount: number;
-    currency: string;
+    kind: DesktopKind;
+    unitAmount?: number;
+    currency?: string;
+    percentChange?: number;
     now: Date;
   }): Promise<Record<string, unknown>> {
     assertWebsiteStripePriceKind(input.kind);
-    if (!Number.isSafeInteger(input.unitAmount) || input.unitAmount < 1 || input.unitAmount > 100_000_000) {
-      throw new HttpError(400, "Enter a valid positive Stripe price amount.");
-    }
-    const currency = input.currency.trim().toUpperCase();
-    if (!/^[A-Z]{3}$/.test(currency)) throw new HttpError(400, "Currency must be a three-letter ISO code.");
-    const catalog = await this.catalog.get();
-    const current = catalog[input.kind];
-    if (current.unitAmount === input.unitAmount && current.currency === currency) throw new HttpError(409, "The proposed price is already active.");
-    const id = randomUUID();
-    const confirmationPhrase = priceChangeConfirmationPhrase(input.kind, input.unitAmount, currency);
+    const live = await this.catalog.get();
+    const currency=input.currency?.toUpperCase();
+    const proposedPrices = proposedWebsitePrices(live.prices,input.kind,input);
+    const current = Object.fromEntries(Object.entries(live.prices).map(([code,amounts])=>[code,amounts[['single','polyglot','premium'].indexOf(input.kind)]!]));
+    const changes=Object.entries(proposedPrices).filter(([code])=>input.percentChange!==undefined||code===currency).map(([currency,amount])=>({currency,before:current[currency],after:amount}));
+    if(!changes.some(c=>stripeMinorAmount(c.currency,c.before!)!==stripeMinorAmount(c.currency,c.after)))throw new HttpError(409,'These prices are already active after currency rounding.');
+    const id=randomUUID();
+    const confirmationPhrase=input.percentChange!==undefined?`CHANGE ${input.kind.toUpperCase()} BY ${input.percentChange}%`:priceChangeConfirmationPhrase(input.kind,input.unitAmount!,currency!);
     const expiresAt = new Date(input.now.getTime() + 15 * 60 * 1000);
     await this.db.collection("adminPricePreviews").doc(id).create({
       id,
       actorUid: input.actor.uid,
       kind: input.kind,
-      unitAmount: input.unitAmount,
-      currency,
-      expectedRevision: catalog.revision,
+      ...(input.percentChange!==undefined?{percentChange:input.percentChange}:{unitAmount:input.unitAmount,currency}),
+      expectedRevision: live.revision,
+      catalogSource: "website",
       current,
       confirmationPhrase,
       state: "preview",
@@ -93,22 +88,23 @@ export class AdminBillingService {
       previewId: id,
       kind: input.kind,
       current,
-      proposed: { unitAmount: input.unitAmount, currency, recurring: false },
+      proposed: proposedPrices,
+      changes,
       confirmationPhrase,
       expiresAt: expiresAt.toISOString(),
       affectsExistingSubscriptions: false,
-      warning: "Stripe prices are immutable. Confirming creates a new Premium Lifetime Price for future website checkouts; historical prices and subscriptions remain unchanged."
+      warning: "Confirming updates the listed prices for this product for new website and demo checkouts, including sale links. Unlisted currencies, mobile products, open checkouts and past purchases remain unchanged."
     };
   }
 
   async commitPriceChange(input: { actor: AdminActor; previewId: string; confirmationPhrase: string; now: Date }): Promise<Record<string, unknown>> {
-    if (!deploymentControls().STRIPE_MUTATIONS_ENABLED) throw new HttpError(409, "Stripe mutations are disabled for this deployment.");
     const ref = this.db.collection("adminPricePreviews").doc(input.previewId);
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
       if (!snapshot.exists) throw new HttpError(404, "Price preview not found.");
       const data = snapshot.data() as Record<string, unknown>;
-      assertWebsiteStripePriceKind(data.kind as CatalogOfferKind);
+      assertWebsiteStripePriceKind(data.kind as DesktopKind);
+      if(data.catalogSource!=="website")throw new HttpError(409,"Create a new preview for the live website catalogue.");
       if (data.actorUid !== input.actor.uid) throw new HttpError(403, "This preview belongs to another administrator.");
       if (data.state === "complete") return data;
       if (data.state !== "preview") throw new HttpError(409, "This price change is already processing.");
@@ -120,9 +116,8 @@ export class AdminBillingService {
     if (preview.state === "complete") return preview.result as Record<string, unknown>;
     try {
       const result = await this.catalog.changePrice({
-        kind: preview.kind as CatalogOfferKind,
-        unitAmount: Number(preview.unitAmount),
-        currency: String(preview.currency),
+        kind: preview.kind as DesktopKind,
+        ...(preview.percentChange!==undefined?{percentChange:Number(preview.percentChange)}:{unitAmount:Number(preview.unitAmount),currency:String(preview.currency)}),
         expectedRevision: Number(preview.expectedRevision),
         actorUid: input.actor.uid,
         now: input.now
@@ -130,7 +125,7 @@ export class AdminBillingService {
       await ref.update({ state: "complete", completedAt: new Date().toISOString(), result });
       await recordAdminAudit({
         db: this.db, actor: input.actor, action: "catalog.price.change", targetType: "catalog", targetId: String(preview.kind),
-        summary: `Changed ${preview.kind} price for new checkouts`, metadata: { unitAmount: preview.unitAmount, currency: preview.currency, revision: result.revision }, now: input.now
+        summary: `Changed ${preview.kind} price for new checkouts`, metadata: { ...(preview.percentChange!==undefined?{percentChange:preview.percentChange}:{unitAmount:preview.unitAmount,currency:preview.currency}), revision: result.revision }, now: input.now
       });
       return result as unknown as Record<string, unknown>;
     } catch (error) {

@@ -102,7 +102,7 @@ describe("customer interface route contract", () => {
   });
 
   it("links to the main website instead of offering account-page checkout while retaining provider support", () => {
-    expect(account).toContain('href="https://wonderlang.net/"');
+    expect(account).toContain('href="https://wonderlang.app/"');
     expect(account).not.toContain('data-action="premium"');
     expect(account).not.toContain('data-action="monthly"');
     expect(account).not.toContain('data-action="polyglot"');
@@ -247,12 +247,13 @@ describe("administrator interface route contract", () => {
     expect(read("netlify/functions/admin-api.ts")).toContain("await keyInventoryDiagnostic.inventory(now)");
   });
 
-  it("limits the working Stripe price editor to Premium and labels mobile prices as native", () => {
-    expect(admin).toContain('<input type="hidden" name="kind" value="premium">');
+  it("allows desktop website products while keeping mobile pricing outside the editor", () => {
+    expect(admin).toContain('Single Language · PC/Mac');
+    expect(admin).toContain('Adjust all currencies by a percentage');
     expect(admin).not.toContain('<option value="monthly">Mobile Monthly</option>');
     expect(admin).not.toContain('<option value="polyglot">Polyglot Permanent Access</option>');
-    expect(admin).toContain("Managed in Google Play / App Store Connect");
-    expect(api).toContain('kind: z.literal("premium")');
+    expect(admin).toContain("Mobile website offers are unchanged by this editor");
+    expect(api).toContain('kind:z.enum(["single", "polyglot", "premium"])');
   });
 
   it("offers only current products for new manual grants while keeping historical chapters import-only", () => {

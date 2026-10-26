@@ -176,7 +176,7 @@ describe("new checkout product contract", () => {
 
   it("allows Admin Stripe price mutations only for website-only Premium", () => {
     expect(() => assertWebsiteStripePriceKind("monthly")).toThrow(/managed in Google Play and App Store Connect/i);
-    expect(() => assertWebsiteStripePriceKind("polyglot")).toThrow(/managed in Google Play and App Store Connect/i);
+    expect(() => assertWebsiteStripePriceKind("polyglot")).not.toThrow();
     expect(() => assertWebsiteStripePriceKind("premium")).not.toThrow();
   });
 });

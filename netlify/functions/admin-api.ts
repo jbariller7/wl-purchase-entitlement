@@ -42,11 +42,10 @@ const grantSchema = z.object({
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["mobilePlatform"], message: "Choose Android or iOS." });
   }
 });
-const pricePreviewSchema = z.object({
-  kind: z.literal("premium"),
-  unitAmount: z.number().int().min(1).max(100_000_000),
-  currency: z.string().trim().length(3)
-});
+const pricePreviewSchema = z.union([
+ z.object({kind:z.enum(["single", "polyglot", "premium"]),unitAmount:z.number().int().min(1).max(100_000_000),currency:z.string().trim().length(3)}).strict(),
+ z.object({kind:z.enum(["single", "polyglot", "premium"]),percentChange:z.number().gt(-100).max(1000)}).strict()
+]);
 const commitSchema = z.object({ previewId: z.string().uuid(), confirmationPhrase: confirmation });
 const refundPreviewSchema = z.object({
   websitePayment: z.boolean().optional(),

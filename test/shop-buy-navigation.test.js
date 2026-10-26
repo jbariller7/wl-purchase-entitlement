@@ -28,12 +28,12 @@ async function shop(extra=''){
   before(node){nodes.set(node.id,node)}
  }
  for(const key of ['language','currency','heading','language-label','currency-label','offers','status'])nodes.set(key,new Element());
- const context=vm.createContext({locales,prices,ui,mobile,discountText,countdownUnits,metaAttribution,addAttribution,browserMetaAttribution:()=>({}),marketingAllowed:()=>true,ensureShopMetaContext:async()=>({}),remainingSaleTime,REGIONAL_PRICES,stripeMinorAmount,currencyFractionDigits,URL,URLSearchParams,Intl,AbortController,setTimeout,clearTimeout,setInterval(){},
+ const context=vm.createContext({locales,prices,ui,mobile,discountText,countdownUnits,metaAttribution,addAttribution,browserMetaAttribution:()=>({}),marketingAllowed:()=>true,ensureShopMetaContext:async()=>({}),remainingSaleTime,REGIONAL_PRICES,stripeMinorAmount,currencyFractionDigits,URL,URLSearchParams,Intl,AbortController,AbortSignal,setTimeout,clearTimeout,setInterval(){},
   location:{search:'?lang=fr&currency=EUR'+extra},navigator:{language:'fr-FR'},
   document:{addEventListener(){},querySelectorAll:()=>[],documentElement:{classList:{toggle(){}}},createElement:()=>new Element(),getElementById:id=>nodes.get(id),querySelector:()=>new Element()},
   Option:class{constructor(text,value){this.text=text;this.value=value}},
   window:{addEventListener(){}},parent:{},ResizeObserver:class{observe(){}},
-  fetch:url=>{requests.push(url);return Promise.reject(new Error('Unavailable'))}
+  fetch:url=>{requests.push(url);return url.includes('website-prices')?Promise.resolve({ok:true,json:async()=>({prices:structuredClone(prices)})}):Promise.reject(new Error('Unavailable'))}
  });
  const source=readFileSync(new URL('../integrations/web/shop/shop.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'');
  const refreshSource=readFileSync(new URL('../integrations/web/shop/sales-refresh.js',import.meta.url),'utf8').replace('export function','function');
@@ -51,7 +51,7 @@ describe('shop Buy navigation',()=>{
    expect(new URL(button.href,'https://example.com').searchParams.get('currency')).toBe('EUR');
   }
   expect(nodes.get('status').textContent).toBe('');
-  expect(requests).toEqual(['/.netlify/functions/website-discount?placement=website']);
+  expect(requests).toEqual(['/.netlify/functions/website-discount?placement=website','/.netlify/functions/website-prices']);
  });
  it('preserves mobile platform and product selection in the checkout request',async()=>{
   const {nodes}=await shop();nodes.get('platform-tabs').children[1].onclick();

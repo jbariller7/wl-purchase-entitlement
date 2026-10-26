@@ -246,3 +246,5 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
 .contact-inbox-message{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;padding:16px;background:#f7f5fb;border-radius:8px}.contact-inbox-row summary{cursor:pointer;overflow-wrap:anywhere}.contact-inbox-row[hidden]{display:none}
 
 .contact-inbox{padding:26px}.contact-inbox>label{display:inline-flex;align-items:center;gap:10px;margin:0 20px 22px 0;flex-wrap:wrap}.contact-inbox input,.contact-inbox select{font:inherit;padding:9px 12px;border:1px solid #cdd8d0;border-radius:8px;background:white}.contact-inbox-row{padding:18px;margin:14px 0}.contact-inbox-row summary{line-height:1.8}
+
+#price-amount-fields[hidden], #price-percent-field[hidden] { display: none !important; }
