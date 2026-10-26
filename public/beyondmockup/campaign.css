@@ -88,3 +88,6 @@ footer .footer-reserve{display:block;width:calc(100% - 36px);max-width:370px;mar
 .campaign-preview .preview-button:hover{transform:translateY(-2px);box-shadow:0 7px 18px #56347324}
 @media(max-width:600px){.preview-actions{grid-template-columns:1fr;gap:12px}.campaign-preview .preview-button{min-height:80px}.preview-button>span{font-size:18px}}
 @media(prefers-reduced-motion:reduce){.campaign-preview .preview-button{transition:none}.campaign-preview .preview-button:hover{transform:none}}
+
+/* Extra license add-ons */
+.license-addons{margin:48px 0;padding-top:28px;border-top:1px solid #e6dced}.license-addon-list{margin:24px 0;max-width:620px}.license-addon-list h3{margin:24px 0 8px;color:#543d70}.license-addon-row{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid #ece5ef;padding:10px 0;margin:0!important}.license-addon-row strong{font-size:1.2em;white-space:nowrap}
