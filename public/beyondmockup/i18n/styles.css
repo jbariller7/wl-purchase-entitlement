@@ -46,3 +46,9 @@ html[lang="ar"] video::cue{font-family:Tahoma,Arial,sans-serif}
 .beyond-newsletter .ml-server-error,.beyond-newsletter .ml-field-error-message{color:#9d303b;font-size:15px;line-height:1.5;margin-top:8px}
 .beyond-newsletter .ml-error input{border-color:#9d303b}
 @media(max-width:600px){.beyond-newsletter{padding:21px 18px;border-radius:16px}.beyond-newsletter h2{font-size:24px}.newsletter-heading{align-items:flex-start;gap:12px}.newsletter-heading img{width:40px;height:40px}.newsletter-input-row{display:block}.newsletter-input-row .ml-form-embedSubmit{margin-top:10px}.newsletter-input-row button{width:100%}}
+
+/* Keep signup copy compact inside the story typography. */
+#story .beyond-newsletter .newsletter-heading p{font-size:17px;line-height:1.5;margin:5px 0 0}
+#story .beyond-newsletter .newsletter-note{font-size:13px;line-height:1.5;margin:12px 0 0}
+#story .beyond-newsletter .row-success h3{font-size:22px;margin:0 0 8px}
+#story .beyond-newsletter .row-success p{margin:0;font-size:17px;line-height:1.5}

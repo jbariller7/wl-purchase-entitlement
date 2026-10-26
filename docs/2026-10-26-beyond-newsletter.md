@@ -11,3 +11,11 @@ CSP permits only the MailerLite script/dependency/subscribe hosts needed by the 
 Source templates and manually authored strings: `work/beyondmockup/localization/newsletter.html` and `newsletter.json` in the Project1 workspace. They are added by `build.py`, without renumbering the existing source keys. Controller: `public/beyondmockup/newsletter.js`.
 
 Validation: actual vendor runtime with intercepted responses; all 18 languages at 1440/390px; all three placements; unique IDs; invalid-email prevention; one confirmed signup updates all placements; network and field-error responses never show success. Twenty mocked submissions, zero real subscriptions or Meta events.
+
+## Signup source and ad fields
+
+The user confirmed existing MailerLite custom fields `utm_source`, `utm_medium`, `utm_campaign`, and `page_source`. The shared `public/newsletter-attribution.js` fills `fields[...]` using MailerLite's form serialization. Beyond uses `page_source=beyond`; the main site uses `page_source=site`. Template hidden inputs preserve page source without JavaScript. Public copies of older A/B designs also receive the shared script on production build.
+
+UTMs come from the actual URL, with a 30-minute same-tab session cache for navigation. A new campaign replaces the previous tuple rather than mixing fields. Missing UTMs are omitted, preserving existing subscriber data. Explicit measurement refusal, Meta opt-out, global privacy control, or withdrawn marketing consent suppress and clear UTMs. Page source remains an operational signup label. No Facebook identifiers, email addresses, or new conversion events are stored by this helper.
+
+Validated 13 intercepted submissions using the actual MailerLite runtime: both sites, all three Beyond forms, Unicode campaign names, navigation, campaign changes, missing fields, opt-outs, expiry, and blocked storage. Zero real subscriptions. This verifies outgoing provider payloads; no real subscriber profile was created/read to confirm storage in the MailerLite account.

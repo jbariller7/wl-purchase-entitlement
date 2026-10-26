@@ -15,7 +15,15 @@ export function seo(slug,lang,title,description){
  return `<link rel="canonical" href="${canonical(slug,lang)}">${languages.map(l=>`<link rel="alternate" hreflang="${l}" href="${canonical(slug,l)}">`).join('')}<link rel="alternate" hreflang="x-default" href="${canonical(slug,'en')}"><meta property="og:type" content="website"><meta property="og:site_name" content="WonderLang"><meta property="og:title" content="${escape(title)}"><meta property="og:description" content="${escape(description)}"><meta property="og:url" content="${canonical(slug,lang)}"><meta property="og:image" content="${origin}/assets/snow.webp"><meta name="twitter:card" content="summary_large_image">`;
 }
 // The old A/B snapshots remain untouched. Only public copies receive new paths.
-export function publicCopy(text){return text.replaceAll('/testsite/','/');}
+export function publicCopy(text){
+ let result=text.replaceAll('/testsite/','/');
+ // Existing A/B designs can still be selected by the admin. Give their public
+ // copies the same signup attribution without changing the archived designs.
+ if(result.includes('</head>')&&result.includes('ml-subscribe-form')&&!result.includes('/newsletter-attribution.js')){
+  result=result.replace('</head>','<script defer src="/newsletter-attribution.js?v=20261026"></script></head>');
+ }
+ return result;
+}
 export function launchBlockers(){
  const blockers=[];
  if(policy.status!=='approved'||/\[Before publication:/.test(JSON.stringify(policy.en)))blockers.push('The privacy policy is still a draft with unresolved publication notes.');
