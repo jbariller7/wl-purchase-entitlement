@@ -16,7 +16,13 @@ export function seo(slug,lang,title,description){
 }
 // The old A/B snapshots remain untouched. Only public copies receive new paths.
 export function publicCopy(text){
- let result=text.replaceAll('/testsite/','/');
+ let result=text.replaceAll('/testsite/','/').replaceAll('22154858','47615861').replaceAll('144956028970075999','202396171826627602');
+ result=result.replace(/(?:\/versions\/page-[a-f0-9]+)?\/assets\/(gameplay-(?:sentences|vocabulary))\.gif/g,'/assets/$1.webp');
+ // Apply the media improvement to public copies of existing A/B builds too.
+ result=result.replace(/([\w$]+)\.src=[\w$]+\+"gameplay-"\+([\w$]+)\+"\.gif",\1\.alt=([^,]+),\1\.loading="lazy",\1\.width=([^,]+),\1\.height=([^,]+),/g,'$1=window.wlCreateGameplayLoop($2,$3,$4,$5),');
+ result=result.replaceAll('.gameplay-motion img','.gameplay-motion :is(img,video)').replaceAll('.gameplay-reverse img','.gameplay-reverse :is(img,video)');
+ if(result.includes('.gameplay-motion{')&&!result.includes('</head>')&&!result.includes('video.gameplay-loop'))result+='\nvideo.gameplay-loop{height:auto}\n';
+ if(result.includes('<head>')&&!result.includes('/site-media.js'))result=result.replace('<head>','<head><script defer src="/site-media.js?v=20261026"></script>');
  // Existing A/B designs can still be selected by the admin. Give their public
  // copies the same signup attribution without changing the archived designs.
  if(result.includes('</head>')&&result.includes('ml-subscribe-form')&&!result.includes('/newsletter-attribution.js')){

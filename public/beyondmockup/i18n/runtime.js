@@ -32,12 +32,24 @@
   const units = [...document.querySelectorAll('[data-i18n]')].map(node => ({node, key: node.dataset.i18n, original: node.innerHTML}));
   const attributes = ['alt', 'aria-label', 'title', 'placeholder', 'content'];
   const attrs = attributes.flatMap(attr => [...document.querySelectorAll(`[data-i18n-${attr}]`)].map(node => ({node, attr, key: node.getAttribute(`data-i18n-${attr}`), original: node.getAttribute(attr)})));
-  const images = [...document.querySelectorAll('img[src]')].map(node => ({node, original: node.getAttribute('src')}));
+  const images = [...document.querySelectorAll('img[src],img[data-asset-key]')].map(node => ({node, original: node.dataset.defaultSrc || node.getAttribute('src'), key: node.dataset.assetKey || node.getAttribute('src').split('?')[0], srcset: node.dataset.defaultSrcset || node.getAttribute('srcset') || ''}));
   const applyCaptions = lang => {
     document.querySelectorAll('video[data-subtitles]').forEach(video => {
-      for (const track of video.textTracks) track.mode = track.language === lang ? 'showing' : 'disabled';
+      let track=video.querySelector('track');
+      if(track?.srclang===lang){track.track.mode='showing';return;}
+      video.querySelectorAll('track').forEach(old=>old.remove());
+      track=document.createElement('track');track.kind='subtitles';track.srclang=lang;
+      track.label=options.get(lang)||lang;
+      track.src=`i18n/subtitles/${video.dataset.subtitlePrefix||''}${lang}.vtt?v=${config.version}`;
+      video.append(track);track.track.mode='showing';
     });
   };
+  function restoreDefaultImages(){
+    for(const image of images) if(!image.node.getAttribute('src')){
+      if(image.srcset)image.node.setAttribute('srcset',image.srcset);
+      image.node.src=image.original;
+    }
+  }
   async function changeLanguage(lang, userInitiated = false) {
     const request = ++sequence;
     select.disabled = true;
@@ -54,8 +66,13 @@
       for (const unit of units) unit.node.innerHTML = bundle.text[unit.key];
       for (const unit of attrs) unit.node.setAttribute(unit.attr, bundle.text[unit.key]);
       for (const image of images) {
-        const path = image.original.split('?')[0];
-        image.node.src = bundle.assets?.[path] || image.original;
+        const path = image.key;
+        const asset = bundle.responsiveAssets?.[path];
+        const srcset = asset?.srcset || image.srcset;
+        if(srcset) image.node.setAttribute('srcset',srcset);
+        else image.node.removeAttribute('srcset');
+        image.node.src = asset?.src || bundle.assets?.[path] || image.original;
+        if(asset){image.node.width=asset.width;image.node.height=asset.height;}
       }
       document.documentElement.lang = lang;
       document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
@@ -86,6 +103,7 @@
     } catch (error) {
       // Leave the last fully rendered language in place when offline or on failure.
       if (request === sequence) {
+        restoreDefaultImages();
         select.value = document.documentElement.lang || 'en';
         status.textContent = cache.get(document.documentElement.lang)?.ui.failure || config.failure;
         console.warn('Beyond language could not be loaded', error);

@@ -29,7 +29,7 @@
     section.querySelector('form').addEventListener('submit', () => { lastForm = section; }, true);
     new MutationObserver(localizeErrors).observe(section.querySelector('.ml-subscribe-form'), {childList:true, subtree:true, characterData:true});
   }
-  window.ml_webform_success_22154858 = () => {
+  window.ml_webform_success_47615766 = () => {
     for (const section of sections) {
       section.querySelector('.row-form').hidden = true;
       section.querySelector('.row-success').classList.add('newsletter-confirmed');

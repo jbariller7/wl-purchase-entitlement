@@ -22,7 +22,7 @@ function render(){
  [['hero-main',spec.primary==='buy'],['hero-secondary',spec.primary!=='buy']].forEach(([id,buy])=>{const n=$(id);n.textContent=t[buy?'buy':'play'];n.href=buy?'#pricing':'#demo';n.dataset.event=buy?'shop_click':'demo_click'});
  $('stats').replaceChildren(...[0,2,4].map(i=>{const n=el('div');n.append(el('strong',t.stats[i]),el('span',t.stats[i+1]));return n}));
  cards('features',t.features);cards('benefits',t.benefits);cards('funding-tiers',t.fundTiers);
- ['sentences','vocabulary'].forEach((name,i)=>{const n=el('figure'),img=el('img'),caption=el('figcaption');img.src=assetRoot+'gameplay-'+name+'.gif';img.alt=t.gifCopy[i];img.loading='lazy';img.width=i?480:400;img.height=i?270:225;caption.append(el('h3',t.gifTitles[i]),el('p',t.gifCopy[i]));n.append(img,caption);$(i?'gameplay-writing':'gameplay-motion').replaceChildren(n)});
+ ['sentences','vocabulary'].forEach((name,i)=>{const n=el('figure'),img=window.wlCreateGameplayLoop(name,t.gifCopy[i],i?480:400,i?270:225),caption=el('figcaption');caption.append(el('h3',t.gifTitles[i]),el('p',t.gifCopy[i]));n.append(img,caption);$(i?'gameplay-writing':'gameplay-motion').replaceChildren(n)});
  const usd=n=>new Intl.NumberFormat(lang,{style:'currency',currency:'USD',currencyDisplay:'code',maximumFractionDigits:0}).format(n);
  $('funding-grid').replaceChildren(...funding.pools.map((pool,i)=>{const card=el('article',null,'funding-card'),bar=el('progress');bar.max=funding.goal;bar.value=pool.amount;bar.setAttribute('aria-label',t.fundNames[i]);card.append(el('h3',t.fundNames[i]),el('span',t.fundStatuses[pool.status],'fund-status status-'+pool.status),bar,el('p',t.fundTotal.replace('{amount}',usd(pool.amount)).replace('{goal}',usd(funding.goal))));return card}));
  $('gallery').replaceChildren(...['dialogue','sentences','combat'].map((name,i)=>{const n=el('figure'),img=el('img');img.src=assetRoot+name+'.webp';img.alt=t.galleryAlt[i];img.loading='lazy';n.append(img);return n}));
@@ -72,11 +72,11 @@ document.querySelectorAll('[data-consent]').forEach(n=>n.addEventListener('click
 $('privacy-open').addEventListener('click',()=>$('privacy-dialog').showModal());$('privacy-close').addEventListener('click',()=>$('privacy-dialog').close());
 // Keep the provider's original form ID, action and callback contract. Only a confirmed
 // MailerLite response may display success; ordinary clicks never simulate a signup.
-window.ml_webform_success_22154858=()=>{
- document.querySelector('#mlb2-22154858 .row-form').style.display='none';
- const success=document.querySelector('#mlb2-22154858 .row-success');success.style.display='block';success.focus();
+window.ml_webform_success_47615861=()=>{
+ document.querySelector('#mlb2-47615861 .row-form').style.display='none';
+ const success=document.querySelector('#mlb2-47615861 .row-success');success.style.display='block';success.focus();
 };
-fetch('https://assets.mailerlite.com/jsonp/1292227/forms/144956028970075999/takel').catch(()=>{});
+fetch('https://assets.mailerlite.com/jsonp/1292227/forms/202396171826627602/takel').catch(()=>{});
 // The page must remain usable if configuration is slow or unavailable.
 render();if(!preview){loadDefault().then(enroll)}
 $('consent').hidden=preview||Boolean(consent);
