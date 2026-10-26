@@ -52,7 +52,7 @@ footer .footer-reserve{display:block;width:calc(100% - 36px);max-width:370px;mar
 .reward-card .reward-body>.reward-inheritance{font-size:16px;color:#674381;margin:20px 0 12px;padding-top:15px;border-top:1px solid #eee1f3}.reward-sidebar .reward-body>.reward-inheritance{font-size:13px}.reward-inheritance strong{font-weight:700}
 
 /* Compact full-map preview, preserving the complete treetop illustration. */
-#story .compact-map{width:100%;max-width:360px;margin:28px auto}#story .compact-map img{width:100%;height:auto}
+#story .compact-map{width:50%;max-width:180px;margin:28px auto}#story .compact-map img{width:100%;height:auto}
 
 /* Bottom reward list: two cards per row, with a readable mobile stack. */
 .full-rewards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:stretch}
