@@ -91,3 +91,6 @@ footer .footer-reserve{display:block;width:calc(100% - 36px);max-width:370px;mar
 
 /* Extra license add-ons */
 .license-addons{margin:48px 0;padding-top:28px;border-top:1px solid #e6dced}.license-addon-list{margin:24px 0;max-width:620px}.license-addon-list h3{margin:24px 0 8px;color:#543d70}.license-addon-row{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid #ece5ef;padding:10px 0;margin:0!important}.license-addon-row strong{font-size:1.2em;white-space:nowrap}
+
+/* Artist work samples: preserve full artwork at a modest reading size. */
+#team .team-artwork{margin:20px auto 32px;width:100%}#team .team-artwork-john{max-width:680px}#team .team-artwork-leon{max-width:440px}#team .team-artwork img{width:100%;height:auto;display:block}
