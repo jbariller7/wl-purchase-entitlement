@@ -40,8 +40,10 @@ export async function accountDirectory(db: Firestore, auth: Auth, f: Filters, no
     // Bound parallel reads. Compute from current grants without writing snapshots.
     for (let i = 0; i < page.users.length; i += 10) {
       const batch = await Promise.all(page.users.slice(i, i + 10).map(async user => {
-        const entitlements = projectEntitlements(user.uid, await store.grantsForUid(user.uid), now, 0);
         const emails = accountEmails(user);
+        // Skip expensive grant reads for identities that cannot match the text.
+        if (f.q && !`${emails.join(" ")} ${user.uid} ${user.displayName || ""}`.toLowerCase().includes(f.q.toLowerCase())) return null;
+        const entitlements = projectEntitlements(user.uid, await store.grantsForUid(user.uid), now, 0);
         const row = { uid: user.uid, email: emails[0] || null, emails, name: user.displayName || null, disabled: user.disabled, entitlements };
         return matchesDirectory(row, f) ? { ...row, entitlements: summary(entitlements), emailVerified: user.emailVerified, createdAt: user.metadata.creationTime, lastSignInAt: user.metadata.lastSignInTime || null } : null;
       }));

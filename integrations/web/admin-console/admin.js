@@ -1,4 +1,5 @@
 import websiteDefaultPrices from '../../../catalog/website-prices.json';
+import {hasDirectoryFilters, searchDirectory} from './directory-search.js';
 import {currencyFractionDigits} from '../../../src/domain/regional-pricing.ts';
 import { runImportBatches } from "./import-runner.js";
 import {renderVip,bindVip} from './beyond-vip.js';
@@ -202,12 +203,13 @@ function navItem(id, number) { return `<button type="button" data-view="${id}" c
 function pageIntro(kicker, title, copy, actions = "") { return `<section class="page-intro"><div><p class="section-kicker">${kicker}</p><h2>${title}</h2><p>${copy}</p></div><div class="hero-actions">${actions}</div></section>`; }
 function empty(message) { return `<div class="empty-state">${escapeHtml(message)}</div>`; }
 
-const directory = { filters: { source: "registered", access: "all", cloud: "all", platform: "all", status: "all", q: "" }, cursor: null, result: null, history: [] };
+const directory = { filters: { source: "registered", access: "all", cloud: "all", platform: "all", status: "all", q: "" }, cursor: null, result: null, history: [], resultPage: 0 };
 function directorySelect(name, label, values) {
   return `<label>${label}<select name="${name}">${values.map(([value, text]) => `<option value="${value}" ${directory.filters[name] === value ? "selected" : ""}>${text}</option>`).join("")}</select></label>`;
 }
 function renderDirectory() {
   const result = directory.result || { rows: [], scanned: 0 };
+  const visibleRows = result.completeSearch ? result.rows.slice(directory.resultPage * 100, (directory.resultPage + 1) * 100) : result.rows;
   const pending = directory.filters.source === "pending";
   const purchases = directory.filters.source === "purchases";
   const labels = { premium_lifetime: "Premium Lifetime", permanent: "Permanent", subscription: "Monthly", legacy: "Legacy", none: "No game entitlement" };
@@ -221,9 +223,9 @@ function renderDirectory() {
   ${directorySelect("status", "Account status", [["all", "All"], ["enabled", "Enabled"], ["disabled", "Disabled"]])}
   </div><button class="button primary">Apply filters / Refresh</button></form>
   <p class="panel-copy">${purchases ? "Every recorded website checkout, including buyers who have not signed in. Unclaimed rows show the purchased product, not active account access; payment eligibility is verified with Stripe when claimed. A buyer with multiple orders appears once per order." : pending ? "These imported grants are waiting for the exact verified email to sign in. Access shown is what the pending grant provides; it is not an active account or a sent invitation." : "Access is calculated from current grants, including expiry. Open an account to review or change its access."}</p>
-  ${table(["Email", "Name", "Access", "Platforms", "Cloud saves", "Status", "Last sign-in", "Action"], result.rows.map(row => [row.email || "Email unavailable", row.name || "—", labels[row.entitlements.accessKind] || row.entitlements.accessKind, [...row.entitlements.mobilePlatforms, ...(row.entitlements.pcMacAccess ? ["PC / Mac"] : [])].join(", ") || "—", row.entitlements.cloudSave ? "Included" : "No", purchases ? row.purchase?.claimed ? "Claimed" : "Unclaimed purchase" : pending ? "Pending sign-in" : row.disabled ? "Disabled" : "Enabled", formatDate(row.lastSignInAt), row.uid ? htmlCell(`<button class="text-button" data-directory-open="${escapeHtml(row.uid)}">Open account</button>`) : "Awaiting sign-in"]))}
-  <p class="panel-copy">${result.rows.length} matching accounts in this batch of ${result.scanned} records.${result.nextCursor ? " More records are available; use Next batch to continue, including when this batch has no matches." : " End of list."}</p>
-  <div class="card-actions"><button class="button secondary" data-directory-prev ${directory.history.length ? "" : "disabled"}>Previous batch</button><button class="button secondary" data-directory-next ${result.nextCursor ? "" : "disabled"}>Next batch</button></div></section>`;
+  ${table(["Email", "Name", "Access", "Platforms", "Cloud saves", "Status", "Last sign-in", "Action"], visibleRows.map(row => [row.email || "Email unavailable", row.name || "—", labels[row.entitlements.accessKind] || row.entitlements.accessKind, [...row.entitlements.mobilePlatforms, ...(row.entitlements.pcMacAccess ? ["PC / Mac"] : [])].join(", ") || "—", row.entitlements.cloudSave ? "Included" : "No", purchases ? row.purchase?.claimed ? "Claimed" : "Unclaimed purchase" : pending ? "Pending sign-in" : row.disabled ? "Disabled" : "Enabled", formatDate(row.lastSignInAt), row.uid ? htmlCell(`<button class="text-button" data-directory-open="${escapeHtml(row.uid)}">Open account</button>`) : "Awaiting sign-in"]))}
+  <p class="panel-copy">${result.completeSearch ? `${result.rows.length} matches across all ${result.scanned} records in this list. Showing ${visibleRows.length ? directory.resultPage * 100 + 1 : 0}–${Math.min((directory.resultPage + 1) * 100, result.rows.length)}.` : `${result.rows.length} accounts in this page. Use search or filters to search the entire list.`}</p>
+  <div class="card-actions"><button class="button secondary" data-directory-prev ${(result.completeSearch ? directory.resultPage > 0 : directory.history.length) ? "" : "disabled"}>Previous page</button><button class="button secondary" data-directory-next ${(result.completeSearch ? (directory.resultPage + 1) * 100 < result.rows.length : result.nextCursor) ? "" : "disabled"}>Next page</button></div></section>`;
 }
 function shell(content) {
   const environment = demo ? "Simulated demo" : "Account administration";
@@ -665,9 +667,19 @@ async function loadView(view) {
     let data;
     if (view === "overview") data = await api(endpoints.overview);
     else if (view === "customers") {
-      const params = new URLSearchParams(directory.filters);
+      const filters = {...directory.filters};
+      const params = new URLSearchParams(filters);
       if (directory.cursor) params.set("cursor", directory.cursor);
-      const [result, accounts] = await Promise.all([api(endpoints.secondPlatformRequests), api(`/admin-api/v1/customers?${params}`)]);
+      const accountRequest = hasDirectoryFilters(filters) ? searchDirectory({
+        filters,
+        fetchPage: page => api(`/admin-api/v1/customers?${new URLSearchParams(page)}`),
+        isCurrent: () => revision === viewLoadRevision && state.view === view,
+        onProgress: ({scanned, matches}) => {
+          const loading = appNode.querySelector('.loading');
+          if (loading) loading.textContent = `Searching all records in this list… ${scanned} checked, ${matches} matches found.`;
+        }
+      }) : api(`/admin-api/v1/customers?${params}`);
+      const [result, accounts] = await Promise.all([api(endpoints.secondPlatformRequests), accountRequest]);
       if (revision !== viewLoadRevision || state.view !== view) return;
       state.secondPlatformRequests = result.requests || [];
       directory.result = accounts;
@@ -752,13 +764,21 @@ function bindView() {
   document.querySelector('[data-test-order-email]')?.addEventListener('click',async(event)=>{const button=event.currentTarget;button.disabled=true;try{await mutate('/admin-api/v1/order-emails/test',{},'Test accepted by Google. Check jonathan@wonderlang.app for delivery.');}finally{button.disabled=false;}});
   document.querySelector("#directory-filters")?.addEventListener("submit", event => {
     event.preventDefault(); directory.filters = Object.fromEntries(new FormData(event.currentTarget));
-    directory.cursor = null; directory.history = []; state.customer = null; loadView("customers");
+    directory.cursor = null; directory.history = []; directory.resultPage = 0; state.customer = null; loadView("customers");
   });
   document.querySelector("[data-directory-next]")?.addEventListener("click", () => {
+    if (directory.result?.completeSearch) {
+      if ((directory.resultPage + 1) * 100 >= directory.result.rows.length) return;
+      directory.resultPage++; appNode.innerHTML = shell(renderCustomers()); bindShell(); bindView(); return;
+    }
     if (!directory.result?.nextCursor) return;
     directory.history.push(directory.cursor); directory.cursor = directory.result.nextCursor; loadView("customers");
   });
   document.querySelector("[data-directory-prev]")?.addEventListener("click", () => {
+    if (directory.result?.completeSearch) {
+      if (!directory.resultPage) return;
+      directory.resultPage--; appNode.innerHTML = shell(renderCustomers()); bindShell(); bindView(); return;
+    }
     if (!directory.history.length) return;
     directory.cursor = directory.history.pop(); loadView("customers");
   });
