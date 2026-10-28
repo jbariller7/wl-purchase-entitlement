@@ -72,7 +72,8 @@
         if(srcset) image.node.setAttribute('srcset',srcset);
         else image.node.removeAttribute('srcset');
         image.node.src = asset?.src || bundle.assets?.[path] || image.original;
-        if(asset){image.node.width=asset.width;image.node.height=asset.height;}
+        // Keep the beanie's authored icon size when switching languages.
+        if(asset && path !== 'assets/beanie.png'){image.node.width=asset.width;image.node.height=asset.height;}
       }
       document.documentElement.lang = lang;
       document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
