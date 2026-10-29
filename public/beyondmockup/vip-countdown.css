@@ -1,0 +1,9 @@
+.vip-countdown{max-width:650px;margin:26px auto;padding:22px 24px;border:1px solid #ddcde8;border-radius:18px;background:linear-gradient(115deg,#fff7e8,#f6eefb);text-align:center;color:#533467}
+.vip-countdown h2{font:700 23px/1.25 Calibri,Arial,sans-serif;margin:0 0 16px}
+.vip-clock{display:flex;justify-content:center;gap:12px}
+.vip-clock>span{min-width:76px;padding:9px 10px;background:#fff9;border:1px solid #e6dbe9;border-radius:10px}
+.vip-clock b{display:block;font-size:32px;font-variant-numeric:tabular-nums;line-height:1.2}
+.vip-clock small{display:block;font-size:13px;margin-top:4px}
+.vip-countdown p{font-size:14px;margin:14px 0 0}.vip-closed-link{display:inline-block;margin-top:14px;font-weight:bold;color:#654878}
+.vip-countdown [hidden]{display:none!important}
+@media(max-width:480px){.vip-countdown{padding:18px 12px}.vip-clock{gap:7px}.vip-clock>span{min-width:0;flex:1;padding:8px 3px}.vip-clock b{font-size:27px}.vip-clock small{font-size:12px}}

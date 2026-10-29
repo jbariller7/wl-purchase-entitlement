@@ -15,6 +15,8 @@ export const lambdaHandler:LambdaHandler=async event=>{
  if(event.httpMethod!=='GET')return {statusCode:405,headers,body:'Method not allowed'};
  try{
   const q=event.queryStringParameters??{};
+  // Close new bookings at 08:00 Paris time. Existing payment/status processing stays available.
+  if(!status&&Date.now()>=Date.parse('2026-11-09T08:00:00+01:00'))return {statusCode:303,headers:{...headers,location:'/beyondmockup/#vip-countdown'},body:''};
   if(!status&&!vipTier(q.tier))throw new HttpError(400,'Choose an available VIP reward.');
   const db=firestore();
   await consumeRateLimit({db,namespace:'api',subject:event.headers['x-nf-client-connection-ip']??'unknown',policy:{action:status?'vip-status':'vip-checkout',limit:status?60:15,windowSeconds:600},now:new Date()});
