@@ -1,0 +1,23 @@
+/* Selected player reviews: one readable, controllable carousel. */
+#story .wl-review-intro{margin-top:28px}
+#story .wl-player-reviews{margin:24px 0 32px;border:1px solid #ddd0e7;border-radius:12px;background:#faf7fc;padding:0 0 18px;position:relative;overflow:hidden}
+#story .wl-review-slide{margin:0}
+#story .wl-review-slide[hidden]{display:none!important}
+#story .wl-review-screenshot{display:block;background:#17202d}
+#story .wl-review-screenshot img{display:block;width:100%;height:auto;max-height:none;object-fit:initial;margin:0}
+#story .wl-review-source{font-size:16px;margin:13px 16px 0;text-align:center}
+#story .wl-review-controls{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px;margin-top:20px}
+#story .wl-review-controls button{font:700 16px/1.2 Calibri,Arial,sans-serif;border:1px solid #c8afd8;border-radius:7px;background:#fff;color:#65427b;padding:10px 13px;cursor:pointer;min-height:41px}
+#story .wl-review-controls button:hover{background:#f0e5f6}
+#story .wl-review-controls button:focus-visible{outline:3px solid #b58bca;outline-offset:3px}
+#story .wl-review-controls [data-review-index]{padding:0;width:11px;height:11px;min-height:11px;min-width:11px;border-radius:50%;background:#dfd0e8;border:0}
+#story .wl-review-controls [aria-current=true]{background:#76518f;box-shadow:0 0 0 3px #fff}
+#story .wl-review-dots{display:flex;gap:10px;padding:10px 8px}
+#story .wl-review-toggle{margin-inline-start:7px}
+@media(max-width:600px){
+#story .wl-player-reviews{padding:0 0 15px;border-radius:9px}
+#story .wl-review-controls{gap:6px}
+#story .wl-review-controls button{font-size:14px;padding:10px}
+#story .wl-review-toggle{flex-basis:auto}
+}
+
