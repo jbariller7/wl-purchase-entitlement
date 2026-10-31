@@ -2,7 +2,7 @@
 
 The Adventure section now introduces reviews of the original WonderLang after its opening paragraph. Selected shortlist numbers: 1, 2, 3, 4, 5, 7, 12 and 15.
 
-The web carousel displays the original Steam screenshots at full width, without a duplicate quote or introductory text inside the slide. The introduction is ordinary page text above it. Slides remain visible for 30–75 seconds, with longer holds for longer reviews. It provides previous/next/dot navigation, a pause/play control, keyboard navigation, reduced-motion support, and pauses while offscreen or the page is hidden. Clicking a screenshot opens its complete image. Only the current/next screenshots are loaded as needed. Existing introduction and controls remain in all 18 enabled page languages; reviews and screenshot pixels are not translated.
+The web carousel displays the original Steam screenshots at full width, without a duplicate quote or introductory text inside the slide. The introduction is ordinary page text above it. Slides remain visible for 5–7 seconds. The centered carousel is capped at 560px, approximately 20% smaller than revision 2. It provides previous/next/dot navigation, a pause/play control, keyboard navigation, reduced-motion support, and pauses while offscreen or the page is hidden. Clicking a screenshot opens its complete image. Only the current/next screenshots are loaded as needed. Existing introduction and controls remain in all 18 enabled page languages; reviews and screenshot pixels are not translated.
 
 Review 12 was recaptured directly from its original Steam page, including its author and complete text, without the bad left crop or moderator sidebar. Its source capture is 610 × 435.
 
@@ -10,7 +10,7 @@ Local source: Project1/work/beyondmockup/player-reviews.js, player-reviews.css, 
 
 Public outputs: eight compressed screenshot WebPs under assets/player-reviews/, content-hashed carousel JavaScript/CSS, updated index and language catalogs. There are no backend, checkout, newsletter routing or tracking changes.
 
-Kickstarter draft, revision 2: the introduction remains page text, followed by an 800 × 923 screenshot-only animated WebP slideshow, eight frames, a 400-second loop and 810 KB upload. Kickstarter's delivered response is a 1.96 MB animated GIF. Its eight frame delays were verified as 30, 75, 45, 45, 60, 60, 45 and 40 seconds. Eight source links remain in its caption. Campaign launch was not activated.
+Kickstarter draft, revision 3 (31 October): the introduction remains page text, followed by an 800 × 739 screenshot-only animated WebP slideshow. Review pixels occupy a centered 640px width, 20% smaller than revision 2. Eight frames form a 49-second loop; holds are 5, 7, 6, 6, 7, 7, 6 and 5 seconds. The 580 KB WebP upload is delivered by Kickstarter as a 1.32 MB GIF; all frame delays were verified. Eight source links remain in its caption. Campaign launch was not activated.
 
 QA: all eight exact excerpts and selected order checked through the browser; review 12's natural dimensions verified; 18 localized headings and next-control labels checked; existing public Story text, images, videos, links and countdown preserved; Kickstarter editor's existing 42 images and four video embeds preserved. Original captures, slideshow exports and evidence remain in Project1/output/wonderlang-player-reviews-20261030/.
 
