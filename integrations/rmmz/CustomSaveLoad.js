@@ -572,11 +572,6 @@ function setupCharSprite(el, name, index){
         const sx = (blockX + frameCol) * cw;
         const sy = (blockY + frameRow) * ch;
 
-        const maxH = container?.clientHeight || 120;
-        const scale = maxH / ch;
-        const w = Math.round(cw * scale);
-        const h = Math.round(ch * scale);
-
         const cacheKey = `${name}|${Number(index || 0) | 0}|${bitmap.width}x${bitmap.height}|${sx},${sy},${cw},${ch}`;
         let url = charFrameUrlCache.get(cacheKey);
         if (!url) {
@@ -597,11 +592,13 @@ function setupCharSprite(el, name, index){
           charFrameUrlCache.set(cacheKey, url);
         }
 
-        el.style.width  = w + "px";
-        el.style.height = h + "px";
+        // Cards can still be detached here (especially with cached bitmaps).
+        // Let CSS fit the cropped frame after layout and on every resize.
+        el.style.width  = "100%";
+        el.style.height = "100%";
         el.style.backgroundImage    = `url("${url}")`;
         el.style.backgroundRepeat   = "no-repeat";
-        el.style.backgroundSize     = `${w}px ${h}px`;
+        el.style.backgroundSize     = "contain";
         el.style.backgroundPosition = "center center";
         el.style.imageRendering     = "pixelated";
 
@@ -796,6 +793,9 @@ html(){
     <button class="export-btn mid-btn" type="button">
       <span data-k="SaveBackup.ExportButton">${tdb("Export")}</span>
     </button>
+    <button class="recover-btn mid-btn" type="button" hidden>
+      <span data-k="SaveBackup.RecoverButton">Recover save</span>
+    </button>
   </div>
 
   <div class="spacer"></div>
@@ -927,7 +927,7 @@ html,body{ overflow:hidden; }
   overflow:hidden; position:relative;
 }
 .char-sprite{
-  /* width/height set dynamically to exact frame size */
+  /* One cropped frame, fitted to both dimensions of the preview box. */
   display:block;
   background-repeat:no-repeat;
   image-rendering:pixelated;
@@ -1276,6 +1276,11 @@ html,body{
   
   gap:1vw !important;
 }
+#saveLoadHTML .recover-btn[hidden]{display:none!important}
+#saveLoadHTML .topbar:has(.recover-btn:not([hidden])){grid-template-columns:minmax(0,.8fr) minmax(0,2.8fr) minmax(0,.65fr)!important}
+#saveLoadHTML .topbar:has(.recover-btn:not([hidden])) .return-btn{width:100%!important;min-width:0!important;max-width:none!important;font-size:clamp(14px,2.3vh,22px)!important}
+#saveLoadHTML .topbar:has(.recover-btn:not([hidden])) .mid-actions{min-width:0;align-self:stretch;align-items:stretch}
+#saveLoadHTML .topbar:has(.recover-btn:not([hidden])) .mid-btn{flex:1;min-width:0;padding:5px 8px;font-size:clamp(12px,2.1vh,20px);line-height:1.15;overflow-wrap:anywhere}
 
 
 `;
@@ -1285,6 +1290,19 @@ html,body{
     $all(s){ return this._root ? [...this._root.querySelectorAll(s)] : []; }
 
     wire(){
+      const recoverBtn = this.$(".recover-btn");
+      recoverBtn.hidden = this._mode !== "load" || !window.WLSaveBackup;
+      const recoverAction = async () => {
+        if (recoverBtn.disabled || recoverBtn.hidden) return;
+        recoverBtn.disabled = true;
+        try {
+          const restored = await window.WLSaveBackup.openRecovery();
+          if (restored && this._root && SceneManager._scene === this) await this.refreshInfosAndRender();
+        } catch (error) { console.warn("[SaveLoadHTML] recovery failed", error); SoundManager.playBuzzer?.(); }
+        finally { recoverBtn.disabled = false; this._recoveryClosingUntil = Date.now() + 300; }
+      };
+      if (window.WLSaveBackup?.bindTap) window.WLSaveBackup.bindTap(recoverBtn, recoverAction);
+      else recoverBtn.addEventListener("click", recoverAction);
       const cloudSyncButton = this.$(".cloud-sync-btn");
       const cloud = window.WLAccountEntitlements;
       if (cloud?.bindReleaseTap && cloud?.syncFromUi) {
@@ -1404,6 +1422,7 @@ html,body{
       this._navTargets = [
         this.$(".import-btn"),
         this.$(".export-btn"),
+        this.$(".recover-btn:not([hidden])"),
         this.$(".return-btn"),
         ...this.$all(".slot-card:not(.disabled)")
       ].filter(Boolean);
@@ -1731,11 +1750,13 @@ startFadeIn(){ /* no-op to keep screen black until the map takes over */ }
 
     update(){
       super.update();
+      if (window.WLSaveBackup?.isRecoveryOpen() || Date.now() < (this._recoveryClosingUntil || 0)) return;
       this.handleMappedNavInput();
       if (Input.isTriggered("cancel") || TouchInput.isCancelled()) SceneManager.pop();
     }
 
     onKeyDown(e){
+      if (window.WLSaveBackup?.isRecoveryOpen() || Date.now() < (this._recoveryClosingUntil || 0)) return;
       if (document.documentElement.classList.contains("wl-account-ui-open")) return;
       if (!e._mapped) this._lastDomNavAt = Date.now();
       const key = e.key;

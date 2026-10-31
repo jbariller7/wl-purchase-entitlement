@@ -25,7 +25,15 @@ describe("whole-profile cloud saves", () => {
     expect(() => validateCloudProfileBundle(bundle(), profileId)).not.toThrow();
     expect(() => validateCloudProfileBundle(bundle({ file1: "{}" }), profileId)).toThrow(HttpError);
     expect(() => validateCloudProfileBundle(bundle({ global: "[]", config: "{}" }), profileId)).toThrow(HttpError);
-    expect(() => validateCloudProfileBundle(bundle({ global: "[]", file21: "{}" }), profileId)).toThrow(HttpError);
+    expect(() => validateCloudProfileBundle(bundle({ global: "[]", file10001: "{}" }), profileId)).toThrow(HttpError);
+  });
+
+  it("accepts quick saves, both autosaves and slots outside the current menu", () => {
+    const files = { global: "[]", ...Object.fromEntries([0, 1, 21, 97, 98, 99, 200, 10000].map(id => [`file${id}`, "{}"])) };
+    expect(() => validateCloudProfileBundle(bundle(files), profileId)).not.toThrow();
+    for (const name of ["file01", "file-1", "../file1", "wl-profile-recovery-123"]) {
+      expect(() => validateCloudProfileBundle(bundle({global: "[]", [name]: "{}"}), profileId)).toThrow(HttpError);
+    }
   });
 
   it("rejects a bundle copied to another profile", () => {

@@ -10,7 +10,7 @@ const MAX_PROFILES = 6;
 const MAX_PROFILE_BYTES = 32 * 1024 * 1024;
 const URL_TTL_MS = 10 * 60 * 1000;
 const PROFILE_ID_PATTERN = /^(?:default|[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
-const SAVE_OBJECT_NAME = /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/;
+const SAVE_OBJECT_NAME = /^(?:global|file(?:0|[1-9][0-9]{0,3}|10000))$/;
 const RETAINED_PRIOR_REVISIONS = 3;
 
 export const cloudSaveProfileIdSchema = z.string().regex(PROFILE_ID_PATTERN, "Invalid cloud-save profile ID.");
@@ -93,7 +93,7 @@ export function summarizeProfileSaves(contents: Buffer, profileId: string): Prof
   let info: unknown;
   try { info = JSON.parse(bundle.files.global ?? "[]"); } catch { info = []; }
   return Object.keys(bundle.files)
-    .filter((name) => /^file(?:0|[1-9]|1[0-9]|20)$/.test(name))
+    .filter((name) => /^file(?:0|[1-9][0-9]{0,3}|10000)$/.test(name))
     .map((name) => {
       const slot = Number(name.slice(4));
       const entry = Array.isArray(info) ? info[slot] : null;
@@ -149,7 +149,7 @@ export function validateCloudProfileBundle(contents: Buffer, expectedProfileId: 
   }
   const files = bundle.files as Record<string, unknown>;
   const names = Object.keys(files);
-  if (!names.includes("global") || names.length > 22 || names.some((name) => !SAVE_OBJECT_NAME.test(name))) {
+  if (!names.includes("global") || names.length > 10002 || names.some((name) => !SAVE_OBJECT_NAME.test(name))) {
     throw new HttpError(422, "Uploaded cloud profile contains an invalid save-file set.");
   }
   if (names.some((name) => typeof files[name] !== "string" || !(files[name] as string).length)) {

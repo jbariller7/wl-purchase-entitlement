@@ -69,6 +69,7 @@
   let tokenWaiters = [];
   let current = loadJson(cacheKey, null);
   let activeOverlay = null;
+  let profileTitleReturn = null;
   let drainingRetries = false;
   let applyingProfile = false;
   let profileSyncTimer = null;
@@ -385,8 +386,8 @@
     if (value) localStorage.setItem(cacheKey, JSON.stringify({ ...value, _cachedAt: Date.now() }));
     else localStorage.removeItem(cacheKey);
   }
-  function nativeAndroidAccount() {
-    if (runtimeMobilePlatform() !== "android") return undefined;
+  function nativeMobileAccount() {
+    if (!["android", "ios"].includes(runtimeMobilePlatform())) return undefined;
     const nativeBridge = bridge();
     if (!nativeBridge || typeof nativeBridge.getAccountSnapshot !== "function") return null;
     try {
@@ -397,8 +398,8 @@
     }
   }
   function authoritativeAccount() {
-    const native = nativeAndroidAccount();
-    // On Android, localStorage is never an entitlement authority. Only the
+    const native = nativeMobileAccount();
+    // On native mobile, localStorage is never an entitlement authority. Only the
     // native bridge can expose an online snapshot or a keystore-validated lease.
     return native === undefined ? current : native;
   }
@@ -508,7 +509,8 @@
 
   async function cloudFetch(url, options) {
     try {
-      const response = await fetch(url, options);
+      const response = await (runtimeMobilePlatform() === "ios" && bridge()?.cloudFetch
+        ? bridge().cloudFetch(url, options) : fetch(url, options));
       if (!deviceOffline()) noteOnline();
       return response;
     } catch (error) {
@@ -542,6 +544,7 @@
   }
 
   async function sha256Hex(bytes) {
+    if (runtimeMobilePlatform() === "ios" && bridge()?.sha256) return bridge().sha256(bytes);
     const digest = await crypto.subtle.digest("SHA-256", bytes);
     return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
   }
@@ -558,6 +561,9 @@
 
   async function refresh() {
     const me = await request("/api/v1/me");
+    if (runtimeMobilePlatform() === "ios" && me?.uid !== accountUid()) {
+      throw new Error(tr("CloudAccount.Error.ContextChanged", "The account or save profile has changed. Please select your profile and try again."));
+    }
     cache(me);
     window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: me.entitlements }));
     if (effectiveCachedEntitlement()?.cloudSave && activeProfileId()) scheduleStartupProfileCheck(750);
@@ -623,8 +629,21 @@
   }
 
   function managedSaveNames() {
-    const maximum = Math.min(20, Math.max(1, Number(DataManager.maxSavefiles?.()) || 20));
-    return ["global", ...Array.from({ length: maximum + 1 }, (_, index) => `file${index}`)];
+    const names = new Set(["global", "file0", "file97", "file98", "file99"]);
+    const maximum = Math.min(10000, Math.max(1, Number(DataManager.maxSavefiles?.()) || 20));
+    for (let id = 0; id <= maximum; id++) names.add(`file${id}`);
+    for (const id of Object.keys(DataManager._globalInfo || {})) names.add(`file${id}`);
+    if (StorageManager.isLocalMode?.()) {
+      const fs = require("fs"), dir = StorageManager.fileDirectoryPath();
+      if (fs.existsSync(dir)) for (const name of fs.readdirSync(dir)) {
+        if (name.endsWith(".rmmzsave")) names.add(name.slice(0, -9));
+      }
+    } else if (StorageManager.forageKey) {
+      const prefix = StorageManager.forageKey("");
+      for (const key of StorageManager._forageKeys || []) if (key.startsWith(prefix)) names.add(key.slice(prefix.length));
+    }
+    return [...names].filter(name => /^(?:global|file(?:0|[1-9][0-9]{0,3}|10000))$/.test(name))
+      .sort((a, b) => a === "global" ? -1 : b === "global" ? 1 : Number(a.slice(4)) - Number(b.slice(4)));
   }
 
   function hasLocalPlayerSaves() {
@@ -660,6 +679,7 @@
   async function buildProfileBundle(profileId, attempt = 0) {
     await Promise.all([...pendingSaveWrites]);
     const generation = saveWriteGeneration;
+    if (!StorageManager.isLocalMode?.()) await StorageManager.updateForageKeys?.();
     const files = {};
     for (const saveName of managedSaveNames()) {
       if (saveName !== "global" && !StorageManager.exists(saveName)) continue;
@@ -681,7 +701,7 @@
 
   async function profileFilesFingerprint(files) {
     const ordered = {};
-    for (const name of managedSaveNames()) {
+    for (const name of Object.keys(files || {}).sort((a,b) => a === "global" ? -1 : b === "global" ? 1 : Number(a.slice(4)) - Number(b.slice(4)))) {
       if (typeof files?.[name] === "string") ordered[name] = files[name];
     }
     return sha256Hex(textEncoder.encode(JSON.stringify(ordered)));
@@ -692,7 +712,7 @@
         !bundle.files || typeof bundle.files.global !== "string") {
       throw new Error(tr("CloudAccount.Error.InvalidCloudCopy", "The cloud save could not be verified. No local saves were replaced."));
     }
-    const allowed = /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/;
+    const allowed = /^(?:global|file(?:0|[1-9][0-9]{0,3}|10000))$/;
     if (Object.keys(bundle.files).some(name => !allowed.test(name) || typeof bundle.files[name] !== "string")) {
       throw new Error(tr("CloudAccount.Error.InvalidCloudCopy", "The cloud save could not be verified. No local saves were replaced."));
     }
@@ -714,8 +734,9 @@
     const recoveryName = `wl-profile-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await StorageManager.saveObject(recoveryName, { binding: previousBinding, bundle: previousBundle });
     applyingProfile = true;
+    StorageManager._wlApplyingCloudProfile = true;
     try {
-      for (const saveName of managedSaveNames()) {
+      for (const saveName of new Set([...managedSaveNames(), ...Object.keys(decoded), ...Object.keys(previousBundle.files)])) {
         if (StorageManager.exists(saveName)) await Promise.resolve(StorageManager.remove(saveName));
       }
       for (const [saveName, object] of Object.entries(decoded)) {
@@ -726,7 +747,7 @@
       DataManager._globalInfo = decoded.global;
       DataManager.removeInvalidGlobalInfo?.();
     } catch (error) {
-      for (const saveName of managedSaveNames()) {
+      for (const saveName of new Set([...managedSaveNames(), ...Object.keys(decoded), ...Object.keys(previousBundle.files)])) {
         if (StorageManager.exists(saveName)) await Promise.resolve(StorageManager.remove(saveName));
       }
       for (const [name, json] of Object.entries(previousBundle.files)) {
@@ -736,6 +757,7 @@
       throw error;
     } finally {
       applyingProfile = false;
+      StorageManager._wlApplyingCloudProfile = false;
     }
     window.dispatchEvent(new CustomEvent("wl-cloud-profile-applied", { detail: { profileId } }));
   }
@@ -745,7 +767,12 @@
   }
 
   function serializeProfileOperation(action) {
-    const next = profileOperationTail.catch(() => undefined).then(action);
+    const next = profileOperationTail.catch(() => undefined).then(() => {
+      if (StorageManager._wlRestoringBackup || window.WLSaveBackup?.isRecoveryOpen()) {
+        throw new Error(tr("CloudAccount.Error.SaveBusy", "The game is still saving. Please try syncing again in a moment."));
+      }
+      return action();
+    });
     profileOperationTail = next;
     return next;
   }
@@ -891,13 +918,13 @@
   }
 
   function scheduleProfileSync() {
-    if (applyingProfile || !activeProfileId() || accountUid() === "signed-out" || !workspaceMatches(activeProfileId())) return;
+    if (applyingProfile || StorageManager._wlRestoringBackup || !activeProfileId() || accountUid() === "signed-out" || !workspaceMatches(activeProfileId())) return;
     noteWorkspaceChanged(activeProfileId());
     markProfileDirty(activeProfileId());
     clearTimeout(profileSyncTimer);
     profileSyncTimer = setTimeout(() => {
       const profileId = activeProfileId();
-      if (startupProfileDecisionPending || isOffline()) { if (isOffline()) noteOffline(); return; }
+      if (StorageManager._wlRestoringBackup || StorageManager._wlApplyingCloudProfile || startupProfileDecisionPending || isOffline()) { if (isOffline()) noteOffline(); return; }
       profileSyncInFlight = Promise.resolve(profileSyncInFlight).catch(() => undefined).then(() => uploadProfile(profileId));
       profileSyncInFlight.catch(error => {
         if (deviceOffline()) noteOffline();
@@ -1286,9 +1313,8 @@
   }
 
   function showSignInIntro() {
-    const panel = showPanel("WonderLang account", `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Intro.Body", "Cloud saves are exclusive to Premium Lifetime Pass holders. Sync your progress between PC, Mac and mobile. Learn more at wonderlang.net."))}</p>`, [
+    const panel = showPanel("WonderLang account", `<p class="wl-account-muted">${escapeHtml(tr("CloudAccount.Intro.Body", "Cloud saves are exclusive to Premium Lifetime Pass holders. Sync your progress between PC, Mac and mobile."))}</p>`, [
       { label: "Sign in", run: beginSignIn },
-      { label: "wonderlang.net", kind: "secondary", run: () => bridge()?.openExternalUrl?.("https://wonderlang.net/") },
       { label: "Close", kind: "secondary", run: closeOverlay }
     ]);
     panel.dataset.wlAccountView = "sign-in";
@@ -1313,13 +1339,25 @@
       { label: "Close", kind: "secondary", run: closeOverlay }
     ]);
     try {
-      if (!isOffline()) await refresh();
+      // A previous failed API request is not proof of device offline status.
+      // Always retry on an online device, especially after an OAuth callback.
+      if (!deviceOffline()) await refresh();
     } catch (error) {
       if (error?.status === 401 || !bridge()?.getCachedIdToken?.()) {
         showSignInIntro();
         return;
       }
-      showError("Account unavailable", error, openAccountPanel);
+      showPanel("Account unavailable", `<p class="wl-account-error">${escapeHtml(playerErrorMessage(error))}</p>`, [
+        { label: "Try again", run: openAccountPanel },
+        { label: "Sign out", kind: "secondary", run: confirmSignOut },
+        { label: "Close", kind: "secondary", run: closeOverlay }
+      ]);
+      return;
+    }
+
+    const nativeAccount = authoritativeAccount();
+    if (runtimeMobilePlatform() === "ios" && nativeAccount?._nativeAccountStatus === "loading") {
+      showError("Account unavailable", new Error(tr("CloudAccount.Error.ConnectionFailed", "Could not connect to WonderLang. Check your internet connection and try again.")), openAccountPanel);
       return;
     }
 
@@ -1341,7 +1379,7 @@
     const activeProfile = profiles.find(profile => profile.profileId === activeProfileId()) || (workspaceMatches() ? { name: workspaceBinding()?.profileName } : null);
     const profileSwitcher = access.cloudSave ? renderProfilePicker(profiles, activeProfileId()) : "";
     const overlay = showPanel("WonderLang account", `
-      <div class="wl-account-identity-row"><div class="wl-account-identity">${escapeHtml(current?.email || "Signed-in account")}</div>${profileSwitcher}</div>
+      <div class="wl-account-identity-row"><div class="wl-account-identity">${escapeHtml(nativeAccount?.email || nativeAccount?.displayName || current?.email || "Signed-in account")}</div>${profileSwitcher}</div>
       ${isOffline() ? `<p class="wl-account-error">${escapeHtml(offlineMessage())}</p>` : ""}
       <div class="wl-account-status">
         <div class="wl-account-card"><b>Access</b>${escapeHtml(accessLabel)}${access.accessKind === "subscription" && subscription ? `<p class="wl-account-muted">${escapeHtml(subscription)}</p>` : ""}</div>
@@ -1593,7 +1631,7 @@
       showPanel("Backup restored", `<p class="wl-account-success">${escapeHtml(trSource(isActive ? "{PROFILE} has been restored to the backup from {TIME}. Those saves are now on this device." : "{PROFILE} has been restored to the backup from {TIME} in the cloud. This device will download those saves when you switch to this profile.", { PROFILE: profile.name, TIME: formatTime(backup.updatedAt) }))}</p>`, [
         { label: "Continue", run: () => {
           closeOverlay();
-          if (isActive && typeof Scene_Map !== "undefined" && SceneManager._scene instanceof Scene_Map) SceneManager.goto(Scene_Title);
+          if (isActive) returnToTitleAfterProfileChange();
         } },
         { label: "Back to profiles", kind: "secondary", run: openCloudSavesPanel }
       ]);
@@ -1636,7 +1674,7 @@
       showPanel("Profile ready", `<p class="wl-account-success">${escapeHtml(trSource("{PROFILE} is ready. All saves in this profile will sync automatically.", { PROFILE: profile.name }))}</p>`, [
         { label: "Continue", run: () => {
           closeOverlay();
-          if (typeof Scene_Map !== "undefined" && SceneManager._scene instanceof Scene_Map) SceneManager.goto(Scene_Title);
+          returnToTitleAfterProfileChange();
         } },
         { label: "Account", kind: "secondary", run: openAccountPanel }
       ]);
@@ -1695,7 +1733,44 @@
 
   function hasRunningGame() {
     const types = [globalThis.Scene_Map, globalThis.Scene_Battle].filter(type => typeof type === "function");
-    return types.some(type => globalThis.SceneManager?._scene instanceof type || globalThis.SceneManager?._stack?.includes(type));
+    return types.some(type => globalThis.SceneManager?._scene instanceof type
+      || globalThis.SceneManager?._nextScene instanceof type
+      || globalThis.SceneManager?._stack?.includes(type));
+  }
+
+  function returnToTitleAfterProfileChange() {
+    if (!hasRunningGame() || profileTitleReturn) return;
+    // A DOM button can run before Scene_Map.isReady() has created its windows.
+    // Queue the exit rather than calling stop()/terminate() on that partial scene.
+    profileTitleReturn = { stoppingScene: null };
+    clearGameInputState();
+  }
+
+  function updateProfileTitleReturn(manager) {
+    if (!profileTitleReturn) return false;
+    const scene = manager._scene;
+    if (!scene) return true;
+    if (scene instanceof Scene_Title && !manager._nextScene) {
+      profileTitleReturn = null;
+      manager.clearStack();
+      return false;
+    }
+    if (profileTitleReturn.stoppingScene !== scene) {
+      // isReady creates map display objects, but does not start map events or
+      // invoke Scene_Map.start's autosave. Keep normal updateScene paused.
+      if (!scene.isReady()) return true;
+      manager.goto(Scene_Title);
+      manager.clearStack();
+      profileTitleReturn.stoppingScene = scene;
+    }
+    // Let stop's fade/closing finish without starting/updating the old game.
+    scene.updateFade?.();
+    scene.updateWaitCount?.();
+    scene._messageWindow?.updateClose?.();
+    if (scene instanceof Scene_Map && scene._encounterEffectDuration > 0) {
+      scene._encounterEffectDuration--;
+    }
+    return true;
   }
 
   async function presentProfileConflict(profileId) {
@@ -1706,6 +1781,7 @@
       const downloaded = await downloadProfile(profileId);
       remote = downloaded.remote;
       const generation = saveWriteGeneration;
+    if (!StorageManager.isLocalMode?.()) await StorageManager.updateForageKeys?.();
       const localFingerprint = await profileFilesFingerprint((await buildProfileBundle(profileId)).files);
       const cloudFingerprint = await profileFilesFingerprint(downloaded.bundle.files);
       // A finalize response may have been lost even though the server committed.
@@ -1742,7 +1818,7 @@
           finishStartupProfileDecision();
           closeOverlay();
           // Do not let an already-running game overwrite the chosen cloud copy.
-          if (hasRunningGame()) SceneManager.goto(Scene_Title);
+          returnToTitleAfterProfileChange();
         }
         catch (error) { showError("Cloud profile was not restored", error, () => presentProfileConflict(profileId)); }
       } },
@@ -1933,13 +2009,13 @@
 
   const originalSaveObject = StorageManager.saveObject;
   StorageManager.saveObject = function(saveName, object) {
-    const managed = /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""));
+    const managed = /^(?:global|file(?:0|[1-9][0-9]{0,3}|10000))$/.test(String(saveName || ""));
     const write = originalSaveObject.call(this, saveName, object);
     if (managed) pendingSaveWrites.add(write);
     return write.then(result => {
       pendingSaveWrites.delete(write);
       if (managed) saveWriteGeneration += 1;
-      if (!applyingProfile && /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) scheduleProfileSync();
+      if (!applyingProfile && /^(?:global|file(?:0|[1-9][0-9]{0,3}|10000))$/.test(String(saveName || ""))) scheduleProfileSync();
       return result;
     }, error => {
       pendingSaveWrites.delete(write);
@@ -1949,7 +2025,7 @@
   const originalRemoveSave = StorageManager.remove;
   StorageManager.remove = function(saveName) {
     const result = originalRemoveSave.call(this, saveName);
-    if (!applyingProfile && /^(?:global|file(?:0|[1-9]|1[0-9]|20))$/.test(String(saveName || ""))) {
+    if (!applyingProfile && /^(?:global|file(?:0|[1-9][0-9]{0,3}|10000))$/.test(String(saveName || ""))) {
       const removal = Promise.resolve(result);
       pendingSaveWrites.add(removal);
       removal.then(() => {
@@ -1963,6 +2039,7 @@
 
   window.WLAccountEntitlements = {
     titleAccountLabel,
+    uiLanguage,
     refresh,
     account,
     current: entitlement,
@@ -1970,6 +2047,7 @@
     isProductPurchased: ownsProduct,
     listProfiles,
     uploadActiveProfile: syncActiveProfileNow,
+    waitForCloudIdle: () => profileOperationTail.catch(() => undefined),
     syncFromUi,
     canSyncCloud,
     bindReleaseTap,
@@ -1985,6 +2063,11 @@
       waiters.forEach(resolve => resolve(String(token || "")));
       if (token) refresh().catch(error => console.warn("[WonderLang Account] Entitlement refresh failed.", error));
     },
+    _nativeSignInComplete() {
+      // Native providers return to the existing WebView; no page navigation
+      // occurs to replace the sign-in intro automatically.
+      return openAccountPanel().catch(error => showError("Account unavailable", error, openAccountPanel));
+    },
     _nativeAccount(payload) {
       try {
         const value = typeof payload === "string" ? JSON.parse(payload) : payload;
@@ -1992,6 +2075,7 @@
         cache(value);
         window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: value.entitlements || null }));
         if (finishAndroidSignInView(value)) return;
+        if (value._nativeAccountStatus === "loading") return;
         if (activeProfileId()) scheduleStartupProfileCheck(750);
         else ensureProfileSelection().catch(error => console.warn("[WonderLang Cloud Save] Profile selection paused.", safeMessage(error)));
       } catch (error) {
@@ -2016,6 +2100,8 @@
       window.dispatchEvent(new CustomEvent("wl-purchase-verification-complete", { detail: { ok: false, message: text } }));
     },
     _nativeSignedOut() {
+      const waiters = tokenWaiters; tokenWaiters = [];
+      waiters.forEach(resolve => resolve(""));
       cache(null);
       refreshTitleAccount();
       window.dispatchEvent(new CustomEvent("wl-entitlements-updated", { detail: null }));
@@ -2029,7 +2115,8 @@
   if (globalThis.SceneManager?.updateScene) {
     const updateScene = SceneManager.updateScene;
     SceneManager.updateScene = function() {
-      if (activeOverlay) return;
+      if (updateProfileTitleReturn(this)) return;
+      if (activeOverlay || window.__wlNativeAccountModal) return;
       return updateScene.apply(this, arguments);
     };
   }
