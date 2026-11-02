@@ -2,6 +2,7 @@ import catalog from '../../catalog/website-checkout-locales.json' with {type:'js
 import mobile from '../../catalog/website-mobile-locales.json' with {type:'json'};
 import {emailCopy, emailLocale} from './copy.js';
 import {webCopy} from './web-copy.js';
+import {pdfCopy, freePdfLinks} from './pdf-copy.js';
 import type {WebsiteSessionRequest} from '../providers/stripe/website-session.js';
 import {stripeMajorValue} from '../domain/regional-pricing.js';
 
@@ -51,6 +52,14 @@ export function renderConfirmation(input:Confirmation,channel:'email'|'web'='ema
    if(delivery==='direct'){
     const url=privateDownloadUrl(key);paragraphs.push(url);parts.push(`<p style="overflow-wrap:anywhere"><a href="${escape(url)}">${escape(p.direct)}</a></p>`);
    }else{paragraphs.push(key);parts.push(`<p dir="ltr" style="font-family:monospace;font-size:20px;background:#f1edf7;padding:16px">${escape(key)}</p>`);}
+  }
+ }
+ if(channel==='email'){
+  const pdf=pdfCopy[locale];
+  paragraphs.push(pdf[0], `${pdf[1]}: ${freePdfLinks.primary}`, `${pdf[2]}: ${freePdfLinks.mirror}`);
+  parts.push(`<h2 style="font-size:20px;margin-top:28px">${escape(pdf[0])}</h2>`);
+  for(const [label,url] of [[pdf[1],freePdfLinks.primary],[pdf[2],freePdfLinks.mirror]]){
+   parts.push(`<table role="presentation" cellspacing="0" cellpadding="0" style="margin:12px 0;max-width:100%"><tr><td bgcolor="#553291" style="border-radius:8px;text-align:center"><a href="${escape(url!)}" style="display:inline-block;padding:12px 18px;border:1px solid #553291;border-radius:8px;color:#ffffff;background:#553291;font-weight:bold;text-decoration:none;line-height:1.5">${escape(label!)}</a></td></tr></table>`);
   }
  }
  if(channel==='web'){
