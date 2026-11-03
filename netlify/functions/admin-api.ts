@@ -1,5 +1,6 @@
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
 import {listVipReservations,syncVipSession} from '../../src/beyond-vip/service.js';
+import {vipPledgeSummary} from '../../src/beyond-vip/pledge-summary.js';
 import {websiteStripeClient} from '../../src/providers/stripe/website-config.js';
 import {listContacts} from '../../src/contact/service.js';
 import {recordAdminAudit} from '../../src/admin/audit.js';
@@ -126,7 +127,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   await consumeRateLimit({ db, namespace: "admin", subject: token.uid, policy: adminRateLimitPolicy(event.httpMethod, path), now });
   if(event.httpMethod==='GET'&&path==='/v1/beyond-vip'){
     const q=event.queryStringParameters??{};
-    return json(200,await listVipReservations(db,q.cursor,{...(q.tier?{tier:q.tier}:{}),...(q.state?{state:q.state}:{}),...(q.q?{q:q.q}:{})}));
+    const [page,pledgeSummary]=await Promise.all([
+      listVipReservations(db,q.cursor,{...(q.tier?{tier:q.tier}:{}),...(q.state?{state:q.state}:{}),...(q.q?{q:q.q}:{})}),
+      q.cursor?Promise.resolve(undefined):vipPledgeSummary(db)
+    ]);
+    return json(200,{...page,...(pledgeSummary?{pledgeSummary}:{})});
   }
   const vipRefresh=path.match(/^\/v1\/beyond-vip\/(cs_live_[A-Za-z0-9]+)\/refresh$/);
   if(event.httpMethod==='POST'&&vipRefresh){
