@@ -454,6 +454,7 @@ export class AdminOperationsService {
   }
 
   async createGrant(input: {
+    requestId?: string;
     actor: AdminActor;
     uid: string;
     product: Product;
@@ -468,7 +469,7 @@ export class AdminOperationsService {
     }
     if (input.reason.trim().length < 10) throw new HttpError(400, "A clear audit reason of at least ten characters is required.");
     await this.auth.getUser(input.uid);
-    const transactionId = `manual-${randomUUID()}`;
+    const transactionId = `manual-${input.requestId ?? randomUUID()}`;
     const endsAt = input.endsAt ? new Date(input.endsAt) : undefined;
     if (endsAt && (!Number.isFinite(endsAt.getTime()) || endsAt <= input.now)) throw new HttpError(400, "Grant expiry must be a valid future date.");
     await this.store.upsertGrant({

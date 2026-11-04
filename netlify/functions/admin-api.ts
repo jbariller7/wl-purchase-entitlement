@@ -1,6 +1,7 @@
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
 import {listVipReservations,syncVipSession} from '../../src/beyond-vip/service.js';
 import {vipPledgeSummary} from '../../src/beyond-vip/pledge-summary.js';
+import {ensureAdminCustomer} from '../../src/admin/create-customer.js';
 import {websiteStripeClient} from '../../src/providers/stripe/website-config.js';
 import {listContacts} from '../../src/contact/service.js';
 import {recordAdminAudit} from '../../src/admin/audit.js';
@@ -32,6 +33,14 @@ export const config: Config = {
 };
 
 const reason = z.string().trim().min(10).max(500);
+const createCustomerSchema=z.object({
+ email:z.string().trim().email().max(254),
+ product:z.enum(['mobile_polyglot_permanent','premium_lifetime_pass']),
+ mobilePlatform:z.enum(['android','ios']),
+ reason,
+ endsAt:z.string().datetime().optional(),
+ requestId:z.string().uuid()
+}).strict();
 const confirmation = z.string().trim().min(3).max(100);
 const grantSchema = z.object({
   product: z.enum(["mobile_polyglot_permanent", "premium_lifetime_pass", "mobile_full_lifetime", "legacy_mobile_full", "legacy_chapter_1", "legacy_chapter_2", "legacy_chapter_3", "legacy_chapter_4"]),
@@ -204,6 +213,14 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     const parsed = directoryQuery.safeParse(event.queryStringParameters || {});
     if (!parsed.success) throw new HttpError(400, "Invalid account directory filters.");
     return json(200, await accountDirectory(db, firebaseAuth(), parsed.data, now));
+  }
+  if(event.httpMethod==='POST'&&path==='/v1/customers'){
+    const input=body(createCustomerSchema,event);
+    if(input.endsAt&&Date.parse(input.endsAt)<=now.getTime())throw new HttpError(400,'Grant expiry must be a future date.');
+    const {user,created}=await ensureAdminCustomer(firebaseAuth(),input.email);
+    if(created)await recordAdminAudit({db,actor,action:'customer.create',targetType:'user',targetId:user.uid,summary:'Created an unverified customer account for manual access',metadata:{reason:input.reason},now});
+    const customer=await operations.createGrant({actor,uid:user.uid,product:input.product,mobilePlatform:input.mobilePlatform,reason:input.reason,...(input.endsAt?{endsAt:input.endsAt}:{}),requestId:input.requestId,now});
+    return json(created?201:200,{customer,created});
   }
   if (event.httpMethod === "GET" && path === "/v1/customers/search") {
     const query = event.queryStringParameters?.q;

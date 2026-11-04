@@ -291,7 +291,7 @@ function renderCustomers() {
     <section class="panel spaced"><header><div><p class="section-kicker">STRIPE PAYMENTS</p><h3>Payments and refunds</h3></div></header>${table(["Created", "Payment", "Received", "Refunded", "Status", "Action"], paymentRows)}</section>
     <section class="panel spaced"><header><div><p class="section-kicker">CLOUD SAVE PROFILES</p><h3>Complete player workspaces</h3></div></header><p class="panel-copy">Each profile is one atomic bundle containing global.rmmzsave and every save slot. The current version plus three previous versions are retained. Download and restore actions require a support reason and are recorded in Admin Audit.</p>${table(["Profile", "Updated", "Bytes", "SHA-256", "Revision history", "Action"], cloudProfileRows)}</section>` : empty("Search an exact email, Firebase UID, Stripe ID, or provider transaction to inspect an account.");
   return `${pageIntro("CUSTOMER SUPPORT", "Find the whole customer story.", "Access, purchases, login providers, cloud saves and manual actions are tied to one Firebase UID.")}
-  ${renderDirectory()}${openRequestRows.length ? requestQueue : ""}<form id="customer-search" class="search-bar"><input name="q" type="search" required aria-label="Exact account or payment lookup" placeholder="Exact email, UID, payment or store transaction ID" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
+  <section class="panel form-panel"><details><summary><strong>Create account and grant access</strong></summary><p class="panel-copy">Add a customer by email, even if they have never signed in. Existing accounts are reused. The customer can sign in at wonderlang.app/account/ with this email. This action does not send an email or issue a Steam key/download link.</p><form id="create-customer-form" class="stack-form"><label>Email address<input type="email" name="email" maxlength="254" autocomplete="off" required></label><label>Entitlement<select name="product"><option value="mobile_polyglot_permanent">Polyglot Permanent Access</option><option value="premium_lifetime_pass">Premium Lifetime Pass</option></select></label><label>First mobile platform<select name="mobilePlatform"><option value="android">Android</option><option value="ios">iOS</option></select></label><label>Optional expiry<input type="datetime-local" name="endsAt"></label><label>Audit reason<textarea name="reason" minlength="10" maxlength="500" required placeholder="Why is this access being granted?"></textarea></label><button class="button primary">Create account and grant access</button><p role="status" id="create-customer-status"></p></form></details></section>${renderDirectory()}${openRequestRows.length ? requestQueue : ""}<form id="customer-search" class="search-bar"><input name="q" type="search" required aria-label="Exact account or payment lookup" placeholder="Exact email, UID, payment or store transaction ID" value="${escapeHtml(c?.user?.email || "")}"><button class="button primary">Search</button></form>${detail}`;
 }
 
 function renderBilling(data) {
@@ -849,6 +849,25 @@ function bindView() {
   }));
   document.querySelector("#purchase-recovery-form")?.addEventListener("submit", async (event) => { event.preventDefault(); const button = event.currentTarget.querySelector("button"); if (button.disabled) return; button.disabled = true; const form = new FormData(event.currentTarget); try { if (await mutate(`/admin-api/v1/customers/${state.customer.user.uid}/reconcile-website-purchase`, { sessionId: form.get("sessionId"), reason: form.get("reason") }, "Original Stripe purchase linked and recorded in Admin Audit.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); await loadView("customers"); } } finally { button.disabled = false; } });
   document.querySelector("#email-repair-form")?.addEventListener("submit", async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); const body = { email: f.get("email"), reason: f.get("reason") }; if (await mutate(`/admin-api/v1/customers/${state.customer.user.uid}/repair-email`, body, "Email repaired. Existing sessions were revoked; the player must sign in again.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } });
+  const createCustomerForm=document.querySelector('#create-customer-form');
+  if(createCustomerForm){
+    let requestId=crypto.randomUUID();
+    createCustomerForm.addEventListener('input',()=>{requestId=crypto.randomUUID();});
+    createCustomerForm.addEventListener('submit',async event=>{
+      event.preventDefault();const button=createCustomerForm.querySelector('button');if(button.disabled)return;
+      const status=document.querySelector('#create-customer-status');
+      button.disabled=true;status.textContent='Creating account and granting access…';
+      const f=new FormData(createCustomerForm);
+      try{
+        if(demo)throw new Error('Account creation is unavailable in the demo.');
+        const result=await api('/admin-api/v1/customers',{method:'POST',body:{email:f.get('email'),product:f.get('product'),mobilePlatform:f.get('mobilePlatform'),reason:f.get('reason'),requestId,...(f.get('endsAt')?{endsAt:new Date(f.get('endsAt')).toISOString()}:{} )}});
+        state.customer=result.customer;directory.cursor=null;directory.history=[];directory.resultPage=0;
+        await loadView('customers');
+        toast(result.created?'Account created and access granted.':'Existing account found; access granted.');
+      }catch(error){status.textContent=error.message;toast(error.message,true);}
+      finally{button.disabled=false;}
+    });
+  }
   document.querySelector("#grant-form")?.addEventListener("submit", async (event) => { event.preventDefault(); const f = new FormData(event.currentTarget); const body = { product: f.get("product"), reason: f.get("reason"), mobilePlatform: f.get("mobilePlatform"), ...(f.get("endsAt") ? { endsAt: new Date(f.get("endsAt")).toISOString() } : {}) }; if (await mutate(`/admin-api/v1/customers/${state.customer.user.uid}/grants`, body, "Access granted.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } });
   document.querySelectorAll("[data-revoke-grant]").forEach((b) => b.addEventListener("click", async () => { const r = await reason("Why are you revoking this manual grant?"); if (r && await mutate(`/admin-api/v1/grants/${b.dataset.revokeGrant}/revoke`, { reason: r }, "Grant revoked.")) { state.customer = await api(`/admin-api/v1/customers/${state.customer.user.uid}`); loadView("customers"); } }));
   document.querySelectorAll("[data-customer-action]").forEach((b) => b.addEventListener("click", async () => {
