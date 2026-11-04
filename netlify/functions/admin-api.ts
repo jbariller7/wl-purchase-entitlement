@@ -1,7 +1,10 @@
+import {EntitlementStore} from '../../src/infrastructure/entitlement-store.js';
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
 import {listVipReservations,syncVipSession} from '../../src/beyond-vip/service.js';
 import {vipPledgeSummary} from '../../src/beyond-vip/pledge-summary.js';
 import {ensureAdminCustomer} from '../../src/admin/create-customer.js';
+import {queueAccessDelivery,accessDeliveryStatus} from '../../src/admin/access-delivery.js';
+import {emailCopy} from '../../src/email/copy.js';
 import {websiteStripeClient} from '../../src/providers/stripe/website-config.js';
 import {listContacts} from '../../src/contact/service.js';
 import {recordAdminAudit} from '../../src/admin/audit.js';
@@ -39,7 +42,10 @@ const createCustomerSchema=z.object({
  mobilePlatform:z.enum(['android','ios']),
  reason,
  endsAt:z.string().datetime().optional(),
- requestId:z.string().uuid()
+ requestId:z.string().uuid(),
+ sendEmail:z.boolean().default(false),
+ delivery:z.enum(['none','steam','direct']).default('none'),
+ locale:z.string().refine(v=>Object.hasOwn(emailCopy,v),'Choose a supported email language.').default('en')
 }).strict();
 const confirmation = z.string().trim().min(3).max(100);
 const grantSchema = z.object({
@@ -216,12 +222,18 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   }
   if(event.httpMethod==='POST'&&path==='/v1/customers'){
     const input=body(createCustomerSchema,event);
+    if(input.product!=='premium_lifetime_pass'&&input.delivery!=='none')throw new HttpError(400,'Mobile-only access does not include a desktop key.');
+    if(input.product==='premium_lifetime_pass'&&input.sendEmail&&input.delivery==='none')throw new HttpError(400,'Choose Steam or direct download for the Lifetime Pass confirmation email.');
+    if(input.sendEmail&&(!process.env.ORDER_EMAIL_SMTP_PASSWORD||process.env.ORDER_EMAILS_ENABLED!=='true'))throw new HttpError(503,'Confirmation emails are not currently available.');
     if(input.endsAt&&Date.parse(input.endsAt)<=now.getTime())throw new HttpError(400,'Grant expiry must be a future date.');
     const {user,created}=await ensureAdminCustomer(firebaseAuth(),input.email);
     if(created)await recordAdminAudit({db,actor,action:'customer.create',targetType:'user',targetId:user.uid,summary:'Created an unverified customer account for manual access',metadata:{reason:input.reason},now});
     const customer=await operations.createGrant({actor,uid:user.uid,product:input.product,mobilePlatform:input.mobilePlatform,reason:input.reason,...(input.endsAt?{endsAt:input.endsAt}:{}),requestId:input.requestId,now});
-    return json(created?201:200,{customer,created});
+    const deliveryId=await queueAccessDelivery(new EntitlementStore(db),{requestId:input.requestId,uid:user.uid,email:input.email.trim().toLowerCase(),product:input.product,mobilePlatform:input.mobilePlatform,delivery:input.delivery??'none',sendEmail:input.sendEmail??false,locale:input.locale??'en',actorUid:actor.uid});
+    return json(created?201:200,{customer,created,deliveryId,delivery:await accessDeliveryStatus(new EntitlementStore(db),deliveryId)});
   }
+  const accessDeliveryMatch=path.match(/^\/v1\/customer-deliveries\/([0-9a-f-]{36})$/i);
+  if(event.httpMethod==='GET'&&accessDeliveryMatch)return json(200,await accessDeliveryStatus(new EntitlementStore(db),accessDeliveryMatch[1]!));
   if (event.httpMethod === "GET" && path === "/v1/customers/search") {
     const query = event.queryStringParameters?.q;
     if (!query || query.length > 4096) throw new HttpError(400, "Enter an exact email, Firebase UID, Stripe ID, or provider transaction ID.");

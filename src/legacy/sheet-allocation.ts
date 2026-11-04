@@ -23,15 +23,17 @@ export async function allocateSheetKey(db:Firestore,input:{orderId:string;email:
  if(!spreadsheetId||!sa||!key)throw new Error('Google Sheets inventory is not configured.');
  const owner=randomUUID(),ref=db.collection('inventoryAllocationLeases').doc(createHash('sha256').update(spreadsheetId+':'+input.sheetTab).digest('hex'));
  await db.runTransaction(async tx=>{const d=(await tx.get(ref)).data();if(d?.until>Date.now())throw new Error('Inventory is busy. Delivery will retry.');tx.set(ref,{owner,until:Date.now()+180000});});
+ let release=true;
  try{
   const auth=new google.auth.JWT({email:sa,key:normalizeGoogleServiceAccountPrivateKey(key),scopes:['https://www.googleapis.com/auth/spreadsheets']});
   const sheets=google.sheets({version:'v4',auth}),tab=`'${input.sheetTab.replaceAll("'","''")}'`;
   const rows=(await sheets.spreadsheets.values.get({spreadsheetId,range:`${tab}!A2:E`},{timeout:20000})).data.values??[];
   const selected=selectSheetAllocation(rows,input.orderId,email),rowNumber=selected.index+2;
-  if(!selected.existing)await sheets.spreadsheets.values.update({spreadsheetId,range:`${tab}!B${rowNumber}:E${rowNumber}`,valueInputOption:'RAW',requestBody:{values:[[email,new Date().toISOString(),input.orderId,input.paymentLinkId??'manual-admin']]}},{timeout:20000});
+  if(!selected.existing){release=false;await sheets.spreadsheets.values.update({spreadsheetId,range:`${tab}!B${rowNumber}:E${rowNumber}`,valueInputOption:'RAW',requestBody:{values:[[email,new Date().toISOString(),input.orderId,input.paymentLinkId??'manual-admin']]}},{timeout:20000});}
   // Sheet is authoritative. A retry after a lost response finds the same order ID.
   const checked=(await sheets.spreadsheets.values.get({spreadsheetId,range:`${tab}!A${rowNumber}:E${rowNumber}`},{timeout:20000})).data.values?.[0];
   if(!checked||checked[0]!==selected.key||checked[3]!==input.orderId||String(checked[1]).toLowerCase()!==email)throw new Error('Key assignment could not be verified.');
+  release=true;
   return {key:selected.key,sheetTab:input.sheetTab,rowNumber};
- }finally{await db.runTransaction(async tx=>{const d=await tx.get(ref);if(d.data()?.owner===owner)tx.delete(ref);});}
+ }finally{if(release)await db.runTransaction(async tx=>{const d=await tx.get(ref);if(d.data()?.owner===owner)tx.delete(ref);});}
 }

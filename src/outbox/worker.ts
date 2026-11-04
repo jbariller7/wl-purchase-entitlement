@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {sendGoogleConversion} from "../ads/google-conversion.js";
 import type { OutboxJob, OutboxKind, LegacyOrder } from "../domain/model.js";
 import {sendPurchaseConfirmation} from '../email/purchase-confirmation.js';
+import {sendAccessDelivery} from '../admin/access-delivery.js';
 import { sendMetaConversion, sendTikTokConversion } from "../ads/conversion-senders.js";
 import {vipMetaSuppressed} from '../beyond-vip/service.js';
 import { EntitlementStore } from "../infrastructure/entitlement-store.js";
@@ -16,6 +17,8 @@ import { LegacyPersonalDataErasureService } from "../legacy/personal-data-erasur
 
 async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<string, unknown> | undefined> {
   switch (job.kind) {
+    case "manual_access_delivery":
+      return sendAccessDelivery(job,store);
     case "purchase_confirmation":
       if (!deploymentControls().ORDER_EMAILS_ENABLED) throw new Error("Order emails are disabled.");
       return sendPurchaseConfirmation(job,store);
@@ -84,7 +87,7 @@ export async function runOutboxWorker(limit = 20): Promise<{ processed: number; 
   const workerId = randomUUID();
   const allowed:OutboxKind[]=[];
   if(controls.AD_CONVERSIONS_ENABLED)allowed.push('meta_conversion','tiktok_conversion','google_conversion');
-  if(controls.ORDER_EMAILS_ENABLED)allowed.push('purchase_confirmation');
+  if(controls.ORDER_EMAILS_ENABLED)allowed.push('purchase_confirmation','manual_access_delivery');
   const jobs = await store.leaseOutboxJobs(workerId, new Date(), limit,
     controls.OUTBOX_PROCESSING_ENABLED ? undefined : allowed);
   let processed = 0;

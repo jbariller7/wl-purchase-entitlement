@@ -72,6 +72,7 @@ export interface ProviderEventRecord {
 }
 
 export type OutboxKind =
+  | "manual_access_delivery"
   | "purchase_confirmation"
   | "fulfill_legacy_order"
   | "email_receipt"

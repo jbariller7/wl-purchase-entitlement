@@ -11,6 +11,7 @@ export interface Confirmation {
  email: string;
  reference: string;
  amount: number;
+ omitAmount?: boolean;
  currency: string;
  country?: string | null | undefined;
  keys: string[];
@@ -30,7 +31,7 @@ export function renderConfirmation(input:Confirmation,channel:'email'|'web'='ema
  const product=isMobile?m[offer==='mobile_monthly'?0:1]!:p[offer as 'single'|'polyglot'|'premium'];
  const description=isMobile?m[offer==='mobile_monthly'?2:3]!:p[`${offer as 'single'|'polyglot'|'premium'}Description`];
  const amount=new Intl.NumberFormat(locale,{style:'currency',currency:input.currency.toUpperCase()}).format(stripeMajorValue(input.currency,input.amount));
- const paragraphs=[c[1],product,description,`${c[2]}: ${amount}`,`${c[3]}: ${input.reference}`];
+ const paragraphs=[c[1],product,description,...(input.omitAmount?[]:[`${c[2]}: ${amount}`]),`${c[3]}: ${input.reference}`];
  if(learningLanguage){const index=['french','spanish','german','italian','portuguese','korean','japanese','mandarin','english'].indexOf(learningLanguage);paragraphs.push(`${p.language}: ${p.languages[index]}`);}
  if(isMobile)paragraphs.push(`${m[4]}: ${mobilePlatform==='ios'?'iOS':'Android'}`);
  const account=`https://wonderlang.app/account/?lang=${encodeURIComponent(locale)}`;
