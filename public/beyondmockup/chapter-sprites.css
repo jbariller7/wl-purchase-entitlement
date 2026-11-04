@@ -6,3 +6,7 @@
 .chapter-sprite.closing-musicians{margin:16px auto 0;min-height:78.4px}
 .chapter-sprite.closing-musicians img{width:156.8px;height:78.4px}
 @media(max-width:650px){.chapter-sprite{margin-top:8px}}
+
+/* Character-collection illustration: 1.5 times the standard 78.4px character GIF. */
+#story figure.kanji-hanzi-monsters{display:flex;justify-content:center;margin:22px auto 26px}
+#story figure.kanji-hanzi-monsters img{display:block;flex:none;width:117.6px;height:117.6px;max-width:100%;object-fit:contain;margin:0;border-radius:0}
