@@ -1,0 +1,22 @@
+/* Primary campaign action; served as a stylesheet under the site's CSP. */
+.preview-actions:has(.live-campaign-button){display:flex;justify-content:center;margin:24px auto;max-width:38rem}
+.campaign-preview a.live-campaign-button{
+ display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:clamp(.65rem,2vw,1.2rem);
+ width:100%;min-height:88px;box-sizing:border-box;padding:clamp(.85rem,3vw,1.35rem);
+ background:linear-gradient(115deg,#075642,#06392f);border:1px solid #09664d;border-radius:18px;
+ box-shadow:0 4px 0 #032e24,0 9px 20px rgba(3,65,47,.18);
+ color:#fff;text-decoration:none;text-align:start;line-height:1.2;transition:transform .15s,box-shadow .15s
+}
+.live-campaign-icon,.live-campaign-arrow{display:grid;place-items:center;flex:none}
+.live-campaign-icon{width:clamp(2.65rem,6vw,3.6rem);aspect-ratio:1;background:#a4ffd4;border-radius:14px}
+.live-campaign-icon img{display:block;width:56%;height:auto}
+.live-campaign-copy{display:grid;gap:.32rem;overflow-wrap:anywhere}
+.live-campaign-copy small{color:#b7f4d6;font-size:clamp(.8rem,2vw,.96rem);font-weight:650}
+.live-campaign-copy strong{color:white;font-size:clamp(1.22rem,3vw,1.8rem);line-height:1.13;font-weight:800}
+.live-campaign-arrow{width:2rem;height:2rem;border:1px solid #79b69e;border-radius:50%;color:#fff;font:600 1.15rem/1 system-ui}
+[dir=rtl] .live-campaign-arrow{transform:scaleX(-1)}
+@media(hover:hover){.campaign-preview a.live-campaign-button:hover{transform:translateY(-2px);background:linear-gradient(115deg,#08694e,#074637);box-shadow:0 5px 0 #032e24,0 12px 22px rgba(3,65,47,.23)}}
+.campaign-preview a.live-campaign-button:focus-visible{outline:3px solid #6a3593;outline-offset:5px}
+.campaign-preview a.live-campaign-button:active{transform:translateY(2px);box-shadow:0 1px 0 #032e24}
+@media(prefers-reduced-motion:reduce){.campaign-preview a.live-campaign-button{transition:none}}
+.pledge-price{font-size:1.25rem;font-weight:750}.mockup-strip{background:#075843;color:white;font-weight:750}.mobile-rewards>a{white-space:normal}
