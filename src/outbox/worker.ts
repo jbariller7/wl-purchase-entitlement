@@ -82,10 +82,11 @@ async function execute(job: OutboxJob, store: EntitlementStore): Promise<Record<
 
 export async function runOutboxWorker(limit = 20): Promise<{ processed: number; failed: number }> {
   const controls = deploymentControls();
-  if (!controls.OUTBOX_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED && !controls.ORDER_EMAILS_ENABLED) return { processed: 0, failed: 0 };
+  if (!controls.OUTBOX_PROCESSING_ENABLED && !controls.ACCOUNT_DELETION_PROCESSING_ENABLED && !controls.AD_CONVERSIONS_ENABLED && !controls.ORDER_EMAILS_ENABLED) return { processed: 0, failed: 0 };
   const store = new EntitlementStore(firestore());
   const workerId = randomUUID();
   const allowed:OutboxKind[]=[];
+  if (controls.ACCOUNT_DELETION_PROCESSING_ENABLED) allowed.push("delete_account_data");
   if(controls.AD_CONVERSIONS_ENABLED)allowed.push('meta_conversion','tiktok_conversion','google_conversion');
   if(controls.ORDER_EMAILS_ENABLED)allowed.push('purchase_confirmation','manual_access_delivery');
   const jobs = await store.leaseOutboxJobs(workerId, new Date(), limit,

@@ -190,7 +190,7 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     return json(200, {
       environment: publicFirebase.environment,
       accountApiReady,
-      accountDeletionEnabled: deploymentControls().OUTBOX_PROCESSING_ENABLED && deploymentControls().ACCOUNT_DELETION_PROCESSING_ENABLED,
+      accountDeletionEnabled: deploymentControls().ACCOUNT_DELETION_PROCESSING_ENABLED,
       checkoutEnabled: Boolean(runtime?.STRIPE_MUTATIONS_ENABLED),
       appCheckEnforced: deploymentControls().APP_CHECK_ENFORCEMENT_ENABLED,
       appCheckConfigured: Boolean(publicFirebase.appCheckRecaptchaEnterpriseSiteKey),
@@ -260,6 +260,15 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       return json(result.state === "pending" ? 202 : 200, result);
     }
     throw new HttpError(405, "Method Not Allowed");
+  }
+
+  // An erased user can still check their receipt. Never return an identity or accept a UID here.
+  if (event.httpMethod === "POST" && path === "/v1/deletion-receipt") {
+    const parsed = z.object({ receipt: z.string().regex(/^[a-f0-9]{64}$/) }).safeParse(parseJsonBody(event.body));
+    if (!parsed.success) throw new HttpError(400, "Invalid receipt.");
+    const record = await firestore().collection("accountDeletionReceipts").doc(sha256(parsed.data.receipt)).get();
+    if (!record.exists) throw new HttpError(404, "Receipt not found.");
+    return json(200, { state: record.get("state"), deleteAfter: record.get("deleteAfter") ?? null });
   }
 
   let user = await requireUser(requestHeader(event.headers, "authorization"));
@@ -391,14 +400,14 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   }
 
   if (event.httpMethod === "POST" && path === "/v1/me/deletion-preview") {
-    if (!deploymentControls().OUTBOX_PROCESSING_ENABLED || !deploymentControls().ACCOUNT_DELETION_PROCESSING_ENABLED) {
+    if (!deploymentControls().ACCOUNT_DELETION_PROCESSING_ENABLED) {
       throw new HttpError(503, "Automatic account deletion is unavailable. Email wonderlang.thegame@gmail.com to request deletion.");
     }
     return json(200, await new AccountDeletionService(db, firebaseAuth()).preview(user.uid, now));
   }
 
   if (event.httpMethod === "POST" && path === "/v1/me/deletion-commit") {
-    if (!deploymentControls().OUTBOX_PROCESSING_ENABLED || !deploymentControls().ACCOUNT_DELETION_PROCESSING_ENABLED) {
+    if (!deploymentControls().ACCOUNT_DELETION_PROCESSING_ENABLED) {
       throw new HttpError(503, "Automatic account deletion is unavailable. Email wonderlang.thegame@gmail.com to request deletion.");
     }
     const parsed = deletionCommitSchema.safeParse(parseJsonBody(event.body));

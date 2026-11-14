@@ -16,7 +16,7 @@ const result = spawnSync(process.execPath, [
   "--project",
   "demo-wonderlang-entitlements",
   "--only",
-  "firestore,storage",
+  "auth,firestore,storage",
   "vitest run test/firebase-rules.test.ts"
 ], {
   cwd: process.cwd(),

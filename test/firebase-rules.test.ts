@@ -9,9 +9,9 @@ import {
 import { collection, deleteDoc, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { deleteObject, getBytes, listAll, ref, uploadBytes } from "firebase/storage";
 import { deleteApp, initializeApp } from "firebase-admin/app";
-import type { Auth } from "firebase-admin/auth";
+import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore as getAdminFirestore } from "firebase-admin/firestore";
-import type { Storage } from "firebase-admin/storage";
+import { getStorage, type Storage } from "firebase-admin/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AccountDeletionService } from "../src/account-deletion/service.js";
 import { AdminOperationsService } from "../src/admin/operations-service.js";
@@ -446,6 +446,41 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
     }
   });
 
+  it.skipIf(!process.env.FIREBASE_AUTH_EMULATOR_HOST)("erases a disposable Auth user and cloud files and confirms completion by receipt", async () => {
+    const app = initializeApp({ projectId, storageBucket: projectId + ".appspot.com" }, "deletion-lifecycle");
+    const auth = getAuth(app);
+    const db = getAdminFirestore(app);
+    const storage = getStorage(app);
+    const service = new AccountDeletionService(db, auth, storage);
+    const { uid } = await auth.createUser({ email: "disposable@example.test" });
+    const other = await auth.createUser({ email: "unrelated@example.test" });
+    const start = new Date("2026-11-14T10:00:00Z");
+    try {
+      const file = storage.bucket().file(`cloud-save-profiles/${uid}/profiles/main/revisions/slot.json`);
+      const otherFile = storage.bucket().file(`cloud-save-profiles/${other.uid}/profiles/main/revisions/slot.json`);
+      const save = db.collection("cloudSaves").doc(uid).collection("profiles").doc("main");
+      await Promise.all([file.save("sample"), otherFile.save("other"), save.set({ name: "Main" })]);
+      const preview = await service.preview(uid, start);
+      expect((await auth.getUser(uid)).disabled).toBe(false);
+      const result = await service.commit({ uid, now: start, previewId: String(preview.previewId),
+        confirmationPhrase: String(preview.confirmationPhrase) });
+      expect((await auth.getUser(uid)).disabled).toBe(true);
+      const receipt = db.collection("accountDeletionReceipts").doc(sha256(String(preview.receipt)));
+      expect((await receipt.get()).get("state")).toBe("scheduled");
+      expect(await service.purge(uid, start)).toMatchObject({ skipped: true });
+      expect((await file.exists())[0]).toBe(true);
+      expect(await service.purge(uid, new Date(String(result.deleteAfter)))).toMatchObject({ deleted: true });
+      await expect(auth.getUser(uid)).rejects.toMatchObject({ code: "auth/user-not-found" });
+      expect((await save.get()).exists).toBe(false);
+      expect((await file.exists())[0]).toBe(false);
+      expect((await otherFile.exists())[0]).toBe(true);
+      expect((await auth.getUser(other.uid)).disabled).toBe(false);
+      expect((await receipt.get()).data()).toEqual({ state: "deleted" });
+    } finally {
+      await deleteApp(app);
+    }
+  }, 30_000);
+
   it("pseudonymizes linked purchase records and cancels personal outbox work on final account deletion", async () => {
     const app = initializeApp({ projectId }, `account-deletion-${Date.now()}`);
     const database = getAdminFirestore(app);
@@ -468,6 +503,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
         database.collection("accountDeletionRequests").doc(uid).set({
           uid,
           state: "scheduled",
+          receiptHash: sha256("test-receipt"),
           deleteAfter: "2026-01-01T00:00:00.000Z"
         }),
         database.collection("users").doc(uid).set({ storeAccountToken: "store-token" }),
@@ -586,6 +622,7 @@ describe.skipIf(!emulatorsAvailable)("deny-by-default Firebase client rules", ()
       expect(accountSecurity.exists).toBe(false);
       expect(tombstone.data()?.deletedUid).toBe(deletedUid);
       expect(deletedAuthUsers).toEqual([uid]);
+      expect((await database.collection("accountDeletionReceipts").doc(sha256("test-receipt")).get()).data()).toEqual({ state: "deleted" });
       expect(erasedLegacySubjects).toEqual([{
         emails: ["buyer@example.com"],
         sheetAssignments: [{ sheetTab: "English Steam", rowNumber: 42 }]
