@@ -193,12 +193,17 @@ export async function verifyAppleNotification(signedPayload: string): Promise<{
   transaction?: JWSTransactionDecodedPayload;
   renewal?: JWSRenewalInfoDecodedPayload;
 }> {
-  const notification = await appleVerifier().verifyAndDecodeNotification(signedPayload);
+  // Route only to an Apple verifier. Its signature, bundle and environment
+  // checks remain authoritative for the outer payload and both nested tokens.
+  const payload = JSON.parse(Buffer.from(signedPayload.split(".")[1] ?? "", "base64url").toString("utf8"));
+  const claimedEnvironment = payload?.data?.environment ?? payload?.summary?.environment ?? payload?.appData?.environment;
+  const verifier = claimedEnvironment === Environment.SANDBOX ? appleVerifier(Environment.SANDBOX) : appleVerifier();
+  const notification = await verifier.verifyAndDecodeNotification(signedPayload);
   const transaction = notification.data?.signedTransactionInfo
-    ? await appleVerifier().verifyAndDecodeTransaction(notification.data.signedTransactionInfo)
+    ? await verifier.verifyAndDecodeTransaction(notification.data.signedTransactionInfo)
     : undefined;
   const renewal = notification.data?.signedRenewalInfo
-    ? await appleVerifier().verifyAndDecodeRenewalInfo(notification.data.signedRenewalInfo)
+    ? await verifier.verifyAndDecodeRenewalInfo(notification.data.signedRenewalInfo)
     : undefined;
   return {
     notification,
