@@ -2,6 +2,8 @@ import {
   AppStoreServerAPIClient,
   Environment,
   SignedDataVerifier,
+  VerificationException,
+  VerificationStatus,
   Status,
   type JWSTransactionDecodedPayload,
   type JWSRenewalInfoDecodedPayload,
@@ -14,7 +16,7 @@ import { HttpError } from "../../http/auth.js";
 import type { EntitlementStore } from "../../infrastructure/entitlement-store.js";
 import { chapterMigrationGrant } from "../../domain/legacy-chapter-migration.js";
 
-let verifier: SignedDataVerifier | undefined;
+const verifiers = new Map<Environment, SignedDataVerifier>();
 let apiClient: AppStoreServerAPIClient | undefined;
 
 function appleApiClient(): AppStoreServerAPIClient {
@@ -31,24 +33,25 @@ function appleApiClient(): AppStoreServerAPIClient {
   return apiClient;
 }
 
-function appleVerifier(): SignedDataVerifier {
-  if (verifier) return verifier;
+function appleVerifier(environment: Environment = appleEnv().APPLE_ENVIRONMENT === "Production" ? Environment.PRODUCTION : Environment.SANDBOX): SignedDataVerifier {
+  const existing = verifiers.get(environment);
+  if (existing) return existing;
   const configuration = appleEnv();
   const bundleId = configuration.APPLE_BUNDLE_ID;
   const g2 = configuration.APPLE_ROOT_CA_G2_BASE64;
   const g3 = configuration.APPLE_ROOT_CA_G3_BASE64;
-  const environment = configuration.APPLE_ENVIRONMENT === "Production" ? Environment.PRODUCTION : Environment.SANDBOX;
   const appAppleId = environment === Environment.PRODUCTION && configuration.APPLE_APP_ID
     ? Number(configuration.APPLE_APP_ID)
     : undefined;
   if (environment === Environment.PRODUCTION && !appAppleId) throw new Error("APPLE_APP_ID is required in Production.");
-  verifier = new SignedDataVerifier(
+  const verifier = new SignedDataVerifier(
     [Buffer.from(g2, "base64"), Buffer.from(g3, "base64")],
     true,
     environment,
     bundleId,
     appAppleId
   );
+  verifiers.set(environment, verifier);
   return verifier;
 }
 
@@ -59,7 +62,7 @@ async function resolveUid(input: {
   authenticatedUid?: string;
 }): Promise<string> {
   const accountToken = input.transaction.appAccountToken ?? input.renewal?.appAccountToken;
-  const tokenUid = accountToken ? await input.store.uidForStoreAccountToken(accountToken) : undefined;
+  const tokenUid = accountToken ? await input.store.uidForStoreAccountToken(accountToken.toLowerCase()) : undefined;
   const originalId = input.transaction.originalTransactionId;
   const canonicalId = canonicalAppleTransactionId(input.transaction);
   const [transactionUid, subscriptionUid] = await Promise.all([
@@ -209,7 +212,7 @@ export async function processAppleNotification(input: {
   verified: Awaited<ReturnType<typeof verifyAppleNotification>>;
 }): Promise<void> {
   const { notification, transaction, renewal } = input.verified;
-  if (!transaction) return;
+  if (!transaction || transaction.environment === Environment.SANDBOX) return;
   const signedDate = notification.signedDate ?? transaction.signedDate;
   if (!signedDate || !Number.isFinite(signedDate)) {
     throw new Error("Verified Apple notification is missing its signed date.");
@@ -230,7 +233,27 @@ export async function claimAppleTransaction(input: {
   signedTransactionInfo: string;
   now: Date;
 }): Promise<EffectiveEntitlements> {
-  const transaction = await appleVerifier().verifyAndDecodeTransaction(input.signedTransactionInfo);
+  let transaction: JWSTransactionDecodedPayload;
+  try {
+    transaction = await appleVerifier().verifyAndDecodeTransaction(input.signedTransactionInfo);
+  } catch (error) {
+    if (!(error instanceof VerificationException) || error.status !== VerificationStatus.INVALID_ENVIRONMENT ||
+        appleEnv().APPLE_ENVIRONMENT !== "Production") throw error;
+    transaction = await appleVerifier(Environment.SANDBOX).verifyAndDecodeTransaction(input.signedTransactionInfo);
+  }
+  if (transaction.environment === Environment.SANDBOX) {
+    // TestFlight and App Review get device access from StoreKit. A sandbox
+    // receipt must never create an entitlement usable by a production account.
+    const id = transaction.productId;
+    const configuration = appleEnv();
+    if (!id || !(id === configuration.APPLE_MONTHLY_PRODUCT_ID || id === configuration.APPLE_POLYGLOT_PRODUCT_ID ||
+        Object.hasOwn(LEGACY_PLAY_PRODUCT_MAP, id))) throw new HttpError(403, "Unknown Apple product ID.");
+    if (transaction.appAccountToken &&
+        await input.store.uidForStoreAccountToken(transaction.appAccountToken.toLowerCase()) !== input.authenticatedUid) {
+      throw new HttpError(403, "Apple transaction belongs to a different account.");
+    }
+    return input.store.effectiveEntitlements(input.authenticatedUid, input.now);
+  }
   return applyAppleTransaction({
     store: input.store,
     transaction,
