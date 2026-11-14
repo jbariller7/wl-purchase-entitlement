@@ -27,6 +27,9 @@ export const lambdaHandler: LambdaHandler = async (event) => {
     console.warn("Rejected unverified Apple notification", safeErrorMessage(error));
     return { statusCode: 401, body: "Verification failed" };
   }
+  if (verified.notification.data?.environment === "Sandbox" || verified.notification.summary?.environment === "Sandbox") {
+    return { statusCode: 200, body: "Verified sandbox notification" };
+  }
   const eventId = verified.notification.notificationUUID;
   if (!eventId) return { statusCode: 400, body: "Missing notification UUID" };
   const signedDate = verified.notification.signedDate ?? verified.transaction?.signedDate;
