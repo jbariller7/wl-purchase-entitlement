@@ -101,7 +101,7 @@ describe("account page refresh", () => {
     for (const route of ["deletion-preview","deletion-commit"]) {
       const start = api.indexOf('path === "/v1/me/' + route + '"');
       const block = api.slice(start,api.indexOf('\n  }',start));
-      expect(block).toContain("!deploymentControls().OUTBOX_PROCESSING_ENABLED");
+      expect(block).not.toContain("OUTBOX_PROCESSING_ENABLED");
       expect(block).toContain("!deploymentControls().ACCOUNT_DELETION_PROCESSING_ENABLED");
       expect(block).toContain("throw new HttpError(503");
     }

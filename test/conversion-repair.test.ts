@@ -14,6 +14,13 @@ it('leases only advertising jobs while all other outbox processing remains disab
  expect(await runOutboxWorker()).toEqual({processed:0,failed:0});
  expect(mocked.lease).toHaveBeenCalledWith(expect.any(String),expect.any(Date),20,['meta_conversion','tiktok_conversion','google_conversion']);
 });
+it('leases only deletion jobs when the independent deletion switch is enabled', async () => {
+ Object.assign(process.env, { ACCOUNT_DELETION_PROCESSING_ENABLED: 'true', OUTBOX_PROCESSING_ENABLED: 'false',
+   AD_CONVERSIONS_ENABLED: 'false', ORDER_EMAILS_ENABLED: 'false' });
+ resetEnvironmentForTests();
+ await scheduledWorker({} as never, {} as never);
+ expect(mocked.lease).toHaveBeenCalledWith(expect.any(String), expect.any(Date), 20, ['delete_account_data']);
+});
 it('the deployed scheduled handler also permits advertising-only delivery',async()=>{
  Object.assign(process.env,{AD_CONVERSIONS_ENABLED:'true',OUTBOX_PROCESSING_ENABLED:'false'});resetEnvironmentForTests();
  await scheduledWorker({} as never,{} as never);

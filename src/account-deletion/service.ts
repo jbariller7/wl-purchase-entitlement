@@ -1,10 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import type { Auth } from "firebase-admin/auth";
 import { FieldValue, type Firestore, type Query, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import type { Storage } from "firebase-admin/storage";
 import { HttpError } from "../http/auth.js";
 import { stableDocumentId, sha256 } from "../infrastructure/ids.js";
-import { EntitlementStore } from "../infrastructure/entitlement-store.js";
 import { recordAdminAudit, type AdminActor } from "../admin/audit.js";
 import type {
   LegacyPersonalDataErasureResult,
@@ -25,6 +24,7 @@ interface DeletionPreview {
   state: "preview" | "processing" | "complete";
   confirmationPhrase: string;
   expiresAt: string;
+  receiptHash?: string;
   result?: Record<string, unknown>;
 }
 
@@ -42,17 +42,20 @@ export class AccountDeletionService {
       throw new HttpError(409, "Account deletion is already scheduled. Contact support during the recovery window to cancel it.");
     }
     const id = randomUUID();
+    const receipt = randomBytes(32).toString("hex");
     const expiresAt = new Date(now.getTime() + 15 * 60 * 1000);
     await this.db.collection("accountDeletionPreviews").doc(id).create({
       id,
       uid,
       state: "preview",
+      receiptHash: sha256(receipt),
       confirmationPhrase: ACCOUNT_DELETION_CONFIRMATION,
       createdAt: now.toISOString(),
       expiresAt: expiresAt.toISOString()
     });
     return {
       previewId: id,
+      receipt,
       confirmationPhrase: ACCOUNT_DELETION_CONFIRMATION,
       expiresAt: expiresAt.toISOString(),
       recoveryDays: ACCOUNT_DELETION_RECOVERY_DAYS,
@@ -69,17 +72,32 @@ export class AccountDeletionService {
     const previewRef = this.db.collection("accountDeletionPreviews").doc(input.previewId);
     const requestRef = this.db.collection("accountDeletionRequests").doc(input.uid);
     const deleteAfter = new Date(input.now.getTime() + ACCOUNT_DELETION_RECOVERY_DAYS * 24 * 60 * 60 * 1000);
+    const dedupeKey = `account-deletion:${input.uid}`;
+    const job = this.db.collection("outbox").doc(stableDocumentId("delete_account_data", dedupeKey));
     const preview = await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(previewRef);
       if (!snapshot.exists) throw new HttpError(404, "Account-deletion preview not found.");
       const data = snapshot.data() as DeletionPreview;
       if (data.uid !== input.uid) throw new HttpError(403, "This deletion preview belongs to another account.");
-      if (data.state === "complete" && data.result) return data;
+      const existing = await transaction.get(requestRef);
+      if (data.state === "complete" && data.result) {
+        if (existing.data()?.previewId !== input.previewId || existing.data()?.state !== "scheduled") {
+          throw new HttpError(409, "This request is no longer active.");
+        }
+        return data;
+      }
       if (data.state !== "preview") throw new HttpError(409, "This deletion request is already processing.");
       if (Date.parse(data.expiresAt) <= input.now.getTime()) throw new HttpError(410, "The deletion preview expired. Review it again.");
       if (input.confirmationPhrase.trim() !== data.confirmationPhrase) throw new HttpError(400, `Type ${ACCOUNT_DELETION_CONFIRMATION} to confirm.`);
+      if (existing.data()?.state === "scheduled") throw new HttpError(409, "Account deletion is already scheduled.");
       const result = { state: "scheduled", requestedAt: input.now.toISOString(), deleteAfter: deleteAfter.toISOString(), recoveryDays: ACCOUNT_DELETION_RECOVERY_DAYS };
-      transaction.set(requestRef, { uid: input.uid, ...result, previewId: input.previewId });
+      // The purge job must survive a disconnect, including before Firebase disables sign-in.
+      transaction.set(job, {
+        id: job.id, kind: "delete_account_data", dedupeKey, state: "pending", attemptCount: 0,
+        createdAt: input.now.toISOString(), notBefore: deleteAfter.toISOString(), payload: { uid: input.uid }
+      });
+      if (data.receiptHash) transaction.set(this.db.collection("accountDeletionReceipts").doc(data.receiptHash), result);
+      transaction.set(requestRef, { ...(data.receiptHash ? { receiptHash: data.receiptHash } : {}), uid: input.uid, ...result, previewId: input.previewId });
       transaction.update(previewRef, { state: "complete", completedAt: input.now.toISOString(), result });
       return { ...data, state: "complete" as const, result };
     });
@@ -87,8 +105,6 @@ export class AccountDeletionService {
     await this.auth.updateUser(input.uid, { disabled: true });
     await invalidateDeviceSignInsForUid(this.db, input.uid, input.now);
     await this.auth.revokeRefreshTokens(input.uid);
-    const store = new EntitlementStore(this.db);
-    await store.enqueue("delete_account_data", `account-deletion:${input.uid}`, { uid: input.uid }, input.now, deleteAfter);
     await this.db.collection("accountAudit").add({
       actorUid: input.uid,
       action: "account.deletion.request",
@@ -107,6 +123,8 @@ export class AccountDeletionService {
       const [request, outbox] = await Promise.all([transaction.get(requestRef), transaction.get(outboxRef)]);
       if (!request.exists || request.data()?.state !== "scheduled") throw new HttpError(409, "No scheduled deletion request can be canceled.");
       if (Date.parse(String(request.data()?.deleteAfter)) <= input.now.getTime()) throw new HttpError(410, "The recovery window has ended.");
+      const receiptHash = request.data()?.receiptHash;
+      if (receiptHash) transaction.set(this.db.collection("accountDeletionReceipts").doc(receiptHash), { state: "canceled" });
       transaction.update(requestRef, { state: "canceled", canceledAt: input.now.toISOString(), canceledBy: input.actor.uid, cancellationReason: input.reason.trim() });
       if (outbox.exists && outbox.data()?.state === "pending") transaction.update(outboxRef, { state: "canceled", canceledAt: input.now.toISOString() });
     });
@@ -316,6 +334,7 @@ export class AccountDeletionService {
       this.deleteQuery(this.db.collection("providerSecrets").where("uid", "==", uid)),
       this.deleteQuery(this.db.collection("deviceSignInSessions").where("approvedUid", "==", uid)),
       this.deleteQuery(this.db.collection("pendingImports").where("claimedByUid", "==", uid)),
+      this.deleteQuery(this.db.collection("accountAudit").where("actorUid", "==", uid)),
       this.deleteQuery(this.db.collection("accountDeletionPreviews").where("uid", "==", uid))
     ]);
     const [legacyPurchaseRows, scrubbedOutboxRows] = await Promise.all([
@@ -336,6 +355,7 @@ export class AccountDeletionService {
       this.rewriteUid(this.db.collection("providerCustomers"), uid, deletedUid, now)
     ]);
     const batch = this.db.batch();
+    batch.delete(this.db.collection("reviewerAccounts").doc(uid));
     batch.delete(this.db.collection("users").doc(uid));
     batch.delete(this.db.collection("entitlements").doc(uid));
     batch.delete(this.db.collection("legacyDiscountClaims").doc(uid));
@@ -344,11 +364,13 @@ export class AccountDeletionService {
     if (storeAccountToken) batch.delete(this.db.collection("storeAccountTokens").doc(stableDocumentId("store-account", storeAccountToken)));
     const tombstoneRef = this.db.collection("accountDeletionTombstones").doc(sha256(uid));
     batch.set(tombstoneRef, { deletedUid, completedAt: now.toISOString(), retainedLedgerRows: pseudonymizedRows.reduce((sum, value) => sum + value, 0) });
+    const receiptHash = request.data()?.receiptHash;
+    if (receiptHash) batch.set(this.db.collection("accountDeletionReceipts").doc(receiptHash), { state: "deleted" });
     batch.delete(requestRef);
-    await batch.commit();
     await this.auth.deleteUser(uid).catch((error) => {
       if ((error as { code?: string }).code !== "auth/user-not-found") throw error;
     });
+    await batch.commit();
     return {
       deleted: true,
       deletedPrivateRows: deletedPrivateRows.reduce((sum, value) => sum + value, 0),
