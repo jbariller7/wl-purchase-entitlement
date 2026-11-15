@@ -221,13 +221,15 @@ export class AdminImportService {
     const ref = this.db.collection("pendingImports").doc(pendingId(row.email));
     await this.db.runTransaction(async (transaction) => {
       const snapshot = await transaction.get(ref);
-      const current = snapshot.data() as { rows?: NormalizedImportRow[]; claimedByUid?: string } | undefined;
+      const current = snapshot.data() as { rows?: NormalizedImportRow[]; claimedByUid?: string; revokedImportIds?: string[] } | undefined;
+      if (current?.revokedImportIds?.includes(row.externalId)) return;
       if (current?.claimedByUid) throw new Error(`A pending import for ${row.email} was already claimed; refresh the account lookup.`);
       const rows = current?.rows ?? [];
       const deduped = [...rows.filter((existing) => existing.externalId !== row.externalId), row];
       transaction.set(ref, {
         email: row.email,
         rows: deduped,
+        ...(current?.revokedImportIds ? { revokedImportIds: current.revokedImportIds } : {}),
         state: "pending",
         importedBy: actorUid,
         updatedAt: now.toISOString(),
@@ -326,6 +328,33 @@ export class AdminImportService {
     }
   }
 
+  async revokePendingLifetimePass(input: { email: string; actor: AdminActor; reason: string; now: Date }) {
+    const email = normalizedEmail(input.email);
+    const ref = this.db.collection("pendingImports").doc(pendingId(email));
+    const audit = this.db.collection("adminAudit").doc(randomUUID());
+    return this.db.runTransaction(async tx => {
+      const data = (await tx.get(ref)).data();
+      if (!data || data.email !== email || data.state !== "pending" || data.claimedByUid) {
+        throw new HttpError(409, "This grant is no longer pending. Refresh the customer list to see its current status.");
+      }
+      const rows: NormalizedImportRow[] = data.rows;
+      const removed = rows.filter(row => row.kind === "premium_lifetime_pass");
+      if (!removed.length) throw new HttpError(409, "This customer has no pending Premium Lifetime Pass.");
+      const remaining = rows.filter(row => row.kind !== "premium_lifetime_pass");
+      const ids = removed.map(row => row.externalId);
+      tx.update(ref, {
+        rows: remaining, state: remaining.length ? "pending" : "revoked", updatedAt: input.now.toISOString(),
+        revokedImportIds: [...new Set([...(data.revokedImportIds ?? []), ...ids])]
+      });
+      tx.set(audit, {
+        id: audit.id, action: "pending-import.revoke-lifetime", targetType: "pending-import", targetId: ref.id,
+        actorUid: input.actor.uid, actorEmail: input.actor.email, createdAt: input.now.toISOString(),
+        summary: "Revoked pending Premium Lifetime Pass", metadata: { email, reason: input.reason, externalIds: ids }
+      });
+      return { revoked: true };
+    });
+  }
+
   async claimPendingForVerifiedUser(input: { uid: string; email: string; now: Date }): Promise<number> {
     const email = normalizedEmail(input.email);
     const ref = this.db.collection("pendingImports").doc(pendingId(email));
@@ -335,7 +364,7 @@ export class AdminImportService {
       const data = snapshot.data() as { email: string; state: string; rows: NormalizedImportRow[]; claimedByUid?: string };
       if (data.email !== email) throw new Error("Pending import email hash collision.");
       if (data.claimedByUid && data.claimedByUid !== input.uid) throw new Error("Pending import is already linked to another user.");
-      if (data.state === "claimed") return [];
+      if (data.state === "claimed" || data.state === "revoked") return [];
       transaction.update(ref, { state: "processing", claimedByUid: input.uid, processingAt: input.now.toISOString() });
       return data.rows;
     });

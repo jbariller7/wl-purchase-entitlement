@@ -119,3 +119,36 @@ describe("resumable administrator imports", () => {
     expect(f.auth.getUserByEmail).not.toHaveBeenCalled();
   });
 });
+import {sha256} from "../src/infrastructure/ids.js";
+
+describe("revoking a pending Lifetime Pass", () => {
+  const email = "holder@example.com";
+  const path = "pendingImports/" + sha256(email);
+  const pass = {...rows(1)[0], email};
+  const revoke = (f: ReturnType<typeof fixture>) =>
+    f.service.revokePendingLifetimePass({email, actor, now, reason:"Incorrect grant for customer"});
+
+  it("prevents a later sign-in from claiming the revoked pass", async () => {
+    const f = fixture();
+    f.docs.set(path, {email, state:"pending", rows:[pass]});
+    await revoke(f);
+    expect(await f.service.claimPendingForVerifiedUser({email, uid:"user", now})).toBe(0);
+    expect(f.docs.get(path)).toMatchObject({state:"revoked", rows:[]});
+    expect([...f.docs.keys()].filter(k => k.startsWith("adminAudit/"))).toHaveLength(1);
+  });
+
+  it("preserves other pending grants for the same email", async () => {
+    const f = fixture();
+    const other = {...pass, kind:"mobile_polyglot_permanent", externalId:"other"};
+    f.docs.set(path, {email, state:"pending", rows:[pass, other]});
+    await revoke(f);
+    expect(f.docs.get(path)).toMatchObject({state:"pending", rows:[other]});
+  });
+
+  it("refuses revocation when first sign-in has already started claiming the pass", async () => {
+    const f = fixture();
+    f.docs.set(path, {email, state:"processing", claimedByUid:"user", rows:[pass]});
+    await expect(revoke(f)).rejects.toThrow("no longer pending");
+    expect(f.docs.get(path).rows).toEqual([pass]);
+  });
+});

@@ -172,6 +172,10 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   const billing = new AdminBillingService(db);
   const diagnostics = new AdminProviderDiagnosticService(db);
   const imports = new AdminImportService(db, firebaseAuth());
+  if (event.httpMethod === "POST" && path === "/v1/pending-grants/revoke-lifetime") {
+    const input = body(z.object({ email: z.string().trim().email(), reason }).strict(), event);
+    return json(200, await imports.revokePendingLifetimePass({ ...input, actor, now }));
+  }
   const cloudSaves = new AdminCloudSaveService(db, firebaseStorage());
   const keyInventoryDiagnostic = new LegacyKeyInventoryDiagnosticService();
 

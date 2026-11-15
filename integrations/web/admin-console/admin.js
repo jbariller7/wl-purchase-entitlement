@@ -224,7 +224,10 @@ function renderDirectory() {
   ${directorySelect("status", "Account status", [["all", "All"], ["enabled", "Enabled"], ["disabled", "Disabled"]])}
   </div><button class="button primary">Apply filters / Refresh</button></form>
   <p class="panel-copy">${purchases ? "Every recorded website checkout, including buyers who have not signed in. Unclaimed rows show the purchased product, not active account access; payment eligibility is verified with Stripe when claimed. A buyer with multiple orders appears once per order." : pending ? "These imported grants are waiting for the exact verified email to sign in. Access shown is what the pending grant provides; it is not an active account or a sent invitation." : "Access is calculated from current grants, including expiry. Open an account to review or change its access."}</p>
-  ${table(["Email", "Name", "Access", "Platforms", "Cloud saves", "Status", "Last sign-in", "Action"], visibleRows.map(row => [row.email || "Email unavailable", row.name || "—", labels[row.entitlements.accessKind] || row.entitlements.accessKind, [...row.entitlements.mobilePlatforms, ...(row.entitlements.pcMacAccess ? ["PC / Mac"] : [])].join(", ") || "—", row.entitlements.cloudSave ? "Included" : "No", purchases ? row.purchase?.claimed ? "Claimed" : "Unclaimed purchase" : pending ? "Pending sign-in" : row.disabled ? "Disabled" : "Enabled", formatDate(row.lastSignInAt), row.uid ? htmlCell(`<button class="text-button" data-directory-open="${escapeHtml(row.uid)}">Open account</button>`) : "Awaiting sign-in"]))}
+  ${table(["Email", "Name", "Access", "Platforms", "Cloud saves", "Status", "Last sign-in", "Action"], visibleRows.map(row => [row.email || "Email unavailable", row.name || "—", labels[row.entitlements.accessKind] || row.entitlements.accessKind, [...row.entitlements.mobilePlatforms, ...(row.entitlements.pcMacAccess ? ["PC / Mac"] : [])].join(", ") || "—", row.entitlements.cloudSave ? "Included" : "No", purchases ? row.purchase?.claimed ? "Claimed" : "Unclaimed purchase" : pending ? "Pending sign-in" : row.disabled ? "Disabled" : "Enabled", formatDate(row.lastSignInAt), row.uid ? htmlCell(`<button class="text-button" data-directory-open="${escapeHtml(row.uid)}">Open account</button>`) :
+    pending && row.hasPendingLifetimePass && row.email
+      ? htmlCell(`<button class="text-button" data-revoke-pending-lifetime="${escapeHtml(row.email)}">Revoke Lifetime Pass</button>`)
+      : "Awaiting sign-in"]))}
   <p class="panel-copy">${result.completeSearch ? `${result.rows.length} matches across all ${result.scanned} records in this list. Showing ${visibleRows.length ? directory.resultPage * 100 + 1 : 0}–${Math.min((directory.resultPage + 1) * 100, result.rows.length)}.` : `${result.rows.length} accounts in this page. Use search or filters to search the entire list.`}</p>
   <div class="card-actions"><button class="button secondary" data-directory-prev ${(result.completeSearch ? directory.resultPage > 0 : directory.history.length) ? "" : "disabled"}>Previous page</button><button class="button secondary" data-directory-next ${(result.completeSearch ? (directory.resultPage + 1) * 100 < result.rows.length : result.nextCursor) ? "" : "disabled"}>Next page</button></div></section>`;
 }
@@ -783,6 +786,17 @@ function bindView() {
     if (!directory.history.length) return;
     directory.cursor = directory.history.pop(); loadView("customers");
   });
+  document.querySelectorAll("[data-revoke-pending-lifetime]").forEach(button => button.addEventListener("click", async () => {
+    const email = button.dataset.revokePendingLifetime;
+    const auditReason = await reason(`Revoke the pending Lifetime Pass for ${email}?`);
+    if (!auditReason) return;
+    button.disabled = true;
+    if (await mutate("/admin-api/v1/pending-grants/revoke-lifetime", {email, reason: auditReason}, `Pending Lifetime Pass revoked for ${email}.`)) {
+      await loadView("customers");
+    } else {
+      button.disabled = false;
+    }
+  }));
   document.querySelectorAll("[data-directory-open]").forEach(button => button.addEventListener("click", async () => {
     button.disabled = true;
     try { state.customer = await api(`/admin-api/v1/customers/${encodeURIComponent(button.dataset.directoryOpen)}`); await loadView("customers"); document.querySelector(".customer-grid")?.scrollIntoView({ block: "start" }); }

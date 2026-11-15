@@ -89,7 +89,7 @@ export async function accountDirectory(db: Firestore, auth: Auth, f: Filters, no
       });
       const entitlements = projectEntitlements("pending", grants, now, 0);
       const row = { uid: null, email: typeof data.email === "string" ? data.email : null, disabled: false, entitlements };
-      if (matchesDirectory(row, f)) rows.push({ ...row, entitlements: summary(entitlements), emailVerified: false, createdAt: data.createdAt || null, lastSignInAt: null });
+      if (matchesDirectory(row, f)) rows.push({ ...row, hasPendingLifetimePass: grants.some(g => g.product === "premium_lifetime_pass"), entitlements: summary(entitlements), emailVerified: false, createdAt: data.createdAt || null, lastSignInAt: null });
     }
   }
   return { rows, scanned, nextCursor, source: f.source };
