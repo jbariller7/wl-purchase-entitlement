@@ -223,7 +223,6 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
   if(event.httpMethod==='POST'&&path==='/v1/customers'){
     const input=body(createCustomerSchema,event);
     if(input.product!=='premium_lifetime_pass'&&input.delivery!=='none')throw new HttpError(400,'Mobile-only access does not include a desktop key.');
-    if(input.product==='premium_lifetime_pass'&&input.sendEmail&&input.delivery==='none')throw new HttpError(400,'Choose Steam or direct download for the Lifetime Pass confirmation email.');
     if(input.sendEmail&&(!process.env.ORDER_EMAIL_SMTP_PASSWORD||process.env.ORDER_EMAILS_ENABLED!=='true'))throw new HttpError(503,'Confirmation emails are not currently available.');
     if(input.endsAt&&Date.parse(input.endsAt)<=now.getTime())throw new HttpError(400,'Grant expiry must be a future date.');
     const {user,created}=await ensureAdminCustomer(firebaseAuth(),input.email);

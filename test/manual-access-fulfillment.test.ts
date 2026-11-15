@@ -15,6 +15,19 @@ function fixture(extra={}){
 beforeEach(()=>{vi.clearAllMocks();mocks.allocate.mockResolvedValue({key:'TEST-STEAM-KEY',sheetTab:'Polyglot Steam',rowNumber:2});mocks.send.mockResolvedValue({accepted:['buyer@example.com']});mocks.verify.mockResolvedValue(true);});
 describe('Manual access fulfillment',()=>{
  it('assigns once, sends standard localized confirmation once and preserves sent status on replay',async()=>{const f=fixture();await queueAccessDelivery(f.store,f.input);await sendAccessDelivery(f.job,f.store);await sendAccessDelivery(f.job,f.store);expect(mocks.allocate).toHaveBeenCalledTimes(1);expect(mocks.send).toHaveBeenCalledTimes(1);expect(f.doc().emailState).toBe('sent');const mail=mocks.send.mock.calls[0]![0];expect(mail.to).toBe('buyer@example.com');expect(mail.text).toContain('TEST-STEAM-KEY');expect(mail.text).toContain('Télécharger les PDF');expect(mail.text).not.toContain('Montant payé');});
+ it('emails an account-only Lifetime Pass and records the send without allocating stock', async () => {
+  const f = fixture({delivery:'none', locale:'en'});
+  await queueAccessDelivery(f.store, f.input);
+  await sendAccessDelivery(f.job, f.store);
+  await sendAccessDelivery(f.job, f.store);
+  expect(mocks.allocate).not.toHaveBeenCalled();
+  expect(mocks.send).toHaveBeenCalledTimes(1);
+  const mail = mocks.send.mock.calls[0]![0];
+  expect(mail.text).toMatch(/lifetime pass/i);
+  expect(mail.text).toContain('https://wonderlang.app/account/?lang=en');
+  expect(mail.text).not.toMatch(/steam key|itch\.io/i);
+  expect(f.doc()).toMatchObject({emailState:'sent', deliveryState:'not_required'});
+ });
  it('does not allocate desktop content for mobile-only grants',async()=>{const f=fixture({product:'mobile_polyglot_permanent',delivery:'none'});await queueAccessDelivery(f.store,f.input);await sendAccessDelivery(f.job,f.store);expect(mocks.allocate).not.toHaveBeenCalled();expect(mocks.send.mock.calls[0]![0].text).toContain('Android');});
  it('retains the assigned key after a known email rejection and retries only mail',async()=>{const f=fixture();mocks.send.mockRejectedValueOnce(Object.assign(new Error('rejected'),{responseCode:550}));await queueAccessDelivery(f.store,f.input);await expect(sendAccessDelivery(f.job,f.store)).rejects.toThrow();expect(f.doc().emailState).toBe('failed');await sendAccessDelivery(f.job,f.store);expect(mocks.allocate).toHaveBeenCalledTimes(1);expect(f.doc().emailState).toBe('sent');});
  it('never blindly resends after an ambiguous SMTP timeout',async()=>{const f=fixture();mocks.send.mockRejectedValue(Object.assign(new Error('timeout'),{code:'ETIMEDOUT'}));await queueAccessDelivery(f.store,f.input);await expect(sendAccessDelivery(f.job,f.store)).rejects.toThrow();expect(f.doc().emailState).toBe('uncertain');await expect(sendAccessDelivery(f.job,f.store)).rejects.toThrow(/uncertain/);expect(mocks.send).toHaveBeenCalledTimes(1);});

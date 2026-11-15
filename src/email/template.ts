@@ -12,6 +12,7 @@ export interface Confirmation {
  reference: string;
  amount: number;
  omitAmount?: boolean;
+ accountOnlyLifetimeGrant?: boolean;
  currency: string;
  country?: string | null | undefined;
  keys: string[];
@@ -46,7 +47,8 @@ export function renderConfirmation(input:Confirmation,channel:'email'|'web'='ema
  }
  if(offer==='premium' || mobilePlatform==='ios')add(c[10]);
  if(offer==='mobile_monthly')add(c[8]);
- if(!isMobile && !input.renewal){
+ const accountOnly = channel === 'email' && offer === 'premium' && input.accountOnlyLifetimeGrant === true;
+ if(!isMobile && !input.renewal && !accountOnly){
   if(!input.keys.length && channel==='email')throw new Error('Delivery is not ready.');
   add(!input.keys.length?webCopy[locale][1]:delivery==='steam'?c[6]:c[7]);
   for(const key of input.keys){

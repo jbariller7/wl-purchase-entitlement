@@ -40,7 +40,7 @@ export async function sendAccessDelivery(job:OutboxJob,store:EntitlementStore):P
   }
   if(d.sendEmail&&d.emailState!=='sent'){
    const premium=d.product==='premium_lifetime_pass';
-   const content=renderConfirmation({request:{offer:premium?'premium':'mobile_permanent',...(premium?{delivery:d.delivery as 'steam'|'direct'}:{mobilePlatform:d.mobilePlatform as 'android'|'ios'}),locale:d.locale,currency:'EUR',requestId:id},email:d.email,reference:`manual-access-${id}`,amount:0,omitAmount:true,currency:'eur',keys:d.key?[d.key]:[]});
+   const content=renderConfirmation({request:{offer:premium?'premium':'mobile_permanent',...(premium ? (d.delivery === 'none' ? {} : {delivery:d.delivery as 'steam'|'direct'}) : {mobilePlatform:d.mobilePlatform as 'android'|'ios'}),locale:d.locale,currency:'EUR',requestId:id},email:d.email,reference:`manual-access-${id}`,amount:0,accountOnlyLifetimeGrant:premium && d.delivery === 'none',omitAmount:true,currency:'eur',keys:d.key?[d.key]:[]});
    const transport=confirmationTransport(),messageId=`<wl-manual-access-${id}@wonderlang.app>`;
    try{
     await transport.verify();
