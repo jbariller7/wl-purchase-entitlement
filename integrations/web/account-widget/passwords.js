@@ -42,7 +42,9 @@ export function installPasswordForms(host, demo) {
   const saved = sessionStorage.getItem("wl-password-recovery");
   const match = /^([A-Za-z0-9_-]{1,128})\.([A-Za-z0-9_-]{43})$/.exec(saved || "");
   host.passwordRecovery = match ? {uid:match[1],token:match[2]} : null;
-  host.querySelector("[data-password-recovery]").hidden = !host.passwordRecovery;
+  // renderUser reveals recovery only once Firebase has initialized. Showing it
+  // earlier allows a fast submit to be silently ignored while auth is absent.
+  host.querySelector("[data-password-recovery]").hidden = true;
   const login = host.querySelector('[data-form="password"]').closest("details");
   host.querySelector(".wl-provider-grid").after(login);
   host.querySelector(".wl-divider").remove();
