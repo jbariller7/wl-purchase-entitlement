@@ -1,3 +1,4 @@
+import {installPasswordForms, showPasswordState} from "./passwords.js";
 import { initializeApp } from "firebase/app";
 import { getToken as getAppCheckToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 import {
@@ -12,7 +13,6 @@ import {
   onAuthStateChanged,
   sendSignInLinkToEmail,
   signInWithEmailLink,
-  signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
   signOut
@@ -79,7 +79,7 @@ const html = `
       <aside class="wl-device-prompt" data-section="device-prompt" hidden>
         <p class="wl-eyebrow">PC / MAC SIGN-IN</p>
         <h3>Continue in WonderLang.</h3>
-        <p>Sign in with Google, Apple, or an email link.</p>
+        <p>Sign in to continue.</p>
       </aside>
       <div class="wl-provider-grid">
         <button type="button" data-action="google">Continue with Google</button>
@@ -103,10 +103,10 @@ const html = `
     <div class="wl-signed-in" hidden>
       <aside data-section="reviewer-mobile" hidden>
         <h3>Open the mobile game</h3>
-        <p>On the device with WonderLang installed, generate a one-time sign-in link, then tap Open WonderLang. If the game asks for an email, enter this account’s email. No inbox is needed.</p>
+        <p>Generate a sign-in link on the device where WonderLang is installed.</p>
         <button type="button" data-action="reviewer-link">Generate game sign-in link</button>
         <a data-field="reviewer-link" hidden rel="noreferrer">Open WonderLang</a>
-        <p>Requires the installed app’s email-link handler. If the browser opens instead, this build needs its mobile sign-in integration completed.</p>
+
       </aside>
       <section class="wl-second-platform-request wl-admin-bootstrap" data-section="admin-bootstrap" hidden>
         <div><p class="wl-eyebrow">SECURE INITIAL SETUP</p><h3>Grant this verified owner administrator access</h3></div>
@@ -217,6 +217,7 @@ class WonderLangAccount extends HTMLElement {
     if (this.initialized) return;
     this.initialized = true;
     this.innerHTML = html;
+    installPasswordForms(this, demoMode);
     this.disposeLanguagePicker?.();
     this.disposeLanguagePicker = installAccountLanguagePicker(this);
     this.apiBase = (this.getAttribute("api-base") || location.origin).replace(/\/$/, "");
@@ -254,7 +255,7 @@ class WonderLangAccount extends HTMLElement {
       }
       this.auth = getAuth(firebaseApp);
       await this.auth.authStateReady();
-      onAuthStateChanged(this.auth, (user) => this.renderUser(user));
+      onAuthStateChanged(this.auth, (user) => { if (!this.passwordFlowBusy) this.renderUser(user); });
       try {
         await this.finishEmailLink();
         const redirectResult = await getRedirectResult(this.auth);
@@ -283,7 +284,7 @@ class WonderLangAccount extends HTMLElement {
     this.querySelector('[data-action="link-email"]').addEventListener("click", () => this.linkEmail());
     this.querySelector('[data-action="bootstrap-admin"]').addEventListener("click", () => this.bootstrapAdmin());
     this.querySelector('[data-form="email"]').addEventListener("submit", (event) => this.emailLink(event));
-    this.querySelector('[data-form="password"]').addEventListener("submit", (event) => this.passwordSignIn(event));
+
     this.querySelector('[data-action="reviewer-link"]').addEventListener("click", () => this.reviewerMobileLink());
   }
 
@@ -360,24 +361,6 @@ class WonderLangAccount extends HTMLElement {
     } catch (error) { this.fail(error); }
   }
 
-  async passwordSignIn(event) {
-    event.preventDefault();
-    if (this.passwordSigningIn) return;
-    const form = event.currentTarget;
-    const fields = new FormData(form);
-    if (demoMode) { this.status("Password sign-in is unavailable in the simulated demo."); return; }
-    this.passwordSigningIn = true;
-    const button = form.querySelector("button");
-    button.disabled = true;
-    try {
-      const result = await signInWithEmailAndPassword(this.auth, String(fields.get("email")).trim(), String(fields.get("password")));
-      form.reset();
-      if (this.desktopHandoff) this.handoffReady = true;
-      await this.renderUser(result.user);
-    } catch (error) { this.fail(error); }
-    finally { this.passwordSigningIn = false; button.disabled = false; }
-  }
-
   async reviewerMobileLink() {
     const button = this.querySelector('[data-action="reviewer-link"]');
     const link = this.querySelector('[data-field="reviewer-link"]');
@@ -386,12 +369,12 @@ class WonderLangAccount extends HTMLElement {
     link.hidden = true;
     link.removeAttribute("href");
     try {
-      const result = await this.request("/api/v1/reviewer/mobile-link", { method: "POST", body: {} });
+      const result = await this.request(["store-reviewer-apple", "store-reviewer-google"].includes(this.user?.uid) ? "/api/v1/reviewer/mobile-link" : "/api/v1/me/mobile-sign-in-link", { method: "POST", body: {} });
       const url = new URL(result.link);
       if (url.protocol !== "https:" || url.hostname !== "wonderlang-accounts.firebaseapp.com" || !url.pathname.startsWith("/__/auth/links")) throw new Error("The mobile sign-in link is not configured for this app. Contact support.");
       link.href = url.href;
       link.hidden = false;
-      this.status("Tap Open WonderLang to finish signing in on this device.");
+      this.status("Open WonderLang to finish signing in.");
     } catch (error) { this.fail(error); }
     finally { button.disabled = false; }
   }
@@ -538,7 +521,8 @@ class WonderLangAccount extends HTMLElement {
 
   async renderUser(user) {
     this.user = user;
-    this.querySelector('[data-section="reviewer-mobile"]').hidden = !["store-reviewer-apple", "store-reviewer-google"].includes(user?.uid);
+    if (showPasswordState(this, user)) return;
+    this.querySelector('[data-section="reviewer-mobile"]').hidden = !user?.emailVerified && !["store-reviewer-apple", "store-reviewer-google"].includes(user?.uid);
     this.querySelector('[data-field="reviewer-link"]').hidden = true;
     this.querySelector('[data-field="reviewer-link"]').removeAttribute("href");
     this.renderSignInMethods((user?.providerData || []).map(provider => provider.providerId));
@@ -551,7 +535,7 @@ class WonderLangAccount extends HTMLElement {
       if (this.handoffReady && user) {
         await this.completeDesktopHandoff(user);
       } else {
-        this.status("Sign in with Google, Apple, or an email link.");
+        this.status("Sign in to continue.");
       }
       return;
     }
@@ -1046,7 +1030,7 @@ class WonderLangAccount extends HTMLElement {
     throw new Error(`The safe demo does not implement ${path}.`);
   }
 
-  status(message) { this.querySelector(".wl-status").textContent = message; }
+  status(message) { const status = this.querySelector(".wl-status"); status.hidden = false; status.textContent = message; }
   fail(error) { console.error(error); this.status(friendlyAccountError(error)); }
 }
 

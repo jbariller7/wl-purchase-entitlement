@@ -19,7 +19,7 @@ import { deploymentControls, firebaseAdminEnv, stripeEnv } from "../../src/confi
 import { MONTHLY_PRICE_USD_CENTS, POLYGLOT_PERMANENT_PRICE_USD_CENTS, PREMIUM_LIFETIME_PRICE_USD_CENTS, STRIPE_SUBSCRIPTION_TRIAL_DAYS } from "../../src/domain/catalog.js";
 import { REGIONAL_PRICES } from "../../src/domain/regional-pricing.js";
 import { summarizeSubscription } from "../../src/domain/account-summary.js";
-import { HttpError, requireUser } from "../../src/http/auth.js";
+import { HttpError, requireUser, requireVerifiedEmail } from "../../src/http/auth.js";
 import { requireAppCheck } from "../../src/http/app-check.js";
 import { apiAllowedOrigins, requestHeader, requireAllowedOrigin } from "../../src/http/origin.js";
 import { consumeRateLimit, type RateLimitPolicy } from "../../src/http/rate-limit.js";
@@ -142,7 +142,7 @@ function withCors(event: HandlerEvent, response: HandlerResponse): HandlerRespon
 }
 
 function userRateLimitPolicy(method: string, path: string): RateLimitPolicy {
-  if (path === "/v1/reviewer/mobile-link") return { action: "reviewer-mobile-link", limit: 10, windowSeconds: 10 * 60 };
+  if (path === "/v1/reviewer/mobile-link" || path === "/v1/me/mobile-sign-in-link") return { action: "reviewer-mobile-link", limit: 10, windowSeconds: 10 * 60 };
   if (path === "/v1/checkout") return { action: "checkout", limit: 8, windowSeconds: 10 * 60 };
   if (path === "/v1/billing-portal") return { action: "billing-portal", limit: 10, windowSeconds: 10 * 60 };
   if (path === "/v1/legacy/claim") return { action: "legacy-claim", limit: 10, windowSeconds: 60 * 60 };
@@ -290,6 +290,19 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     now
   });
 
+  if (event.httpMethod === "POST" && path === "/v1/me/mobile-sign-in-link") {
+    requireVerifiedEmail(user);
+    if (!user.auth_time || now.getTime() / 1000 - user.auth_time > 600) {
+      throw new HttpError(401, "Sign in again before opening the game.");
+    }
+    const account = await firebaseAuth().getUser(user.uid);
+    if (account.disabled || !account.emailVerified || !account.email) throw new HttpError(403, "Verified account required.");
+    const link = await firebaseAuth().generateSignInWithEmailLink(account.email, {
+      url:"https://wonderlang.app/account/", handleCodeInApp:true,
+      android:{packageName:"com.wonderlang.app",installApp:false}, iOS:{bundleId:"com.wonderlang.app"}
+    });
+    return json(200,{link,email:account.email});
+  }
   const reviewers = new ReviewerAccounts(db, firebaseAuth());
   user = await resolveAccountIdentity(user, firebaseAuth());
   await reviewers.recordLogin(user, now);

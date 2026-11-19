@@ -1,3 +1,4 @@
+import {passwordText} from "./password-text.js";
 // Manually authored account-summary translations. Authentication, billing and
 // security workflows still require a separate full localization review.
 import {mobileSelectionText} from './mobile-selection-text.js';
@@ -126,6 +127,8 @@ for (const [locale, value] of Object.entries(premiumCloudRequirement)) {
   if (dictionaries[locale]) dictionaries[locale]["Cloud save requires a Premium Lifetime Pass."] = value;
 }
 export function translateSummary(value, language) {
+  const passwordIndex = passwordText.en.indexOf(value);
+  if (passwordIndex >= 0) return (passwordText[language] || passwordText.en)[passwordIndex];
   const loginIndex = loginText.en.indexOf(value);
   if (loginIndex >= 0) return (loginText[language] || loginText.en)[loginIndex];
   if (value === providerChoiceText.en) return providerChoiceText[language] || providerChoiceText.en;

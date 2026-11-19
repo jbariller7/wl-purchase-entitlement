@@ -1,3 +1,4 @@
+import {PasswordRecoveryService} from "../../src/identity/password-recovery.js";
 import {EntitlementStore} from '../../src/infrastructure/entitlement-store.js';
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
 import {listVipReservations,syncVipSession} from '../../src/beyond-vip/service.js';
@@ -167,6 +168,11 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
     });
     await recordAdminAudit({db,actor,action:'contact.update',targetType:'contact',targetId:contactMatch[1]!,summary:'retryEmail'in input?'Retried contact email forwarding':'Marked contact '+input.status,now});
     return json(200,{ok:true});
+  }
+  if (event.httpMethod === "POST" && path === "/v1/customer-password-recovery") {
+    const input = body(z.object({email:z.string().trim().email(), reason,
+      ownershipVerified:z.literal(true)}).strict(), event);
+    return json(201, await new PasswordRecoveryService(db, firebaseAuth()).issue({...input,actor,now}));
   }
   const operations = new AdminOperationsService(db, firebaseAuth());
   const billing = new AdminBillingService(db);

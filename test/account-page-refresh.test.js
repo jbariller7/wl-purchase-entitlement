@@ -1,3 +1,4 @@
+import {showPasswordState} from "../integrations/web/account-widget/passwords.js";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { describe, expect, it, vi } from "vitest";
@@ -5,7 +6,7 @@ import { dictionaries, languages, translateSummary } from "../integrations/web/a
 import { friendlyLoginProvider, formatLoginProviders } from "../integrations/web/account-widget/provider-labels.js";
 const source = readFileSync(new URL("../integrations/web/account-widget/wonderlang-account.js", import.meta.url), "utf8");
 function widget() {
-  const context = vm.createContext({HTMLElement: class {}, location: {href:""}, encodeURIComponent, demoMode: false, friendlyLoginProvider, formatLoginProviders});
+  const context = vm.createContext({HTMLElement: class {}, location: {href:""}, encodeURIComponent, showPasswordState, demoMode: false, friendlyLoginProvider, formatLoginProviders});
   vm.runInContext(source.slice(source.indexOf("class WonderLangAccount extends"), source.indexOf('customElements.define("wonderlang-account"')) + "\nglobalThis.Widget = WonderLangAccount;", context);
   const page = new context.Widget();
   let status;

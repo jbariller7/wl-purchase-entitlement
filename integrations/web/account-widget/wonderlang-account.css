@@ -107,3 +107,9 @@ wonderlang-account input, wonderlang-account select { background: #21142e; borde
 .wl-demo-banner { color: #fff; background: #533728; border-color: #ffcb66; }
 .wl-demo-banner a { color: #ffe38c; }
 @media (max-width: 680px) { .wl-brand { align-items: flex-start; gap: 14px; } .wl-logo { width: 76px; } .wl-card { margin: 12px; padding: 20px; } .wl-header { flex-wrap: wrap; } }
+.wl-password-form{display:grid;gap:12px;margin-block:16px;max-width:540px}
+.wl-password-form label{display:grid;gap:6px}
+.wl-password-form input{width:100%;box-sizing:border-box}
+.wl-password-form p{margin:0}
+[data-password-verification],[data-password-recovery]{padding:16px;border:1px solid #ffffff40;border-radius:12px;margin-block:18px}
+[data-password-verification][hidden],[data-password-recovery][hidden]{display:none}
