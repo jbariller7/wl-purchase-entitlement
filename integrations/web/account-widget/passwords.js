@@ -8,7 +8,7 @@ const passwordFields = `
   <label><span>Confirm password</span><input name="confirm" type="password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
   <p>Use at least 12 characters.</p>`;
 const emailField = '<label><span>Email</span><input name="email" type="email" autocomplete="email" required></label>';
-const support = '<p><span>Cannot receive emails? Contact support to recover your account.</span> <a href="mailto:contact@wonderlang.app">contact@wonderlang.app</a></p>';
+const support = `<p><span>Didn't receive your sign-in link email? Contact support and tell us which email address you want to use.</span> <a href="mailto:support@wonderlang.app">support@wonderlang.app</a></p>`;
 
 export function installPasswordForms(host, demo) {
   host.querySelector('[data-form="password"]').closest("details").open = true;
@@ -52,6 +52,7 @@ export function installPasswordForms(host, demo) {
   const emailSummary = document.createElement("summary");
   emailSummary.textContent = "Email me a sign-in link";
   emailLinks.append(emailSummary, host.querySelector('[data-form="email"]'), host.querySelector('[data-field="email-notice"]'));
+  emailLinks.insertAdjacentHTML("beforeend", support);
   host.querySelector(".wl-signed-out").append(emailLinks);
   host.querySelector("[data-password-cancel]").addEventListener("click", async () => {
     sessionStorage.removeItem("wl-password-recovery");
