@@ -25,6 +25,22 @@ function fixture() {
 }
 beforeEach(()=>invalidation.mockReset());
 describe("customer recovery",()=>{
+  it("recovers a provider-only email on the same UID without changing it before redemption",async()=>{
+    const f=fixture(); delete f.user.email;
+    f.user.providerData=[{providerId:"google.com",uid:"google-id",email:"engelbre2002@gmail.com"}];
+    f.auth.getUserByEmail.mockRejectedValue({code:"auth/user-not-found"});
+    f.auth.listUsers=vi.fn(async()=>({users:[f.user]}));
+    const result=await f.service.issue({email:"engelbre2002@gmail.com",actor:{uid:"owner"},reason:"Verified ownership",now:f.now});
+    expect(f.auth.updateUser).not.toHaveBeenCalled();
+    expect(await f.service.consume(f.input(result.link))).toMatchObject({email:"engelbre2002@gmail.com"});
+    expect(f.auth.updateUser).toHaveBeenCalledWith("customer",{password:f.input(result.link).password,emailVerified:true,email:"engelbre2002@gmail.com"});
+  });
+  it("rejects a removed provider email without attaching it to the account",async()=>{
+    const f=fixture();const result=await f.issue();delete f.user.email;f.user.providerData=[];
+    await expect(f.service.consume(f.input(result.link))).rejects.toThrow("unavailable");
+    expect(f.auth.updateUser).not.toHaveBeenCalled();
+  });
+
   it("sets a verified password on the original account, invalidates sessions and rejects reuse",async()=>{
     const f=fixture(),result=await f.issue(),i=f.input(result.link);
     expect(JSON.stringify([...f.data.values()])).not.toContain(i.token);
@@ -55,7 +71,7 @@ describe("customer recovery",()=>{
   });
   it("does not issue recovery links for administrators",async()=>{
     const f=fixture();f.user.customClaims={admin:true};
-    await expect(f.issue()).rejects.toThrow("unavailable");
+    await expect(f.issue()).rejects.toThrow("Administrator accounts");
   });
   it("keeps an interrupted redemption unusable and allows an admin to replace it after failure",async()=>{
     const f=fixture(),r=await f.issue();f.auth.updateUser.mockRejectedValueOnce(Error("network"));
