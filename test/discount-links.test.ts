@@ -21,6 +21,31 @@ function fixture(){
  return {records,stripe,service:new DiscountLinks(db as unknown as Firestore,stripe as unknown as Stripe,'https://wonderlang.app')};
 }
 describe('discount campaigns',()=>{
+ it('requires valid percentages for exactly the selected website products',()=>{
+  const sale={...input,channel:'website',offers:['premium','polyglot'],percentOffByOffer:{premium:25,polyglot:40}};
+  expect(discountLinkSchema.safeParse(sale).success).toBe(true);
+  for(const map of [{premium:25},{premium:25,polyglot:40,single:10},{premium:20,polyglot:40},{premium:25,polyglot:0},{premium:25,polyglot:101},{premium:25,polyglot:12.5}])expect(discountLinkSchema.safeParse({...sale,percentOffByOffer:map}).success).toBe(false);
+  expect(discountLinkSchema.safeParse({...input,percentOffByOffer:{premium:25}}).success).toBe(false);
+ });
+ it('uses each product percentage in Stripe, public sales and checkout text in every currency',async()=>{
+  const f=fixture(),rates={premium:25,polyglot:40,mobile_monthly:10};
+  const offers=Object.keys(rates) as (keyof typeof rates)[];
+  const sale=discountLinkSchema.parse({...input,channel:'website',offers,percentOffByOffer:rates,mobilePlatform:'android'});
+  const created=await f.service.create(sale,actor,now);
+  await f.service.setWebsiteSale(id,true,actor,now);
+  expect((await f.service.saleCampaigns(now)).map(c=>[c.offer,c.percentOff])).toEqual(offers.map(o=>[o,rates[o]]));
+  for(const [i,offer] of offers.entries()){
+   expect(f.stripe.coupons.create.mock.calls[i]![0]).toMatchObject({percent_off:rates[offer]});
+   for(const currency of Object.keys(prices)){
+    const request=websiteSessionSchema.parse({offer,delivery:offer==='mobile_monthly'?undefined:'steam',mobilePlatform:offer==='mobile_monthly'?'android':undefined,locale:'en',currency,requestId:id});
+    const params=websiteSessionParams(request,websitePriceId(offer),'https://wonderlang.app');
+    applyDiscountToSession(params,created,'https://wonderlang.app',now);
+    expect(params.discounts).toEqual([{coupon:created.couponIds![offer]}]);
+    expect(params.custom_text?.submit?.message).toContain('−'+rates[offer]+'%');
+   }
+  }
+ });
+
  it('reads a shared campaign once while preserving every published offer',async()=>{
   const f=fixture();
   const multi={...link,channel:'website',offers:['premium','polyglot'],couponIds:{premium:'coupon_p',polyglot:'coupon_l'}} as DiscountLink;

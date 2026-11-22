@@ -10,6 +10,7 @@ import type { WebsiteSessionRequest } from "./website-session.js";
 
 export const discountOffers = { single: "Single language · PC/Mac", polyglot: "Polyglot · PC/Mac", premium: "Premium Lifetime Pass", mobile_monthly: "Mobile Monthly", mobile_permanent: "Mobile Permanent" };
 const offerSchema=z.enum(["single", "polyglot", "premium", "mobile_monthly", "mobile_permanent"]);
+const percentSchema=z.number().int().min(1).max(100);
 export type DiscountOffer=z.infer<typeof offerSchema>;
 export const discountLinkSchema = z.object({
   channel: z.enum(["newsletter", "website"]).default("newsletter"),
@@ -17,6 +18,7 @@ export const discountLinkSchema = z.object({
   offer: offerSchema,
   offers: z.array(offerSchema).min(1).max(5).optional(),
   percentOff: z.number().int().min(1).max(100),
+  percentOffByOffer: z.object({single:percentSchema,polyglot:percentSchema,premium:percentSchema,mobile_monthly:percentSchema,mobile_permanent:percentSchema}).partial().strict().optional(),
   locale: z.string().refine(s => Object.hasOwn(locales,s)), currency: z.string().refine(s => Object.hasOwn(prices,s)),
   delivery: z.enum(["steam", "direct"]).optional(),
   learningLanguage: z.enum(["french","spanish","german","italian","portuguese","korean","japanese","mandarin","english"]).optional(),
@@ -26,6 +28,11 @@ export const discountLinkSchema = z.object({
 }).strict().superRefine((v,c) => {
   const invalid=(message:string)=>c.addIssue({code:"custom",message});
   const offers=v.offers??[v.offer];
+  if(v.percentOffByOffer){
+    if(v.channel!=='website')invalid('Product-specific discounts are available for website sales only.');
+    if(offers.some(o=>v.percentOffByOffer?.[o]===undefined)||Object.keys(v.percentOffByOffer).some(o=>!offers.includes(o as DiscountOffer)))invalid('Enter a discount for each selected product only.');
+    if(v.percentOffByOffer[v.offer]!==v.percentOff)invalid('The primary product discount must match its percentage.');
+  }
   if(v.offers && v.channel!=='website')invalid('Multiple products are available for website sales only.');
   if(new Set(offers).size!==offers.length || !offers.includes(v.offer))invalid('Choose unique products including the primary product.');
   if(v.mobilePlatform==='ios') invalid('iOS purchases are not available yet.');
@@ -43,7 +50,7 @@ export function campaignOffers(link:Pick<DiscountInput,'offer'|'offers'>):Discou
 // campaign is projected onto the product being purchased before validation.
 export function discountForOffer(link:DiscountLink,offer:DiscountOffer):DiscountLink {
   if(!campaignOffers(link).includes(offer))throw new HttpError(400,'This checkout does not match the discount link.');
-  const result={...link,offer,couponId:link.couponIds?.[offer]??(offer===link.offer?link.couponId:'')};
+  const result={...link,offer,percentOff:link.percentOffByOffer?.[offer]??link.percentOff,couponId:link.couponIds?.[offer]??(offer===link.offer?link.couponId:'')};
   if(offer!=='mobile_monthly'){result.duration='once';delete result.durationMonths;}
   if(offer!=='single')delete result.learningLanguage;
   if(offer.startsWith('mobile_'))delete result.delivery;else delete result.mobilePlatform;
@@ -146,7 +153,7 @@ export class DiscountLinks {
     if(!price.active || !price.livemode) throw new HttpError(409,"The website price is not active in live mode.");
     const product=typeof price.product==="string"?price.product:price.product.id;
     try {
-      await this.stripe.coupons.create({id:couponId,name:link.name,percent_off:link.percentOff,duration:selected.duration,
+      await this.stripe.coupons.create({id:couponId,name:link.name,percent_off:selected.percentOff,duration:selected.duration,
         ...(selected.duration==="repeating"?{duration_in_months:selected.durationMonths!}:{}),
         ...(link.expiresAt?{redeem_by:Math.floor(Date.parse(link.expiresAt)/1000)}:{}),
         applies_to:{products:[product]},metadata:{wl_discount_link:id}
@@ -154,7 +161,7 @@ export class DiscountLinks {
     } catch(error) {
       // Recover a successful Stripe creation followed by an interrupted database write.
       const existing=await this.stripe.coupons.retrieve(couponId).catch(()=>null);
-      if(!existing || !existing.valid || existing.metadata?.wl_discount_link!==id || existing.percent_off!==link.percentOff || existing.duration!==selected.duration || (existing.duration_in_months??undefined)!==selected.durationMonths || !existing.applies_to?.products?.includes(product)) throw error;
+      if(!existing || !existing.valid || existing.metadata?.wl_discount_link!==id || existing.percent_off!==selected.percentOff || existing.duration!==selected.duration || (existing.duration_in_months??undefined)!==selected.durationMonths || !existing.applies_to?.products?.includes(product)) throw error;
     }
     couponIds[offer]=couponId;
     }
@@ -164,7 +171,7 @@ export class DiscountLinks {
       tx.update(ref,{ready:true,active:true,couponIds,updatedAt:now.toISOString()});
       return true;
     });
-    if(provisioned) await recordAdminAudit({db:this.db,actor,action:"discount-link.create",targetType:"discount-link",targetId:id,summary:`Created ${link.name}: ${link.percentOff}% off ${campaignOffers(link).join(', ')}`,now});
+    if(provisioned) await recordAdminAudit({db:this.db,actor,action:"discount-link.create",targetType:"discount-link",targetId:id,summary:`Created ${link.name}: ${campaignOffers(link).map(offer=>`${discountOffers[offer]} ${discountForOffer(link,offer).percentOff}% off`).join(', ')}`,now});
     return {...await this.get(id),url:this.url(link)};
   }
   async setActive(id:string,active:boolean,actor:AdminActor,now:Date) {

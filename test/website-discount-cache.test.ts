@@ -11,7 +11,7 @@ beforeEach(()=>vi.clearAllMocks());
 it('caches only public success responses and never exposes private coupon fields',async()=>{
  mocks.sale.mockResolvedValue([{id:'one',name:'Sale',offer:'premium',percentOff:10,couponId:'private-coupon',expiresAt:null}]);
  const r=await run({placement:'website'});
- expect(r.headers['netlify-cdn-cache-control']).toContain('max-age=1800');
+ expect(r.headers['netlify-cdn-cache-control']).toContain('max-age=60');
  expect(r.body).not.toContain('private-coupon');
  expect(JSON.parse(r.body).campaigns[0].percentOff).toBe(10);
 });
