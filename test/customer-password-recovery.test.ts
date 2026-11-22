@@ -25,12 +25,12 @@ function fixture() {
 }
 beforeEach(()=>invalidation.mockReset());
 describe("customer recovery",()=>{
-  it("recovers a provider-only email on the same UID without changing it before redemption",async()=>{
+  it.each(["google.com","apple.com"])("recovers a provider-only %s email on the same UID without changing it before redemption",async(providerId)=>{
     const f=fixture(); delete f.user.email;
-    f.user.providerData=[{providerId:"google.com",uid:"google-id",email:"engelbre2002@gmail.com"}];
+    f.user.providerData=[{providerId,uid:"provider-id",email:"engelbre2002@gmail.com"}];
     f.auth.getUserByEmail.mockRejectedValue({code:"auth/user-not-found"});
     f.auth.listUsers=vi.fn(async()=>({users:[f.user]}));
-    const result=await f.service.issue({email:"engelbre2002@gmail.com",actor:{uid:"owner"},reason:"Verified ownership",now:f.now});
+    const result=await f.service.issue({email:"engelbre2002@gmail.com",actor:{uid:"owner",email:"owner@example.com"},reason:"Verified ownership",now:f.now});
     expect(f.auth.updateUser).not.toHaveBeenCalled();
     expect(await f.service.consume(f.input(result.link))).toMatchObject({email:"engelbre2002@gmail.com"});
     expect(f.auth.updateUser).toHaveBeenCalledWith("customer",{password:f.input(result.link).password,emailVerified:true,email:"engelbre2002@gmail.com"});
@@ -63,15 +63,18 @@ describe("customer recovery",()=>{
     expect(f.auth.updateUser).toHaveBeenCalledTimes(1);
   });
   it("fails closed if email, account privileges or enabled state change",async()=>{
-    for(const change of [{email:"other@example.com"},{disabled:true},{customClaims:{admin:true}}]){
+    for(const change of [{email:"other@example.com"},{disabled:true}]){
       const f=fixture(),r=await f.issue();Object.assign(f.user,change);
       await expect(f.service.consume(f.input(r.link))).rejects.toThrow("unavailable");
       expect(f.auth.updateUser).not.toHaveBeenCalled();
     }
   });
-  it("does not issue recovery links for administrators",async()=>{
-    const f=fixture();f.user.customClaims={admin:true};
-    await expect(f.issue()).rejects.toThrow("Administrator accounts");
+  it("allows password setup for administrator and reviewer accounts without changing privileges",async()=>{
+    for(const changes of [{customClaims:{admin:true}},{uid:"store-reviewer-test"}]){
+      const f=fixture();Object.assign(f.user,changes);const r=await f.issue();
+      await f.service.consume({...f.input(r.link),uid:f.user.uid});
+      expect(f.auth.updateUser).toHaveBeenCalledWith(f.user.uid,{password:f.input(r.link).password,emailVerified:true});
+    }
   });
   it("keeps an interrupted redemption unusable and allows an admin to replace it after failure",async()=>{
     const f=fixture(),r=await f.issue();f.auth.updateUser.mockRejectedValueOnce(Error("network"));

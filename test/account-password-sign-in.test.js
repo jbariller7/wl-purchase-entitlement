@@ -64,3 +64,9 @@ it("covers every customer password string in all supported languages",()=>{
    values.forEach((value,index)=>{expect(value.trim()).not.toBe("");expect(translateSummary(passwordText.en[index],locale)).toBe(value);});
  }
 });
+
+it("requests password setup through the server for any sign-in provider",async()=>{
+ const f=setup();await performPassword(f.host,f.form,"reset");
+ expect(f.host.request).toHaveBeenCalledWith("/.netlify/functions/password-setup-request",{authenticated:false,method:"POST",body:{email:"buyer@example.com",locale:"fr"}});
+ expect(auth.sendPasswordResetEmail).not.toHaveBeenCalled();
+});

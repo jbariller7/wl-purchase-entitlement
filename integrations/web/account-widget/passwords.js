@@ -1,5 +1,6 @@
+import setupCopy from "../../../catalog/password-setup-locales.json";
 import {
-  createUserWithEmailAndPassword, sendEmailVerification, sendPasswordResetEmail,
+  createUserWithEmailAndPassword, sendEmailVerification,
   signInWithEmailAndPassword, updatePassword, validatePassword, reload
 } from "firebase/auth";
 
@@ -14,7 +15,7 @@ export function installPasswordForms(host, demo) {
   host.querySelector('[data-form="password"]').closest("details").open = true;
   host.querySelector(".wl-signed-out").insertAdjacentHTML("beforeend", `
     <details><summary>Create an account</summary><form class="wl-password-form" data-password-flow="create">${emailField}${passwordFields}<button>Create an account</button></form></details>
-    <details><summary>Forgot password?</summary><form class="wl-password-form" data-password-flow="reset">${emailField}<button>Send reset email</button></form>${support}</details>`);
+    <details><summary>Set or change password</summary><form class="wl-password-form" data-password-flow="reset">${emailField}<button>Send reset email</button></form>${support}</details>`);
   host.querySelector(".wl-signed-in").insertAdjacentHTML("afterbegin", `
     <section data-password-verification hidden><p>Verify your email to claim purchases. Open the verification email, then refresh your account here.</p><button type="button" data-password-verify>Send verification email</button><button type="button" class="wl-secondary" data-password-refresh>Refresh account</button>${support}</section>
     <details data-password-settings><summary>Set or change password</summary><form class="wl-password-form" data-password-flow="set">${passwordFields}<button>Save password</button></form></details>`);
@@ -122,9 +123,8 @@ export async function performPassword(host, form, flow, demo = false) {
       host.auth.languageCode = host.lang || "en";
       const settings = {url:location.origin + "/account/", handleCodeInApp:false};
       if (flow === "reset") {
-        try { await sendPasswordResetEmail(host.auth,email,settings); }
-        catch (error) { if (error.code !== "auth/user-not-found") throw error; }
-        host.status("If this email has a password account, a reset link has been sent. Check your inbox and spam folder.");
+        await host.request("/.netlify/functions/password-setup-request",{authenticated:false,method:"POST",body:{email,locale:host.lang||"en"}});
+        host.status((setupCopy[host.lang]||setupCopy.en)[2]);
       } else if (flow === "set") {
         if (!host.auth.currentUser?.emailVerified) throw Error("Verify your email before setting a password.");
         await updatePassword(host.auth.currentUser,password);

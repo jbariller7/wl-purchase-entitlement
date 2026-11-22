@@ -12,15 +12,15 @@ const unavailable = () => new HttpError(409, "Recovery link unavailable.");
 export class PasswordRecoveryService {
   constructor(private db: Firestore, private auth: Auth) {}
 
-  async issue(input: {email: string; actor: AdminActor; reason: string; now: Date}) {
+  async issue(input: {email: string; actor: AdminActor; reason: string; now: Date; selfService?: boolean}) {
     const {user} = await ensureAdminCustomer(this.auth, input.email);
     if (user.disabled) throw new HttpError(409, "This account is disabled. Review it in the customer directory before recovering access.");
-    if (user.customClaims?.admin) throw new HttpError(403, "Administrator accounts require administrator recovery, not customer recovery.");
-    if (user.uid.startsWith("store-reviewer-")) throw new HttpError(403, "Use the store reviewer account controls to reset this reviewer's credentials.");
-    // Ownership is explicitly verified by the issuing admin. Some Google/Apple
+    // Ownership is verified by the issuing admin or by delivering the secret
+    // only to the account mailbox. Some Google/Apple
     // accounts have only a provider email; keep their UID and attach that email
     // atomically with the new password when the recovery link is redeemed.
     const email = user.email?.trim().toLowerCase() || input.email.trim().toLowerCase();
+    if (input.selfService && email !== input.email.trim().toLowerCase()) throw new HttpError(409, "Use the primary account email or contact support.");
     if (!accountEmails(user).includes(email)) throw new HttpError(409, "This email is no longer linked to the account. Refresh the customer record and verify its current email.");
     const token = randomBytes(32).toString("base64url");
     const tokenHash = digest(token);
@@ -34,7 +34,7 @@ export class PasswordRecoveryService {
         expiresAt, createdAt:input.now.toISOString(), issuedBy:input.actor.uid});
       tx.create(audit, {id:audit.id, actorUid:input.actor.uid, actorEmail:input.actor.email,
         action:"account.recovery.issue", targetType:"user", targetId:user.uid,
-        summary:"Issued customer password recovery after identity verification",
+        summary:input.selfService ? "Requested password setup by email" : "Issued customer password recovery after identity verification",
         metadata:{reason:input.reason, email, expiresAt}, createdAt:input.now.toISOString()});
     });
     return {link:`https://wonderlang.app/account/#recovery=${encodeURIComponent(user.uid)}.${token}`, expiresAt};
@@ -54,9 +54,9 @@ export class PasswordRecoveryService {
     });
     try {
       const user = await this.auth.getUser(input.uid);
-      if (user.disabled || user.customClaims?.admin || user.uid.startsWith("store-reviewer-")
+      if (user.disabled
         || (user.email ? user.email.trim().toLowerCase() !== email : !accountEmails(user).includes(email))) throw unavailable();
-      // The issuing administrator has explicitly verified ownership of this email.
+      // Ownership is proven by the emailed secret or verified by the issuing admin.
       await this.auth.updateUser(input.uid, {password:input.password, emailVerified:true, ...(!user.email ? {email} : {})});
       await this.auth.revokeRefreshTokens(input.uid);
       await invalidateDeviceSignInsForUid(this.db, input.uid, input.now);
