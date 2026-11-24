@@ -1,6 +1,7 @@
 export type Provider = "stripe" | "google_play" | "apple" | "steam" | "itch" | "admin";
 
 export type Product =
+  | "apple_sandbox_cloud"
   | "mobile_full_monthly"
   | "mobile_polyglot_permanent"
   | "premium_lifetime_pass"
@@ -42,6 +43,7 @@ export interface EffectiveEntitlements {
   fullGame: boolean;
   allLanguages: boolean;
   cloudSave: boolean;
+  cloudSaveEndsAt?: string;
   mobilePlatforms: Array<"android" | "ios">;
   permanentMobilePlatforms: Array<"android" | "ios">;
   pcMacAccess: boolean;

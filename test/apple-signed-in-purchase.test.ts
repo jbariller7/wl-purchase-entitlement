@@ -42,13 +42,14 @@ describe("signed-in purchase and restore", () => {
       expect(store.upsertGrant.mock.calls[0]).toEqual(store.upsertGrant.mock.calls[1]);
       expect(store.uidForStoreAccountToken).toHaveBeenCalledWith(token);
     });
-    it(`accepts verified sandbox purchase and restore of ${productId} without writing live access`, async () => {
+    it(`accepts verified sandbox purchase and restore of ${productId} with cloud-only access and no paid ownership`, async () => {
       for (let i = 0; i < 2; i++) {
         verify.mockRejectedValueOnce(new VerificationException(VerificationStatus.INVALID_ENVIRONMENT))
           .mockResolvedValueOnce({ ...receipt, environment: Environment.SANDBOX });
         await claim();
       }
-      expect(store.upsertGrant).not.toHaveBeenCalled();
+      expect(store.upsertGrant).toHaveBeenCalledTimes(2);
+      expect(store.upsertGrant).toHaveBeenCalledWith(expect.objectContaining({product:"apple_sandbox_cloud", providerTransactionId:"sandbox-cloud:original", state:"active"}), expect.any(Object));
       expect(store.effectiveEntitlements).toHaveBeenCalledTimes(2);
     });
   }
@@ -61,4 +62,22 @@ describe("signed-in purchase and restore", () => {
     await expect(claim("other")).rejects.toMatchObject({ status: 403 });
     expect(store.upsertGrant).not.toHaveBeenCalled();
   });
+});
+
+it.each(["wonderlangmonthly", "wonderlangfull"])("sandbox %s revocation and expiry cannot retain cloud", async productId => {
+  for(const revoked of [false,true]) {
+    verify.mockResolvedValue({environment:Environment.SANDBOX, productId, originalTransactionId:"cloud-check",
+      transactionId:"latest", signedDate:now.getTime()-31*86400000,
+      expiresDate:now.getTime()-1000, ...(revoked ? {revocationDate:now.getTime()-500} : {})});
+    await claim();
+    expect(store.upsertGrant).toHaveBeenLastCalledWith(expect.objectContaining({product:"apple_sandbox_cloud",
+      providerTransactionId:"sandbox-cloud:cloud-check",state:revoked?"revoked":"expired"}),expect.any(Object));
+  }
+});
+it("rejects a sandbox cloud receipt already linked to another account", async () => {
+  store.uidForProviderTransaction.mockResolvedValueOnce("other" as never);
+  verify.mockResolvedValue({environment:Environment.SANDBOX,productId:"wonderlangfull",
+    originalTransactionId:"claimed", transactionId:"claimed-new",signedDate:now.getTime()});
+  await expect(claim()).rejects.toMatchObject({status:403});
+  expect(store.upsertGrant).not.toHaveBeenCalled();
 });

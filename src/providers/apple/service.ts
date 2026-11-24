@@ -217,7 +217,11 @@ export async function processAppleNotification(input: {
   verified: Awaited<ReturnType<typeof verifyAppleNotification>>;
 }): Promise<void> {
   const { notification, transaction, renewal } = input.verified;
-  if (!transaction || transaction.environment === Environment.SANDBOX) return;
+  if (!transaction) return;
+  if (transaction.environment === Environment.SANDBOX) {
+    await applySandboxCloud({ store: input.store, transaction, now: new Date() });
+    return;
+  }
   const signedDate = notification.signedDate ?? transaction.signedDate;
   if (!signedDate || !Number.isFinite(signedDate)) {
     throw new Error("Verified Apple notification is missing its signed date.");
@@ -230,6 +234,39 @@ export async function processAppleNotification(input: {
     eventId: notification.notificationUUID ?? `apple-${transaction.transactionId}`,
     eventCreated: signedDate / 1000
   });
+}
+
+// Sandbox receipts enable the complimentary cloud feature only. They never
+// grant production game, desktop, subscription, or Lifetime Pass ownership.
+async function applySandboxCloud(input: {
+  store: EntitlementStore; transaction: JWSTransactionDecodedPayload;
+  authenticatedUid?: string; now: Date;
+}): Promise<void> {
+  const t = input.transaction;
+  const config = appleEnv();
+  if (t.productId !== config.APPLE_MONTHLY_PRODUCT_ID && t.productId !== config.APPLE_POLYGLOT_PRODUCT_ID) return;
+  const signedAt = appleTransactionSignedAtSeconds(t);
+  const original = canonicalAppleTransactionId(t);
+  const transactionId = `sandbox-cloud:${original}`;
+  const tokenUid = t.appAccountToken ? await input.store.uidForStoreAccountToken(t.appAccountToken.toLowerCase()) : undefined;
+  const existingUid = await input.store.uidForProviderTransaction("apple", transactionId);
+  const uid = tokenUid ?? existingUid ?? input.authenticatedUid;
+  if (!uid) return; // Notification before the purchaser links their account.
+  if ([tokenUid, existingUid, input.authenticatedUid].some(candidate => candidate && candidate !== uid)) {
+    throw new HttpError(403, "Apple transaction belongs to a different account.");
+  }
+  // Permanent sandbox purchases get a bounded test window from Apple's signed
+  // date; replaying an old receipt cannot extend it. Renewed monthly receipts
+  // use Apple's expiration, capped to the same test window.
+  const deadline = Math.min(signedAt * 1000 + 30 * 86400000,
+    t.productId === config.APPLE_MONTHLY_PRODUCT_ID ? (t.expiresDate ?? 0) : Infinity);
+  await input.store.upsertGrant({
+    id: "", uid, provider: "apple", providerTransactionId: transactionId,
+    product: "apple_sandbox_cloud", state: t.revocationDate ? "revoked" : deadline > input.now.getTime() ? "active" : "expired",
+    startsAt: new Date(t.originalPurchaseDate ?? t.purchaseDate ?? signedAt * 1000).toISOString(),
+    endsAt: new Date(t.revocationDate ?? deadline).toISOString(),
+    metadata: { environment: "Sandbox", productId: t.productId }
+  }, { id: `sandbox-cloud:${t.transactionId}:${signedAt}`, created: signedAt });
 }
 
 export async function claimAppleTransaction(input: {
@@ -247,8 +284,8 @@ export async function claimAppleTransaction(input: {
     transaction = await appleVerifier(Environment.SANDBOX).verifyAndDecodeTransaction(input.signedTransactionInfo);
   }
   if (transaction.environment === Environment.SANDBOX) {
-    // TestFlight and App Review get device access from StoreKit. A sandbox
-    // receipt must never create an entitlement usable by a production account.
+    // TestFlight and App Review get game access from StoreKit, and a separate
+    // bounded cloud-only grant. Sandbox receipts never create paid ownership.
     const id = transaction.productId;
     const configuration = appleEnv();
     if (!id || !(id === configuration.APPLE_MONTHLY_PRODUCT_ID || id === configuration.APPLE_POLYGLOT_PRODUCT_ID ||
@@ -257,6 +294,7 @@ export async function claimAppleTransaction(input: {
         await input.store.uidForStoreAccountToken(transaction.appAccountToken.toLowerCase()) !== input.authenticatedUid) {
       throw new HttpError(403, "Apple transaction belongs to a different account.");
     }
+    await applySandboxCloud({ store: input.store, transaction, authenticatedUid: input.authenticatedUid, now: input.now });
     return input.store.effectiveEntitlements(input.authenticatedUid, input.now);
   }
   return applyAppleTransaction({

@@ -98,7 +98,13 @@ export function projectEntitlements(
 
   const fullGame = effective.some((grant) => PRODUCT_CAPABILITIES[grant.product].fullGame);
   const allLanguages = effective.some((grant) => PRODUCT_CAPABILITIES[grant.product].allLanguages);
-  const cloudSave = effective.some((grant) => PRODUCT_CAPABILITIES[grant.product].cloudSave);
+  const cloudGrants = effective.filter((grant) => PRODUCT_CAPABILITIES[grant.product].cloudSave ||
+    (grant.provider === "apple" && ["mobile_full_monthly", "mobile_polyglot_permanent", "legacy_mobile_full"].includes(grant.product)));
+  const cloudSave = cloudGrants.length > 0;
+  const cloudDeadline = (grant: LedgerGrant) => grant.state === "grace" ? grant.graceEndsAt : grant.endsAt;
+  const cloudSaveEndsAt = cloudGrants.length && cloudGrants.every(grant => cloudDeadline(grant))
+    ? cloudGrants.reduce<string | undefined>((latest, grant) => laterIso(latest, cloudDeadline(grant)), undefined)
+    : undefined;
   const pcMacAccess = effective.some((grant) => Boolean(PRODUCT_CAPABILITIES[grant.product].pcMacAccess));
   const futureContent = effective.some((grant) => Boolean(PRODUCT_CAPABILITIES[grant.product].futureContent));
   const secondMobilePlatformEligible = effective.some((grant) => Boolean(PRODUCT_CAPABILITIES[grant.product].secondMobilePlatformEligible));
@@ -114,6 +120,7 @@ export function projectEntitlements(
     fullGame,
     allLanguages,
     cloudSave,
+    ...(cloudSaveEndsAt ? { cloudSaveEndsAt } : {}),
     mobilePlatforms: [...mobilePlatforms].sort(),
     permanentMobilePlatforms: [...permanentMobilePlatforms].sort(),
     pcMacAccess,

@@ -189,8 +189,8 @@ export class CloudSaveProfileService {
 
   private async requireCloudSave(uid: string, now: Date): Promise<void> {
     const effective = await this.entitlements.effectiveEntitlements(uid, now);
-    if (!effective.cloudSave || !effective.premiumLifetime) {
-      throw new HttpError(403, "Cloud save requires a Premium Lifetime Pass.");
+    if (!effective.cloudSave) {
+      throw new HttpError(403, "Cloud saves require an eligible purchase or active subscription.");
     }
   }
 
