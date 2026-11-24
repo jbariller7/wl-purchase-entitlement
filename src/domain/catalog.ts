@@ -21,6 +21,7 @@ export const PRODUCT_CAPABILITIES: Record<
     chapter?: number;
   }
 > = {
+  apple_sandbox_cloud: { fullGame: false, allLanguages: false, cloudSave: true },
   mobile_full_monthly: { fullGame: true, allLanguages: true, cloudSave: false },
   mobile_polyglot_permanent: { fullGame: true, allLanguages: true, cloudSave: false },
   premium_lifetime_pass: {

@@ -57,7 +57,7 @@ describe("effective entitlement projection", () => {
       for (const mobilePlatform of ["android", "ios"] as const) {
         for (const provider of ["stripe", mobilePlatform === "android" ? "google_play" : "apple"] as const) {
           expect(projectEntitlements("user-1", [grant({ product, provider, metadata: { mobilePlatform } })], now)).toMatchObject({
-            mobilePlatforms: [mobilePlatform], pcMacAccess: false, cloudSave: false, premiumLifetime: false
+            mobilePlatforms: [mobilePlatform], pcMacAccess: false, cloudSave: provider === "apple", premiumLifetime: false
           });
         }
       }

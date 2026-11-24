@@ -9,6 +9,12 @@
   # Access tokens and all other secrets remain scanned.
   SECRETS_SCAN_OMIT_KEYS = "META_PIXEL_ID,TIKTOK_PIXEL_ID"
 
+# Preview deployments must never send order emails or create device-login sessions.
+[context.deploy-preview.environment]
+  ORDER_EMAILS_ENABLED = "false"
+  DEVICE_SIGN_IN_ENABLED = "false"
+  DEVICE_SIGN_IN_CLEANUP_ENABLED = "false"
+
 [context.production.environment]
   GA4_MEASUREMENT_ID = "G-YEGW7C2JRR"
   WEBSITE_LAUNCH = "true"

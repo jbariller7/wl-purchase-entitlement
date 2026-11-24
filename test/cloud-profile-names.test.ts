@@ -30,7 +30,7 @@ function fixture() {
     queue = result.then(() => undefined, () => undefined);
     return result;
   } };
-  const entitlements = { effectiveEntitlements: async () => ({ cloudSave: true, premiumLifetime: true }) } as unknown as EntitlementStore;
+  const entitlements = { effectiveEntitlements: async () => ({ cloudSave: true, premiumLifetime: false }) } as unknown as EntitlementStore;
   return new CloudSaveProfileService(db as unknown as Firestore, {} as Storage, entitlements);
 }
 const now = new Date("2026-09-23T08:00:00Z");
