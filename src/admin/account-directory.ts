@@ -1,3 +1,4 @@
+import { PURCHASE_LABELS } from "./purchase-details.js";
 import type { Auth } from "firebase-admin/auth";
 import { accountEmails } from "../identity/account-email.js";
 import { FieldPath, type Firestore } from "firebase-admin/firestore";
@@ -66,8 +67,10 @@ export async function accountDirectory(db: Firestore, auth: Auth, f: Filters, no
       const account = uid ? await auth.getUser(uid).catch((error: {code?: string}) => { if (error.code === "auth/user-not-found") return null; throw error; }) : null;
       const grants: LedgerGrant[] = uid ? await store.grantsForUid(uid) : [{ id: "pending-purchase", uid: "pending", provider: "stripe", providerTransactionId: doc.id, product, state: "active", startsAt: new Date(data.sourceEventCreated * 1000).toISOString(), metadata: { mobilePlatform: data.request.mobilePlatform || null } }];
       const entitlements = projectEntitlements(uid || "pending", grants, now, 0);
+      // Purchase filters describe this order, not unrelated account grants.
+      entitlements.pcMacAccess = ["single", "polyglot", "premium"].includes(data.request.offer);
       const row = { uid, email: typeof data.buyerEmail === "string" ? data.buyerEmail : null, name: account?.displayName || null, disabled: account?.disabled || false, entitlements };
-      return matchesDirectory(row, f) ? { ...row, entitlements: summary(entitlements), emailVerified: account?.emailVerified || false, createdAt: data.createdAt || null, lastSignInAt: account?.metadata.lastSignInTime || null, purchase: { sessionId: doc.id, offer: data.request.offer, claimed: Boolean(uid) } } : null;
+      return matchesDirectory(row, f) ? { ...row, entitlements: summary(entitlements), emailVerified: account?.emailVerified || false, createdAt: data.createdAt || null, lastSignInAt: account?.metadata.lastSignInTime || null, purchase: { sessionId: doc.id, offer: data.request.offer, productLabel: PURCHASE_LABELS[data.request.offer], delivery: data.request.delivery || null, claimed: Boolean(uid) } } : null;
       }));
       rows.push(...batch.filter(row => row !== null));
     }

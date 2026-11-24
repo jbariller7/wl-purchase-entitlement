@@ -1,3 +1,4 @@
+import { purchaseDetails } from "../../src/admin/purchase-details.js";
 import {PasswordRecoveryService} from "../../src/identity/password-recovery.js";
 import {EntitlementStore} from '../../src/infrastructure/entitlement-store.js';
 import { ReviewerAccounts } from "../../src/admin/reviewer-accounts.js";
@@ -224,6 +225,12 @@ async function dispatch(event: HandlerEvent): Promise<HandlerResponse> {
       const input = body(z.object({ password: z.string().min(12).max(128) }).strict(), event);
       return json(200, await service.saveCredentials(slot, input.password, actor, now));
     }
+  }
+  const purchaseMatch = path.match(/^\/v1\/website-purchases\/(cs_[A-Za-z0-9_]{1,240})$/);
+  if (event.httpMethod === "GET" && purchaseMatch) {
+    const result = await purchaseDetails(db, purchaseMatch[1]!);
+    await recordAdminAudit({db, actor, action: 'purchase.view', targetType: 'website-order', targetId: purchaseMatch[1]!, summary: 'Viewed purchase delivery and email status', now});
+    return json(200, result);
   }
   if (event.httpMethod === "GET" && path === "/v1/customers") {
     const parsed = directoryQuery.safeParse(event.queryStringParameters || {});

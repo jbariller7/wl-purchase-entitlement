@@ -224,7 +224,7 @@ function renderDirectory() {
   ${directorySelect("status", "Account status", [["all", "All"], ["enabled", "Enabled"], ["disabled", "Disabled"]])}
   </div><button class="button primary">Apply filters / Refresh</button></form>
   <p class="panel-copy">${purchases ? "Every recorded website checkout, including buyers who have not signed in. Unclaimed rows show the purchased product, not active account access; payment eligibility is verified with Stripe when claimed. A buyer with multiple orders appears once per order." : pending ? "These imported grants are waiting for the exact verified email to sign in. Access shown is what the pending grant provides; it is not an active account or a sent invitation." : "Access is calculated from current grants, including expiry. Open an account to review or change its access."}</p>
-  ${table(["Email", "Name", "Access", "Platforms", "Cloud saves", "Status", "Last sign-in", "Action"], visibleRows.map(row => [row.email || "Email unavailable", row.name || "—", labels[row.entitlements.accessKind] || row.entitlements.accessKind, [...row.entitlements.mobilePlatforms, ...(row.entitlements.pcMacAccess ? ["PC / Mac"] : [])].join(", ") || "—", row.entitlements.cloudSave ? "Included" : "No", purchases ? row.purchase?.claimed ? "Claimed" : "Unclaimed purchase" : pending ? "Pending sign-in" : row.disabled ? "Disabled" : "Enabled", formatDate(row.lastSignInAt), row.uid ? htmlCell(`<button class="text-button" data-directory-open="${escapeHtml(row.uid)}">Open account</button>`) :
+  ${table(["Email", "Name", purchases ? "Purchased product" : "Access", "Platforms", "Cloud saves", "Status", "Last sign-in", "Action"], visibleRows.map(row => [row.email || "Email unavailable", row.name || "—", purchases ? (row.purchase?.productLabel || row.purchase?.offer || "Unknown product") + (row.purchase?.delivery === "steam" ? " - Steam" : row.purchase?.delivery === "direct" ? " - Direct download" : "") : labels[row.entitlements.accessKind] || row.entitlements.accessKind, [...row.entitlements.mobilePlatforms, ...(row.entitlements.pcMacAccess ? ["PC / Mac"] : [])].join(", ") || "—", row.entitlements.cloudSave ? "Included" : "No", purchases ? row.purchase?.claimed ? "Claimed" : "Unclaimed purchase" : pending ? "Pending sign-in" : row.disabled ? "Disabled" : "Enabled", formatDate(row.lastSignInAt), purchases ? htmlCell(`<button class="text-button" data-purchase-open="${escapeHtml(row.purchase.sessionId)}">View purchase</button>`) : row.uid ? htmlCell(`<button class="text-button" data-directory-open="${escapeHtml(row.uid)}">Open account</button>`) :
     pending && row.hasPendingLifetimePass && row.email
       ? htmlCell(`<button class="text-button" data-revoke-pending-lifetime="${escapeHtml(row.email)}">Revoke Lifetime Pass</button>`)
       : "Awaiting sign-in"]))}
@@ -806,6 +806,22 @@ function bindView() {
     } else {
       button.disabled = false;
     }
+  }));
+  document.querySelectorAll("[data-purchase-open]").forEach(button => button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      const order = await api(`/admin-api/v1/website-purchases/${encodeURIComponent(button.dataset.purchaseOpen)}`);
+      const holder = document.createElement("div");
+      holder.className = "modal-backdrop";
+      const emailLabels = {sent: "Sent - accepted by the sending mail server", sending: "Sending / awaiting confirmation", uncertain: "Delivery uncertain - check Workspace logs", retryable: "Send failed - retry pending", pending: "Queued", processing: "Processing", failed: "Failed", complete: "Job completed; email receipt unavailable", not_recorded: "No confirmation-email record"};
+      holder.innerHTML = `<section class="confirm-modal form-modal" role="dialog" aria-modal="true" aria-label="Purchase details" style="max-height:85vh;overflow:auto;width:min(760px,95vw)"><h2>Purchase details</h2><p><strong>${escapeHtml(order.buyerEmail)}</strong></p>${table(["Order", "Details"], [["Product", order.product], ["Delivery", order.delivery === "steam" ? "Steam key" : order.delivery === "direct" ? "Direct download" : "Account access"], ["Learning language", order.learningLanguage || "All included languages"], ["Purchased", formatDate(order.purchasedAt)], ["Account", order.claimedByUid ? "Linked to an account" : "Not yet claimed - purchase recorded"], ["Payment", order.payment ? `${order.payment.status} - ${formatMoney(order.payment.amount, order.payment.currency)}` : "Unavailable"], ["Stripe payment", order.payment?.paymentIntentId || "-"], ["Checkout", order.sessionId]])}<h3>Assigned delivery</h3>${order.fulfillment.keys.length ? order.fulfillment.keys.map(key => `<p><code style="overflow-wrap:anywhere">${escapeHtml(key)}</code></p>`).join("") : "<p>No assignment found in the available records.</p>"}<p>Assignment record: ${escapeHtml(formatDate(order.fulfillment.recordedAt))}. This is the record timestamp, not necessarily the original allocation time.</p><h3>Confirmation email</h3>${table(["Email", "Details"], [["Status", emailLabels[order.email.state] || order.email.state], ["Sent", formatDate(order.email.sentAt)], ["Send started", formatDate(order.email.startedAt)], ["Language", order.email.locale || "-"], ["Attempts", order.email.attempts ?? "-"], ["Message ID", order.email.messageId || "-"]])}<p>Sent means the sending mail server accepted the message; inbox delivery and spam placement must be checked in Workspace email logs.</p>${order.warnings.map(w => `<p role="status">${escapeHtml(w)}</p>`).join("")}<button type="button" class="button secondary" data-close>Close</button></section>`;
+      document.body.append(holder);
+      const close = () => { holder.remove(); button.focus(); };
+      holder.querySelector("[data-close]").onclick = close;
+      holder.addEventListener("keydown", event => { if (event.key === "Escape") close(); if (event.key === "Tab") { event.preventDefault(); holder.querySelector("[data-close]").focus(); } });
+      holder.querySelector("[data-close]").focus();
+    } catch (error) { toast(error.message, true); }
+    finally { button.disabled = false; }
   }));
   document.querySelectorAll("[data-directory-open]").forEach(button => button.addEventListener("click", async () => {
     button.disabled = true;

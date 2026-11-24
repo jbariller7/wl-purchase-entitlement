@@ -24,6 +24,12 @@ describe("account directory", () => {
     expect(result.rows[0]).toMatchObject({uid:null,email:"paid@example.com",purchase:{sessionId:"cs_live_paid",claimed:false,offer:"premium"}});
     expect(JSON.stringify(result)).not.toContain("SECRET");
   });
+  it("shows an unclaimed desktop purchase as Polyglot and includes it in PC/Mac filtering", async () => {
+    const data = {buyerEmail:"paid@example.com", sourceEventCreated:Math.floor(now.getTime()/1000), request:{offer:"polyglot",delivery:"steam"}};
+    const query:any = {orderBy:()=>query, limit:()=>query, get:async()=>({docs:[{id:"cs_live_desktop",data:()=>data}]})};
+    const result = await accountDirectory({collection:()=>query} as unknown as Firestore, {} as Auth, directoryQuery.parse({source:"purchases",platform:"desktop"}), now);
+    expect(result.rows[0]).toMatchObject({uid:null, purchase:{productLabel:"Polyglot \u2014 PC/Mac",delivery:"steam",claimed:false}, entitlements:{pcMacAccess:true}});
+  });
   it("matches partial email, display name and UID case-insensitively with combined filters", () => {
     const row = { uid: "account-123", email: "someone@example.com", name: "Alice Smith", disabled: false, entitlements: projectEntitlements("u", [premium], now, 0) };
     for (const q of ["EXAMPLE", "lice sm", "unt-12"]) expect(matchesDirectory(row, directoryQuery.parse({ q, access: "premium_lifetime", cloud: "yes", platform: "ios", status: "enabled" }))).toBe(true);
