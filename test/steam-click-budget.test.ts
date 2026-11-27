@@ -1,0 +1,7 @@
+import {expect,it} from 'vitest';
+// @ts-expect-error Browser helper is plain JavaScript.
+import {createClickBudget} from '../integrations/web/steam-click-budget.js';
+it('suppresses repeated clicks but retains other placements and ad cohorts',()=>{const b=createClickBudget(null,()=>100);expect(b.reserve('app/hero/ad1')).not.toBeNull();expect(b.reserve('app/hero/ad1')).toBeNull();expect(b.reserve('app/footer/ad1')).not.toBeNull();expect(b.reserve('app/hero/ad2')).not.toBeNull();});
+it('allows retry after network failure and after thirty minutes',()=>{let now=100;const b=createClickBudget(null,()=>now),ticket=b.reserve('app');b.release(ticket);expect(b.reserve('app')).not.toBeNull();now+=30*60000;expect(b.reserve('app')).not.toBeNull();});
+it('persists across navigation and clears after withdrawal',()=>{const map=new Map(),storage={getItem:(k:string)=>map.get(k),setItem:(k:string,v:string)=>map.set(k,v),removeItem:(k:string)=>map.delete(k)};createClickBudget(storage,()=>100).reserve('app');const next=createClickBudget(storage,()=>200);expect(next.reserve('app')).toBeNull();next.clear();expect(createClickBudget(storage,()=>300).reserve('app')).not.toBeNull();});
+it('works with blocked or malformed storage',()=>{expect(()=>createClickBudget({getItem:()=>{throw Error()},setItem:()=>{throw Error()}},()=>100).reserve('app')).not.toThrow();expect(createClickBudget({getItem:()=>'{broken'},()=>100).reserve('app')).not.toBeNull();});

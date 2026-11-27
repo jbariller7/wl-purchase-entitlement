@@ -31,7 +31,9 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
   if(raw.conversionKind==='steam_modelled_purchase'){
     const {firestore}=await import('../infrastructure/firebase.js');const db=firestore();
     const [click,withdrawal]=await Promise.all([db.doc('steamClicks/'+String(raw.steamClickId)).get(),db.doc('steamWithdrawals/'+String(raw.steamVisitorHash)).get()]);
-    if(!click.exists||click.data()?.consent!==true||withdrawal.exists)return {provider:'meta',eventsReceived:0,skipped:true,reason:'Steam measurement consent withdrawn or expired'};
+    const createdAt=Date.parse(String(click.data()?.createdAt||''));
+    if(!click.exists||click.data()?.consent!==true||withdrawal.exists||!Number.isFinite(createdAt)||createdAt<Date.now()-30*86400000)return {provider:'meta',eventsReceived:0,skipped:true,reason:'Steam measurement consent withdrawn or expired'};
+    if(!Number.isInteger(raw.eventTime)||Number(raw.eventTime)>Date.now()/1000||Number(raw.eventTime)<Date.now()/1000-7*86400)return {provider:'meta',eventsReceived:0,skipped:true,reason:'Steam event time is outside the delivery window'};
   }
   const configuration = metaConversionEnv();
   const pixel = configuration.META_PIXEL_ID;

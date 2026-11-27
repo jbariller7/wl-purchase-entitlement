@@ -1,4 +1,7 @@
 // Shared by the current site and frozen A/B designs. Never blocks navigation.
+import {createClickBudget} from './steam-click-budget.js';
+let clickStorage;try{clickStorage=sessionStorage}catch{}
+const clickBudget=createClickBudget(clickStorage);
 const endpoint='/.netlify/functions/steam-click';
 const read=k=>{try{return localStorage.getItem(k)}catch{return null}};
 const allowed=()=>read('wl_measurement')==='yes'&&navigator.globalPrivacyControl!==true&&new URLSearchParams(location.search).get('metaOptOut')!=='1'&&!new URLSearchParams(location.search).has('variant');
@@ -30,11 +33,12 @@ function scan(){document.querySelectorAll('a[href]').forEach(decorate);
 function clicked(event){if(event.type==='auxclick'&&event.button!==1)return;const a=event.target.closest?.('a[href]');if(!a)return;const d=decorate(a);if(!d||!allowed()||!event.isTrusted)return;
  let visitorId=read('wl_visitor');if(!/^[0-9a-f-]{36}$/i.test(visitorId||'')){visitorId=crypto.randomUUID();try{localStorage.setItem('wl_visitor',visitorId)}catch{}}
  const data={id:crypto.randomUUID(),visitorId,appId:d.appId,widget:d.widget,page:location.pathname.slice(0,200),locale:document.documentElement.lang.slice(0,10),utm:Object.fromEntries(['utm_source','utm_medium','utm_campaign','utm_content','utm_term'].map(k=>[k,d.u.searchParams.get(k)||''])),source:d.c,consent:true};
- fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data),keepalive:true}).catch(()=>{});
+ const ticket=clickBudget.reserve(JSON.stringify([data.appId,data.widget,data.page,data.utm,data.source.fbc||'',data.source.fbp||'']));if(!ticket)return;
+ fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data),keepalive:true}).then(r=>{if(!r.ok)clickBudget.release(ticket)}).catch(()=>clickBudget.release(ticket));
 }
 document.addEventListener('click',clicked,true);document.addEventListener('auxclick',clicked,true);
 document.addEventListener('pointerdown',e=>{const a=e.target.closest?.('a[href]');if(a)decorate(a)},true);
 document.addEventListener('contextmenu',e=>{const a=e.target.closest?.('a[href]');if(a)decorate(a)},true);
-document.addEventListener('click',e=>{if(e.target.closest?.('[data-consent="no"]')){const visitorId=read('wl_visitor');if(visitorId)fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'withdraw',visitorId}),keepalive:true}).catch(()=>{});try{sessionStorage.removeItem('wl_steam_source')}catch{}}},true);
+document.addEventListener('click',e=>{if(e.target.closest?.('[data-consent="no"]')){clickBudget.clear();const visitorId=read('wl_visitor');if(visitorId)fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'withdraw',visitorId}),keepalive:true}).catch(()=>{});try{sessionStorage.removeItem('wl_steam_source')}catch{}}},true);
 if(allowed())context();scan();
 new MutationObserver(records=>{if(records.some(r=>r.addedNodes.length))scan()}).observe(document.body,{childList:true,subtree:true});
