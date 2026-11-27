@@ -1,6 +1,6 @@
 {
   "fallback": "page-67ecf711e23b3d3b17ca",
-  "current": "page-18476a430af4fe93c7d0",
+  "current": "page-1c1be2b6bdff46f92dea",
   "designs": [
     {
       "id": "page-67ecf711e23b3d3b17ca",
@@ -42,6 +42,13 @@
       "variants": {
         "A": "Adventure + demo first",
         "B": "Language goal + editions first"
+      }
+    },
+    {
+      "id": "page-1c1be2b6bdff46f92dea",
+      "variants": {
+        "A": "Adventure + demo first",
+        "B": "Gameplay, editions and language funding"
       }
     }
   ]

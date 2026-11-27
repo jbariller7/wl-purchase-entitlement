@@ -7,12 +7,28 @@ const storage={get(k){try{return localStorage.getItem(k)}catch{return null}},set
 let lang=[q.get('lang'),storage.get('wl_lang'),navigator.language?.slice(0,2)].find(x=>content[x])||'en';
 const originalSections=[...$('main').children];
 const preview=['A','B'].includes(q.get('variant'));
+const revised = document.body.dataset.redesign === 'home';
 const design=HOMEPAGE_DESIGN,assetRoot='/testsite/versions/'+design+'/assets/';
 let defaultPage={design:HOMEPAGE_FALLBACK,variant:'A'};
-let variant=preview?q.get('variant'):'A', enrollment=null, consent=storage.get('wl_measurement'), revision=0;
+let variant=preview?q.get('variant'):(revised?'B':'A'), enrollment=null, consent=storage.get('wl_measurement'), revision=0;
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text)n.textContent=text;if(cls)n.className=cls;return n};
 function cards(id,items){$(id).replaceChildren(...items.map(([title,copy],i)=>{const n=el('article');if(id==='features')n.append(el('span',String(i+1).padStart(2,'0'),'feature-number'));n.append(el('h3',title),el('p',copy));return n}))}
 function render(){
+ if ((variant === 'B') !== revised || (revised && document.documentElement.lang !== lang)) {
+  const suffix = variant === 'B' ? 'b/' + lang + '.html' : '';
+  location.replace('/testsite/versions/' + design + '/' + suffix + location.search + location.hash);
+  return false;
+ }
+ if (revised) {
+  $('preview-notice').hidden = !preview;
+  $('preview-notice').textContent = content[lang].preview;
+  document.querySelectorAll('[data-t]').forEach(n => {
+   const value = content[lang][n.dataset.t];
+   if (typeof value === 'string') n.textContent = value;
+  });
+  updateShop();
+  return true;
+ }
  const spec=variants[variant],t=variantContent(content[lang],spec.content[lang]);document.documentElement.lang=lang;$('wl-lang-select').value=lang;
  document.querySelectorAll('[data-t]').forEach(n=>{const value=n.dataset.t.split('.').reduce((v,k)=>v?.[k],t);if(typeof value==='string')n.textContent=value});
  document.title='WonderLang — '+t[spec.heroKey].replace('\n',' ');document.querySelector('meta[name=description]').content=t.intro;
@@ -40,6 +56,14 @@ function updateShop(){
  if(allowed){addAttribution(url.searchParams,metaAttribution(location.search,document.cookie));for(const key of ['ttclid','gclid','gbraid','wbraid']){const value=q.get(key);if(value&&value.length<=255)url.searchParams.set(key,value)}}
  else url.searchParams.set('metaOptOut','1');
  if(enrollment)url.searchParams.set('experimentToken',enrollment.token);
+ if (revised) {
+  for (const key of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term']) {
+   const value=q.get(key);
+   if(value && value.length<=255) url.searchParams.set(key,value);
+  }
+  document.querySelectorAll('a[data-event="shop_click"]').forEach(a => { a.href=url.href; });
+  return;
+ }
  $('shop-fallback').href=url.href;
  const context=(enrollment?.token||'')+':'+consent;
  if(!frame||context!==frameContext){url.searchParams.set('embedded','1');url.searchParams.set('parentOrigin',location.origin);url.searchParams.set('parentLanguage','1');
@@ -51,7 +75,7 @@ async function api(data){const r=await fetch('/.netlify/functions/website-experi
 async function measure(name){if(!enrollment||consent!=='yes'||preview)return;try{await api({action:'event',token:enrollment.token,event:name})}catch{}}
 function displayPage(page){
  if(page.design!==design){const target=new URL('/testsite/versions/'+page.design+'/',location.origin);target.search=location.search;target.hash=location.hash;location.replace(target.href);return false;}
- variant=page.variant;render();return true;
+ variant=page.variant;return render()!==false;
 }
 async function loadDefault(){try{const r=await fetch('/.netlify/functions/website-experiment',{cache:'no-store'});if(r.ok){const data=await r.json();if(/^page-[a-f0-9]{20}$/.test(data.defaultPage?.design)&&['A','B'].includes(data.defaultPage.variant))defaultPage=data.defaultPage;}}catch{}}
 async function enroll(){const current=++revision;if(preview)return;if(consent!=='yes'){displayPage(defaultPage);return;}
@@ -60,16 +84,19 @@ async function enroll(){const current=++revision;if(preview)return;if(consent!==
  try{const data=await api({action:'enroll',visitorId,locale:lang,device:matchMedia('(max-width:760px)').matches?'mobile':'desktop',source});
  if(current!==revision||consent!=='yes')return;enrollment=data.enrollment||null;if(displayPage(enrollment||defaultPage)&&enrollment&&document.visibilityState==='visible')measure('exposure');}catch{if(current===revision)displayPage(defaultPage)}
 }
-async function choose(value){const old=enrollment;consent=value;storage.set('wl_measurement',value);$('consent').hidden=true;$('privacy-dialog').close();revision++;
+async function choose(value){const old=enrollment;consent=value;storage.set('wl_measurement',value);$('consent').hidden=true;$('privacy-dialog')?.close();revision++;
  await loadDefault();
  if(value==='yes'){await enroll()}else{enrollment=null;storage.remove('wl_visitor');if(old)try{await api({action:'withdraw',token:old.token})}catch{}displayPage(defaultPage)}
 }
 $('wl-lang-select').addEventListener('change',e=>{lang=e.target.value;storage.set('wl_lang',lang);q.set('lang',lang);history.replaceState(null,'','?'+q+location.hash);render()});
-document.querySelector('.menu-toggle').addEventListener('click',e=>{const open=e.currentTarget.getAttribute('aria-expanded')!=='true';e.currentTarget.setAttribute('aria-expanded',String(open));$('site-nav').classList.toggle('open',open)});
+document.querySelector('.menu-toggle')?.addEventListener('click',e=>{const open=e.currentTarget.getAttribute('aria-expanded')!=='true';e.currentTarget.setAttribute('aria-expanded',String(open));$('site-nav').classList.toggle('open',open)});
 document.addEventListener('click',e=>{const a=e.target.closest('[data-event]');if(a)measure(a.dataset.event);if(e.target.closest('#site-nav a')){$('site-nav').classList.remove('open');document.querySelector('.menu-toggle').setAttribute('aria-expanded','false')}});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')measure('exposure')});
+if(revised) document.getElementById('demo')?.addEventListener('click',e=>{
+ if(e.currentTarget.dataset.event==='steam_click') measure('demo_click');
+});
 document.querySelectorAll('[data-consent]').forEach(n=>n.addEventListener('click',()=>choose(n.dataset.consent)));
-$('privacy-open').addEventListener('click',()=>$('privacy-dialog').showModal());$('privacy-close').addEventListener('click',()=>$('privacy-dialog').close());
+$('privacy-open')?.addEventListener('click',()=>$('privacy-dialog').showModal());$('privacy-close')?.addEventListener('click',()=>$('privacy-dialog').close());
 // Keep the provider's original form ID, action and callback contract. Only a confirmed
 // MailerLite response may display success; ordinary clicks never simulate a signup.
 window.ml_webform_success_47615861=()=>{

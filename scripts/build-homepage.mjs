@@ -7,12 +7,15 @@ const path = p => fileURLToPath(new URL('../' + p, import.meta.url));
 export async function buildHomepage() {
   const inputs = ['package-lock.json', 'scripts/build-homepage.mjs', 'integrations/web/testsite/site.js', 'integrations/web/testsite/variants.js', 'integrations/web/testsite/content.json', 'integrations/web/testsite/funding.json', 'integrations/web/shop/attribution.js', 'public/testsite/index.html', 'public/testsite/site.css'];
   const assets = (await readdir(path('public/testsite/assets'))).sort();
+  const alternate = 'integrations/web/testsite/alternate/';
+  const alternateFiles = (await readdir(path(alternate))).sort();
+  inputs.push(...alternateFiles.map(name => alternate + name), 'integrations/web/testsite/alternate-ui.js', 'integrations/web/testsite/measurement-copy.js', 'integrations/web/steam-attribution.js', 'integrations/web/steam-click-budget.js');
   inputs.push(...assets.map(name => 'public/testsite/assets/' + name));
   const hash = createHash('sha256');
   for (const name of inputs) {
     const bytes=await readFile(path(name));
     // Windows checkout CRLF and Netlify Linux LF must produce the same page ID.
-    hash.update(name).update(name.startsWith('public/testsite/assets/')?bytes:bytes.toString('utf8').replaceAll('\r\n','\n'));
+    hash.update(name).update(name.startsWith('public/testsite/assets/') || /\.(woff2|png)$/.test(name) ? bytes : bytes.toString('utf8').replaceAll('\r\n','\n'));
   }
   const id = 'page-' + hash.digest('hex').slice(0, 20);
   const base = '/testsite/versions/' + id + '/';
@@ -24,6 +27,8 @@ export async function buildHomepage() {
   if (!exists) {
     await mkdir(snapshot, {recursive:true});
     await cp(path('public/testsite/assets'), snapshot + 'assets', {recursive:true});
+    await cp(path(alternate), snapshot + 'b', {recursive:true});
+    await build({entryPoints:[path('integrations/web/testsite/alternate-ui.js')],bundle:true,minify:true,format:'iife',target:['es2020'],outfile:snapshot+'b/ui.js'});
     for (const file of ['index.html','site.css','site.js']) {
       let data = await readFile(path('public/testsite/' + file), 'utf8');
       if (file === 'index.html') data = data.replaceAll('/testsite/assets/', base+'assets/').replace('/testsite/site.css',base+'site.css').replace('/testsite/site.js',base+'site.js');

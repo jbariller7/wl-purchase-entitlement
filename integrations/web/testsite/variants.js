@@ -3,7 +3,7 @@
 // Every build freezes the HTML, CSS, JS and assets under a content-addressed URL.
 export const variants = {
   A: { label: 'Adventure + demo first', heroKey: 'heroA', primary: 'play', reverseHero: false, content: {}, sectionOrder: [] },
-  B: { label: 'Language goal + editions first', heroKey: 'heroB', primary: 'buy', reverseHero: true, content: {}, sectionOrder: [] }
+  B: { label: 'Gameplay, editions and language funding', heroKey: 'heroB', primary: 'buy', reverseHero: true, content: {}, sectionOrder: [] }
 };
 export function variantContent(shared, overrides) {
   const result = { ...shared };
