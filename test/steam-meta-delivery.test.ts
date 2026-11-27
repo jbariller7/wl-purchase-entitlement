@@ -1,0 +1,12 @@
+import {afterEach,beforeEach,expect,it,vi} from 'vitest';
+const state=vi.hoisted(()=>({withdrawn:false,exists:true,consent:true}));
+vi.mock('../src/infrastructure/firebase.js',()=>({firestore:()=>({doc:(path:string)=>({get:async()=>path.startsWith('steamWithdrawals/')?{exists:state.withdrawn}:{exists:state.exists,data:()=>({consent:state.consent})}})})}));
+import {sendMetaConversion} from '../src/ads/conversion-senders.js';
+import {resetEnvironmentForTests} from '../src/config/env.js';
+const previous={...process.env};
+const payload={conversionKind:'steam_modelled_purchase',steamClickId:'test-click',steamVisitorHash:'test-hash',eventName:'Purchase',eventId:'steam-model-v1:test',eventTime:1795680000,eventSourceUrl:'https://store.steampowered.com/app/3599480/',actionSource:'other',modelScore:85,modelVersion:'steam-cohort-v1',timePrecision:'sales_window',reportId:'test-report',value:20,currency:'USD',product:'steam_app_3599480',fbc:'fb.1.1795600000000.test'};
+beforeEach(()=>{state.withdrawn=false;state.exists=true;state.consent=true;Object.assign(process.env,{META_PIXEL_ID:'test-pixel',META_ACCESS_TOKEN:'test-token',META_GRAPH_API_VERSION:'v23.0'});resetEnvironmentForTests();vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('{"events_received":1}',{status:200})));});
+afterEach(()=>{process.env={...previous};resetEnvironmentForTests();vi.unstubAllGlobals();});
+it('preserves model disclosure and actual click identifier in the Meta payload',async()=>{await sendMetaConversion(payload);const body=JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body));expect(body.data[0]).toMatchObject({action_source:'other',event_id:payload.eventId,event_time:payload.eventTime,user_data:{fbc:payload.fbc},custom_data:{modelled:true,model_score:85,time_precision:'sales_window'}});expect(body.data[0].user_data.em).toBeUndefined();});
+it('does not send after consent withdrawal',async()=>{state.withdrawn=true;expect(await sendMetaConversion(payload)).toMatchObject({skipped:true,eventsReceived:0});expect(fetch).not.toHaveBeenCalled();});
+it('does not send after raw click expiry or missing consent',async()=>{state.exists=false;expect(await sendMetaConversion(payload)).toMatchObject({skipped:true});state.exists=true;state.consent=false;expect(await sendMetaConversion(payload)).toMatchObject({skipped:true});expect(fetch).not.toHaveBeenCalled();});

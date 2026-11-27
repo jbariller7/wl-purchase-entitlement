@@ -1,3 +1,4 @@
+import {renderSteamAttribution,bindSteamAttribution} from './steam-attribution.js';
 import {bindManualAccess} from './manual-access.js';
 import websiteDefaultPrices from '../../../catalog/website-prices.json';
 import {hasDirectoryFilters, searchDirectory} from './directory-search.js';
@@ -176,8 +177,9 @@ function majorAmount(currency, unitAmount) {
   return (Number(unitAmount) / 10 ** digits).toFixed(digits);
 }
 
-const views = { overview: "Overview", customers: "Customers", contacts: "Contacts", vip: "Beyond VIP", discounts: "Discount links", sales: "Website sales", experiments: "Website A/B tests", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
+const views = { steam: "Steam attribution", overview: "Overview", customers: "Customers", contacts: "Contacts", vip: "Beyond VIP", discounts: "Discount links", sales: "Website sales", experiments: "Website A/B tests", billing: "Billing & prices", imports: "Imports", operations: "Operations", inventory: "Key inventory", audit: "Audit history", settings: "Settings" };
 const endpoints = {
+  steam: "/.netlify/functions/steam-attribution-admin",
   experiments: "/admin-api/v1/experiments",
   contacts: "/admin-api/v1/contacts",
   vip: "/admin-api/v1/beyond-vip",
@@ -417,6 +419,7 @@ async function api(path, options = {}) {
   return body;
 }
 function demoApi(path, options) {
+  if(path==="/.netlify/functions/steam-attribution-admin") {if(options.method==="POST")throw Error("Steam reconciliation requires an authenticated production admin.");return {clicks:[],reports:[],allocations:[],truncated:false};}
   if(path.startsWith('/admin-api/v1/beyond-vip'))return {reservations:[],nextCursor:null};
   if(path.startsWith('/admin-api/v1/contacts'))return {messages:[],nextCursor:null};
   if(path.startsWith('/admin-api/v1/experiments'))return demoExperiments(path,options);
@@ -699,10 +702,11 @@ async function loadView(view) {
       directory.result = accounts;
     }
     else if (view === "imports") data = await api("/admin-api/v1/imports");
-    else if (["vip", "contacts", "discounts", "sales", "experiments", "billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
+    else if (["steam", "vip", "contacts", "discounts", "sales", "experiments", "billing", "operations", "inventory", "audit", "settings"].includes(view)) data = await api(endpoints[view]);
     if (revision !== viewLoadRevision || state.view !== view) return;
-    const content = view === "vip" ? renderVip(data) : view === "contacts" ? renderContacts(data) : view === "experiments" ? renderExperiments(data) : (view === "discounts" || view === "sales") ? renderDiscountLinks(data,view === "sales") : view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports(data) : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
+    const content = view === "steam" ? renderSteamAttribution(data) : view === "vip" ? renderVip(data) : view === "contacts" ? renderContacts(data) : view === "experiments" ? renderExperiments(data) : (view === "discounts" || view === "sales") ? renderDiscountLinks(data,view === "sales") : view === "overview" ? renderOverview(data) : view === "customers" ? renderCustomers() : view === "billing" ? renderBilling(data) : view === "imports" ? renderImports(data) : view === "operations" ? renderOperations(data) : view === "inventory" ? renderInventory(data) : view === "audit" ? renderAudit(data) : renderSettings(data);
     appNode.innerHTML = shell(content); bindShell(); bindView();
+    if(view === "steam") bindSteamAttribution({api,toast,reload:()=>loadView(view)},data);
     if(view === "experiments") bindExperiments({api,toast,reload:()=>loadView(view)});
     if(view === "vip") bindVip({api,toast},data);
     if(view === "contacts") bindContacts({api,toast,reload:()=>loadView(view)});

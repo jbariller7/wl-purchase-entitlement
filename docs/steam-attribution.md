@@ -1,0 +1,36 @@
+# Steam reconciliation and Meta delivery
+
+## Sources already found
+- Canonical reporting spreadsheet: https://docs.google.com/spreadsheets/d/15zn0MHwsfkG20eBvEQmFb4BdTto2xEM9z2RAKtfgDow/edit, tab `Steam_Sales`.
+- Its producer is `C:/Users/utilisateur/Documents/wl-reporting/lib/steam-sales.js`: Valve Financial API, app/country/transaction-currency aggregates, Pacific financial dates. `net_revenue` and `gross_revenue` are USD irrespective of the `currency` column. Never apply a second FX conversion to them.
+- Verified UTM format sample: `C:/Users/utilisateur/Downloads/utm_3599480_all_20260221_20260306_country.csv`. This historical sample is for format validation only, never current conversion submission.
+- UTM exports: Steamworks → game → Marketing & Visibility → UTM Analytics → download country CSV. Keep original `utm_APPID_all_YYYYMMDD_YYYYMMDD_country.csv` filename. The export has GMT visit dates; purchases can follow within 72 hours and finalize four days after the visit. No customer IDs are present.
+
+## Collection
+`integrations/web/steam-attribution.js` runs through shared directory.js on the homepage, retained A/B versions and supporting pages. Every Steam app anchor receives cohort UTMs; optional measurement records clicks only after consent, outside variant previews, excluding GPC/opt-out. Each record has server timestamp, server country (unknown remains unknown), app ID, placement, page, visitor UUID, actual saved Meta fbc/fbp if available, source campaign/ad-set/ad IDs and outgoing UTMs. No click ID or email is put in the Steam URL.
+
+Recommended inbound Meta URL parameters: `utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.id}}&adset_id={{adset.id}}&ad_id={{ad.id}}`. This task does not change existing ads. Ads sent directly to Steam do not traverse this recorder. A tracked first-party landing page would require changing those ad destinations separately.
+
+For cross-origin native Steam iframes, JavaScript cannot read the internal button clicks. The iframe URL also receives cohort UTMs, and an adjacent tracked Steam button is supplied. Never record iframe focus, visibility or blur as a click. Use the tracked button as the primary CTA for measurable placements.
+
+## Daily review
+1. Admin → Steam attribution → select a completed Pacific sales day → Load sales from reporting sheet. Import the listed eligible windows. No sends occur. The server account uses its existing Sheets read credential; if access is absent the UI reports that explicitly.
+2. Exclude partially synced dates. A 04:00 UTC sync is before the previous Pacific day closes; the next sync or a reporting refresh after close is needed. No missing row is treated as zero.
+3. Upload current Steam UTM country exports. Reimporting the same exact range refreshes counts; overlapping ranges for the same app/country/full five-parameter cohort are rejected to prevent double-counting. Use daily visit windows consistently. Exports may be provisional for four days. UTMs are a subset of sales, never extra units.
+4. Choose a sales window and evidence threshold, then calculate suggestions. Default 80/100. Scores: same app/country 30; click in sales window 20 or preceding 72 hours 10; positive matching UTM cohort 35; only observed browser 10. This is an uncalibrated evidence score, not a measured probability. Unknown/organic traffic remains unobserved. No score reaches 100.
+5. Review candidates, their competing browsers, time, placement, identifiers and data completeness. Select only the allocations to send. Default event `SteamPurchaseEstimate` keeps modeled signals separate. Optional `Purchase` mode includes `conversion_kind=steam_modelled_purchase`, score, model version, sales-window time precision and report ID. Meta does not probabilistically weight the score. The actual sale time/individual amount are unavailable: end-of-window time and mean value are explicitly estimates. Automatic matching can choose the wrong visitor.
+6. Approve selected events. The backend verifies limits and writes the audit, allocation receipt and existing Meta outbox job transactionally. The existing worker sends/retries; refresh to see delivery state. A successful API acknowledgement is not proof of ad attribution.
+
+## Controls and limitations
+- Never allocate above net paid units, UTM cohort purchases, or reuse a browser/app. Report windows cannot overlap for one app/country; report IDs normalize timezones. Event IDs remain stable across retry and event-name choices. At most 80 approvals per request.
+- Existing launch/PDF proxy events remain unchanged. Without a shared buyer/receipt identity, these can overlap with modeled events. Stable modeled IDs prevent retries, not cross-source duplicates. Attribution is also biased toward consenting observed browsers; this is not full Steam coverage.
+- No events older than six days are queued; never replace original time with send time. No sends in deployment previews. User approval is required per batch through the admin screen; imports and a low threshold alone do not enable delivery.
+- Source matching retains Pacific sales days and UTC UTM visit windows independently. Global UTM quota consumption prevents a multi-day export from being reused for every sales day.
+- Raw clicks expire after 30 days through an hourly cleanup. Withdrawal stops later delivery via a tombstone checked immediately before Meta submission. Completed outbox payloads use the existing redaction mechanism.
+- The compact admin listing is capped at 500; reconciliation rejects inputs beyond its 5,000-record safety limit rather than silently using a partial sample. Reports with refunds or revisions need investigation; approved historical windows are immutable, not silently replaced.
+- The Sheets sales adapter sums net units and net USD revenue (excluding tax, before Steam fee), not customer gross receipt values. Its source reference states this basis. The manual fallback can use verified gross figures if available.
+
+## Validation and rollout
+Run `npm run build:server`, `npx vitest run test/steam-reconciliation.test.ts test/steam-sources.test.ts test/steam-click.test.ts test/steam-meta-delivery.test.ts test/conversion-senders.test.ts test/steam-bonus-conversion.test.ts test/steam-bonus-endpoint.test.ts`, and `npm run build:widget`. Visually inspect the admin tab and consent UI in English/French/Spanish. Use synthetic examples only locally; never send test purchases into the production pixel.
+
+References: https://partner.steamgames.com/doc/marketing/utm_analytics and https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/

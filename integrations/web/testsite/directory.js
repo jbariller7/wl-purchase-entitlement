@@ -1,3 +1,4 @@
+import '../steam-attribution.js';
 import {ui,slugs,labels} from './pages-content.js';
 import {measurementCopy} from './measurement-copy.js';
 // Shared navigation is outside the frozen A/B page content. It is applied to

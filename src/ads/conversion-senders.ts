@@ -1,7 +1,12 @@
 import { metaConversionEnv, tiktokConversionEnv } from "../config/env.js";
 
 interface ConversionPayload {
-  eventName: "Purchase" | "Subscribe" | "StartTrial";
+  eventName: "Purchase" | "Subscribe" | "StartTrial" | "SteamPurchaseEstimate";
+  actionSource?: "website" | "other";
+  modelScore?: number;
+  modelVersion?: string;
+  timePrecision?: string;
+  reportId?: string;
   eventId: string;
   eventTime: number;
   eventSourceUrl: string;
@@ -23,6 +28,11 @@ function asConversion(payload: Record<string, unknown>): ConversionPayload {
 }
 
 export async function sendMetaConversion(raw: Record<string, unknown>): Promise<Record<string,unknown>> {
+  if(raw.conversionKind==='steam_modelled_purchase'){
+    const {firestore}=await import('../infrastructure/firebase.js');const db=firestore();
+    const [click,withdrawal]=await Promise.all([db.doc('steamClicks/'+String(raw.steamClickId)).get(),db.doc('steamWithdrawals/'+String(raw.steamVisitorHash)).get()]);
+    if(!click.exists||click.data()?.consent!==true||withdrawal.exists)return {provider:'meta',eventsReceived:0,skipped:true,reason:'Steam measurement consent withdrawn or expired'};
+  }
   const configuration = metaConversionEnv();
   const pixel = configuration.META_PIXEL_ID;
   const token = configuration.META_ACCESS_TOKEN;
@@ -44,7 +54,7 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
         event_name: event.eventName,
         event_time: event.eventTime,
         event_id: event.eventId,
-        action_source: "website",
+        action_source: event.actionSource ?? "website",
         event_source_url: event.eventSourceUrl,
         user_data: userData,
         custom_data: {
@@ -52,7 +62,8 @@ export async function sendMetaConversion(raw: Record<string, unknown>): Promise<
           value: event.value,
           content_ids: [event.product],
           content_type: "product",
-          ...(event.conversionKind ? {conversion_kind:event.conversionKind} : {})
+          ...(event.conversionKind ? {conversion_kind:event.conversionKind} : {}),
+          ...(event.modelVersion ? {attribution_model:event.modelVersion,model_score:event.modelScore,time_precision:event.timePrecision,steam_report_id:event.reportId,modelled:true} : {})
         }
       }]
     }),

@@ -291,3 +291,15 @@ td { padding: 16px 24px; border-top: 1px solid var(--line); white-space: nowrap;
 @media(max-width:1100px) { .customer-filter-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
 @media(max-width:760px) { .customer-tools { grid-template-columns: minmax(0,1fr); } .customer-filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } .customer-detail-heading { align-items: flex-start; flex-direction: column; } }
 @media(max-width:420px) { .customer-filter-grid { grid-template-columns: minmax(0,1fr); } .customer-tool summary { padding: 18px; } }
+
+/* Steam attribution uses the same controls as the operations forms. */
+.steam-attribution .panel { padding: 24px; margin-bottom: 24px; }
+.steam-attribution .panel h3 { margin: 0 0 14px; }
+.steam-attribution .panel p { line-height: 1.55; color: var(--muted); }
+.steam-attribution .panel > label, .steam-attribution #steam-candidates > label { display: grid; gap: 8px; margin: 16px 0; }
+.steam-attribution input:not([type=checkbox]):not([type=range]), .steam-attribution select, .steam-attribution textarea { max-width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcf9; color: var(--ink); }
+.steam-attribution input[type=range] { width: min(100%, 480px); }
+.steam-attribution .stack-form { padding: 0; grid-template-columns: repeat(2,minmax(0,1fr)); }
+.steam-attribution .stack-form details { grid-column: 1 / -1; }
+.steam-attribution #steam-source-results { margin: 18px 0 28px; }
+@media(max-width:700px) { .steam-attribution .stack-form { grid-template-columns: 1fr; } .steam-attribution .panel { padding: 18px; } }
